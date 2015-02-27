@@ -1,0 +1,631 @@
+// == CSS base library
+// -- Version: 2014-11-27
+
+BASIC_COLOR       = #000000
+BASIC_FONT_FAMILY = Helvetica, Arial, sans-serif
+BASIC_FONT_SIZE   = 13
+BASIC_LINE_HEIGHT = 1.5em
+PX                = 1em / $BASIC_FONT_SIZE
+PAD               = 20 * $PX
+
+.reset:
+	color:       $BASIC_COLOR
+	font-family: $BASIC_FONT_FAMILY
+	font-size:   $BASIC_FONT_SIZE
+	line-height: $BASIC_LINE_HEIGHT
+	margin: 0
+	padding: 0
+	outline: 0
+	border: 0px solid transparent
+	background: transparent
+	width: auto
+	float: none
+	overflow: visible
+	position: static
+	text-align: left
+
+.no-animation:
+	&, *, div, span, .animated:
+		transition-property: "none" !important
+		transition-duration: "0.0s" !important
+
+.no-local-animation:
+	transition-property: "none" !important
+	transition-duration: "0.0s" !important
+
+.no-select:
+	&, *:
+		user-select: none !important
+		-moz-user-select: none !important
+		-webkit: none !important
+
+.no-break:
+	white-space: nowrap
+
+.no-overflow:
+	overflow: hidden
+
+.use-base:
+	color:       $BASIC_COLOR
+	font-family: $BASIC_FONT_FAMILY
+	font-size:   $BASIC_FONT_SIZE
+	line-height: 1.25em
+	button, tr td, tr th:
+		font-size:   100%
+	a, a:active, a:hover, a:visited, a:focus:
+		outline: 0
+	.draggable:
+		user-select: none
+		cursor: grab
+		cursor: "-moz-grab"
+		cursor: "-webkit-grab"
+	.scrollbar:
+		user-select: none
+	&.dragging, .dragging:
+		user-select: none
+		cursor: grab
+		cursor: "-moz-grab"
+		cursor: "-webkit-grab"
+		cursor: grabbing
+		cursor: "-moz-grabbing"
+		cursor: "-webkit-grabbing"
+		transition-property: "none" !important
+		transition-duration: "0.0s" !important
+	.placeholder:
+		display: none
+	.no-select:
+		user-select: none
+	.cursor:
+		user-select: none
+	input:focus, textarea:focus:
+		outline: none
+
+	.vsep:
+		height: 0.75em
+	// ========================================================================
+	// TEXT TRANSFORM
+	// ========================================================================
+
+	.capitalize:
+		text-transform: capitalize
+
+	.uppercase:
+		text-transform: uppercase
+
+	// ========================================================================
+	// CURSORS
+	// ========================================================================
+
+	.cursor-move:
+		cursor: move
+	.cursor-pointer:
+		cursor: pointer
+	.cursor-grab:
+		user-select: none
+		cursor: grab
+		cursor: "-moz-grab"
+		cursor: "-webkit-grab"
+	.action, .button, button, .do:
+		cursor: pointer
+		user-select: none
+
+	// ========================================================================
+	// TABLES
+	// ========================================================================
+
+	table td, table th:
+		color:       $BASIC_COLOR
+		font-family: $BASIC_FONT_FAMILY
+		line-height: $BASIC_LINE_HEIGHT
+		font-size:   100%
+		padding: 0
+		margin: 0
+		text-align: left
+		vertical-align: top
+
+	.no-links:
+		a, a:active, a:visited, a:hover:
+			color: black
+			text-decoration: none
+
+	// ========================================================================
+	// LISTS
+	// ========================================================================
+
+	ul, li:
+		margin:  0
+		padding: 0
+		list-style-type: none
+
+	ul:
+		&.as-list:
+			padding-left: $PAD
+			&, li:
+				list-style-type: disc
+		&.no-list, &.as-horizontal:
+			padding: 0em
+			margin:  0em
+			li:
+				list-style-type: none
+		&.as-horizontal li:
+			display:       inline-block
+			margin:        0em
+			margin-right:  0.5em
+		&.as-vertical li:
+			margin:        0em
+			margin-top:    0.5em
+			margin-bottom: 0.5em
+
+
+	// ========================================================================
+	// STYLE
+	// ========================================================================
+
+	.b:
+		font-weight: bold
+	.u:
+		text-decoration: underline
+
+	.light :
+		opacity: 0.75
+
+	.lighter:
+		opacity: 0.5
+
+	.small :
+		font-size: 90%
+
+	.smaller :
+		font-size: 80%
+
+	.bigger :
+		font-size: 120%
+
+	// ========================================================================
+	// LAYOUT
+	// ========================================================================
+
+	.pos-rel :
+		position: relative
+
+	.pos-abs :
+		position: absolute
+
+	.pos-fixed:
+		position: fixed
+
+	.left :
+		float: left
+
+	.right :
+		float: right
+
+	.hidden :
+		display: none !important
+
+	.invisible:
+		visibility: hidden
+
+	.visible:
+		visibility: visible
+	
+	.transparent:
+		opacity: 0.0
+		transition-property: "opacity"
+		transition-duration: "1.0"
+
+	.opaque:
+		opacity: 1.0
+
+	.clear :
+		clear: both
+
+	.clear-left:
+		clear: left
+
+	.clear-after:after:
+		content: "\"\"\"\""
+		display:block
+		height:0
+		line-height: 0
+		clear:both
+
+	.last-clear-after:
+		> *:last-child, > .last:
+			&:after:
+				content: "\"\"\"\""
+				display:block
+				height:0
+				line-height: 0
+				clear:both
+				visibility:hidden
+
+	.clearer :
+		clear: both
+		display: block
+		position: relative
+		margin: 0px
+		padding: 0px
+		height: 0px
+		line-height: 0px
+		width: 0px
+		clear: both
+
+	.clearfix:after :
+		content: "\"\"\"\""
+		display:block
+		height:0
+		line-height: 0
+		clear:both
+		visibility:hidden
+
+	.cleared:
+		display: inline-block;
+
+	.cleared:after:
+		content: "\"\" \"\""
+		display: block
+		height: 0
+		clear: both
+		overflow: hidden
+		visibility: hidden
+
+	.cleared:
+		display: block
+
+	.clearfix :
+		display: inline-block
+
+	html[xmlns] .clearfix :
+		display: block
+
+	*:first-child+html .clearfix :
+		height:1%
+
+	* html .clearfix:
+		height:1%
+
+	.align-left :
+		text-align: left !important
+
+	.align-center :
+		text-align: center !important
+
+	.align-right :
+		text-align: right !important
+
+	// ========================================================================
+	// POSITIONING
+	// ========================================================================
+
+	.to-n:
+		position: absolute
+		top:      0px
+
+	.to-ne:
+		position: absolute
+		top:      0px
+		right:    0px
+
+	.to-nw:
+		position: absolute
+		top:      0px
+		left:     0px
+
+	.to-s:
+		position: absolute
+		bottom:   0px
+
+	.to-se:
+		position: absolute
+		bottom:   0px
+		right:    0px
+
+	.to-sw:
+		position: absolute
+		bottom:   0px
+		left:     0px
+
+	.to-w:
+		position: absolute
+		left:     0px
+
+	.to-e:
+		position: absolute
+		right:    0px
+
+	.to-m:
+		position: absolute
+		left:     0px
+		right:    0px
+		text-align: center
+
+	// ========================================================================
+	// DIMENSION / SIZE
+	// ========================================================================
+
+	.expand:
+		position: absolute
+		top:      0px
+		bottom:   0px
+		left:     0px
+		right:    0px
+
+	.expand-w:
+		position: absolute
+		left:     0px
+		right:    0px
+
+	.expand-h:
+		position: absolute
+		top:      0px
+		bottom:   0px
+
+	.w-0:
+		width: 0px
+		overflow: hidden
+
+	.w-25p :
+		width: 25% !important
+
+	.w-33p :
+		width: 33.3332% !important
+
+	.w-50p :
+		width: 50% !important
+
+	.w-66p :
+		width: 66.6666% !important
+
+	.w-75p :
+		width: 75% !important
+
+	.w-100p :
+		width: 100% !important
+
+	.w-200 :
+		width: 200px !important
+
+	.w-250 :
+		width: 250px !important
+
+	.w-400 :
+		width: 400px !important
+
+	.w-600 :
+		width: 600px !important
+
+	.span-last :
+		clear: right
+
+	.span-10p:
+		float: left
+		width: 10%
+
+	.span-15p:
+		float: left
+		width: 15%
+
+	.span-20p :
+		float: left
+		width: 20%
+
+	.span-25p :
+		float: left
+		width: 25%
+
+	.span-30p :
+		float: left
+		width: 30.0%
+
+
+	.span-33p :
+		float: left
+		width: 33.332%
+
+	.span-35p :
+		float: left
+		width: 35.0%
+
+	.span-40p :
+		float: left
+		width: 50%
+
+	.span-50p :
+		float: left
+		width: 50%
+
+	.span-60p :
+		float: left
+		width: 50%
+
+	.span-65p :
+		float: left
+		width: 65%
+
+	.span-66p :
+		float: left
+		width: 66.332%
+
+	.span-70p :
+		float: left
+		width: 70%
+
+	.span-75p :
+		float: left
+		width: 75%
+
+	.span-80p :
+		float: left
+		width: 80%
+
+	.span-85p :
+		float: left
+		width: 85%
+
+	.span-90p:
+		float: left
+		width: 90%
+
+	.span-100 :
+		float: left
+		width: 100px
+
+	.span-200 :
+		float: left
+		width: 200px
+
+	.span-400 :
+		float: left
+		width: 400px
+
+	.span-600 :
+		float: left
+		width: 600px
+
+	// ========================================================================
+	// COLUMNS
+	// ========================================================================
+
+	.columns:after:
+		content: "\"\"\"\""
+		display:block
+		height:0
+		line-height: 0
+		clear:both
+
+	.col:
+		> .header, > .body, > .footer:
+			padding-left:  $PAD
+			padding-right: $PAD
+
+	.col.first, .col:first-child:
+		> .header, >.body, > .footer:
+			padding-left: 0em !important
+
+	.col.last, .col:last-child:
+		&:after:
+			content: "\"\"\"\""
+			display:block
+			height:0
+			line-height: 0
+			clear:both
+			visibility:hidden
+		> .header, >.body, > .footer:
+			padding-right: 0em !important
+
+	// ========================================================================
+	// GRID
+	// ========================================================================
+
+	.by-2 > * :
+		float: left
+		width: 50%
+
+	.by-3 > * :
+		float: left
+		width: 33.331%
+
+	.by-4 > * :
+		float: left
+		width: 25%
+
+	.by-5 > * :
+		float: left
+		width: 20%
+
+	.by-6 > * :
+		float: left
+		width: 16.667%
+
+	.by-7 > * :
+		float: left
+		width: 14.285%
+
+	.by-8 > * :
+		float: left
+		width: 12.5%
+
+	.by-9 > * :
+		float: left
+		width: 11.111%
+
+	.by-2, .by-3, .by-4, .by-5, .by-6, .by-7, .by-8, .by-9 :
+		&:after:
+			content: "\"\"\"\""
+			display: block
+			clear: both
+			height: 0em
+
+	// ========================================================================
+	// TABLE
+	// ========================================================================
+
+	.as-table:
+		display: table
+		&.expand:
+			position: inherit
+			top: auto
+			left: auto
+			right: auto
+			bottom: auto
+			width: 100%
+			height: 100%
+
+	.as-cell:
+		display: table-cell
+		&.centered:
+			text-align: center
+			vertical-align: middle
+
+	// ========================================================================
+	// STATE
+	// ========================================================================
+
+	.loading:
+		opacity: 0.0
+		transition-property: "opacity"
+		transition-duration: "1.0s"
+
+	.loaded:
+		opacity: 1.0
+		transition-property: "opacity"
+		transition-duration: "1.0s"
+
+	.hover-expandable:
+		.when-hover:
+			display: none
+		&:hover .when-hover:
+			display: block
+		&:hover .when-nohover:
+			display: none
+		&.no-hover:
+			.when-nohover:
+				display: auto
+			.when-hover:
+				display: none
+
+	// ========================================================================
+	// TEMPLATES & DEBUGGING
+	// ========================================================================
+
+	.debug:
+		border: 1px solid red
+		margin: -1px
+
+	#Templates, .template, .templates :
+		display: none !important
+
+	#Data, .data:
+		display: none !important
+
+	.PLACEHOLDER:
+		background-color: "rgba(255,255,0,0.75)"
+
+	.DEBUG:
+		border: 1px solid red
+
+	.DEBUG_FILL:
+		background: red
+
+// EOF

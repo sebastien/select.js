@@ -1,0 +1,312 @@
+// Updates: 2014-12-23
+
+EM             = 14
+PX             = 1em/$EM
+PAD            = 1.25em
+COLOR_TXT      = #202020
+COLOR_PAGE_BG  = #F0F0F0
+BG_LIGHT       = #F0F0F0
+COLOR_BD       = #E0E0E0
+CONTRAST_COLOR = #A0A0A0
+BORDER_COLOR   = #202020
+
+html:
+	background: $COLOR_PAGE_BG
+	padding: 0em
+	margin: 0em
+
+.use-texto .texto-index, .texto-index:
+	position: fixed
+	top: 0em
+	left: 0em
+	bottom: 0em
+	width:  300 * $PX
+	background: #FFFFFF
+	box-shadow: 1px 1px 2px #E0E0E0
+	overflow: auto
+
+.use-texto:
+	color:      $COLOR_TXT
+	font-size:  $EM * 1px
+	line-height: 1.25em
+	margin: 0em
+	font-family: Helvetica, Arial, sans-serif
+	.texto-index:
+		background-color: #D0D0D0
+		font-size: 80%
+
+		ul, ul li:
+			margin: 0em
+			padding: 0em
+			list-style-type: none
+		li:
+			> a:
+				padding: 0.5em
+				padding-left: $PAD
+				font-weight: bold
+				display: block
+				margin-top:    0.5em
+				margin-bottom: 0.5em
+				font-size: 110%
+				line-height: 1.35em
+		ul.type-a_anchor, ul.type-h4:
+			li > a:
+				font-weight: normal
+				margin: 0em
+				font-size: 100%
+				line-height: 1.35em
+				padding-bottom: 0em
+				border-bottom: 0px solid transparent
+		a, a:hover:
+			color: #404040
+			display: block
+			text-decoration: none
+			&:hover:
+				color: $COLOR_TXT
+		ol:
+			padding: $PAD / 2
+		ol li:
+			list-style-type: none
+			padding: 0em
+			margin:  0em
+		ul.type-h1 > li:
+			border-top:    1px solid #E0E0E0
+			border-bottom: 1px solid #C0C0C0
+		ul.type-h1 > li:first-child:
+			background: #404040
+			padding: $PAD / 2
+			li: 
+				margin: 0em
+			a:
+				padding: 0em
+				font-size: 140%
+				line-height: 1.35em
+				&, &:hover, &:active:
+					color: #E0E0E0
+			.type-h2 a:
+				font-size: 120%
+				line-height: 1.35em
+				font-weight: normal
+				color: #D0D0D0
+	.document, &.document:
+		background: #FFFFFF
+		padding: 6em
+		margin: 0em
+		max-width:  50em
+		box-shadow: 1px 1px 2px #E0E0E0
+		header:
+			border-bottom: 1px solid #F0F0F0
+			margin-bottom:  $PAD * 2
+			padding-bottom: $PAD * 1
+		> .title:
+			border-bottom: 1px solid #D0D0D0
+			&:after:
+				content: "\"\"\"\""
+				display: block
+				margin-top: $PAD
+				height: 1px
+				background-color: black
+
+			h1:
+				font-size:   240%
+				line-height: 1.45em
+				font-weight: bold
+				margin: 0em
+			h2:
+				margin: 0em
+				font-size:   200%
+				line-height: 1.45em
+				font-weight: bold
+
+	span.hi:
+		background-color: yellow
+		padding-left: 0.25em
+		padding-right: 0.25em
+	.term:
+		background-color: #F0F0F0
+		padding-left: 0.25em
+		font-weight: bold
+		padding-right: 0.25em
+	.highlight:
+		background-color: #FFFF00
+	.header:
+		margin-top: 3em
+		margin-bottom: 2em
+		&, *:
+			font-family: Helvetica, Arial, sans-serif
+		.number:
+			display: none
+
+	p:
+		line-height: 1.45em
+	sub:
+		font-size: 75%
+		vertical-align: bottom
+	pre:
+		margin-top: 1em
+		margin-bottom: 1em
+
+	h1, h2, h3, h4, h5:
+		margin-top:    1em
+		margin-bottom: 0.5em
+		font-weight:   bold
+		a:
+			color: $COLOR_TXT
+			text-decoration: none
+	h1:
+		font-size: 200%
+		line-height: 1.25em
+	h2:
+		font-size: 180%
+		line-height: 1.25em
+	h3:
+		font-size: 160%
+		line-height: 1.25em
+	h4:
+		font-size: 140%
+		line-height: 1.25em
+	h5:
+		font-size: 120%
+		line-height: 1.25em
+	p:
+		margin-top: 0.5em
+		margin-bottom: 0.5em
+
+	ul, ol, dl:
+		margin-top:    0.5em
+		margin-bottom: 0.5em
+		margin-left: 1em
+		padding-left: 1em
+		dt:
+			font-weight: bold
+		dd:
+			margin-bottom: 1.25em
+			margin-top: 1.25em
+		li:
+			margin-bottom: 1.25em / 3
+			margin-top:    1.25em / 3
+	dl:
+		margin-left: 0em
+		padding-left: 0em
+
+	ul li:
+		list-style-type: disc
+
+	ol li:
+		list-style-type: decimal
+
+	pre:
+		background: #F0F0F0
+		padding: 1em
+		font-size: 90%
+		overflow: auto
+		code:
+			padding: 0em
+	code:
+		background: #F0F0F0
+		padding-left: 0.5em
+		padding-right: 0.5em
+		padding-top:    0.05/0.8em
+		padding-bottom: 0.05/0.8em
+		font-size: 90%
+
+
+	table:
+		width: 100%
+		border-collapse: collapse
+		tr td, tr th:
+			padding: 0.25em
+		thead:
+			th:
+				font-weight: bold
+				border-bottom: 2px solid #E0E0E0;
+		tr:
+			td:
+				border: 1px solid #F0F0F0
+			&:hover td:
+				background-color: #F0F0F0
+	.note:
+		border: 1px solid #E0E0E0
+		background-color: #F0F0F0
+		padding: 1.25em
+	.abstract:
+		font-size: 120%
+		line-height: 1.5em
+		margin-top: 1.25em
+		margin-bottom: 1.25em
+		font-style: italic
+	.script:
+		margin-top: 1.25em
+		margin-bottom: 1.25em
+	.example:
+		margin-bottom: 1.25em * 3
+		.controls:
+			background-color: #F0F0F0
+			padding: 0.5em
+		.graph:
+			border: 1px solid #F0F0F0
+			position: relative
+		.instructions:
+			font-style: italic
+			max-width: none
+		.frame:
+			position: absolute
+			background-color: #F0F0F0
+			padding: 0.5em
+			padding-right: 0.75em
+			padding-left: 0.75em
+			text-align: right
+			font-size: 80%
+	table.meta, .content table:
+		margin-top:    1.5em
+		margin-bottom: 1.5em
+		padding:       1.5em
+		border-top:     2px solid black
+		border-bottom:  2px solid black
+		border-collapse: collapse
+		width: 100%
+		caption:
+			font-weight: bold
+			font-size: 120%
+			padding-bottom: 10px
+			border-bottom: 2px solid black
+		tr:
+			border-top:    1px solid $BORDER_COLOR
+			border-bottom: 1px solid $BORDER_COLOR
+			th, td:
+				padding-top: 0.5em
+				padding-bottom: 0.5em
+				pre:
+					padding: 0.25em
+			th:
+				font-weight: bold
+	table.meta:
+		border-collapse: collapse
+		border: 0px solid $BORDER_COLOR
+		margin-bottom: $PAD * 2
+		tr:
+			border-top:    0px solid $BORDER_COLOR
+			border-bottom: 0px solid $BORDER_COLOR
+			&, &:hover:
+				th, td:
+					padding-left:   0em
+					padding-top:    0em
+					padding-bottom: 0em
+					border: 0px solid transparent
+					vertical-align: middle
+					background: transparent
+		.name:
+			font-weight: bold
+			padding-right: 1.5em
+
+	.annNote:
+		.title:
+			display: inline
+			font-weight: bold
+			text-transform: capitalize
+			&:after:
+				content: "\"\":\"\""
+		.content:
+			display: inline
+			font-style: italic
+// EOF

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html(lang=en)
+	<head
+		<meta(charset=UTF-8)
+		<link(rel=stylesheet,type=text/css,href=lib/pcss/base.pcss)
+		<link(rel=stylesheet,type=text/css,href=lib/pcss/texto.pcss)
+		<link(rel=stylesheet,type=text/css,href=lib/pcss/testing.pcss)
+		<script(type="text/javascript",src="src/sizzle.js")
+		<script(type="text/javascript",src="src/select.js")
+		<script(type="text/javascript",src="lib/js/extend-2.6.7.js")
+		<script(type="text/javascript",src="lib/sjs/testing.sjs")
+	<body.reset.use-base.use-typography.use-texto.use-forms
+		# ---------------------------------------------------------------------
+		#
+		# DOCUMENT
+		#
+		# ---------------------------------------------------------------------
+		<div.document
+			<header
+				<h1:Select
+				<h2:2014-11-26
+			<p.abstract
+				Actuators are controls (or widgets) that allow to display/update
+				numeric values (int or float).
+		
+# EOF
