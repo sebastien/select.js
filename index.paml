@@ -7,6 +7,8 @@
 		<link(rel=stylesheet,type=text/css,href=lib/pcss/testing.pcss)
 		<script(type="text/javascript",src="src/sizzle.js")
 		<script(type="text/javascript",src="src/select.js")
+		<script(type="text/javascript",src="lib/js/html-5.0.4.js")
+		<script(type="text/javascript",src="lib/js/jquery-2.1.3.js")
 		<script(type="text/javascript",src="lib/js/extend-2.6.7.js")
 		<script(type="text/javascript",src="lib/sjs/testing.sjs")
 	<body.reset.use-base.use-typography.use-texto.use-forms
@@ -20,7 +22,63 @@
 				<h1:Select
 				<h2:2014-11-26
 			<p.abstract
-				Actuators are controls (or widgets) that allow to display/update
-				numeric values (int or float).
+			<div.section
+				<h3:Test case
+				<div#testing
+				<div#example.hidden
+					<ul
+						<li.one
+							<ul
+								<li.one
+								<li.two
+								<li.three
+						<li.two
+							<ul
+								<li.one
+								<li.two
+						<li.three
+							<ul
+								<li.one
+				<script@sugar
+					var T = testing
+					if typeof(modules select) == "undefined"
+						alert "Select: module cannot be loaded"
+					end
+					var S = modules select
+					var Selection = S Selection
+
+					T testCase "Operations"
+
+					T test "IsSelection"
+					T asFalse  (Selection Is (document createElement    "div" ))
+					T asFalse  (Selection Is (document createElementNS ("http://www.w3.org/2000/svg", "svg")))
+					T asTrue   (Selection Is (new Selection ()))
+
+					T test "IsNode"
+					T asTrue  (Selection IsNode (document createElement    "div" ))
+					T asTrue  (Selection IsNode (document createElementNS ("http://www.w3.org/2000/svg", "svg")))
+
+					T test "IsDOM"
+					T asTrue  (Selection IsDOM (document createElement    "div" ))
+					T asFalse (Selection IsDOM (document createElementNS ("http://www.w3.org/2000/svg", "svg")))
+
+					T test "IsSVG"
+					T asFalse (Selection IsSVG (document createElement    "div" ))
+					T asTrue  (Selection IsSVG (document createElementNS ("http://www.w3.org/2000/svg", "svg")))
+
+					T testCase "Selection"
+
+					T test "Unscoped"
+					var s = S "#example"
+					T equals      (s length, 1)
+					T asUndefined (s scope)
+
+					T test "Scoped"
+					var q = S ("> ul", s)
+					console log ("Q", q)
+					T equals  (q length, 1)
+					T equals  (q scope,  s)
+
+					T end ()
 		
 # EOF

@@ -1,6 +1,7 @@
 /**
  *
  * # Select
+ * ## A small library for DOM+SVG manipulation
  * 
  * Select is a small subset of jQuery's features implement for DOM and SVG nodes,
  * targetting modern browsers.
@@ -29,51 +30,135 @@
  *
 */
 
-(function( window ) {
+// -- MODULE DECLARATION ------------------------------------------------------
+var modules = typeof extend != "undefined" && extend.Modules || typeof modules!= "undefined" && modules || {};
+var select  = (function(modules) {
+// ----------------------------------------------------------------------------
 
 /**
  * @class Selection
 */
 var Selection  = function( selector, scope) {
-	this.nodes    = typeof(selector) == "string" ? Sizzle( selector, scope ) : selector;
+	if (typeof selector == "string") {
+		if (Selection.Is(scope)) {
+			var s       = scope.find(selector);
+			this.nodes  = s.nodes;
+		} else {
+			// TODO: Should double-check scope is either a string or a node
+			this.nodes = Sizzle(selector, scope);
+		}
+	} else if (Selection.IsNode(selector)) {
+		this.nodes = [selector];
+	} else if (selector) {
+		// TODO: Should check that selector is a either a list of nodes
+		this.nodes = Selection.Is(selector) ? selector.nodes : selector;
+	} else {
+		this.nodes = [];
+	}
 	this.selector = selector;
 	this.scope    = scope;
 	this.length   = this.nodes.length;
+	this._class   = Selection;
 };
 
+// ----------------------------------------------------------------------------
+// 
+// OPERATIONS
+//
+// ----------------------------------------------------------------------------
+
 /**
- * @operation Selection.IsDom
+ * @operation Selection.Is(value)
+ * Tells if the given value is a Selection instance
+ *
+ * ```
+ * select.Selection.Is(new Selection ());
+ * ```
+*/
+Selection.Is = function (s) {
+	return s && (s._class === Selection);
+}
+
+/**
+ * @operation Selection.IsNode(node)
+ * Tells if the given value is a DOM or SVG node
+ *
+ * ```
+ * select.Selection.IsNodel(document.createElement("div"));
+ * ```
+*/
+Selection.IsNode = function (node) {
+	return node && typeof(node.nodeType) != "undefined";
+}
+
+/**
+ * @operation Selection.IsDom(node)
+ * Tells wether the node is a DOM node or not
+ *
+ * ```
+ * select.Selection.IsDOM(document.createElement("div")) == true;
+ * select.Selection.IsDOM(document.createElementNS("http://www.w3.org/2000/svg", "svg")) == false;
+ * ```
 */
 Selection.IsDOM = function (node) {
+	return node && typeof(node.getBBox) === "undefined";
 }
 
+/**
+ * @operation Selection.IsDom(node)
+ * Tells wether the node is an SVG node or not
+ *
+ * ```
+ * select.Selection.IsSVG(document.createElement("div")) == false;
+ * select.Selection.IsSVG(document.createElementNS("http://www.w3.org/2000/svg", "svg")) == true;
+ * ```
+*/
 Selection.IsSVG = function (node) {
+	// SEE: http://www.w3.org/TR/SVG11/types.html#__svg__SVGLocatable__getBBox
+	return typeof(node.getBBox) != "undefined";
 }
 
-Selection.find  = function( selector ) {
+// ----------------------------------------------------------------------------
+// 
+// SELECTION
+//
+// ----------------------------------------------------------------------------
+
+Selection.prototype.find  = function( selector ) {
 	return new Selection (this.nodes.reduce(function(p,node,i,r){
 		return r.concat(Sizzle(selector, node));
 	}), []);
 }
 
-
-Selection.val      = function( ) {
-}
-
-Selection.data      = function(  ) {
-}
-
-Selection.text      = function(  ) {
-}
-
-Selection.html      = function(  ) {
-}
-
-Selection.filter      = function( selector ) {
+Selection.prototype.filter      = function( selector ) {
 	return new Selection (Sizzle.matches(selector, this.nodes))
 }
 
-Selection.addClass    = function( className ) {
+// ----------------------------------------------------------------------------
+// 
+// CONTENT / VALUE
+//
+// ----------------------------------------------------------------------------
+
+Selection.prototype.val      = function( ) {
+}
+
+Selection.prototype.data      = function(  ) {
+}
+
+Selection.prototype.text      = function(  ) {
+}
+
+Selection.prototype.html      = function(  ) {
+}
+
+// ----------------------------------------------------------------------------
+// 
+// ATTRIBUTES & STYLE
+//
+// ----------------------------------------------------------------------------
+
+Selection.prototype.addClass    = function( className ) {
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this.nodes[i];
 		if (node.classList) {
@@ -101,8 +186,7 @@ Selection.addClass    = function( className ) {
 	}
 	return this;
 }
-
-Selection.removeClass = function() {
+Selection.prototype.removeClass = function() {
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this.nodes[i];
 		if (node.classList) {
@@ -118,7 +202,7 @@ Selection.removeClass = function() {
 				var n = m + lc;
 				// If the className is surrounded by spaces or start/end, then
 				// we can remove it.
-				if ((m == 0)  || (c[p] == " ")) && ((n == la) || (c[n] == " ")) {
+				if (((m == 0)  || (c[p] == " ")) && ((n == la) || (c[n] == " "))) {
 				}
 			}
 			if (c.indexOf(className) == -1) {
@@ -126,22 +210,21 @@ Selection.removeClass = function() {
 			}
 		}
 	}
-}
-}
+};
 
-Selection.hasClass = function() {
-}
+Selection.prototype.hasClass = function() {
+};
 
-Selection.css         = function(name,value) {
+Selection.prototype.css         = function(name,value) {
 	// FIXME: Should normalize CSS properties and values, see
 	// animation Update
 	if (typeof(name) == "string") {
 	} else {
 	}
 	return this;
-}
+};
 
-Selection.attr        = function(name, value) {
+Selection.prototype.attr        = function(name, value) {
 	if (typeof(name) == "string") {
 	} else {
 		value = "" + value;
@@ -152,23 +235,36 @@ Selection.attr        = function(name, value) {
 		}
 	}
 	return this;
+};
+
+
+// ----------------------------------------------------------------------------
+// 
+// LAYOUT
+//
+// ----------------------------------------------------------------------------
+
+Selection.prototype.width       = function() {
 }
 
-Selection.width       = function() {
+Selection.prototype.height      = function() {
 }
 
-Selection.height      = function() {
+Selection.prototype.offset      = function() {
 }
 
-Selection.offset      = function() {
+Selection.prototype.scrollTop   = function() {
 }
 
-Selection.scrollTop   = function() {
+Selection.prototype.position    = function() {
 }
 
-Selection.position    = function() {
-}
 
+// ----------------------------------------------------------------------------
+// 
+// MAIN
+//
+// ----------------------------------------------------------------------------
 
 /**
  * @function
@@ -178,11 +274,14 @@ var select = function( selector, scope ) {
 }
 
 select.Selection = Selection;
+select.VERSION   = "0.0.0";
+select.LICENSE   = "http://ffctn.com/doc/licenses/bsd.html";
+modules.select   = select;
 
 // -- MODULE EXPORT -----------------------------------------------------------
-if      (typeof define === "function" && define.amd )      {define(function(){ return select; });}
+if      (typeof define === "function"  && define.amd )     {define(function(){ return select; });}
 else if (typeof module !== "undefined" && module.exports ) {module.exports          = select;}
-else                                                       {window.select           = select;}
-})( window );
+})(modules);
+// ----------------------------------------------------------------------------
 
 /* EOF */
