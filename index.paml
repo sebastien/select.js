@@ -80,13 +80,15 @@
 					T test "Scoped:node"
 					var n = document getElementById "example"
 					var q = S ("> ul", n)
-					T equals  (q length, 1)
-					T identical  (q scope,  n)
+					T equals     (q length, 1)
+					T asTrue     (Selection Is (q scope))
+					T identical  (q scope nodes [0],  n)
 
 					T test "Scoped:string"
 					var q = S ("> ul", "#example")
 					T equals     (q length, 1)
-					T identical  (q scope,  document getElementById "example")
+					T asTrue     (Selection Is (q scope))
+					T identical  (q scope nodes [0],  document getElementById "example")
 
 					var q = S ("> ul", "#example li")
 					T equals     (q length, 3)
@@ -96,6 +98,10 @@
 					var q = S ("> ul", s)
 					T equals     (q length, 1)
 					T identical  (q scope,  s)
+
+					T test "select() transparency"
+					var q = S ("#example > ul")
+					T identical  (q,  S (q))
 
 					# =========================================================
 					# FIND
@@ -114,7 +120,7 @@
 
 					T test "From 1-element selection"
 					var s = S "#example"
-					var q = s find "> ul"
+					var q = s find "> ul > li"
 					T equals       (s length, 1)
 					T asUndefined  (s scope)
 					T equals       (q length, 3)
@@ -136,23 +142,31 @@
 
 					T testCase "Selection.filter(selector)"
 
-					T test "From empty selection"
+					T test "From empty selection without selector"
 					var s = S ()
 					var q = s filter "li.one"
 					T equals       (q length, 0)
 					T asUndefined  (q scope)
 
-					T test "From 1-element selection"
+					T test "From empty selection with selector"
 					var s = S "#example"
 					var q = s filter "li.one"
-					T equals     (q length, 4)
+					T equals     (q length, 0)
 					T identical  (q scope, s)
 
-					T test "From N-element selection"
-					var s = S "#example ul"
+					T test "From 1-element selection"
+					var s = S "#example li.one:first"
 					var q = s filter "li.one"
+					T equals     (s length, 1)
+					T equals     (q length, 1)
+					T identical  (q scope,  s)
+
+					T test "From N-element selection"
+					var s = S "#example li"
+					var q = s filter "li.one"
+					T equals     (s length, 9)
 					T equals     (q length, 4)
-					T identical  (q scope, s)
+					T identical  (q scope,  s)
 
 					T end ()
 		

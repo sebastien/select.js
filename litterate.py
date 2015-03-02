@@ -1,6 +1,10 @@
 #!/usr/bin/env python
-
 import re
+
+__doc__ = """
+Extracts and strips text within /** .. */ comment delimiters
+and outputs it on stdout.
+"""
 
 RE_C_START = re.compile("/\*\*")
 RE_C_STRIP = re.compile("[ \t]*\*[ \t]?")
@@ -18,9 +22,12 @@ if __name__ == "__main__":
 	args = sys.argv[1:]
 	out  = sys.stdout
 	start, end, strip = RE_C_START, RE_C_END, RE_C_STRIP
-	for p in args:
-		with file(p) as f:
-			for line in extract(f.read(), start, end, strip):
-				out.write(line)
+	if not args or args == ["-"]:
+		out.write(extract(sys.stdin.read(), start, end, strip))
+	else:
+		for p in args:
+			with file(p) as f:
+				for line in extract(f.read(), start, end, strip):
+					out.write(line)
 
 # EOF

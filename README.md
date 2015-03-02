@@ -3,6 +3,11 @@
 # Select.js
 ## A small library for DOM+SVG manipulation
 
+```
+Version :  0.0.1
+URL     :  http://github.com/sebastien/select.js
+```
+
 Select is a small subset of jQuery's features implement for DOM and SVG nodes,
 targetting modern browsers.
 
@@ -25,6 +30,13 @@ are the following:
 - `val(value?)`
 - `scrollTop(value?)`
 - `scrollLeft(value?)`
+- `first()`
+- `last()`
+- `eq(index)`
+- `next(selector?)`
+- `previous(selector?)`
+- `parent(selector?)`
+- `parents(selector?)`
 
 The following are implemented as read-only
 
@@ -68,6 +80,27 @@ Operations
 
 		select.Selection.IsSVG(document.createElement("div")) == false;
 		select.Selection.IsSVG(document.createElementNS("http://www.w3.org/2000/svg", "svg")) == true;
+
+`Selection.find(selector)`
+
+:	Finds all the nodes that match the given selector amongst the descendants
+		of the currently selected nodes. The resulting selector will have
+		this selection as scope only if this selection is not empty.
+
+	- `selector` is expected to be a string
+	- the resulting selection will be flat (ie. an array of node)
+
+		select().find("div")
+		select("ul").find("li")
+
+`Selection.filter(selector)`
+
+:	Filters all the nodes within the current selection that match
+		the give selector. The resulting selection will have
+		this selection as scope only if this selection is not empty.
+
+	- `selector` is expected to be a string
+	- the resulting selection will be flat (ie. an array of node)
 
 Main function
 -------------

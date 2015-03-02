@@ -2,6 +2,11 @@
  *
  * # Select.js
  * ## A small library for DOM+SVG manipulation
+ *
+ * ```
+ * Version :  ${VERSION}
+ * URL     :  http://github.com/sebastien/select.js
+ * ```
  * 
  * Select is a small subset of jQuery's features implement for DOM and SVG nodes,
  * targetting modern browsers.
@@ -25,6 +30,13 @@
  * - `val(value?)`
  * - `scrollTop(value?)`
  * - `scrollLeft(value?)`
+ * - `first()`
+ * - `last()`
+ * - `eq(index)`
+ * - `next(selector?)`
+ * - `previous(selector?)`
+ * - `parent(selector?)`
+ * - `parents(selector?)`
  *
  * The following are implemented as read-only
  *
@@ -43,6 +55,8 @@ var modules = typeof extend != "undefined" && extend.Modules || typeof modules!=
 var select  = (function(modules) {
 // ----------------------------------------------------------------------------
 
+var query  = function(selector, scope) {return Sizzle(selector, scope);}
+var filter = function(selector, nodes) {return Sizzle.matches(selector, nodes);}
 /*
  * Selection Class
  * ---------------
@@ -64,19 +78,11 @@ var select  = (function(modules) {
 */
 var Selection  = function( selector, scope) {
 	if (typeof selector == "string") {
-		if (typeof scope == "string") {
-			scope = select(scope);
-			scope = scope.length == 1 ? scope.nodes[0] : scope;
-		}
-		if (!scope) {
-			this.nodes  = Sizzle(selector);
-		} else if (Selection.Is(scope)) {
-			var s       = scope.find(selector);
-			this.nodes  = s.nodes;
-		} else if (Selection.IsNode(scope)) {
-			this.nodes = Sizzle(selector, scope);
+		if (scope) {
+			scope       = modules.select(scope);
+			this.nodes  = scope.find(selector).nodes;
 		} else {
-			console.error("Selection(_, scope): scope is expected to be Selection, node, string or nothing, got", scope);
+			this.nodes  = query(selector);
 		}
 	} else if (Selection.IsNode(selector)) {
 		this.nodes = [selector];
@@ -158,15 +164,70 @@ Selection.IsSVG = function (node) {
 //
 // ----------------------------------------------------------------------------
 
+/**
+ * `Selection.find(selector)`
+ * 
+ * :	Finds all the nodes that match the given selector amongst the descendants
+ * 		of the currently selected nodes. The resulting selector will have
+ * 		this selection as scope only if this selection is not empty.
+ *
+ *		- `selector` is expected to be a string
+ *		- the resulting selection will be flat (ie. an array of node)
+ *
+ * 		select().find("div")
+ * 		select("ul").find("li")
+*/
 Selection.prototype.find  = function( selector ) {
-	return new Selection (this.nodes.reduce(function(p,node,i,r){
-		return r.concat(Sizzle(selector, node));
-	}, []));
+	var nodes = this.nodes.reduce(function(r,node,i){
+		var q = query(selector, node);
+		return r.concat(q);
+	}, []);
+	// NOTE: We only add the current selection as a scope if it's not empty,
+	return new Selection (nodes.length > 0 ? nodes : query(selector), this.length > 0 ? this : undefined);
 }
 
-Selection.prototype.filter      = function( selector ) {
-	return new Selection (Sizzle.matches(selector, this.nodes))
+/**
+ * `Selection.filter(selector)`
+ * 
+ * :	Filters all the nodes within the current selection that match
+ * 		the give selector. The resulting selection will have
+ * 		this selection as scope only if this selection is not empty.
+ *
+ *		- `selector` is expected to be a string
+ *		- the resulting selection will be flat (ie. an array of node)
+*/
+Selection.prototype.filter = function( selector ) {
+	return new Selection (filter(selector, this.nodes), this.length > 0 ? this : undefined);
 }
+
+// ----------------------------------------------------------------------------
+// 
+// TRAVERSAL
+//
+// ----------------------------------------------------------------------------
+
+
+Selection.prototype.first = function() {
+}
+
+Selection.prototype.last = function() {
+}
+
+Selection.prototype.eq = function(index) {
+}
+
+Selection.prototype.next = function(selector) {
+}
+
+Selection.prototype.previous = function(selector) {
+}
+
+Selection.prototype.parent = function(selector) {
+}
+
+Selection.prototype.parents = function( selector ) {
+}
+
 
 // ----------------------------------------------------------------------------
 // 
@@ -309,11 +370,11 @@ Selection.prototype.position    = function() {
  * :	The main function used to create a selection.
 */
 var select = function( selector, scope ) {
-	return new Selection (selector, scope );
+	return (Selection.Is(selector) && !scope) ? selector :  new Selection (selector, scope );
 }
 
 select.Selection = Selection;
-select.VERSION   = "0.0.0";
+select.VERSION   = "0.0.1";
 select.LICENSE   = "http://ffctn.com/doc/licenses/bsd.html";
 modules.select   = select;
 
