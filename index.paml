@@ -11,7 +11,7 @@
 		<script(type="text/javascript",src="lib/js/jquery-2.1.3.js")
 		<script(type="text/javascript",src="lib/js/extend-2.6.7.js")
 		<script(type="text/javascript",src="lib/sjs/testing.sjs")
-	<body.reset.use-base.use-typography.use-texto.use-forms
+	<body.reset.use-base.use-typography.use-texto.use-forms.use-testing
 		# ---------------------------------------------------------------------
 		#
 		# DOCUMENT
@@ -66,6 +66,10 @@
 					T asFalse (Selection IsSVG (document createElement    "div" ))
 					T asTrue  (Selection IsSVG (document createElementNS ("http://www.w3.org/2000/svg", "svg")))
 
+					# =========================================================
+					# SELECTION
+					# =========================================================
+
 					T testCase "Selection"
 
 					T test "Unscoped"
@@ -73,11 +77,82 @@
 					T equals      (s length, 1)
 					T asUndefined (s scope)
 
-					T test "Scoped"
-					var q = S ("> ul", s)
-					console log ("Q", q)
+					T test "Scoped:node"
+					var n = document getElementById "example"
+					var q = S ("> ul", n)
 					T equals  (q length, 1)
-					T equals  (q scope,  s)
+					T identical  (q scope,  n)
+
+					T test "Scoped:string"
+					var q = S ("> ul", "#example")
+					T equals     (q length, 1)
+					T identical  (q scope,  document getElementById "example")
+
+					var q = S ("> ul", "#example li")
+					T equals     (q length, 3)
+					T asTrue     (Selection Is (q scope))
+
+					T test "Scoped:selection"
+					var q = S ("> ul", s)
+					T equals     (q length, 1)
+					T identical  (q scope,  s)
+
+					# =========================================================
+					# FIND
+					# =========================================================
+
+					T testCase "Selection.find(selector)"
+
+					T test "From empty selection"
+					var s = S ()
+					var q = s find "#example"
+					T equals       (s length, 0)
+					T asUndefined  (s scope)
+					T equals       (q length, 1)
+					T asUndefined  (q scope)
+					T notIdentical (q, s)
+
+					T test "From 1-element selection"
+					var s = S "#example"
+					var q = s find "> ul"
+					T equals       (s length, 1)
+					T asUndefined  (s scope)
+					T equals       (q length, 3)
+					T identical    (q scope,  s)
+					T notIdentical (q, s)
+
+					T test "From N-element selection"
+					var s = S "#example li"
+					var q = s find "> ul"
+					T equals       (s length, 9)
+					T asUndefined  (s scope)
+					T equals       (q length, 3)
+					T identical    (q scope,  s)
+					T notIdentical (q, s)
+
+					# =========================================================
+					# FILTER
+					# =========================================================
+
+					T testCase "Selection.filter(selector)"
+
+					T test "From empty selection"
+					var s = S ()
+					var q = s filter "li.one"
+					T equals       (q length, 0)
+					T asUndefined  (q scope)
+
+					T test "From 1-element selection"
+					var s = S "#example"
+					var q = s filter "li.one"
+					T equals     (q length, 4)
+					T identical  (q scope, s)
+
+					T test "From N-element selection"
+					var s = S "#example ul"
+					var q = s filter "li.one"
+					T equals     (q length, 4)
+					T identical  (q scope, s)
 
 					T end ()
 		

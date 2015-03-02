@@ -40,12 +40,19 @@ var select  = (function(modules) {
 */
 var Selection  = function( selector, scope) {
 	if (typeof selector == "string") {
-		if (Selection.Is(scope)) {
+		if (typeof scope == "string") {
+			scope = select(scope);
+			scope = scope.length == 1 ? scope.nodes[0] : scope;
+		}
+		if (!scope) {
+			this.nodes  = Sizzle(selector);
+		} else if (Selection.Is(scope)) {
 			var s       = scope.find(selector);
 			this.nodes  = s.nodes;
-		} else {
-			// TODO: Should double-check scope is either a string or a node
+		} else if (Selection.IsNode(scope)) {
 			this.nodes = Sizzle(selector, scope);
+		} else {
+			console.error("Selection(_, scope): scope is expected to be Selection, node, string or nothing, got", scope);
 		}
 	} else if (Selection.IsNode(selector)) {
 		this.nodes = [selector];
@@ -127,7 +134,7 @@ Selection.IsSVG = function (node) {
 Selection.prototype.find  = function( selector ) {
 	return new Selection (this.nodes.reduce(function(p,node,i,r){
 		return r.concat(Sizzle(selector, node));
-	}), []);
+	}, []));
 }
 
 Selection.prototype.filter      = function( selector ) {
