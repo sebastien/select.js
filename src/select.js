@@ -1,12 +1,13 @@
 /**
  *
- * # Select
+ * # Select.js
  * ## A small library for DOM+SVG manipulation
  * 
  * Select is a small subset of jQuery's features implement for DOM and SVG nodes,
  * targetting modern browsers.
  *
- * We use it internally at FFunction as most of the extra features present
+ *
+ * We use it internally at [FFunction](http://ffctn.com) as most of the extra features present
  * in jQuery (events, promises, requests, animations) are already handled
  * by our specialized modules, and that jQuery does not work well for SVG 
  * nodes, which we manipulate a lot.
@@ -15,18 +16,25 @@
  * easily querying and navigating the dom. The functions currently implemented
  * are the following:
  *
- * - `find`
- * - `filter`
- * - `attr`
- * - `css`
- * - `html`
- * - `text`
- * - `val`
- * - `width`
- * - `height`
- * - `position`
- * - `offset`
- * - `scroll`
+ * - `find(selector)`
+ * - `filter(selector)`
+ * - `attr(attribute, value)`/`attr(attributes)`
+ * - `css(attribute, value)`/`css(attributes)`
+ * - `html(value?)`
+ * - `text(value?)`
+ * - `val(value?)`
+ * - `scrollTop(value?)`
+ * - `scrollLeft(value?)`
+ *
+ * The following are implemented as read-only
+ *
+ * - `width()`
+ * - `height()`
+ * - `position()`
+ * - `offset()`
+ *
+ * Select's home page is at <http://github.com/sebastien/select.js>, feel
+ * free to post issues or pull requests.
  *
 */
 
@@ -35,8 +43,24 @@ var modules = typeof extend != "undefined" && extend.Modules || typeof modules!=
 var select  = (function(modules) {
 // ----------------------------------------------------------------------------
 
-/**
- * @class Selection
+/*
+ * Selection Class
+ * ---------------
+ *
+ * `Selection(selector, scope)`
+ *
+ * :	Wraps an array of node resulting from the selection of the given
+ *		selector in the given scope.
+ *
+ *		- `selector` can be `String`, `Node`, `Selection` or nothing.
+ *		- `scope`    can be `String`, `Node`, `Selection` or nothing.
+ *
+ *		A selection has the following properties
+ *
+ *		- `nodes` the array of matching nodes
+ *		- `scope` the scope that might be either nothing, a `Node` or a `Selection`
+ *		- `length` the length of the `nodes` array, 0 or more.
+ *
 */
 var Selection  = function( selector, scope) {
 	if (typeof selector == "string") {
@@ -73,52 +97,55 @@ var Selection  = function( selector, scope) {
 // OPERATIONS
 //
 // ----------------------------------------------------------------------------
+/**
+ * Operations
+ * ----------
+ *
+ *  The following functions are utility functions used the `Selection` class, 
+ *  but they are also useful generally.
+*/
 
 /**
- * @operation Selection.Is(value)
- * Tells if the given value is a Selection instance
+ * `Selection.Is(value)`
+ * 
+ * :	Tells if the given value is a `Selection` instance
  *
- * ```
- * select.Selection.Is(new Selection ());
- * ```
+ * 		select.Selection.Is(new Selection ());
 */
 Selection.Is = function (s) {
 	return s && (s._class === Selection);
 }
 
 /**
- * @operation Selection.IsNode(node)
- * Tells if the given value is a DOM or SVG node
+ * `Selection.IsNode(node)`
+ * 
+ * :	Tells if the given value is a DOM or SVG node
  *
- * ```
- * select.Selection.IsNodel(document.createElement("div"));
- * ```
+ * 		select.Selection.IsNodel(document.createElement("div"));
 */
 Selection.IsNode = function (node) {
 	return node && typeof(node.nodeType) != "undefined";
 }
 
 /**
- * @operation Selection.IsDom(node)
- * Tells wether the node is a DOM node or not
+ * `Selection.IsDom(node)`
  *
- * ```
- * select.Selection.IsDOM(document.createElement("div")) == true;
- * select.Selection.IsDOM(document.createElementNS("http://www.w3.org/2000/svg", "svg")) == false;
- * ```
+ * :	Tells wether the node is a DOM node or not
+ *
+ * 		select.Selection.IsDOM(document.createElement("div")) == true;
+ * 		select.Selection.IsDOM(document.createElementNS("http://www.w3.org/2000/svg", "svg")) == false;
 */
 Selection.IsDOM = function (node) {
 	return node && typeof(node.getBBox) === "undefined";
 }
 
 /**
- * @operation Selection.IsDom(node)
- * Tells wether the node is an SVG node or not
+ * `Selection.IsDom(node)`
+ * 
+ * :	Tells wether the node is an SVG node or not
  *
- * ```
- * select.Selection.IsSVG(document.createElement("div")) == false;
- * select.Selection.IsSVG(document.createElementNS("http://www.w3.org/2000/svg", "svg")) == true;
- * ```
+ * 		select.Selection.IsSVG(document.createElement("div")) == false;
+ * 		select.Selection.IsSVG(document.createElementNS("http://www.w3.org/2000/svg", "svg")) == true;
 */
 Selection.IsSVG = function (node) {
 	// SEE: http://www.w3.org/TR/SVG11/types.html#__svg__SVGLocatable__getBBox
@@ -274,7 +301,12 @@ Selection.prototype.position    = function() {
 // ----------------------------------------------------------------------------
 
 /**
- * @function
+ * Main function
+ * -------------
+ *
+ * `select(selector, scope)`
+ *
+ * :	The main function used to create a selection.
 */
 var select = function( selector, scope ) {
 	return new Selection (selector, scope );
