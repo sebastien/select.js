@@ -4,7 +4,7 @@
 ## A small library for DOM+SVG manipulation
 
 ```
-Version :  0.0.1
+Version :  ${VERSION}
 URL     :  http://github.com/sebastien/select.js
 ```
 
