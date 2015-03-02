@@ -37,6 +37,7 @@
  * - `previous(selector?)`
  * - `parent(selector?)`
  * - `parents(selector?)`
+ * - `ready(callback)`
  *
  * The following are implemented as read-only
  *
@@ -45,10 +46,25 @@
  * - `position()`
  * - `offset()`
  *
- * Select's home page is at <http://github.com/sebastien/select.js>, feel
- * free to post issues or pull requests.
+ *
+ * Here's how to use the library
+ *
+ * ```
+ * // Get a reference to the `select` function, alias it to S
+ * $ = modules.select;
+ *
+ * // Query the elements, and apply the operations
+ * $("ul li:even").text("Hello!");
+ * ```
+ *
+ * If you'd like to look at the source code or contribute, Select's home page
+ * is at <http://github.com/sebastien/select.js>, feel free to post issues or
+ * pull requests.
  *
 */
+
+// TODO: Add flyweight pattern in order to recycle selection and not put too
+// much strain on GC.
 
 // -- MODULE DECLARATION ------------------------------------------------------
 var modules = typeof extend != "undefined" && extend.Modules || typeof modules!= "undefined" && modules || {};
@@ -163,6 +179,12 @@ Selection.IsSVG = function (node) {
 // SELECTION
 //
 // ----------------------------------------------------------------------------
+/**
+ * Selection & Filtering
+ * ---------------------
+ *
+ *  These functions allow to query the DOM/SVG tree, find & filter nodes.
+*/
 
 /**
  * `Selection.find(selector)`
@@ -174,8 +196,10 @@ Selection.IsSVG = function (node) {
  *		- `selector` is expected to be a string
  *		- the resulting selection will be flat (ie. an array of node)
  *
+ *		```
  * 		select().find("div")
  * 		select("ul").find("li")
+ *		```
 */
 Selection.prototype.find  = function( selector ) {
 	var nodes = this.nodes.reduce(function(r,node,i){
@@ -383,5 +407,38 @@ if      (typeof define === "function"  && define.amd )     {define(function(){ r
 else if (typeof module !== "undefined" && module.exports ) {module.exports          = select;}
 })(modules);
 // ----------------------------------------------------------------------------
+
+/**
+ * License
+ * -------
+ *
+ *  Revised BSD License
+ *
+ * Copyright (c) 2015, FFunction inc (1165373771 Québec inc) All rights reserved.
+ * 
+ * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+ * 
+ * Redistributions of source code must retain the above copyright notice, this
+ * list of conditions and the following disclaimer. Redistributions in binary
+ * form must reproduce the above copyright notice, this list of conditions and
+ * the following disclaimer in the documentation and/or other materials
+ * provided with the distribution. Neither the name of the FFunction inc
+ * (CANADA) nor the names of its contributors may be used to endorse or promote
+ * products derived from this software without specific prior written
+ * permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+*/
 
 /* EOF */
