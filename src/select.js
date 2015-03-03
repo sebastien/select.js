@@ -8,54 +8,63 @@
  * URL     :  http://github.com/sebastien/select.js
  * ```
  * 
- * Select is a small subset of jQuery's features implement for DOM and SVG nodes,
- * targetting modern browsers.
- *
+ * Select is a small subset of jQuery's functions implemented for DOM and SVG
+ * nodes, and targetting modern browsers. As it uses strict CSS-3 selector
+ * query so won't work as a drop-in replacement to jQuery.
  *
  * We use it internally at [FFunction](http://ffctn.com) as most of the extra features present
  * in jQuery (events, promises, requests, animations) are already handled
  * by our specialized modules, and that jQuery does not work well for SVG 
  * nodes, which we manipulate a lot.
  *
- * Select can be considered as a thin wrapper around Sizzle that is focused on
- * easily querying and navigating the dom. The functions currently implemented
- * are the following:
+ * The functions currently implemented are the following:
  *
- * - `find(selector)`
- * - `filter(selector)`
- * - `attr(attribute, value)`/`attr(attributes)`
- * - `css(attribute, value)`/`css(attributes)`
- * - `html(value?)`
- * - `text(value?)`
- * - `val(value?)`
- * - `empty()`
- * - `scrollTop(value?)`
- * - `scrollLeft(value?)`
- * - `first()`
- * - `last()`
- * - `eq(index)`
- * - `next(selector?)`
- * - `previous(selector?)`
- * - `parent(selector?)`
- * - `parents(selector?)`
- * - `ready(callback)`
+ * Selection
+ * :	
+ * 	- `find(selector)`
+ * 	- `filter(selector)`
  *
- * The following are implemented as read-only
+ * Traversal
+ * :	
+ * 	- `first()`
+ * 	- `last()`
+ * 	- `eq(index)`
+ * 	- `next(selector?)`
+ * 	- `prev[ious](selector?)`
+ * 	- `parent(selector?)`
+ * 	- `parents(selector?)`
  *
- * - `width()`
- * - `height()`
- * - `position()`
- * - `offset()`
+ * Manipulation:
+ * :	
+ * 	- `attr(attribute, value)`/`attr(attributes)`
+ * 	- `css(attribute, value)`/`css(attributes)`
+ * 	- `html(value?)`
+ * 	- `text(value?)`
+ * 	- `val(value?)`
+ * 	- `empty()`
  *
+ * Display:
+ * :	
+ * 	- `scrollTop(value?)`
+ * 	- `scrollLeft(value?)`
+ * 	- `width()`
+ * 	- `height()`
+ * 	- `position()`
+ * 	- `offset()`
  *
- * Here's how to use the library
+ * Events:
+ * :	
+ * 	- `bind(event, callback)`/`bind(events)`
+ * 	- `ready(callback)`
+ *
+ * The library can be used pretty much like you would use jQuery.
  *
  * ```
- * // Get a reference to the `select` function, alias it to S
- * $ = modules.select;
- *
  * // Query the elements, and apply the operations
  * $("ul li:even").text("Hello!");
+ *
+ * // It is also available at different locations
+ * $ == S == modules.select
  * ```
  *
  * If you'd like to look at the source code or contribute, Select's home page
@@ -70,11 +79,96 @@
 
 // -- MODULE DECLARATION ------------------------------------------------------
 var modules = typeof extend != "undefined" && extend.Modules || typeof modules!= "undefined" && modules || {};
-var select  = (function(modules) {
+var select  = S = $ = (function(modules) {
 // ----------------------------------------------------------------------------
+/**
+ * Core functions
+ * ---------------
+ *
+ * Select is based on a couple of basic functions to query, filter and match
+ * nodes against CSS-3 selectors. These work in modern browsers, including
+ * our beloved IE10+.
+*/
 
-var query  = function(selector, scope) {return Sizzle(selector, scope);}
-var filter = function(selector, nodes) {return Sizzle.matches(selector, nodes);}
+var _match = null;
+if      (Element.prototype.matches)               {_match = 1;}
+else if (Element.prototype.mozMatchesSelector)    {_match = 2;}
+else if (Element.prototype.webkitMatchesSelector) {_match = 3;}
+
+/**
+ * `select.match(selector:String, node:Node):Boolean`
+ *
+ * :	Tells if the given `node` matches the given selector. This
+ * 		function uses `Node.{matches|mozMatchesSelector|webkitMatchesSelector}`
+ * 		or falls back to a default (obviously slower) implementation.
+ *
+ * 		The function returns `true` or `false`
+*/
+var match = _match ? function(selector, node) {
+	switch (_match) {
+		case 1:
+			return node && node.matches && node.matches(selector);
+		case 2:
+			return node && node.mozMatchesSelector && node.mozMatchesSelector(selector);
+		case 3:
+			return node && node.webkitMatchesSelector && node.webkitMatchesSelector(selector);
+		default:
+			console.error("select.match: browser not supported");
+			select.STATUS = "FAILED";
+			return node.matches(selector);
+	}
+} : function (selector, node ) {
+	// NOTE: This is an implemnetation of matchSelector replacing one that
+	// would not be already available.
+	var parent   = node.parentNode;
+	var matching = parent.querySelectorAll(selector);
+	var i        = 0;
+	for (var i=0 ; i < matching.length ; i++ ) {
+		if (matching[i] === node) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * `select.query(selector:String, node:Node?):[Node]`
+ *
+ * :	Queries all the descendants of node that match the given selector. This
+ *		is a wrapper around `Elemetn.querySelectorAll`.
+ *
+ * 		The function returns an array of the matching nodes.
+*/
+var query = function(selector, scope) {
+	selector = selector.trim();
+	if (selector[0] == ">" ) {
+		selector   = selector.substr(1).trim();
+		var result = [];
+		var nodes  = (scope||document).childNodes;
+		for (var i=0 ; i <nodes.length ; i++) {
+			var n = nodes[i];
+			if (match(selector, n)) {
+				result.push(n);
+			}
+		}
+		return result;
+	} else {
+		return (scope||document).querySelectorAll(selector);
+	}
+}
+
+/**
+ * `select.query(selector:String, node:Node?):[Node]`
+ *
+ * :	Filtes all the nodes that match the given selector. This is a wrapepr
+ * 		around `select.filter`. 
+ *
+ * 		The function returns the subset of the array with matching nodes.
+*/
+var filter = function(selector, nodes) {
+	return nodes.filter(function(node){return matches(selector, node)}, nodes);
+}
+
 /*
  * Selection Class
  * ---------------
@@ -204,10 +298,15 @@ Selection.IsSVG = function (node) {
  *		```
 */
 Selection.prototype.find  = function( selector ) {
-	var nodes = this.nodes.reduce(function(r,node,i){
-		var q = query(selector, node);
-		return r.concat(q);
-	}, []);
+	var result = {nodes:[]}
+	// NOTE: We're dealing with NodeList, so no fancy reduce, etc
+	for (var i=0 ; i<this.nodes.length ; i++) {
+		var node = this.nodes[i];
+		var q    = query(selector, node);
+		// This is to prevent for loop scope issues.
+		result.nodes = result.nodes.concat(q);
+	};
+	var nodes = result.nodes;
 	// NOTE: We only add the current selection as a scope if it's not empty,
 	return new Selection (nodes.length > 0 ? nodes : query(selector), this.length > 0 ? this : undefined);
 }
@@ -269,10 +368,37 @@ Selection.prototype.eq = function(index) {
 	}
 }
 
+/**
+ * Selection.next(selector:String?)
+ *
+ * :	Selects each next sibling element of the current selection. If 
+ * 		`selector` is given, only the matching elements will be added.
+*/
 Selection.prototype.next = function(selector) {
+	var nodes = [];
+	for (var i=0 ; i<this.nodes.length ; i++) {
+		var node    = this.nodes[i];
+		var sibling = node.nextElementSibling;
+		if (sibling && (!selector || match(selector, node))) {r.push(sibling)}
+	};
+	return nodes.length > 0 ? select(nodes, this) : select.Empty;
 }
 
-Selection.prototype.previous = function(selector) {
+/**
+ * Selection.previous(selector:String?)
+ *
+ * :	Selects each previous sibling element of the current selection. If 
+ * 		`selector` is given, only the matching elements will be added.
+*/
+Selection.prototype.previous = Selection.prototype.prev = function(selector) {
+	var nodes = [];
+	for (var i=0 ; i<this.nodes.length ; i++) {
+		var node    = this.nodes[i];
+		var sibling = node.previousElementSibling;
+		if (sibling && (!selector || match(selector, node))) {r.push(sibling)}
+		return r;
+	};
+	return nodes.length > 0 ? select(nodes, this) : select.Empty;
 }
 
 Selection.prototype.parent = function(selector) {
@@ -385,7 +511,6 @@ Selection.prototype.attr        = function(name, value) {
 	return this;
 };
 
-
 // ----------------------------------------------------------------------------
 // 
 // LAYOUT
@@ -429,7 +554,11 @@ var select = function( selector, scope ) {
 select.Selection = Selection;
 select.VERSION   = "0.0.1";
 select.LICENSE   = "http://ffctn.com/doc/licenses/bsd.html";
+select.STATUS    = "LOADED";
 select.Empty     = new Selection();
+select.filter    = filter;
+select.match     = match;
+select.query     = query;
 modules.select   = select;
 
 // -- MODULE EXPORT -----------------------------------------------------------

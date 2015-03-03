@@ -8,60 +8,98 @@ Version :  ${VERSION}
 URL     :  http://github.com/sebastien/select.js
 ```
 
-Select is a small subset of jQuery's features implement for DOM and SVG nodes,
-targetting modern browsers.
-
+Select is a small subset of jQuery's functions implemented for DOM and SVG
+nodes, and targetting modern browsers. As it uses strict CSS-3 selector
+query so won't work as a drop-in replacement to jQuery.
 
 We use it internally at [FFunction](http://ffctn.com) as most of the extra features present
 in jQuery (events, promises, requests, animations) are already handled
 by our specialized modules, and that jQuery does not work well for SVG 
 nodes, which we manipulate a lot.
 
-Select can be considered as a thin wrapper around Sizzle that is focused on
-easily querying and navigating the dom. The functions currently implemented
-are the following:
+The functions currently implemented are the following:
 
-- `find(selector)`
-- `filter(selector)`
-- `attr(attribute, value)`/`attr(attributes)`
-- `css(attribute, value)`/`css(attributes)`
-- `html(value?)`
-- `text(value?)`
-- `val(value?)`
-- `empty()`
-- `scrollTop(value?)`
-- `scrollLeft(value?)`
-- `first()`
-- `last()`
-- `eq(index)`
-- `next(selector?)`
-- `previous(selector?)`
-- `parent(selector?)`
-- `parents(selector?)`
-- `ready(callback)`
+Selection
+:	
+	- `find(selector)`
+	- `filter(selector)`
 
-The following are implemented as read-only
+Traversal
+:	
+	- `first()`
+	- `last()`
+	- `eq(index)`
+	- `next(selector?)`
+	- `prev[ious](selector?)`
+	- `parent(selector?)`
+	- `parents(selector?)`
 
-- `width()`
-- `height()`
-- `position()`
-- `offset()`
+Manipulation:
+:	
+	- `attr(attribute, value)`/`attr(attributes)`
+	- `css(attribute, value)`/`css(attributes)`
+	- `html(value?)`
+	- `text(value?)`
+	- `val(value?)`
+	- `empty()`
 
+Display:
+:	
+	- `scrollTop(value?)`
+	- `scrollLeft(value?)`
+	- `width()`
+	- `height()`
+	- `position()`
+	- `offset()`
 
-Here's how to use the library
+Events:
+:	
+	- `bind(event, callback)`/`bind(events)`
+	- `ready(callback)`
+
+The library can be used pretty much like you would use jQuery.
 
 ```
-// Get a reference to the `select` function, alias it to S
-$ = modules.select;
-
 // Query the elements, and apply the operations
 $("ul li:even").text("Hello!");
+
+// It is also available at different locations
+$ == S == modules.select
 ```
 
 If you'd like to look at the source code or contribute, Select's home page
 is at <http://github.com/sebastien/select.js>, feel free to post issues or
 pull requests.
 
+
+Core functions
+---------------
+
+Select is based on a couple of basic functions to query, filter and match
+nodes against CSS-3 selectors. These work in modern browsers, including
+our beloved IE10+.
+
+`select.match(selector:String, node:Node):Boolean`
+
+:	Tells if the given `node` matches the given selector. This
+		function uses `Node.{matches|mozMatchesSelector|webkitMatchesSelector}`
+		or falls back to a default (obviously slower) implementation.
+
+		The function returns `true` or `false`
+
+`select.query(selector:String, node:Node?):[Node]`
+
+:	Queries all the descendants of node that match the given selector. This
+	is a wrapper around `Elemetn.querySelectorAll`.
+
+		The function returns an array of the matching nodes.
+
+`select.query(selector:String, node:Node?):[Node]`
+
+:	Filtes all the nodes that match the given selector. This is a wrapepr
+		around `select.filter`. 
+
+		The function returns the subset of the array with matching nodes.
 
 Operations
 ----------
@@ -139,6 +177,16 @@ Selection.eq(index:Integer)
 		if `index` is negative, then the index will be relative to the end
 		of the nodes array. If the index is out of the node array bounds,
 		the `Empty` selection is returned.
+
+Selection.next(selector:String?)
+
+:	Selects each next sibling element of the current selection. If 
+		`selector` is given, only the matching elements will be added.
+
+Selection.previous(selector:String?)
+
+:	Selects each previous sibling element of the current selection. If 
+		`selector` is given, only the matching elements will be added.
 
 Main function
 -------------

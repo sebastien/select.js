@@ -26,7 +26,7 @@
 				<h3:Test case
 				<div#testing
 				<div#example.hidden
-					<ul
+					<ul#nosibling
 						<li.one
 							<ul
 								<li.one
@@ -173,6 +173,7 @@
 					# TRAVERSAL
 					# =========================================================
 
+					# -- first() ----------------------------------------------
 					T testCase "Selection.first()"
 
 					T test "Empty selection"
@@ -192,6 +193,7 @@
 					T equals (q first () length, 1)
 					T identical (q first () nodes [0], q nodes [0])
 
+					# -- last() -----------------------------------------------
 					T testCase "Selection.last()"
 
 					T test "Empty selection"
@@ -211,6 +213,7 @@
 					T equals (q last () length, 1)
 					T identical (q last () nodes [0], q nodes [-1])
 
+					# -- eq() -------------------------------------------------
 					T testCase "Selection.eq()"
 
 					T test "Empty selection"
@@ -239,7 +242,62 @@
 					T identical (q eq (-1) nodes [0], q nodes [-1])
 					T identical (q eq (-2) nodes [0], q nodes [-2])
 
+					# -- next()------------------------------------------------
+					T testCase "Selection.next()"
+
+					T test "Empty selection"
+					var q = S Empty
+					T identical (q next (),  q)
+
+					T test "1-element selection"
+					var q = S "#nosibling"
+					T equals    (q length,    1)
+					T equals    (q next (),   S Empty)
+
+					T test "N-element selection"
+					var q = S "#nosibling > li"
+					T equals    (q length,    3)
+					T equals    (q next () length, 2)
+					T equals    (q next () next () length, 1)
+					T equals    (q next () next () next () length, 0)
+					T identical (q next () next () next (), S Empty)
+					T identical (q next () nodes [0], q nodes [1])
+					T identical (q next () nodes [1], q nodes [2])
+					T identical (q next () next () nodes [0], q nodes [2])
+
+					T test "N-element selection, filtered"
+					var q = S "#nosibling > li"
+					T equals    (q length,    3)
+					T equals    (q next ".three" length, 1)
+					T equals    (q next ".three" next ".three" length, 0)
+					T identical (q next ".three" nodes [0], q nodes [2])
+
+					# -- previous()------------------------------------------------
+					T testCase "Selection.prev[ious]()"
+
+
+					T test "Empty selection"
+					var q = S Empty
+					T identical (S Empty previous, S Empty prev)
+					T identical (q previous (),  q)
+
+					T test "1-element selection"
+					var q = S "#nosibling"
+					T equals    (q length,    1)
+					T equals    (q previous (),   S Empty)
+
+					T test "N-element selection"
+					var q = S "#nosibling > li"
+					T equals    (q length,    3)
+					T equals    (q previous () length, 2)
+					T equals    (q previous () previous () length, 1)
+					T equals    (q previous () previous () previous () length, 0)
+					T identical (q previous () previous () previous (), S Empty)
+					T identical (q previous () nodes [0], q nodes [0])
+					T identical (q previous () nodes [1], q nodes [1])
+					T asUndefined (q previous () nodes [2])
+					T identical   (q previous () previous () nodes [0], q nodes [0])
+					T asUndefined (q previous () previous () nodes [1])
 
 					T end ()
-		
 # EOF
