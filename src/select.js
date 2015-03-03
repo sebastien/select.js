@@ -28,6 +28,7 @@
  * - `html(value?)`
  * - `text(value?)`
  * - `val(value?)`
+ * - `empty()`
  * - `scrollTop(value?)`
  * - `scrollLeft(value?)`
  * - `first()`
@@ -65,6 +66,7 @@
 
 // TODO: Add flyweight pattern in order to recycle selection and not put too
 // much strain on GC.
+// TODO: Remove dependency on Sizzle, it weight way too much for what it brings.
 
 // -- MODULE DECLARATION ------------------------------------------------------
 var modules = typeof extend != "undefined" && extend.Modules || typeof modules!= "undefined" && modules || {};
@@ -230,14 +232,41 @@ Selection.prototype.filter = function( selector ) {
 //
 // ----------------------------------------------------------------------------
 
-
+/**
+ * Selection.first()
+ *
+ * :	Returns a new selection made of the *first node* of this selection. If the
+ * 		selection is empty or made of 1 node, this function is transparent.
+*/
 Selection.prototype.first = function() {
+	return this.length <= 1 ? this : select([this.nodes[0]], this);
 }
 
+/**
+ * Selection.last()
+ *
+ * :	Returns a new selection made of the *last node* of this selection. If the
+ * 		selection is empty or made of 1 node, this function is transparent.
+*/
 Selection.prototype.last = function() {
+	return this.length <= 1 ? this : select([this.nodes[this.length - 1]], this);
 }
 
+/**
+ * Selection.eq(index:Integer)
+ *
+ * :	Returns a new selection made of the *node at the given `index`*.
+ * 		if `index` is negative, then the index will be relative to the end
+ * 		of the nodes array. If the index is out of the node array bounds,
+ * 		the `Empty` selection is returned.
+*/
 Selection.prototype.eq = function(index) {
+	index = index < 0 ? this.length + index : index ;
+	if (this.length == 1 && index == 0) {
+		return this;
+	} else {
+		return 0 <= index < this.length ? select([this.nodes[index]], this) : select.Empty;
+	}
 }
 
 Selection.prototype.next = function(selector) {
@@ -400,6 +429,7 @@ var select = function( selector, scope ) {
 select.Selection = Selection;
 select.VERSION   = "0.0.1";
 select.LICENSE   = "http://ffctn.com/doc/licenses/bsd.html";
+select.Empty     = new Selection();
 modules.select   = select;
 
 // -- MODULE EXPORT -----------------------------------------------------------

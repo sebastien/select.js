@@ -168,6 +168,78 @@
 					T equals     (q length, 4)
 					T identical  (q scope,  s)
 
+
+					# =========================================================
+					# TRAVERSAL
+					# =========================================================
+
+					T testCase "Selection.first()"
+
+					T test "Empty selection"
+					T identical   (S Empty first (),          S Empty)
+					T equals      (S Empty first () length,   0)
+					T asUndefined (S Empty first () nodes [0]) 
+
+					T test "1-element selection"
+					var q = S "#example"
+					T identical (q first (), q)
+					T equals    (q length,   1)
+					T identical (q first () nodes [0], q nodes [0])
+
+					T test "N-element selection"
+					var q = S "#example li"
+					T equals (q length,          9)
+					T equals (q first () length, 1)
+					T identical (q first () nodes [0], q nodes [0])
+
+					T testCase "Selection.last()"
+
+					T test "Empty selection"
+					T identical (S Empty last (),          S Empty)
+					T equals    (S Empty last () length,   0)
+					T asUndefined (S Empty last () nodes [-1])
+
+					T test "1-element selection"
+					var q = S "#example"
+					T identical (q last (), q)
+					T equals    (q length,   1)
+					T identical (q last () nodes [0], q nodes [0])
+
+					T test "N-element selection"
+					var q = S "#example li"
+					T equals (q length,          9)
+					T equals (q last () length, 1)
+					T identical (q last () nodes [0], q nodes [-1])
+
+					T testCase "Selection.eq()"
+
+					T test "Empty selection"
+					var q = S Empty
+					T identical (q eq (0),  q)
+					T identical (q eq (1),  q)
+					T identical (q eq (-1), q)
+					T equals    (q eq (0) length,  0)
+					T asUndefined (q eq 0 nodes [0])
+
+					T test "1-element selection"
+					var q = S "#example"
+					T equals    (q length,   1)
+					T identical (q eq  0, q)
+					T identical (q eq -1, q)
+					T identical (q eq 1, S Empty)
+
+					T test "N-element selection"
+					var q = S "#example li"
+					T equals (q length,   9)
+					T identical   (q eq (0) nodes [0], q nodes [0])
+					T asUndefined (q eq (0) nodes [1])
+					T identical (q eq (1) nodes [0], q nodes [1])
+					T asUndefined (q eq (0) nodes [1])
+					T identical (q eq (2) nodes [0], q nodes [2])
+					T identical (q eq (-1) nodes [0], q nodes [-1])
+					T identical (q eq (-2) nodes [0], q nodes [-2])
+
+
 					T end ()
 		
 # EOF

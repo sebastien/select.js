@@ -28,6 +28,7 @@ are the following:
 - `html(value?)`
 - `text(value?)`
 - `val(value?)`
+- `empty()`
 - `scrollTop(value?)`
 - `scrollLeft(value?)`
 - `first()`
@@ -121,6 +122,23 @@ Selection & Filtering
 
 	- `selector` is expected to be a string
 	- the resulting selection will be flat (ie. an array of node)
+
+Selection.first()
+
+:	Returns a new selection made of thefirst nodeof this selection. If the
+		selection is empty or made of 1 node, this function is transparent.
+
+Selection.last()
+
+:	Returns a new selection made of thelast nodeof this selection. If the
+		selection is empty or made of 1 node, this function is transparent.
+
+Selection.eq(index:Integer)
+
+:	Returns a new selection made of thenode at the given `index`.
+		if `index` is negative, then the index will be relative to the end
+		of the nodes array. If the index is out of the node array bounds,
+		the `Empty` selection is returned.
 
 Main function
 -------------
