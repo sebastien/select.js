@@ -1,7 +1,7 @@
 
 
 # Select.js
-## A small library for DOM+SVG manipulation
+## A small jQuery-like library for DOM+SVG manipulation
 
 ```
 Version :  ${VERSION}
@@ -32,7 +32,7 @@ Traversal
 	- `next(selector?)`
 	- `prev[ious](selector?)`
 	- `parent(selector?)`
-	- `parents(selector?)`
+	- `parents(selector?)`/`ancestors(selector?)`
 
 Manipulation:
 :	
@@ -57,6 +57,18 @@ Events:
 	- `bind(event, callback)`/`bind(events)`
 	- `ready(callback)`
 
+Differences with jQuery
+-----------------------
+
+- SVG nodes are supported
+- Only modern browsers are supported (IE10+)
+- Only a subset of the functions are implemented (see above)
+- Selectors are only CSS3 (ie. no Sizzle/jQuery extended syntax)
+- No name/key/selector normalization (for performance)
+
+Using
+-------
+
 The library can be used pretty much like you would use jQuery.
 
 ```
@@ -67,9 +79,27 @@ $("ul li:even").text("Hello!");
 $ == S == modules.select
 ```
 
+
+Extending
+---------
+
+Select is ready for being extended (or monkey-patched) if you prefere. Simply
+extend the prototype:
+
+```
+modules.select.Selection.prototype.<YOUR NEW METHOD> = function(...) {
+   // `this` will reference your `Selection` object
+}
+```
+
+Contributing
+------------
+
 If you'd like to look at the source code or contribute, Select's home page
 is at <http://github.com/sebastien/select.js>, feel free to post issues or
-pull requests.
+pull requests. The goal is to keep this pretty minimal, so my preference
+would go to bug reports or performance improvements request as opposed
+to new features.
 
 
 Core functions
@@ -187,6 +217,173 @@ Selection.previous(selector:String?)
 
 :	Selects each previous sibling element of the current selection. If 
 		`selector` is given, only the matching elements will be added.
+
+Selection.parent(selector:String?)
+
+:	Returns a selection of the direct parents of the current selected
+		nodes. If a selector is given, only the matching parents
+		will be returned.
+
+Selection.ancestors(selector:String?)
+
+:	Returns a selection of the ancestors of the current selected
+		nodes. If a selector is given, only the matching parents
+		will be returned.
+
+Content & Value
+---------------
+
+`Selection.val(value?)`
+
+:	When `value` is not specified ,retrieves the first non-null
+	value for the given input fields. If value is specified, then
+	the value will be set in all fields.
+
+`Selection.text(value:String?)`
+
+:	When `value` is not specified, retrieves the first non-null
+	text value for the nodes in the selection, otherwise sets the
+	text for all nodes as the given string.
+
+	Note that if `value` is not a string, it will be JSONified.
+
+	This uses [`Node.textContent`](http://www.w3.org/TR/2004/REC-DOM-Level-3-Core-20040407/core.html#Node3-textContent)
+
+`Selection.html(value:String?)`
+
+:	When `value` is not specified, retrieves the first non-null
+	HTML value for the nodes in the selection, otherwise sets the
+	HTML for all nodes as the given string.
+
+	Note that if `value` is not a string, it will be JSONified.
+
+	This uses [`Node.innerHTML`](https://dvcs.w3.org/hg/innerhtml/raw-file/tip/index.html#innerhtml)
+
+Attributes
+----------
+
+### `Selection.attr()`
+
+`Selection.attr(name:String):Any`
+
+:	Retrieves the given attribue value
+
+`Selection.attr(name:String, value:Any)`
+
+:	Sets the given attribute with the given value
+
+`Selection.attr(values:{String:Any})`
+
+:	Sets the given attributes based on the given map, JSONified if
+	not a string.
+
+	These function will JSONify non-string values.
+
+
+### `Selection.data()`
+
+`Selection.data():{String:Any}`
+
+:	Retrieves all the data attributes as a map
+
+`Selection.data(name:String):Any`
+
+:	Retrieves the given data attribute
+
+`Selection.data(name:String, value:Any)` 
+
+:	Sets the given data attribute with the given value, JSONified if
+	not a string.
+
+`Selection.data(values:{String:Any})`
+
+:	Sets the given data attributes based on the given map, JSONified if
+	not a string.
+
+These work both for HTML and SVG nodes. In case of SVG, the
+data will be stored and retrieved from JSON-encoded data attributes.
+
+The main difference with HTML will be that the attributes won't
+be converted back to `lower-case` from `camelCase`. For instance
+
+```
+select("svg").data("someProperty", "true") 
+```
+
+will be stored as `data-someProperty` and not `data-some-property`
+like it would be the case in an original HTML document.
+
+### `Selection.[add|remove|has]Class()`
+
+`Selection.addClass(name:String?)`
+
+:	Adds the given class to all the nodes in the selection.
+
+	This uses `Node.classList` with a custom fallback that works for
+	DOM & SVG nodes.
+
+`Selection.removeClass(name:String?)`
+
+:	Removes the given class from all the nodes in the selection.
+
+	This uses `Node.classList` with a custom fallback that works for 
+	DOM & SVG nodes.
+
+`Selection.hasClass(name:String?)`
+
+:	Tells if there is at least one node that has the given class
+
+Style
+-----
+
+Selection.css(name:String):Any
+
+:	Retrieves the given CSS property
+
+Selection.css(name:String, value:Any)
+
+:	Sets the given CSS property with the given value
+
+Selection.css(values:{String:Any})
+
+:	Sets the given CSS properties based on the given map, JSONified if
+	not a string.
+
+These function will convert any value to "px" if not given as a string. Also
+note that there is no CSS property normalization, they're passed as-is.
+
+Layout
+------
+
+`Selection.width():Int`
+
+:	Returns the width of the first node in the selection in pixels.
+
+		This uses `getBoundingClientRect()`, returns `0` if the selection
+		if empty.
+
+`Selection.height():Int`
+
+:	Returns the height of the first node in the selection in pixels.
+
+		This uses `getBoundingClientRect()`, returns `0` if the selection
+		is empty.
+
+`Selection.offset():{left:Int, top:Int}`
+
+:	Returns the `{left,top}` offset of this node, relative to
+		its offset parent.
+
+		This uses `offsetTop` for DOM nodes and `getBoundingClientRect`
+		for SVG nodes.
+
+`Selection.scrollTop():Int`
+
+:	Returns the `{left,top}` offset of this node, relative to
+		its offset parent.
+
+		This uses `offsetTop` for DOM nodes and `getBoundingClientRect`
+		for SVG nodes.
 
 Main function
 -------------

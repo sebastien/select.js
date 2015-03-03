@@ -1,7 +1,7 @@
 /**
  *
  * # Select.js
- * ## A small library for DOM+SVG manipulation
+ * ## A small jQuery-like library for DOM+SVG manipulation
  *
  * ```
  * Version :  ${VERSION}
@@ -32,7 +32,7 @@
  * 	- `next(selector?)`
  * 	- `prev[ious](selector?)`
  * 	- `parent(selector?)`
- * 	- `parents(selector?)`
+ * 	- `parents(selector?)`/`ancestors(selector?)`
  *
  * Manipulation:
  * :	
@@ -57,6 +57,18 @@
  * 	- `bind(event, callback)`/`bind(events)`
  * 	- `ready(callback)`
  *
+ * Differences with jQuery
+ * -----------------------
+ *
+ * - SVG nodes are supported
+ * - Only modern browsers are supported (IE10+)
+ * - Only a subset of the functions are implemented (see above)
+ * - Selectors are only CSS3 (ie. no Sizzle/jQuery extended syntax)
+ * - No name/key/selector normalization (for performance)
+ * 
+ * Using
+ * -------
+ *
  * The library can be used pretty much like you would use jQuery.
  *
  * ```
@@ -67,9 +79,27 @@
  * $ == S == modules.select
  * ```
  *
+ *
+ * Extending
+ * ---------
+ *
+ * Select is ready for being extended (or monkey-patched) if you prefere. Simply
+ * extend the prototype:
+ *
+ * ```
+ * modules.select.Selection.prototype.<YOUR NEW METHOD> = function(...) {
+ *    // `this` will reference your `Selection` object
+ * }
+ * ```
+ *
+ * Contributing
+ * ------------
+ *
  * If you'd like to look at the source code or contribute, Select's home page
  * is at <http://github.com/sebastien/select.js>, feel free to post issues or
- * pull requests.
+ * pull requests. The goal is to keep this pretty minimal, so my preference
+ * would go to bug reports or performance improvements request as opposed
+ * to new features.
  *
 */
 
@@ -166,7 +196,14 @@ var query = function(selector, scope) {
  * 		The function returns the subset of the array with matching nodes.
 */
 var filter = function(selector, nodes) {
-	return nodes.filter(function(node){return matches(selector, node)}, nodes);
+	var result = [];
+	for (var i=0 ; i<nodes.length ; i++ ) {
+		var node=nodes[i];
+		if (match(selector, node)) {
+			result.push(node);
+		}
+	}
+	return result;
 }
 
 /*
@@ -330,6 +367,11 @@ Selection.prototype.filter = function( selector ) {
 // TRAVERSAL
 //
 // ----------------------------------------------------------------------------
+//
+// Some implementation notes about traversal: the patterns are the same, 
+// ie iterate, extract and filter, but it is not abstracted out in order
+// to preserve performance. At least, we assume that a for loop is going
+// to be faster than a higher-order function combination.
 
 /**
  * Selection.first()
@@ -379,7 +421,7 @@ Selection.prototype.next = function(selector) {
 	for (var i=0 ; i<this.nodes.length ; i++) {
 		var node    = this.nodes[i];
 		var sibling = node.nextElementSibling;
-		if (sibling && (!selector || match(selector, node))) {r.push(sibling)}
+		if (sibling && (!selector || match(selector, node))) {nodes.push(sibling)}
 	};
 	return nodes.length > 0 ? select(nodes, this) : select.Empty;
 }
@@ -392,46 +434,304 @@ Selection.prototype.next = function(selector) {
 */
 Selection.prototype.previous = Selection.prototype.prev = function(selector) {
 	var nodes = [];
-	for (var i=0 ; i<this.nodes.length ; i++) {
+	for (var i=0 ; i < this.nodes.length ; i++) {
 		var node    = this.nodes[i];
 		var sibling = node.previousElementSibling;
-		if (sibling && (!selector || match(selector, node))) {r.push(sibling)}
-		return r;
+		if (sibling && (!selector || match(selector, node))) {nodes.push(sibling)}
 	};
 	return nodes.length > 0 ? select(nodes, this) : select.Empty;
 }
 
+/**
+ * Selection.parent(selector:String?)
+ *
+ * :	Returns a selection of the direct parents of the current selected
+ * 		nodes. If a selector is given, only the matching parents
+ * 		will be returned.
+*/
 Selection.prototype.parent = function(selector) {
+	var nodes = [];
+	for (var i=0 ; i < this.nodes.length ; i++ ) {
+		var node = this.nodes[i].parentNode;
+		if (node && (!selector || match(selector, node))) {
+			nodes.push(node);
+		}
+	}
+	return nodes.length > 0 ? select(nodes, this) : select.Empty;
 }
 
-Selection.prototype.parents = function( selector ) {
+/**
+ * Selection.ancestors(selector:String?)
+ *
+ * :	Returns a selection of the ancestors of the current selected
+ * 		nodes. If a selector is given, only the matching parents
+ * 		will be returned.
+*/
+Selection.prototype.ancestors = Selection.prototype.parents = function( selector ) {
+	var nodes = [];
+	for (var i=0 ; i < this.nodes.length ; i++ ) {
+		var node = this.nodes[i].parentNode;
+		while (node) {
+			if (!selector || match(selector, node)) {
+				nodes.push(node);
+			}
+			node = node.parentNode;
+		}
+	}
+	return nodes.length > 0 ? select(nodes, this) : select.Empty;
 }
-
 
 // ----------------------------------------------------------------------------
 // 
 // CONTENT / VALUE
 //
 // ----------------------------------------------------------------------------
+/**
+ * Content & Value
+ * ---------------
+*/
 
-Selection.prototype.val      = function( ) {
+/**
+ * `Selection.val(value?)`
+ *
+ * :	When `value` is not specified ,retrieves the first non-null
+ *		value for the given input fields. If value is specified, then
+ *		the value will be set in all fields.
+*/
+Selection.prototype.val      = function( value ) {
+	if (typeof value == "undefined") {
+		for (var i=0 ; i < this.nodes.length ; i++ ) {
+			var node = this.nodes[i];
+			if (typeof node.value != "undefined") {
+				return node.value;
+			}
+		}
+		return undefined;
+	} else {
+		value = "" + value;
+		for (var i=0 ; i < this.nodes.length ; i++ ) {
+			var node = this.nodes[i];
+			if (typeof node.value != "undefined") {
+				return node.value = value;
+			}
+		}
+		return this;
+	}
 }
 
-Selection.prototype.data      = function(  ) {
+
+/**
+ * `Selection.text(value:String?)`
+ *
+ * :	When `value` is not specified, retrieves the first non-null
+ *		text value for the nodes in the selection, otherwise sets the
+ *		text for all nodes as the given string.
+ *
+ *		Note that if `value` is not a string, it will be JSONified.
+ *
+ *		This uses [`Node.textContent`](http://www.w3.org/TR/2004/REC-DOM-Level-3-Core-20040407/core.html#Node3-textContent)
+*/
+Selection.prototype.text = function( value ) {
+	var result = undefined;
+	if (typeof value == "undefined") {
+		for (var i=0 ; i < this.nodes.length ; i++ ) {
+			var node = this.nodes[i];
+			result   = node.textContent;
+			if (result) {
+				return result;
+			}
+		}
+		return result;
+	} else {
+		value = typeof value === "string" ? value : JSON.stringify(value);
+		for (var i=0 ; i < this.nodes.length ; i++ ) {
+			var node = this.nodes[i];
+			node.textContent = value;
+		}
+		return this;
+	}
 }
 
-Selection.prototype.text      = function(  ) {
-}
-
+/**
+ * `Selection.html(value:String?)`
+ *
+ * :	When `value` is not specified, retrieves the first non-null
+ *		HTML value for the nodes in the selection, otherwise sets the
+ *		HTML for all nodes as the given string.
+ *
+ *		Note that if `value` is not a string, it will be JSONified.
+ *
+ *		This uses [`Node.innerHTML`](https://dvcs.w3.org/hg/innerhtml/raw-file/tip/index.html#innerhtml)
+*/
 Selection.prototype.html      = function(  ) {
+	var result = undefined;
+	if (typeof value == "undefined") {
+		for (var i=0 ; i < this.nodes.length ; i++ ) {
+			var node = this.nodes[i];
+			result   = node.innerHTML;
+			if (result) {
+				return result;
+			}
+		}
+		return result;
+	} else {
+		value = typeof value === "string" ? value : JSON.stringify(value);
+		for (var i=0 ; i < this.nodes.length ; i++ ) {
+			var node = this.nodes[i];
+			node.innerHTML = value;
+		}
+		return this;
+	}
 }
+
 
 // ----------------------------------------------------------------------------
 // 
-// ATTRIBUTES & STYLE
+// ATTRIBUTES
 //
 // ----------------------------------------------------------------------------
+/**
+ * Attributes
+ * ----------
+*/
 
+/**
+ * ### `Selection.attr()`
+ *
+ * `Selection.attr(name:String):Any`
+ *
+ * :	Retrieves the given attribue value
+ *
+ * `Selection.attr(name:String, value:Any)`
+ *
+ * :	Sets the given attribute with the given value
+ *
+ * `Selection.attr(values:{String:Any})`
+ *
+ * :	Sets the given attributes based on the given map, JSONified if
+ *		not a string.
+ *
+ * 	These function will JSONify non-string values.
+*/
+Selection.prototype.attr        = function(name, value) {
+	if (typeof name === "string") {
+		if (typeof value === "undefined") {
+			// We get the style value
+			for (var i=0 ; i<this.nodes.length ; i++ ) {
+				var node = this.nodes[i];
+				if (node.hasAttribute(name)) {
+					return node.getAttribute(name);
+				}
+			}
+			return undefined;
+		} else {
+			// We set the style value
+			value = typeof value === "string" ? value : JSON.stringify(value);
+			for (var i=0 ; i<this.nodes.length ; i++ ) {
+				this.nodes[i].setAttribute(name, value);
+			}
+			return this;
+		}
+	} else {
+		for (var k in name) {this.css(k, name[k]);}
+		return this;
+	}
+	return this;
+};
+
+/**
+ *
+ * ### `Selection.data()`
+ *
+ * `Selection.data():{String:Any}`
+ *
+ * :	Retrieves all the data attributes as a map
+ *
+ * `Selection.data(name:String):Any`
+ *
+ * :	Retrieves the given data attribute
+ *
+ * `Selection.data(name:String, value:Any)` 
+ *
+ * :	Sets the given data attribute with the given value, JSONified if
+ *		not a string.
+ *
+ * `Selection.data(values:{String:Any})`
+ *
+ * :	Sets the given data attributes based on the given map, JSONified if
+ *		not a string.
+ *
+ *	These work both for HTML and SVG nodes. In case of SVG, the
+ *	data will be stored and retrieved from JSON-encoded data attributes.
+ *
+ *	The main difference with HTML will be that the attributes won't
+ *	be converted back to `lower-case` from `camelCase`. For instance
+ *
+ *	```
+ *	select("svg").data("someProperty", "true") 
+ *	```
+ *
+ *	will be stored as `data-someProperty` and not `data-some-property`
+ *	like it would be the case in an original HTML document.
+*/
+Selection.prototype.data      = function( name, value  ) {
+	if (!name) {
+		// FIXME: Implement me
+		console.error("Selection.data(): not implemented")
+		return this;
+	} else if (typeof name === "string") {
+		// We retrieve/set a specific data attribute
+		var data_name = "data-" + name;
+		if (typeof value == "undefined") {
+			for (var i=0 ; i < this.nodes.length ; i++ ) {
+				var node = this.nodes[i];
+				var serialized = undefined;
+				// We need to support both HTML elements and SVG nodes
+				if (typeof node.dataset != "undefined") {
+					var result = node.dataset[name]
+					if (typeof result != "undefined") {
+						return result;
+					}
+				} else {
+					if (node.hasAttribute(data_name)) {
+						return JSON.parse(node.getAttribute(data_name))
+					}
+				}
+			}
+			return this;
+		} else {
+			for (var i=0 ; i < this.nodes.length ; i++ ) {
+				var node = this.nodes[i];
+				var serialized = undefined;
+				// We need to support both HTML elements and SVG nodes
+				if (typeof node.dataset != "undefined") {
+					node.dataset[name] = value;
+				} else {
+					if (typeof serialized == "undefined") {serialized = typeof value === "string" ? value : JSON.stringify(value)}
+					node.setAttribute(data_name, serialized);
+				}
+			}
+			return this;
+		}
+	} else {
+		// We retrieve/set a collection specific data attribute
+		for (var k in name) {
+			this.data(k, name[k]);
+		}
+		return this;
+	}
+}
+
+/**
+ * ### `Selection.[add|remove|has]Class()`
+ *
+ * `Selection.addClass(name:String?)`
+ *
+ * :	Adds the given class to all the nodes in the selection.
+ * 
+ *		This uses `Node.classList` with a custom fallback that works for
+ *		DOM & SVG nodes.
+*/
 Selection.prototype.addClass    = function( className ) {
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this.nodes[i];
@@ -460,53 +760,122 @@ Selection.prototype.addClass    = function( className ) {
 	}
 	return this;
 }
-Selection.prototype.removeClass = function() {
+
+/**
+ * `Selection.removeClass(name:String?)`
+ *
+ * :	Removes the given class from all the nodes in the selection.
+ * 
+ *		This uses `Node.classList` with a custom fallback that works for 
+ *		DOM & SVG nodes.
+*/
+Selection.prototype.removeClass = function( className ) {
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this.nodes[i];
 		if (node.classList) {
 			node.classList.remove(className)
 		} else {
-			var c   = node.getAttribute("classes");
+			var c   = node.getAttribute("class");
 			var m   = c.indexOf(className);
-			var la  = c.length || 0;
-			var lc  = className.length;
-			// NOTE: This is an optimized version of the classlist
-			while (m >= 0) {
-				var p = n - 1;
-				var n = m + lc;
-				// If the className is surrounded by spaces or start/end, then
-				// we can remove it.
-				if (((m == 0)  || (c[p] == " ")) && ((n == la) || (c[n] == " "))) {
+			if (m >= 0) {
+				// We only do something if there's a match
+				var la  = c.length || 0;
+				var lc  = className.length;
+				var nc  = "";
+				// NOTE: This is an optimized version of the classlist. We could do
+				// a simple split/join, but I *assume* this is faster. Premature
+				// optimization FTW!
+				while (m >= 0) {
+					var p = n - 1;
+					var n = m + lc;
+					// If the className is surrounded by spaces or start/end, then
+					// we can remove it.
+					if (((m == 0)  || (c[p] == " ")) && ((n == la) || (c[n] == " "))) {
+						nc += c.substr(0, m);
+					} else {
+						nc += c.substr(0, m + lc);
+					}
+					c = c.substr(m + lc);
 				}
-			}
-			if (c.indexOf(className) == -1) {
-
+				nc += c;
+				node.setAttribute("class", nc);
 			}
 		}
-	}
-};
-
-Selection.prototype.hasClass = function() {
-};
-
-Selection.prototype.css         = function(name,value) {
-	// FIXME: Should normalize CSS properties and values, see
-	// animation Update
-	if (typeof(name) == "string") {
-	} else {
 	}
 	return this;
 };
 
-Selection.prototype.attr        = function(name, value) {
-	if (typeof(name) == "string") {
-	} else {
-		value = "" + value;
-		for (var k in name) {
-			for (var i=0 ; i<this.length ; i++ ) {
-				this.nodes[i].setAttribute(k, value);
-			}
+/**
+ * `Selection.hasClass(name:String?)`
+ *
+ * :	Tells if there is at least one node that has the given class
+*/
+Selection.prototype.hasClass = function() {
+	for (var i=0 ; i < this.length ; i++ ) {
+		var node = this.nodes[i];
+		var c   = node.getAttribute("class");
+		var m   = c.indexOf(className);
+		var la  = c.length || 0;
+		var lc  = className.length;
+		// If the className is surrounded by spaces or start/end, then
+		// we have a match.
+		if (((m == 0)  || (c[p] == " ")) && ((n == la) || (c[n] == " "))) {
+			return true;
 		}
+	}
+	return false;
+};
+
+// ----------------------------------------------------------------------------
+// 
+// STYLE
+//
+// ----------------------------------------------------------------------------
+/**
+ * Style
+ * -----
+*/
+
+
+/**
+ * Selection.css(name:String):Any
+ *
+ * :	Retrieves the given CSS property
+ *
+ * Selection.css(name:String, value:Any)
+ *
+ * :	Sets the given CSS property with the given value
+ *
+ * Selection.css(values:{String:Any})
+ *
+ * :	Sets the given CSS properties based on the given map, JSONified if
+ *		not a string.
+ *
+ * These function will convert any value to "px" if not given as a string. Also
+ * note that there is no CSS property normalization, they're passed as-is.
+*/
+Selection.prototype.css         = function(name, value) {
+	if (typeof name === "string") {
+		if (typeof value === "undefined") {
+			// We get the style value
+			for (var i=0 ; i<this.nodes.length ; i++ ) {
+				var style = this.nodes[i].style[name];
+				if (typeof style != "undefined") {
+					return style;
+				}
+			}
+			return undefined;
+		} else {
+			// We set the style value
+			value = typeof value === "string" ? value : value + "px";
+			for (var i=0 ; i<this.nodes.length ; i++ ) {
+				this.nodes[i].style[name] = value;
+			}
+			return this;
+		}
+	} else {
+		for (var k in name) {this.css(k, name[k]);}
+		return this;
 	}
 	return this;
 };
@@ -516,22 +885,90 @@ Selection.prototype.attr        = function(name, value) {
 // LAYOUT
 //
 // ----------------------------------------------------------------------------
+/**
+ * Layout
+ * ------
+*/
 
+/**
+ * `Selection.width():Int`
+ *
+ * :	Returns the width of the first node in the selection in pixels.
+ *
+ * 		This uses `getBoundingClientRect()`, returns `0` if the selection
+ * 		if empty.
+*/
 Selection.prototype.width       = function() {
+	for (var i=0 ; i < this.length ; i++ ) {
+		var node=nodes[i];
+		var nb = node.getBoundingClientRect();
+		return nb.right - nb.left;
+	}
+	return 0;
 }
 
+/**
+ * `Selection.height():Int`
+ *
+ * :	Returns the height of the first node in the selection in pixels.
+ *
+ * 		This uses `getBoundingClientRect()`, returns `0` if the selection
+ * 		is empty.
+*/
 Selection.prototype.height      = function() {
+	for (var i=0 ; i < this.length ; i++ ) {
+		var node=nodes[i];
+		var nb = node.getBoundingClientRect();
+		return nb.bottom - nb.top;
+	}
+	return 0;
 }
 
+
+/**
+ * `Selection.offset():{left:Int, top:Int}`
+ *
+ * :	Returns the `{left,top}` offset of this node, relative to
+ * 		its offset parent.
+ *
+ * 		This uses `offsetTop` for DOM nodes and `getBoundingClientRect`
+ * 		for SVG nodes.
+*/
 Selection.prototype.offset      = function() {
+	for (var i=0 ; i < this.length ; i++ ) {
+		var node = this.nodes[i];
+		if (Selection.IsDOM(node)) {
+			return {left:node.offsetLeft, top:node.offsetTop};
+		} else {
+			var nb = node.getBoundingClientRect();
+			var pb = node.parentNode.getBoundingClientRect();
+			return {left:nb.left - pb.left, top:nb.top - pb.top};
+		}
+	}
+	return undefined;
 }
 
+/**
+ * `Selection.scrollTop():Int`
+ *
+ * :	Returns the `{left,top}` offset of this node, relative to
+ * 		its offset parent.
+ *
+ * 		This uses `offsetTop` for DOM nodes and `getBoundingClientRect`
+ * 		for SVG nodes.
+*/
 Selection.prototype.scrollTop   = function() {
+	for (var i=0 ; i < this.length ; i++ ) {
+		var node = this.nodes[i];
+		if (Selection.IsDOM(node)) {
+			return node.scrollTop;
+		} else {
+			// FIXME: Implement me
+			console.error("Selection.scrollTop: Not implemented for SVG")
+		}
+	}
+	return undefined;
 }
-
-Selection.prototype.position    = function() {
-}
-
 
 // ----------------------------------------------------------------------------
 // 
