@@ -17,7 +17,8 @@ in jQuery (events, promises, requests, animations) are already handled
 by our specialized modules, and that jQuery does not work well for SVG 
 nodes, which we manipulate a lot.
 
-The functions currently implemented are the following:
+The functions currently implemented are the following, available withing
+the `modules.select` object (which you should alias to `$`).
 
 Selection
 :	
@@ -69,6 +70,12 @@ Differences with jQuery
 Using
 -------
 
+You can include the [script directly from Github](https://raw.githubusercontent.com/sebastien/select.js/master/build/select.js) (although GitHub is not a CDN):
+
+```
+<script src="https://raw.githubusercontent.com/sebastien/select.js/master/build/select.js" />
+```
+
 The library can be used pretty much like you would use jQuery.
 
 ```
@@ -101,6 +108,8 @@ pull requests. The goal is to keep this pretty minimal, so my preference
 would go to bug reports or performance improvements request as opposed
 to new features.
 
+API
+---
 
 Core functions
 ---------------
