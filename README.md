@@ -9,13 +9,21 @@ URL     :  http://github.com/sebastien/select.js
 ```
 
 Select is a small subset of jQuery's functions implemented for DOM and SVG
-nodes, and targetting modern browsers. As it uses strict CSS-3 selector
-query so won't work as a drop-in replacement to jQuery.
+nodes, and targetting modern browsers. It is a thing wrapper around HTML5
+DOM & SVG APIs. It uses strict CSS-3 selector
+query, and as such won't work as a drop-in replacement to jQuery, but will
+make a transition easier.
 
 We use it internally at [FFunction](http://ffctn.com) as most of the extra features present
 in jQuery (events, promises, requests, animations) are already handled
 by our specialized modules, and that jQuery does not work well for SVG 
 nodes, which we manipulate a lot.
+
+That being said, jQuery dramatically
+improved the quality of the Web as an environment, and it definitely
+enabled us to focus on creating great applications. [Things have changed](http://youmightnotneedjquery.com/)
+for the better now, and we don't need so much of a compatibilitjQueryy layer
+anymore.
 
 The functions currently implemented are the following, available withing
 the `modules.select` object (which you should alias to `$`).
@@ -37,6 +45,8 @@ Traversal
 
 Manipulation:
 :	
+ - `append(value)`
+ - `clone()`
 	- `attr(attribute, value)`/`attr(attributes)`
 	- `css(attribute, value)`/`css(attributes)`
 	- `html(value?)`
@@ -58,12 +68,16 @@ Events:
 	- `bind(event, callback)`/`bind(events)`
 	- `ready(callback)`
 
+New:
+:	Functions not in jQuery
+ -  `n[ode]()`
+
 Differences with jQuery
 -----------------------
 
 - SVG nodes are supported
 - Only modern browsers are supported (IE10+)
-- Only a subset of the functions are implemented (see above)
+- Only a subset of jQuery's functions are implemented (see above)
 - Selectors are only CSS3 (ie. no Sizzle/jQuery extended syntax)
 - No name/key/selector normalization (for performance)
 
@@ -90,7 +104,7 @@ $ == S == modules.select
 Extending
 ---------
 
-Select is ready for being extended (or monkey-patched) if you prefere. Simply
+Select is ready for being extended (or "monkey-patched") if you prefer. Simply
 extend the prototype:
 
 ```
@@ -126,12 +140,12 @@ our beloved IE10+.
 
 		The function returns `true` or `false`
 
-`select.query(selector:String, node:Node?):[Node]`
+`select.query(selector:String, node:Node?):[Element]`
 
 :	Queries all the descendants of node that match the given selector. This
 	is a wrapper around `Elemetn.querySelectorAll`.
 
-		The function returns an array of the matching nodes.
+		The function returns an array of the matching element nodes.
 
 `select.query(selector:String, node:Node?):[Node]`
 
@@ -242,6 +256,18 @@ Selection.ancestors(selector:String?)
 Content & Value
 ---------------
 
+`Selection.append(value:Node|[Node]|Selection)`
+
+:	Appends the give nodes to the first node in the selection
+
+`Selection.clone()`
+
+:	Clones the first node of this selection
+
+`Selection.empty()`
+
+:	Removes all the children from all the nodes in the selection
+
 `Selection.val(value?)`
 
 :	When `value` is not specified ,retrieves the first non-null
@@ -258,13 +284,11 @@ Content & Value
 
 	This uses [`Node.textContent`](http://www.w3.org/TR/2004/REC-DOM-Level-3-Core-20040407/core.html#Node3-textContent)
 
-`Selection.html(value:String?)`
+`Selection.html(value:String|Selection|Node|[Node]?):this`
 
 :	When `value` is not specified, retrieves the first non-null
 	HTML value for the nodes in the selection, otherwise sets the
 	HTML for all nodes as the given string.
-
-	Note that if `value` is not a string, it will be JSONified.
 
 	This uses [`Node.innerHTML`](https://dvcs.w3.org/hg/innerhtml/raw-file/tip/index.html#innerhtml)
 
@@ -393,6 +417,12 @@ Layout
 
 		This uses `offsetTop` for DOM nodes and `getBoundingClientRect`
 		for SVG nodes.
+
+`Selection.n[ode](index?):Node|undefined`
+
+:	Returns node with the given index (or first one) directly as a node.
+		This is similar to `eq`, except that it returns the node instead
+		of a selection.
 
 Main function
 -------------

@@ -9,13 +9,21 @@
  * ```
  * 
  * Select is a small subset of jQuery's functions implemented for DOM and SVG
- * nodes, and targetting modern browsers. As it uses strict CSS-3 selector
- * query so won't work as a drop-in replacement to jQuery.
+ * nodes, and targetting modern browsers. It is a thing wrapper around HTML5
+ * DOM & SVG APIs. It uses strict CSS-3 selector
+ * query, and as such won't work as a drop-in replacement to jQuery, but will
+ * make a transition easier.
  *
  * We use it internally at [FFunction](http://ffctn.com) as most of the extra features present
  * in jQuery (events, promises, requests, animations) are already handled
  * by our specialized modules, and that jQuery does not work well for SVG 
  * nodes, which we manipulate a lot.
+ *
+ * That being said, jQuery dramatically
+ * improved the quality of the Web as an environment, and it definitely
+ * enabled us to focus on creating great applications. [Things have changed](http://youmightnotneedjquery.com/)
+ * for the better now, and we don't need so much of a compatibilitjQueryy layer
+ * anymore.
  *
  * The functions currently implemented are the following, available withing
  * the `modules.select` object (which you should alias to `$`).
@@ -37,6 +45,8 @@
  *
  * Manipulation:
  * :	
+ *  - `append(value)`
+ *  - `clone()`
  * 	- `attr(attribute, value)`/`attr(attributes)`
  * 	- `css(attribute, value)`/`css(attributes)`
  * 	- `html(value?)`
@@ -58,12 +68,16 @@
  * 	- `bind(event, callback)`/`bind(events)`
  * 	- `ready(callback)`
  *
+ * New:
+ * :	Functions not in jQuery
+ *  -  `n[ode]()`
+ *
  * Differences with jQuery
  * -----------------------
  *
  * - SVG nodes are supported
  * - Only modern browsers are supported (IE10+)
- * - Only a subset of the functions are implemented (see above)
+ * - Only a subset of jQuery's functions are implemented (see above)
  * - Selectors are only CSS3 (ie. no Sizzle/jQuery extended syntax)
  * - No name/key/selector normalization (for performance)
  * 
@@ -90,7 +104,7 @@
  * Extending
  * ---------
  *
- * Select is ready for being extended (or monkey-patched) if you prefere. Simply
+ * Select is ready for being extended (or "monkey-patched") if you prefer. Simply
  * extend the prototype:
  *
  * ```
@@ -115,6 +129,8 @@
 // TODO: Add flyweight pattern in order to recycle selection and not put too
 // much strain on GC.
 // TODO: Remove dependency on Sizzle, it weight way too much for what it brings.
+// TODO: Updated documentation so that Node -> Element where relevant
+// FIXME: Should have a clear strategy on selecting text and nodes, especially
 
 // -- MODULE DECLARATION ------------------------------------------------------
 var modules = typeof extend != "undefined" && extend.Modules || typeof modules!= "undefined" && modules || {};
@@ -171,28 +187,38 @@ var match = _match ? function(selector, node) {
 }
 
 /**
- * `select.query(selector:String, node:Node?):[Node]`
+ * `select.query(selector:String, node:Node?):[Element]`
  *
  * :	Queries all the descendants of node that match the given selector. This
  *		is a wrapper around `Elemetn.querySelectorAll`.
  *
- * 		The function returns an array of the matching nodes.
+ * 		The function returns an array of the matching element nodes.
 */
 var query = function(selector, scope) {
 	selector = selector.trim();
-	if (selector[0] == ">" ) {
+	if (!selector || selector.length == 0) {
+		return [scope];
+	} else if (selector[0] == ">" ) {
 		selector   = selector.substr(1).trim();
 		var result = [];
 		var nodes  = (scope||document).childNodes;
-		for (var i=0 ; i <nodes.length ; i++) {
+		for (var i=0 ; i<nodes.length ; i++) {
 			var n = nodes[i];
-			if (match(selector, n)) {
+			if (match(selector, n) && n.nodeType == Node.ELEMENT_NODE) {
 				result.push(n);
 			}
 		}
 		return result;
 	} else {
-		return (scope||document).querySelectorAll(selector);
+		var result = [];
+		var nodes  = (scope||document).querySelectorAll(selector);
+		for (var i=0 ; i<nodes.length ; i++ ) {
+			var node = nodes[i];
+			if ( node.nodeType == Node.ELEMENT_NODE ) {
+				result.push(node);
+			}
+		}
+		return result;
 	}
 }
 
@@ -233,11 +259,14 @@ var filter = function(selector, nodes) {
  *		- `scope` the scope that might be either nothing, a `Node` or a `Selection`
  *		- `length` the length of the `nodes` array, 0 or more.
  *
+ *		Note that in any case, the *selection will only contain element nodes*.
 */
 var Selection  = function( selector, scope) {
 	if (typeof selector == "string") {
 		if (scope) {
+			// We have a scope, so we query it already. 
 			scope       = modules.select(scope);
+			// Now we restrict the selector to the matching result.
 			this.nodes  = scope.find(selector).nodes;
 		} else {
 			this.nodes  = query(selector);
@@ -246,14 +275,32 @@ var Selection  = function( selector, scope) {
 		this.nodes = [selector];
 	} else if (selector) {
 		// TODO: Should check that selector is a either a list of nodes
-		this.nodes = Selection.Is(selector) ? selector.nodes : selector;
+		if (Selection.Is(selector)) {
+			this.nodes = selector.nodes;
+		} else if (typeof selector.nodeType != "undefined") {
+			if (selector.nodeType == Node.ELEMENT_NODE) {
+				this.nodes = [selector];
+			}
+		} else if (typeof selector.length != "undefined") {
+			var nodes = [];
+			for (var i=0 ; i<selector.length ; i++) {
+				var node = selector[i];
+				if (node.nodeType == Node.ELEMENT_NODE) {
+					nodes.push(node);
+				}
+			}
+			this.nodes = nodes;
+		} else {
+			console.error("Selection.new: selector should be Stirng, Array, NodeList, Node or nothing, got", selector)
+			this.nodes = [];
+		}
 	} else {
 		this.nodes = [];
 	}
 	this.selector = selector;
 	this.scope    = scope;
 	this.length   = this.nodes.length;
-	this._class   = Selection;
+	this.__class__ = Selection;
 };
 
 // ----------------------------------------------------------------------------
@@ -277,7 +324,7 @@ var Selection  = function( selector, scope) {
  * 		select.Selection.Is(new Selection ());
 */
 Selection.Is = function (s) {
-	return s && (s._class === Selection);
+	return s && (s.__class__ === Selection);
 }
 
 /**
@@ -348,12 +395,14 @@ Selection.prototype.find  = function( selector ) {
 	// NOTE: We're dealing with NodeList, so no fancy reduce, etc
 	for (var i=0 ; i<this.nodes.length ; i++) {
 		var node = this.nodes[i];
-		var q    = query(selector, node);
+		// var q    = query (selector, node);
+		q = [];
 		// This is to prevent for loop scope issues.
-		result.nodes = result.nodes.concat(q);
+		for (var j=0 ; j<q.length ; j++ ) {
+			result.nodes.push(q[j]);
+		}
 	};
 	var nodes = result.nodes;
-	// NOTE: We only add the current selection as a scope if it's not empty,
 	return new Selection (nodes.length > 0 ? nodes : query(selector), this.length > 0 ? this : undefined);
 }
 
@@ -501,6 +550,55 @@ Selection.prototype.ancestors = Selection.prototype.parents = function( selector
 */
 
 /**
+ * `Selection.append(value:Node|[Node]|Selection)`
+ *
+ * :	Appends the give nodes to the first node in the selection
+*/
+Selection.prototype.append = function( value ) {
+	if (this.length == 0) { return this; }
+	var node = this.nodes[0];
+	if (Selection.Is(value)) {
+		var nodes = value.nodes;
+		for (var i=0 ; i<value.length ; i++) {
+			node.appendChild(nodes[i]);
+		}
+	} else if (typeof value.length != "undefined") {
+		for (var i=0 ; i<value.length ; i++) {
+			node.appendChild(value[i]);
+		}
+	} else if (typeof value.nodeType != "undefined") {
+		node.appendChild(value);
+	} else {
+		console.error("Selection.append: value is expected to be Node, [Node] or Selection, got", value)
+	}
+}
+
+/**
+ * `Selection.clone()`
+ *
+ * :	Clones the first node of this selection
+*/
+Selection.prototype.clone = function( value ) {
+	if (this.length == 0) { return this; }
+	var node = this.nodes[0];
+	return select(node.cloneNode(true), this);
+}
+
+/**
+ * `Selection.empty()`
+ *
+ * :	Removes all the children from all the nodes in the selection
+*/
+Selection.prototype.empty = function( ) {
+	var nodes = this.nodes;
+	for (var i=0 ; i<this.length ; i++ ) {
+		var node = nodes[i];
+		while (node.firstChild) { node.removeChild(node.firstChild);}
+	}
+	return this;
+}
+
+/**
  * `Selection.val(value?)`
  *
  * :	When `value` is not specified ,retrieves the first non-null
@@ -562,17 +660,15 @@ Selection.prototype.text = function( value ) {
 }
 
 /**
- * `Selection.html(value:String?)`
+ * `Selection.html(value:String|Selection|Node|[Node]?):this`
  *
  * :	When `value` is not specified, retrieves the first non-null
  *		HTML value for the nodes in the selection, otherwise sets the
  *		HTML for all nodes as the given string.
  *
- *		Note that if `value` is not a string, it will be JSONified.
- *
  *		This uses [`Node.innerHTML`](https://dvcs.w3.org/hg/innerhtml/raw-file/tip/index.html#innerhtml)
 */
-Selection.prototype.html      = function(  ) {
+Selection.prototype.html      = function( value ) {
 	var result = undefined;
 	if (typeof value == "undefined") {
 		for (var i=0 ; i < this.nodes.length ; i++ ) {
@@ -584,12 +680,16 @@ Selection.prototype.html      = function(  ) {
 		}
 		return result;
 	} else {
-		value = typeof value === "string" ? value : JSON.stringify(value);
-		for (var i=0 ; i < this.nodes.length ; i++ ) {
-			var node = this.nodes[i];
-			node.innerHTML = value;
+		if (!value || typeof value === "string") {
+			value = value || "";
+			for (var i=0 ; i < this.nodes.length ; i++ ) {
+				var node = this.nodes[i];
+				node.innerHTML = value;
+			}
+			return this;
+		} else {
+			return this.empty().append(value);
 		}
-		return this;
 	}
 }
 
@@ -641,10 +741,10 @@ Selection.prototype.attr        = function(name, value) {
 			}
 			return this;
 		}
-	} else {
-		for (var k in name) {this.css(k, name[k]);}
+	} else if (name) {
+		for (var k in name) {this.attr(k, name[k]);}
 		return this;
-	}
+	} 
 	return this;
 };
 
@@ -981,6 +1081,29 @@ Selection.prototype.scrollTop   = function() {
 
 // ----------------------------------------------------------------------------
 // 
+// SPECIFIC
+//
+// ----------------------------------------------------------------------------
+
+/**
+ * `Selection.n[ode](index?):Node|undefined`
+ *
+ * :	Returns node with the given index (or first one) directly as a node.
+ * 		This is similar to `eq`, except that it returns the node instead
+ * 		of a selection.
+*/
+Selection.prototype.n = Selection.prototype.node = function(index) {
+	index = index || 0;
+	index = index < 0 ? this.length - index : index;
+	if (index >= 0 && index < this.length) {
+		return this.nodes[index];
+	} else {
+		return undefined;
+	}
+}
+
+// ----------------------------------------------------------------------------
+// 
 // MAIN
 //
 // ----------------------------------------------------------------------------
@@ -998,7 +1121,8 @@ var select = function( selector, scope ) {
 }
 
 select.Selection = Selection;
-select.VERSION   = "0.0.1";
+select.VERSION   = "0.3.0";
+select.NAME      = "select"
 select.LICENSE   = "http://ffctn.com/doc/licenses/bsd.html";
 select.STATUS    = "LOADED";
 select.Empty     = new Selection();
@@ -1010,6 +1134,11 @@ modules.select   = select;
 // -- MODULE EXPORT -----------------------------------------------------------
 if      (typeof define === "function"  && define.amd )     {define(function(){ return select; });}
 else if (typeof module !== "undefined" && module.exports ) {module.exports          = select;}
+if      (typeof window !== "undefined") {
+	// FIXME: For some reason, that doesn't work
+	window.$ = window.$ || select;
+	window.S = window.S || select;
+}
 })(modules);
 // ----------------------------------------------------------------------------
 
@@ -1046,4 +1175,5 @@ else if (typeof module !== "undefined" && module.exports ) {module.exports      
  *
 */
 
+$ = window.modules.select;
 /* EOF */

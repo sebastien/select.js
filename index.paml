@@ -7,7 +7,6 @@
 		<link(rel=stylesheet,type=text/css,href=lib/pcss/testing.pcss)
 		<script(type="text/javascript",src="src/select.js")
 		<script(type="text/javascript",src="lib/js/html-5.0.4.js")
-		<script(type="text/javascript",src="lib/js/jquery-2.1.3.js")
 		<script(type="text/javascript",src="lib/js/extend-2.6.7.js")
 		<script(type="text/javascript",src="lib/sjs/testing.sjs")
 	<body.reset.use-base.use-typography.use-texto.use-forms.use-testing
