@@ -32,6 +32,8 @@
  * :	
  * 	- `find(selector)`
  * 	- `filter(selector)`
+ * 	- `forEach(callback)`
+ * 	- `is(selector)`
  *
  * Traversal
  * :	
@@ -67,10 +69,13 @@
  * :	
  * 	- `bind(event, callback)`/`bind(events)`
  * 	- `ready(callback)`
+ * 	- `keyup(callback)`
+ * 	- `keydown(callback)`
  *
  * New:
  * :	Functions not in jQuery
  *  -  `n[ode]()`
+ *  -  `setClass(className, boolean)`
  *
  * Differences with jQuery
  * -----------------------
@@ -271,21 +276,23 @@ var Selection  = function( selector, scope) {
 		} else {
 			this.nodes  = query(selector);
 		}
-	} else if (Selection.IsNode(selector)) {
+	} else if (Selection.IsElement(selector)) {
 		this.nodes = [selector];
 	} else if (selector) {
 		// TODO: Should check that selector is a either a list of nodes
 		if (Selection.Is(selector)) {
 			this.nodes = selector.nodes;
 		} else if (typeof selector.nodeType != "undefined") {
-			if (selector.nodeType == Node.ELEMENT_NODE) {
+			if (Selection.IsElement(selector)) {
 				this.nodes = [selector];
+			} else {
+				this.nodes = [];
 			}
 		} else if (typeof selector.length != "undefined") {
 			var nodes = [];
 			for (var i=0 ; i<selector.length ; i++) {
 				var node = selector[i];
-				if (node.nodeType == Node.ELEMENT_NODE) {
+				if (Selection.IsElement(node)) {
 					nodes.push(node);
 				}
 			}
@@ -328,14 +335,14 @@ Selection.Is = function (s) {
 }
 
 /**
- * `Selection.IsNode(node)`
+ * `Selection.IsElement(node)`
  * 
  * :	Tells if the given value is a DOM or SVG node
  *
- * 		select.Selection.IsNodel(document.createElement("div"));
+ * 		select.Selection.IsElement(document.createElement("div"));
 */
-Selection.IsNode = function (node) {
-	return node && typeof(node.nodeType) != "undefined";
+Selection.IsElement = function (node) {
+	return node && typeof(node.nodeType) != "undefined" && node.nodeType == Node.ELEMENT_NODE;
 }
 
 /**
@@ -351,7 +358,7 @@ Selection.IsDOM = function (node) {
 }
 
 /**
- * `Selection.IsDom(node)`
+ * `Selection.IsDOM(node)`
  * 
  * :	Tells wether the node is an SVG node or not
  *
@@ -418,6 +425,38 @@ Selection.prototype.find  = function( selector ) {
 */
 Selection.prototype.filter = function( selector ) {
 	return new Selection (filter(selector, this.nodes), this.length > 0 ? this : undefined);
+}
+
+/**
+ * `Selection.forEach(callback:Function(element, index)`
+ * 
+ * :	Invokes the given callback for each element of the selection. Breaks
+ * 		if the callback returns false.
+*/
+Selection.prototype.forEach = function( callback ) {
+	var nodes = this.nodes;
+	for (var i=0 ; i<nodes.length ; i++ ) { 
+		if (callback(nodes[i], i) === false) {
+			break;
+		}
+	}
+	return this;
+}
+
+/**
+ * `Selection.is(selector)`
+ * 
+ * :	Tells if all the selected nodes match the given selector
+*/
+Selection.prototype.is = function( selector ) {
+	var result = this.nodes.length > 0;
+	for (var i=0 ; i<this.nodes.length ; i++ ) {
+		if (!select.match(selector, this.nodes[i])) {
+			result = false;
+			break;
+		}
+	}
+	return result;
 }
 
 // ----------------------------------------------------------------------------
@@ -785,9 +824,13 @@ Selection.prototype.attr        = function(name, value) {
 */
 Selection.prototype.data      = function( name, value  ) {
 	if (!name) {
-		// FIXME: Implement me
-		console.error("Selection.data(): not implemented")
-		return this;
+		for (var i=0 ; i < this.nodes.length ; i++ ) {
+			var node = this.nodes[i];
+			if (node.dataset) {
+				return node.dataset;
+			}
+		}
+		return null;
 	} else if (typeof name === "string") {
 		// We retrieve/set a specific data attribute
 		var data_name = "data-" + name;
@@ -919,17 +962,23 @@ Selection.prototype.removeClass = function( className ) {
  *
  * :	Tells if there is at least one node that has the given class
 */
-Selection.prototype.hasClass = function() {
+Selection.prototype.hasClass = function(name) {
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this.nodes[i];
-		var c   = node.getAttribute("class");
-		var m   = c.indexOf(className);
-		var la  = c.length || 0;
-		var lc  = className.length;
-		// If the className is surrounded by spaces or start/end, then
-		// we have a match.
-		if (((m == 0)  || (c[p] == " ")) && ((n == la) || (c[n] == " "))) {
-			return true;
+		if (typeof(node.classList) != "undefined") {
+				return node.classList.contains(name);
+		} else {
+			var c   = node.className;
+			if (c) {
+				var m   = c.indexOf(className);
+				var la  = c.length || 0;
+				var lc  = className.length;
+				// If the className is surrounded by spaces or start/end, then
+				// we have a match.
+				if (((m == 0)  || (c[p] == " ")) && ((n == la) || (c[n] == " "))) {
+					return true;
+				}
+			}
 		}
 	}
 	return false;
@@ -1132,6 +1181,7 @@ select.query     = query;
 modules.select   = select;
 
 // -- MODULE EXPORT -----------------------------------------------------------
+if      (typeof extend !== "undefined") {extend.modules.select = select;}
 if      (typeof define === "function"  && define.amd )     {define(function(){ return select; });}
 else if (typeof module !== "undefined" && module.exports ) {module.exports          = select;}
 if      (typeof window !== "undefined") {
