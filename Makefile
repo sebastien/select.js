@@ -1,6 +1,7 @@
 VERSION=$(shell grep select.VERSION src/select.js | cut -d'"' -f2)
+LITTERATE=litterate.py
 
-ALL: build/select-$(VERSION).js README.md
+ALL: build/select-$(VERSION).js README.html
 	
 
 build/select-$(VERSION).js: src/select.js build
@@ -8,7 +9,10 @@ build/select-$(VERSION).js: src/select.js build
 	cd lib/js ; ln -sf ../../build/select-$(VERSION).js select.js
 
 README.md: src/select.js
-	python litterate.py $< > $@
+	$(LITTERATE) $< > $@
+
+README.html: README.md
+	pandoc -o $@ README.md
 
 build:
 	mkdir build
