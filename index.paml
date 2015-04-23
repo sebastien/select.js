@@ -17,11 +17,15 @@
 		# ---------------------------------------------------------------------
 		<div.document
 			<header
-				<h1:Select
-				<h2:2015-Mar-03
+				<h1:Select.js ${VERSION}
+				<h2:Test Suite <span.lighter.small:updt. 2015-Apr-23>
 			<p.abstract
+				The following page is a test case for the 
+				<a(target=_blank,href=http://github.com/sebastien/select.js):Select.js>
+				JavaScript library. Select.js is DOM &amp; SVG subset of
+				jQuery, targetting modern browsers.
 			<div.section
-				<h3:Test case
+				# NOTE: The testing node is where the results will be displayed
 				<div#testing
 				<div#example.hidden
 					<ul#nosibling
@@ -70,34 +74,34 @@
 
 					T testCase "Selection"
 
-					T test "Unscoped"
+					T test "Unscoped: $('#example')"
 					var s = S "#example"
 					T equals      (s length, 1)
 					T asUndefined (s scope)
 
-					T test "Scoped:node"
+					T test "Scoped:node $('> ul', node)"
 					var n = document getElementById "example"
 					var q = S ("> ul", n)
 					T equals     (q length, 1)
 					T asTrue     (Selection Is (q scope))
-					T identical  (q scope nodes [0],  n)
+					T identical  (q scope [0],  n)
 
-					T test "Scoped:string"
+					T test "Scoped:string $('> ul', '#example')"
 					var q = S ("> ul", "#example")
 					T equals     (q length, 1)
 					T asTrue     (Selection Is (q scope))
-					T identical  (q scope nodes [0],  document getElementById "example")
+					T identical  (q scope [0],  document getElementById "example")
 
 					var q = S ("> ul", "#example li")
 					T equals     (q length, 3)
 					T asTrue     (Selection Is (q scope))
 
-					T test "Scoped:selection"
+					T test "Scoped:selection $('> ul', selection)"
 					var q = S ("> ul", s)
 					T equals     (q length, 1)
 					T identical  (q scope,  s)
 
-					T test "select() transparency"
+					T test "select() transparency, $ (selection)"
 					var q = S ("#example > ul")
 					T identical  (q,  S (q))
 
@@ -176,19 +180,19 @@
 					T test "Empty selection"
 					T identical   (S Empty first (),          S Empty)
 					T equals      (S Empty first () length,   0)
-					T asUndefined (S Empty first () nodes [0]) 
+					T asUndefined (S Empty first () [0]) 
 
 					T test "1-element selection"
 					var q = S "#example"
 					T identical (q first (), q)
 					T equals    (q length,   1)
-					T identical (q first () nodes [0], q nodes [0])
+					T identical (q first () [0], q [0])
 
 					T test "N-element selection"
 					var q = S "#example li"
 					T equals (q length,          9)
 					T equals (q first () length, 1)
-					T identical (q first () nodes [0], q nodes [0])
+					T identical (q first () [0], q [0])
 
 					# -- last() -----------------------------------------------
 					T testCase "Selection.last()"
@@ -196,19 +200,19 @@
 					T test "Empty selection"
 					T identical (S Empty last (),          S Empty)
 					T equals    (S Empty last () length,   0)
-					T asUndefined (S Empty last () nodes [-1])
+					T asUndefined (S Empty last () [-1])
 
 					T test "1-element selection"
 					var q = S "#example"
 					T identical (q last (), q)
 					T equals    (q length,   1)
-					T identical (q last () nodes [0], q nodes [0])
+					T identical (q last () [0], q [0])
 
 					T test "N-element selection"
 					var q = S "#example li"
 					T equals (q length,          9)
 					T equals (q last () length, 1)
-					T identical (q last () nodes [0], q nodes [-1])
+					T identical (q last () [0], q [-1])
 
 					# -- eq() -------------------------------------------------
 					T testCase "Selection.eq()"
@@ -219,7 +223,7 @@
 					T identical (q eq (1),  q)
 					T identical (q eq (-1), q)
 					T equals    (q eq (0) length,  0)
-					T asUndefined (q eq 0 nodes [0])
+					T asUndefined (q eq 0 [0])
 
 					T test "1-element selection"
 					var q = S "#example"
@@ -231,13 +235,13 @@
 					T test "N-element selection"
 					var q = S "#example li"
 					T equals (q length,   9)
-					T identical   (q eq (0) nodes [0], q nodes [0])
-					T asUndefined (q eq (0) nodes [1])
-					T identical (q eq (1) nodes [0], q nodes [1])
-					T asUndefined (q eq (0) nodes [1])
-					T identical (q eq (2) nodes [0], q nodes [2])
-					T identical (q eq (-1) nodes [0], q nodes [-1])
-					T identical (q eq (-2) nodes [0], q nodes [-2])
+					T identical   (q eq (0) [0], q [0])
+					T asUndefined (q eq (0) [1])
+					T identical (q eq (1) [0], q [1])
+					T asUndefined (q eq (0) [1])
+					T identical (q eq (2)  [0], q [2])
+					T identical (q eq (-1) [0], q [-1])
+					T identical (q eq (-2) [0], q [-2])
 
 					# -- next()------------------------------------------------
 					T testCase "Selection.next()"
@@ -258,16 +262,16 @@
 					T equals    (q next () next () length, 1)
 					T equals    (q next () next () next () length, 0)
 					T identical (q next () next () next (), S Empty)
-					T identical (q next () nodes [0], q nodes [1])
-					T identical (q next () nodes [1], q nodes [2])
-					T identical (q next () next () nodes [0], q nodes [2])
+					T identical (q next () [0], q [1])
+					T identical (q next () [1], q [2])
+					T identical (q next () next () [0], q [2])
 
 					T test "N-element selection, filtered"
 					var q = S "#nosibling > li"
 					T equals    (q length,    3)
 					T equals    (q next ".three" length, 1)
 					T equals    (q next ".three" next ".three" length, 0)
-					T identical (q next ".three" nodes [0], q nodes [2])
+					T identical (q next ".three" [0], q [2])
 
 					# -- previous()------------------------------------------------
 					T testCase "Selection.prev[ious]()"
@@ -290,11 +294,11 @@
 					T equals    (q previous () previous () length, 1)
 					T equals    (q previous () previous () previous () length, 0)
 					T identical (q previous () previous () previous (), S Empty)
-					T identical (q previous () nodes [0], q nodes [0])
-					T identical (q previous () nodes [1], q nodes [1])
-					T asUndefined (q previous () nodes [2])
-					T identical   (q previous () previous () nodes [0], q nodes [0])
-					T asUndefined (q previous () previous () nodes [1])
+					T identical (q previous () [0], q [0])
+					T identical (q previous () [1], q [1])
+					T asUndefined (q previous () [2])
+					T identical   (q previous () previous () [0], q [0])
+					T asUndefined (q previous () previous () [1])
 
 					T end ()
 # EOF

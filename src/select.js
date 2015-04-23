@@ -1,3 +1,5 @@
+// NOTE: You can generate the documentation using http://github.com/sebastien/litterate
+// $ litterate.py src/select.js | pandoc -o select.html
 /**
  *
  * # Select.js
@@ -22,8 +24,10 @@
  * That being said, jQuery dramatically
  * improved the quality of the Web as an environment, and it definitely
  * enabled us to focus on creating great applications. [Things have changed](http://youmightnotneedjquery.com/)
- * for the better now, and we don't need so much of a compatibilitjQueryy layer
- * anymore.
+ * for the better now, and we don't need so much of a compatibility layer
+ * anymore. You should note, however, that [jQuery still fixes many modern-browser problems](https://docs.google.com/document/d/1LPaPA30bLUB_publLIMF0RlhdnPx_ePXm7oW02iiT6o/preview?sle=true)
+ * so if you need to have a wide support and more features, jQuery is definitely
+ * the better option.
  *
  * The functions currently implemented are the following, available withing
  * the `modules.select` object (which you should alias to `$`).
@@ -455,7 +459,14 @@ Selection.prototype.find  = function( selector ) {
  *      - the resulting selection will be flat (ie. an array of node)
 */
 Selection.prototype.filter = function( selector ) {
-	return new Selection (filter(selector, this), this.length > 0 ? this : undefined);
+	if (typeof(selector) === "string") {
+		return new Selection (filter(selector, this), this.length > 0 ? this : undefined)
+	} else if (typeof(selector) === "function") {
+		return new Selection ( Array.prototype.filter.apply(this, [selector]) );
+	} else {
+		console.error("Selection.filter(): selector string or predicate expected, got", selector)
+		return None;
+	}
 }
 
 /**
@@ -1574,6 +1585,7 @@ if      (typeof window !== "undefined") {
  * POSSIBILITY OF SUCH DAMAGE.
  *
 */
+
 
 $ = window.modules.select;
 /* EOF */
