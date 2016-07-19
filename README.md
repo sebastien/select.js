@@ -5,10 +5,10 @@
 ```
 Version :  ${VERSION}
 URL     :  http://github.com/sebastien/select.js
-Updated :  2016-03-23
+Updated :  2016-06-23
 ```
 
-Select is a small subset of jQuery's functions implemented for DOM and SVG
+Select is a subset of jQuery's functions implemented for DOM and SVG
 nodes, and targeting modern browsers. It is a thin wrapper around HTML5
 DOM & SVG APIs. It uses strict CSS3 selector query, and as such won't work
 as a drop-in replacement to jQuery, but will make the transition easier.
@@ -43,7 +43,7 @@ Traversal
 :
  - `first()`
  - `last()`
- - `eq(index)`
+ - `eq(index)`|`get(index)`
  - `next(selector?)`
  - `prev[ious](selector?)`
  - `parent(selector?)`
@@ -54,6 +54,7 @@ Traversal
 Manipulation:
 :
  - `append(value)`
+ - `prepend(value)`
  - `remove()`
  - `after(value)`
  - `before(value)`
@@ -96,10 +97,14 @@ New (not in jQuery):
 -  `n[ode]()`
 -  `set(value)`
 -  `contents(value?)`
+-  `redo(node)`
 -  `clear(length)`
 -  `expand(element|[element])`
 -  `like(selector)`
 -  `list()`
+-  `nodes(callback?)`
+-  `wrap(node)`
+-  `equals(node|selection)`
 
 Differences with jQuery
 -----------------------
@@ -107,7 +112,7 @@ Differences with jQuery
 - SVG nodes are supported
 - Only modern browsers are supported (IE10+)
 - Only a subset of jQuery's functions are implemented (see above)
-- Only `ELEMENT_NODE`s are supported (meaning no `document` or `window` supported)
+- Only `nodeType===ELEMENT_NODE`s are supported (meaning no `document` or `window` supported)
 - As a result, select filters out any node that is not an element node (in particular, the document node)
 - Selectors are only CSS3 (ie. no Sizzle/jQuery extended syntax)
 - No name/key/selector normalization (for performance)
@@ -135,8 +140,7 @@ $ == S == modules.select
 Extending
 ---------
 
-Select is ready for being extended (or "monkey-patched") if you prefer. Simply
-extend the prototype:
+Select can be extended by "monkey-patched" the prototype:
 
 ```
 modules.select.Selection.prototype.<YOUR NEW METHOD> = function(...) {
@@ -244,6 +248,11 @@ Predicates
 		select.Selection.IsElement(document.createElement("div"));
 		select.Selection.IsElement(document) == false
 
+`Selection.IsText(node)`
+
+:	Tells if the given value is Text node or not
+
+
 `Selection.IsNode(node)`
 
 :	Tells if the given value is a DOM or SVG node
@@ -264,6 +273,10 @@ Predicates
 
 		select.Selection.IsSVG(document.createElement("div")) == false;
 		select.Selection.IsSVG(document.createElementNS("http://www.w3.org/2000/svg", "svg")) == true;
+
+`Selection.IsSelection(value)`
+
+:	Tells wether the node a selection instance or not
 
 Selection & Filtering
 ---------------------
@@ -293,7 +306,7 @@ Selection & Filtering
 `Selection.iterate(callback:Function(element, index)`
 
 :	Invokes the given callback for each element of the selection wrapped
-		in a selection object.. Breaks if the callback returns false.
+		in a selection object. Breaks if the callback returns `false`.
 
 `Selection.is(selector)`
 
@@ -313,7 +326,7 @@ Selection & Filtering
 :	Returns a new selection made of thelast nodeof this selection. If the
 		selection is empty or made of 1 node, this function is transparent.
 
-`Selection.eq(index:Integer)`
+`Selection.eq(index:Integer)` / `Selection.get(index:Integer)`
 
 :	Returns a new selection made of thenode at the given `index`.
 		if `index` is negative, then the index will be relative to the end
@@ -336,7 +349,7 @@ Selection & Filtering
 		nodes. If a selector is given, only the matching parents
 		will be returned.
 
-`Selection.ancestors(selector:String?)`
+`Selection.ancestors(selector:(String|Callback)?)`
 
 :	Returns a selection of the ancestors of the current selected
 		nodes. If a selector is given, only the matching parents
@@ -348,12 +361,23 @@ Selection & Filtering
 		nodes. If a selector is given, only the matching children
 		will be returned.
 
+`Selection.nodes(callback?)`
+
+:	Returns a list of all the nodes within this element, optionally
+		invoking the given callback.
+		will be returned.
+
 Content & Value
 ---------------
 
 `Selection.append(value:Number|String|Node|[Node]|Selection):this`
 
 :	Appends the given nodes to the first node in the selection. When
+     a string or number is given, then it is wrapped in a text node.
+
+`Selection.prepend(value:Number|String|Node|[Node]|Selection):this`
+
+:	Prepends the given nodes to the first node in the selection. When
      a string or number is given, then it is wrapped in a text node.
 
 `Selection.remove():Selection`
@@ -379,6 +403,21 @@ Content & Value
 		in the current selection will be removed, while the given node list
 		or selection will not be changed (but the nodes parent will change,
 		obviously).
+
+`Selection.equals(node:Node|Selection):bool`
+
+:	Tells if this selection equals the given node or selection.
+
+//`Selection.redo(node:Node|Selection):Selection`
+//
+//:	Redo the selection in the given context, returning a new
+//		selection.
+// 
+
+`Selection.wrap(node:Node):this`
+
+:	Wraps all the nodes in the give node and returns a new selection with the given node.
+		it is equivalent to `$(node).add(this)`
 
 `Selection.clone():Selection`
 
@@ -480,7 +519,7 @@ Attributes
 
 ### `Selection.[add|remove|has]Class()`
 
-`Selection.addClass(name:String?)`
+`Selection.addClass(name:String|[String],‥)`
 
 :	Adds the given class to all the nodes in the selection.
 
@@ -498,9 +537,11 @@ Attributes
 
 :	Tells if there is at least one node that has the given class
 
-`Selection.hasClass(name:String?)`
+`Selection.toggleClass(name:String, Value|Predicate?)`
 
-:	Tells if there is at least one node that has the given class
+:	Toggles the class with the given name if the value is true. In
+		case the value is a predicate, it will be invoked with
+		the node and index as arguments.
 
 Style
 -----
@@ -547,13 +588,13 @@ Layout
      This uses `offsetTop` for DOM nodes and `getBoundingClientRect`
      for SVG nodes.
 
-`Selection.scrollTop():Int`
+`Selection.scrollTop(value:Int?):Int`
 
-:	Returns the `{left,top}` offset of this node, relative to
-		its offset parent.
+:	TODO
 
-     This uses `offsetTop` for DOM nodes and `getBoundingClientRect`
-     for SVG nodes.
+`Selection.scrollLeft(value:Int?):Int`
+
+:	TODO
 
 Selection
 ---------
@@ -608,6 +649,8 @@ Mouse
  - `mouseover`
  - `mousemove`
  - `mouseout`
+ - `mouseenter`
+ - `mouseleave`
 
 Drag
 :
@@ -661,6 +704,10 @@ Helpers & Misc
 :	Sets this selection's content  to be the given node, array
      of nodes or selection.
 
+`Selection.copy()`
+
+:	Creates a copy fo the selection, but not a copy of the nodes.
+
 `Selection.clear(length)`
 
 :	Clears the current selection until there are only `length` elements
@@ -676,7 +723,7 @@ License
 
  Revised BSD License
 
-Copyright (c) 2015, FFunction inc (1165373771 Québec inc) All rights reserved.
+Copyright (c) 2016, FFunction inc (1165373771 Québec inc) All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 

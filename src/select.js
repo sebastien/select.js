@@ -8,10 +8,10 @@
  * ```
  * Version :  ${VERSION}
  * URL     :  http://github.com/sebastien/select.js
- * Updated :  2016-03-23
+ * Updated :  2016-06-23
  * ```
  *
- * Select is a small subset of jQuery's functions implemented for DOM and SVG
+ * Select is a subset of jQuery's functions implemented for DOM and SVG
  * nodes, and targeting modern browsers. It is a thin wrapper around HTML5
  * DOM & SVG APIs. It uses strict CSS3 selector query, and as such won't work
  * as a drop-in replacement to jQuery, but will make the transition easier.
@@ -46,7 +46,7 @@
  * :
  *  - `first()`
  *  - `last()`
- *  - `eq(index)`
+ *  - `eq(index)`|`get(index)`
  *  - `next(selector?)`
  *  - `prev[ious](selector?)`
  *  - `parent(selector?)`
@@ -57,6 +57,7 @@
  * Manipulation:
  * :
  *  - `append(value)`
+ *  - `prepend(value)`
  *  - `remove()`
  *  - `after(value)`
  *  - `before(value)`
@@ -99,10 +100,14 @@
  * -  `n[ode]()`
  * -  `set(value)`
  * -  `contents(value?)`
+ * -  `redo(node)`
  * -  `clear(length)`
  * -  `expand(element|[element])`
  * -  `like(selector)`
  * -  `list()`
+ * -  `nodes(callback?)`
+ * -  `wrap(node)`
+ * -  `equals(node|selection)`
  *
  * Differences with jQuery
  * -----------------------
@@ -110,7 +115,7 @@
  * - SVG nodes are supported
  * - Only modern browsers are supported (IE10+)
  * - Only a subset of jQuery's functions are implemented (see above)
- * - Only `ELEMENT_NODE`s are supported (meaning no `document` or `window` supported)
+ * - Only `nodeType===ELEMENT_NODE`s are supported (meaning no `document` or `window` supported)
  * - As a result, select filters out any node that is not an element node (in particular, the document node)
  * - Selectors are only CSS3 (ie. no Sizzle/jQuery extended syntax)
  * - No name/key/selector normalization (for performance)
@@ -138,8 +143,7 @@
  * Extending
  * ---------
  *
- * Select is ready for being extended (or "monkey-patched") if you prefer. Simply
- * extend the prototype:
+ * Select can be extended by "monkey-patched" the prototype:
  *
  * ```
  * modules.select.Selection.prototype.<YOUR NEW METHOD> = function(...) {
@@ -170,17 +174,18 @@
  * ---
 */
 
+// TODO: Add a "virtual" mode so that all the changes are made virtually,
+//       then pooled, then applied.
 // TODO: Add flyweight pattern in order to recycle selection and not put too
 // much strain on GC.
-// TODO: Remove dependency on Sizzle, it weight way too much for what it brings.
 // TODO: Updated documentation so that Node -> Element where relevant
 // FIXME: Should have a clear strategy on selecting text and nodes, especially
 // FIXME: Test length of arguments instead of typeof
+// FIXME: the $.selector property is not working properly
 
 // -- MODULE DECLARATION ------------------------------------------------------
 var modules = typeof extend != "undefined" && extend.modules || typeof modules!= "undefined" && modules || {};
 var select  = S = $ = (function(modules) {
-
 
 // -- SHIMS -------------------------------------------------------------------
 
@@ -283,19 +288,43 @@ var match = _match ? function(selector, node) {
  *       function returns an array of the matching element nodes.
 */
 var query = function(selector, scope, limit) {
-	// TODO: Implement the `limit` to optimize the query
+	// TODO: Implement the `limit` to optimize
 	selector = selector.trim();
 	if (!selector || selector.length == 0) {
 		return [scope];
 	} else if (selector[0] == ">" ) {
-		selector   = selector.substr(1).trim();
-		var result = [];
-		var nodes  = (scope||document).childNodes;
+		// We have a selector starting with '>'. Sadly, the the `querySelectorAll`
+		// does not support it, so we have to split the query.
+		selector = selector.substr(1).trim();
+		// We look for the first separator, either `>` or ` `. Ideally we should
+		// ensure that the spearator is not contained within `[]`, for insance
+		// `>div[id="value with space"]>span`
+		var i = Math.min(
+			Math.max(selector.indexOf(">"), 0),
+			Math.max(selector.indexOf(" "), 0)
+		);
+		// Now we extract the node selector and the child(ren) selector.
+		var selector_node  = (i>0) ? selector.substring(0,i) : selector;
+		var selector_child = (i>0) ? selector.substring(i,selector.length) : null;
+		var matching       = [];
+		var nodes          = (scope||document).childNodes;
+		var result         = null;
+		// Now we match the root nodes of the selector
 		for (var i=0 ; i<nodes.length ; i++) {
 			var n = nodes[i];
-			if (match(selector, n) && n.nodeType == Node.ELEMENT_NODE) {
-				result.push(n);
+			if (match(selector_node, n) && n.nodeType == Node.ELEMENT_NODE) {
+				matching.push(n);
 			}
+		}
+		if (selector_child) {
+			// If we have a child selector, now is the time to run the query
+			result = [];
+			for (var i=0 ; i<matching.length ; i++) {
+				result = result.concat(select.query(selector_child, matching[i]));
+			}
+		} else {
+			// Otherwise the result is the matching root nodes
+			result = matching;
 		}
 		return result;
 	} else {
@@ -455,6 +484,16 @@ Selection.IsElement = function (node) {
 }
 
 /**
+ * `Selection.IsText(node)`
+ *
+ * :	Tells if the given value is Text node or not
+ *
+*/
+Selection.IsText = function (node) {
+	return node && typeof(node.nodeType) != "undefined" && node.nodeType == Node.TEXT_NODE;
+}
+
+/**
  * `Selection.IsNode(node)`
  *
  * :	Tells if the given value is a DOM or SVG node
@@ -489,6 +528,16 @@ Selection.IsDOM = function (node) {
 Selection.IsSVG = function (node) {
 	// SEE: http://www.w3.org/TR/SVG11/types.html#__svg__SVGLocatable__getBBox
 	return typeof(node.getBBox) != "undefined";
+}
+
+
+/**
+ * `Selection.IsSelection(value)`
+ *
+ * :	Tells wether the node a selection instance or not
+*/
+Selection.IsSelection = function (value) {
+	return value instanceof Selection;
 }
 
 Selection.Ensure = function(node) {
@@ -559,7 +608,7 @@ Selection.prototype.filter = function( selector ) {
  * `Selection.iterate(callback:Function(element, index)`
  *
  * :	Invokes the given callback for each element of the selection wrapped
- * 		in a selection object.. Breaks if the callback returns false.
+ * 		in a selection object. Breaks if the callback returns `false`.
 */
 Selection.prototype.iterate = function( callback ) {
 	var nodes  = this;
@@ -628,14 +677,14 @@ Selection.prototype.last = function() {
 }
 
 /**
- * `Selection.eq(index:Integer)`
+ * `Selection.eq(index:Integer)` / `Selection.get(index:Integer)`
  *
  * :	Returns a new selection made of the *node at the given `index`*.
  * 		if `index` is negative, then the index will be relative to the end
  * 		of the nodes array. If the index is out of the node array bounds,
  * 		the `Empty` selection is returned.
 */
-Selection.prototype.eq = function(index) {
+Selection.prototype.eq = Selection.prototype.get = function(index) {
 	index = index < 0 ? this.length + index : index ;
 	if (this.length == 1 && index == 0) {
 		return this;
@@ -695,24 +744,31 @@ Selection.prototype.parent = function(selector) {
 }
 
 /**
- * `Selection.ancestors(selector:String?)`
+ * `Selection.ancestors(selector:(String|Callback)?)`
  *
  * :	Returns a selection of the ancestors of the current selected
  * 		nodes. If a selector is given, only the matching parents
  * 		will be returned.
 */
-Selection.prototype.ancestors = Selection.prototype.parents = function( selector ) {
+Selection.prototype.ancestors = Selection.prototype.parents = function( selector, limit ) {
 	var nodes = [];
-	var limit = -1;
+	var limit = limit === undefined ? -1 : limit;
+	var is_function = typeof (selector) === "function";
+	var is_string   = typeof (selector) === "string";
 	// We need to support :first directly here
-	if (String_endsWith(selector, ":first")) {
+	if (is_string && String_endsWith(selector, ":first")) {
 		selector = selector.substring(0, selector.length - 6);
 		index    = 0;
 	}
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this[i].parentNode;
 		while (node) {
-			if (!selector || match(selector, node)) {
+			var matches = true;
+			if (selector) {
+				if      (is_function) {matches=selector(node, i);}
+				else if (is_string)   {matches=match(selector, node);}
+			}
+			if (matches) {
 				nodes.push(node);
 				if (limit >= 0 && nodes.length >= limit ) {
 					// NOTE: We exit early on
@@ -744,6 +800,26 @@ Selection.prototype.children = function( selector ) {
 		}
 	}
 	return nodes.length > 0 ? select(nodes, this) : modules.select.Empty;
+}
+
+/**
+ * `Selection.nodes(callback?)`
+ *
+ * :	Returns a list of all the nodes within this element, optionally
+ * 		invoking the given callback.
+ * 		will be returned.
+*/
+Selection.prototype.nodes = function( callback ) {
+	var nodes = [];
+	for (var i=0 ; i < this.length ; i++ ) {
+		var node = this[i];
+		for (var j=0 ; j < node.childNodes.length ; j++ ) {
+			var child = node.childNodes[j];
+			callback(child,i,node);
+			nodes.push(child);
+		}
+	}
+	return nodes;
 }
 
 // ----------------------------------------------------------------------------
@@ -782,6 +858,39 @@ Selection.prototype.append = function( value ) {
 	}
 	return this;
 }
+
+/**
+ * `Selection.prepend(value:Number|String|Node|[Node]|Selection):this`
+ *
+ * :	Prepends the given nodes to the first node in the selection. When
+ *      a string or number is given, then it is wrapped in a text node.
+*/
+Selection.prototype.prepend = function( value ) {
+	if (this.length == 0) { return this; }
+	var node = this[0];
+	// We exit early if the node is empty
+	var child = node.firstChild;
+	if (!child) {return this.append(value)};
+	// We insert before the child
+	if (Selection.Is(value)) {
+		for (var i=0 ; i<value.length ; i++) {
+			console.log("Node", node, value[i])
+			node.insertBefore(value[i], child);
+		}
+	} else if (value && typeof value.nodeType != "undefined") {
+		node.insertBefore(value, child);
+	} else if (Selection.IsList(value)) {
+		for (var i=0 ; i<value.length ; i++) {this.prepend(value[i])}
+	} else if (typeof value == "string") {
+		for (var i=0 ; i<this.length ; i++){this[i].insertBefore(document.createTextNode(value), child);}
+	} else if (typeof value == "number") {
+		for (var i=0 ; i<this.length ; i++){this[i].insertBefore(document.createTextNode(value), child);}
+	} else if (value) {
+		console.error("Selection.prepend: value is expected to be Number, String, Node, [Node] or Selection, got", value)
+	}
+	return this;
+}
+
 
 /**
  * `Selection.remove():Selection`
@@ -946,6 +1055,48 @@ Selection.prototype.replaceWith = function( value ) {
 		while (added.length > 0) { this.push(added.pop()) }
 	}
 	return this;
+}
+
+/**
+ * `Selection.equals(node:Node|Selection):bool`
+ *
+ * :	Tells if this selection equals the given node or selection.
+*/
+Selection.prototype.equals = function( node ) {
+	if (node instanceof Array) {
+		if (node.length != this.length) {return false;}
+		for (var i=0 ; i < this.length ; i++ ) {
+			if (node[i] != this[i]) {return false;}
+		}
+		return true;
+	} else if (Selection.IsElement(node)) {
+		return this.length == 1 && this[0] === node;
+	} else {
+		return false;
+	}
+}
+
+// FIXME: Does not work
+// /**
+//  * `Selection.redo(node:Node|Selection):Selection`
+//  *
+//  * :	Redo the selection in the given context, returning a new
+//  * 		selection.
+// */
+// Selection.prototype.redo = function( node ) {
+// 	return Selection( this.selector[0], node);
+// }
+
+/**
+ * `Selection.wrap(node:Node):this`
+ *
+ * :	Wraps all the nodes in the give node and returns a new selection with the given node.
+ * 		it is equivalent to `$(node).add(this)`
+*/
+Selection.prototype.wrap = function( node ) {
+	node = $(node);
+	node.add(this);
+	return node;
 }
 
 /**
@@ -1138,7 +1289,7 @@ Selection.prototype.attr        = function(name, value) {
 				var node = this[i];
 				if (value === null) {
 					if (node.hasAttribute(name)) {
-						return node.removeAttribute(name);
+						node.removeAttribute(name);
 					}
 				} else {
 					node.setAttribute(name, value);
@@ -1273,7 +1424,7 @@ Selection.prototype.data      = function( name, value, serialize ) {
 /**
  * ### `Selection.[add|remove|has]Class()`
  *
- * `Selection.addClass(name:String?)`
+ * `Selection.addClass(name:String|[String],‥)`
  *
  * :	Adds the given class to all the nodes in the selection.
  *
@@ -1281,6 +1432,21 @@ Selection.prototype.data      = function( name, value, serialize ) {
  *      DOM & SVG nodes.
 */
 Selection.prototype.addClass    = function( className ) {
+	// Supports giving an array of classes
+	if (className instanceof Array) {
+		for (var i=0 ; i < className.length ; i++ ) {
+			this.addClass(className[i]);
+		}
+		return this;
+	}
+	// Supports multiple arguments
+	if (arguments.length > 1 ) {
+		for (var i=0 ; i < arguments.length ; i++ ) {
+			this.addClass(arguments[i]);
+		}
+		return this;
+	}
+	// And here is the default case where we have only one argument
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this[i];
 		if (node.classList) {
@@ -1387,20 +1553,25 @@ Selection.prototype.hasClass = function(name) {
 };
 
 /**
- * `Selection.hasClass(name:String?)`
+ * `Selection.toggleClass(name:String, Value|Predicate?)`
  *
- * :	Tells if there is at least one node that has the given class
+ * :	Toggles the class with the given name if the value is true. In
+ * 		case the value is a predicate, it will be invoked with
+ * 		the node and index as arguments.
 */
 Selection.prototype.toggleClass = function(name, value) {
 	var sel = select();
+	var is_function = value instanceof Function;
 	for (var i=0 ; i < this.length ; i++ ) {
+		var node=this[i];
+		var v   = is_function ? value(node, i) : value;
 		sel.set(this[i]);
 		if      (typeof value == "undefined") {
 			if (sel.hasClass(name)) {sel.removeClass(name);}
 			else                    {sel.addClass(name);}
-		} else if ( value && !sel.hasClass(name)) {
+		} else if ( v && !sel.hasClass(name)) {
 			sel.addClass   (name);
-		} else if (!value &&  sel.hasClass(name)) {
+		} else if (!v &&  sel.hasClass(name)) {
 			sel.removeClass(name);
 		}
 	}
@@ -1532,22 +1703,46 @@ Selection.prototype.offset      = function() {
 }
 
 /**
- * `Selection.scrollTop():Int`
+ * `Selection.scrollTop(value:Int?):Int`
  *
- * :	Returns the `{left,top}` offset of this node, relative to
- * 		its offset parent.
- *
- *      This uses `offsetTop` for DOM nodes and `getBoundingClientRect`
- *      for SVG nodes.
+ * :	TODO
 */
-Selection.prototype.scrollTop   = function() {
+Selection.prototype.scrollTop = function(value) {
+	var has_value = value !== undefined;
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this[i];
 		if (Selection.IsDOM(node)) {
-			return node.scrollTop;
+			if (has_value) {
+				node.scrollTop = value;
+			} else {
+				return node.scrollTop;
+			}
 		} else {
 			// FIXME: Implement me
 			console.error("Selection.scrollTop: Not implemented for SVG")
+		}
+	}
+	return undefined;
+}
+
+/**
+ * `Selection.scrollLeft(value:Int?):Int`
+ *
+ * :	TODO
+*/
+Selection.prototype.scrollLeft = function(value) {
+	var has_value = value !== undefined;
+	for (var i=0 ; i < this.length ; i++ ) {
+		var node = this[i];
+		if (Selection.IsDOM(node)) {
+			if (has_value) {
+				node.scrollLeft = value;
+			} else {
+				return node.scrollLeft;
+			}
+		} else {
+			// FIXME: Implement me
+			console.error("Selection.scrollLeft: Not implemented for SVG")
 		}
 	}
 	return undefined;
@@ -1610,7 +1805,14 @@ Selection.prototype.select = function(callback) {
 				node.select();
 			} else {
 				var r = new Range();
-				r.selectNode(node);
+				// We want to select the contents, no the node itself
+				if (node.nodeType == node.TEXT_NODE) {
+					r.selectNode(node);
+				} else {
+					r.selectNodeContents(node);
+				}
+				// We clear any other range
+				s.removeAllRanges();
 				s.addRange(r);
 			}
 		}
@@ -1701,6 +1903,8 @@ Selection.prototype.trigger = function( event ) {
  *  - `mouseover`
  *  - `mousemove`
  *  - `mouseout`
+ *  - `mouseenter`
+ *  - `mouseleave`
  *
  * Drag
  * :
@@ -1744,7 +1948,7 @@ Selection.prototype.trigger = function( event ) {
 // penalty at loading, and saves a few lines.
 Selection.EVENTS = [
 	"click",     "dblclick",
-	"mousedown", "mouseup",  "mouseover", "mousemove", "mouseout",
+	"mousedown", "mouseup",  "mouseover", "mousemove", "mouseout", "mouseenter", "mouseleave",
 	"dragstart", "drag",     "dragenter", "dragleave", "dragover",
 	"drop",      "dragend",
 	"keydown",   "keypress", "keyup",
@@ -1803,6 +2007,15 @@ Selection.prototype.set = function(value) {
 }
 
 /**
+ * `Selection.copy()`
+ *
+ * :	Creates a copy fo the selection, but not a copy of the nodes.
+*/
+Selection.prototype.copy = function(value) {
+	return new Selection().expand(value);
+}
+
+/**
  * `Selection.clear(length)`
  *
  * :	Clears the current selection until there are only `length` elements
@@ -1837,7 +2050,7 @@ Selection.prototype.expand = function(element) {
 			}
 		}
 	} else if (Selection.IsList(element)) {
-		this.unshift.apply(this, element.filter(Selection.IsElement));
+		for (var i=0;i<element.length;i++) {this.expand(element[i])};
 	} else {
 		console.error("Selection.expand: Unsupported argument", element)
 	}
@@ -1882,11 +2095,13 @@ var select = function( selector, scope ) {
 }
 
 select.Selection = Selection;
-select.VERSION   = "0.6.3";
+select.VERSION   = "0.6.9";
 select.NAME      = "select"
 select.LICENSE   = "http://ffctn.com/doc/licenses/bsd.html";
 select.STATUS    = "LOADED";
 select.Empty     = new Selection();
+select.isNode    = Selection.IsNode;
+select.isText    = Selection.IsText;
 select.filter    = filter;
 select.match     = match;
 select.query     = query;
@@ -1913,7 +2128,7 @@ if      (typeof window !== "undefined") {
  *
  *  Revised BSD License
  *
- * Copyright (c) 2015, FFunction inc (1165373771 Québec inc) All rights reserved.
+ * Copyright (c) 2016, FFunction inc (1165373771 Québec inc) All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
  *
