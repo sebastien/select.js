@@ -1,0 +1,22 @@
+{
+  "name": "select",
+  "version": "0.7.1",
+  "description": "A small jQuery-like library for DOM+SVG manipulation",
+  "main": "src/select.js",
+  "homepage": "https://github.com/sebastien/select.js#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sebastien/select.js.git"
+  },
+  "keywords": [
+    "DOM",
+    "Query",
+    "Library",
+    "Selection"
+  ],
+  "author": "Sébastien Pierre <sebastien.pierre@gmail.com> (http://www.sebastienpierre.ca/)",
+  "license": "BSD",
+  "bugs": {
+    "url": "https://github.com/sebastien/select.js/issues"
+  },
+}

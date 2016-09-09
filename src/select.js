@@ -8,7 +8,7 @@
  * ```
  * Version :  ${VERSION}
  * URL     :  http://github.com/sebastien/select.js
- * Updated :  2016-06-23
+ * Updated :  2016-08-05
  * ```
  *
  * Select is a subset of jQuery's functions implemented for DOM and SVG
@@ -33,7 +33,7 @@
  * the better option.
  *
  * The functions currently implemented are the following, available withing
- * the `modules.select` object (which you should alias to `$`).
+ * the `select` object (which you should alias to `$`).
  *
  * Selection
  * :
@@ -67,7 +67,7 @@
  *  - `css(attribute, value)`/`css(attributes)`
  *  - `html(value?)`/`contents(value?)`
  *  - `text(value?)`
- *  - `val(value?)`
+ *  - `val(value?)/`value()`
  *  - `empty()`
  *  - `[has|add|remove|toggle]Class(name)`
  *
@@ -106,8 +106,10 @@
  * -  `like(selector)`
  * -  `list()`
  * -  `nodes(callback?)`
+ * -  `walk(callback?)`
  * -  `wrap(node)`
  * -  `equals(node|selection)`
+ * -  `contains(node|selection)`
  *
  * Differences with jQuery
  * -----------------------
@@ -119,6 +121,7 @@
  * - As a result, select filters out any node that is not an element node (in particular, the document node)
  * - Selectors are only CSS3 (ie. no Sizzle/jQuery extended syntax)
  * - No name/key/selector normalization (for performance)
+ * - Distributed as an UMD module
  *
  * Using
  * -------
@@ -136,7 +139,7 @@
  * $("ul li:even").text("Hello!");
  *
  * // It is also available at different locations
- * $ == S == modules.select
+ * $ == S == window.select
  * ```
  *
  *
@@ -146,7 +149,7 @@
  * Select can be extended by "monkey-patched" the prototype:
  *
  * ```
- * modules.select.Selection.prototype.<YOUR NEW METHOD> = function(...) {
+ * select.Selection.prototype.<YOUR NEW METHOD> = function(...) {
  *    // `this` will reference your `Selection` object
  * }
  * ```
@@ -174,6 +177,22 @@
  * ---
 */
 
+// FROM: http://babeljs.io/docs/plugins/transform-es2015-modules-umd/
+// START:UMD_MODULE_PREAMBLE
+(function (global, factory) {
+	if (typeof define === "function" && define.amd) {
+		define(["exports"], factory);
+	} else if (typeof exports !== "undefined") {
+		factory(exports);
+	} else {
+		var mod = {exports: {}};
+		factory(mod.exports);
+		global.actual = mod.exports;
+	}
+})(this, function (exports) {
+	Object.defineProperty(exports, "__esModule", {value: true});
+// END:UMD_MODULE_PREAMBLE
+
 // TODO: Add a "virtual" mode so that all the changes are made virtually,
 //       then pooled, then applied.
 // TODO: Add flyweight pattern in order to recycle selection and not put too
@@ -182,10 +201,6 @@
 // FIXME: Should have a clear strategy on selecting text and nodes, especially
 // FIXME: Test length of arguments instead of typeof
 // FIXME: the $.selector property is not working properly
-
-// -- MODULE DECLARATION ------------------------------------------------------
-var modules = typeof extend != "undefined" && extend.modules || typeof modules!= "undefined" && modules || {};
-var select  = S = $ = (function(modules) {
 
 // -- SHIMS -------------------------------------------------------------------
 
@@ -245,7 +260,7 @@ var match = _match ? function(selector, node) {
 					return node && node.webkitMatchesSelector && node.webkitMatchesSelector(selector);
 				default:
 					console.error("select.match: browser not supported");
-					modules.select.STATUS = "FAILED";
+					exports.STATUS = "FAILED";
 					return node.matches(selector);
 			}
 		} catch (e) {
@@ -255,7 +270,7 @@ var match = _match ? function(selector, node) {
 		}
 	} else {
 		// We need to support the case where an index is given
-		var matches = modules.select.query(selector, undefined, index);
+		var matches = exports.query(selector, undefined, index);
 		return matches[index] == node;
 	}
 } : function (selector, node ) {
@@ -360,6 +375,23 @@ var query = function(selector, scope, limit) {
 	}
 }
 
+// TODO
+// /**
+//  * `select.xpath(selector:String, node:Node?):[Element]`
+//  *
+//  * :	Queries all the descendants of node that match the given XPath expression. This
+//  *		is a wrapper around `document.evaluate`.
+//  *		See <https://developer.mozilla.org/en-US/docs/Introduction_to_using_XPath_in_JavaScript>
+//  *
+//  *       function returns an array of the matching element nodes.
+// */
+// var xpath = function(selector, scope, limit) {
+// 	var result         = Selection ();
+// 	var scope_document = scope.ownerDocument == null ? scope.documentElement : scope.ownerDocument.documentElement 
+// 	var resolver       = document.createNSResolver( scope_document );
+// 	document.evaluate(selector, scope, resolver);
+// }
+
 /**
  * `select.filter(selector:String, node:Node?):[Node]`
  *
@@ -378,6 +410,8 @@ var filter = function(selector, nodes) {
 	}
 	return result;
 }
+
+
 
 /*
  * Selection Class
@@ -407,7 +441,7 @@ var Selection = function( selector, scope) {
 			nodes = query(selector);
 		} else {
 			// We have a scope, so we query it already.
-			scope = modules.select(scope);
+			scope = exports.select(scope);
 			// Now we restrict the selector to the matching result.
 			nodes = scope.find(selector);
 		}
@@ -418,13 +452,8 @@ var Selection = function( selector, scope) {
 		if(selector.scope && scope!=selector.scope){
 			console.error("Selection.new: given scope differs from first argument's", scope, "!=", selector.scope);
 		}
-	} else if (Selection.IsList(selector) || Selection.IsNode(selector)) {
-		// If the selector is a list, we just copy it as is
-		nodes = selector;
-	} else if (selector == document || selector || window) {
-		// We do nothing, the nodes will be null.
 	} else if (selector) {
-		console.error("Selection.new: selector should be String, Array, NodeList, Node or nothing, got", selector)
+		nodes = Selection.AsElementList(selector);
 	}
 	this.set(nodes);
 	this.selector    = selector;
@@ -540,6 +569,37 @@ Selection.IsSelection = function (value) {
 	return value instanceof Selection;
 }
 
+/**
+ * `Selection.AsElementList(value:Any)`
+ *
+ * :	Ensures that the given value expands to a node list. This will
+ * 		only match node types and won't do any kind of querying. It just
+ * 		makes sure that only element nodes are returned.
+*/
+Selection.AsElementList = function(value) {
+	if (!value) {
+		return value;
+	} else if (value.nodeType == Node.ELEMENT_NODE) {
+		return [value];
+	} else if (value.nodeType == Node.DOCUMENT_FRAGMENT_NODE || value.nodeType == Node.DOCUMENT_NODE) {
+		var res = [];
+		var child = value.firstElementChild;
+		while (child) {res.push(child);child = child.nextSibling;}
+		return res;
+	} else if ( value === window ) {
+		return Selection.AsElementList(window.document);
+	} else if (Selection.IsList(value)) {
+		// FIXME: Should recurse
+		var res = [];
+		for (var i=0 ; i<value.length ; i++) {
+			res = res.concat(Selection.AsElementList(value[i]));
+		}
+		return res;
+	} else {
+		return [];
+	}
+}
+
 Selection.Ensure = function(node) {
 	return Selection.Is(node) ? node : new Selection(node);
 }
@@ -569,7 +629,7 @@ Selection.Ensure = function(node) {
  *
 */
 Selection.prototype.find  = function( selector ) {
-	if (this.length == 0) { return modules.select.Empty; }
+	if (this.length == 0) { return exports.Empty; }
 	var nodes = [];
 	// NOTE: We're dealing with NodeList, so no fancy reduce, etc
 	for (var i=0 ; i<this.length ; i++) {
@@ -626,14 +686,18 @@ Selection.prototype.iterate = function( callback ) {
  * :	Tells if all the selected nodes match the given selector
 */
 Selection.prototype.is = Selection.prototype.like = function( selector ) {
-	var result = this.length > 0;
-	for (var i=0 ; i<this.length ; i++ ) {
-		if (!modules.select.match(selector, this[i])) {
-			result = false;
-			break;
+	if (typeof selector === "string") {
+		var result = this.length > 0;
+		for (var i=0 ; i<this.length ; i++ ) {
+			if (!exports.match(selector, this[i])) {
+				result = false;
+				break;
+			}
 		}
+		return result;
+	} else {
+		return this.equals(selector);
 	}
-	return result;
 }
 
 /**
@@ -689,7 +753,7 @@ Selection.prototype.eq = Selection.prototype.get = function(index) {
 	if (this.length == 1 && index == 0) {
 		return this;
 	} else {
-		return 0 <= index < this.length ? select([this[index]], this) : modules.select.Empty;
+		return 0 <= index < this.length ? select([this[index]], this) : exports.Empty;
 	}
 }
 
@@ -704,9 +768,9 @@ Selection.prototype.next = function(selector) {
 	for (var i=0 ; i<this.length ; i++) {
 		var node    = this[i];
 		var sibling = node.nextElementSibling;
-		if (sibling && (!selector || match(selector, node))) {nodes.push(sibling)}
+		if (sibling && (!selector || match(selector, sibling))) {nodes.push(sibling)}
 	};
-	return nodes.length > 0 ? select(nodes, this) : modules.select.Empty;
+	return nodes.length > 0 ? select(nodes, this) : exports.Empty;
 }
 
 /**
@@ -720,9 +784,9 @@ Selection.prototype.previous = Selection.prototype.prev = function(selector) {
 	for (var i=0 ; i < this.length ; i++) {
 		var node    = this[i];
 		var sibling = node.previousElementSibling;
-		if (sibling && (!selector || match(selector, node))) {nodes.push(sibling)}
+		if (sibling && (!selector || match(selector, sibling))) {nodes.push(sibling)}
 	};
-	return nodes.length > 0 ? select(nodes, this) : modules.select.Empty;
+	return nodes.length > 0 ? select(nodes, this) : exports.Empty;
 }
 
 /**
@@ -740,19 +804,25 @@ Selection.prototype.parent = function(selector) {
 			nodes.push(node);
 		}
 	}
-	return nodes.length > 0 ? select(nodes, this) : modules.select.Empty;
+	return nodes.length > 0 ? select(nodes, this) : exports.Empty;
 }
 
 /**
- * `Selection.ancestors(selector:(String|Callback)?)`
+ * `Selection.ancestors(selector:(String|Callback)?,limit:Number|Selection?)`
  *
  * :	Returns a selection of the ancestors of the current selected
  * 		nodes. If a selector is given, only the matching parents
  * 		will be returned.
+ *
+ * 		The `limit` argument can be either a number, in which case
+ * 		it will limit the number of ancestors to the given number,
+ * 		or it can be a node/selection, in which case it will not
+ * 		go beyond the given node.
 */
 Selection.prototype.ancestors = Selection.prototype.parents = function( selector, limit ) {
 	var nodes = [];
-	var limit = limit === undefined ? -1 : limit;
+	var depth_limit = typeof (limit) === "number" ? limit : -1;
+	var node_limit  = (limit && typeof (limit) !== "number") ? select(limit) : null;
 	var is_function = typeof (selector) === "function";
 	var is_string   = typeof (selector) === "string";
 	// We need to support :first directly here
@@ -770,15 +840,18 @@ Selection.prototype.ancestors = Selection.prototype.parents = function( selector
 			}
 			if (matches) {
 				nodes.push(node);
-				if (limit >= 0 && nodes.length >= limit ) {
+				if (depth_limit >= 0 && nodes.length >= depth_limit ) {
 					// NOTE: We exit early on
 					return select(nodes, this);
 				}
 			}
 			node = node.parentNode;
+			if (node_limit && node_limit.contains(node)) {
+				node = null;
+			}
 		}
 	}
-	return nodes.length > 0 ? select(nodes, this) : modules.select.Empty;
+	return nodes.length > 0 ? select(nodes, this) : exports.Empty;
 }
 
 /**
@@ -799,15 +872,18 @@ Selection.prototype.children = function( selector ) {
 			}
 		}
 	}
-	return nodes.length > 0 ? select(nodes, this) : modules.select.Empty;
+	return nodes.length > 0 ? select(nodes, this) : exports.Empty;
 }
 
 /**
- * `Selection.nodes(callback?)`
+ * `Selection.nodes(callback?):[Node]`
  *
- * :	Returns a list of all the nodes within this element, optionally
+ * :	Returns a list of all the child nodes within this element, optionally
  * 		invoking the given callback.
- * 		will be returned.
+ * 		will be returned. Note that we're talking about `Node` here,
+ * 		not elements, returned as an array.
+ *
+ * 		The iteration will exit whenever `callback` returns `false`.
 */
 Selection.prototype.nodes = function( callback ) {
 	var nodes = [];
@@ -815,11 +891,45 @@ Selection.prototype.nodes = function( callback ) {
 		var node = this[i];
 		for (var j=0 ; j < node.childNodes.length ; j++ ) {
 			var child = node.childNodes[j];
-			callback(child,i,node);
-			nodes.push(child);
+			if (!callback || callback(child,i,node) !== false ) {
+				nodes.push(child);
+			} else {
+				return nodes;
+			}
 		}
 	}
 	return nodes;
+}
+
+/***
+ * `Selection.walk(callback?):this`
+ *
+ * :	Invokes the given callback by making depth-first traversal of 
+ * 		all the elements in this selection, passing (node, count) as 
+ * 		argument. Note that unlike most other functions, the callback
+ * 		will be given any node, not only element nodes, and they
+ * 		will be given without any selection wrapping.
+ *
+ * 		The iteration will exit whenever `callback` returns `false`.
+*/
+Selection.prototype.walk = function( callback ) {
+	if (!callback) {return this;}
+	var to_walk = [];
+	var count   = 0;
+	for (var i=0 ; i < this.length ; i++ ) {
+		var node = this[i];
+		to_walk.push(node);
+		while (to_walk.length > 0) {
+			var node = to_walk.pop();
+			if (callback && callback(node, count++) === false) {
+				return this;
+			}
+			for (var j=0 ; j < node.childNodes.length ; j++ ) {
+				to_walk.push(node.childNodes[j]);
+			}
+		}
+	}
+	return this;
 }
 
 // ----------------------------------------------------------------------------
@@ -874,7 +984,6 @@ Selection.prototype.prepend = function( value ) {
 	// We insert before the child
 	if (Selection.Is(value)) {
 		for (var i=0 ; i<value.length ; i++) {
-			console.log("Node", node, value[i])
 			node.insertBefore(value[i], child);
 		}
 	} else if (value && typeof value.nodeType != "undefined") {
@@ -955,7 +1064,8 @@ Selection.prototype.after = function( value ) {
 			console.error("Selection.after: value is expected to be Node, [Node] or Selection, got", value)
 		}
 	} else {
-		scope = scope.parentNode;
+		// FIXME: Really not sure about that
+		scope = node.parentNode;
 		if (Selection.Is(value)) {
 			for (var i=0 ; i<value.length ; i++) {
 				scope.appendChild(value[i]);
@@ -976,7 +1086,7 @@ Selection.prototype.after = function( value ) {
 /**
  * `Selection.before(value:Node|[Node]|Selection):this`
  *
- * :	Appends the given nodes before first node in the selection
+ * :	Appends the given nodes before the first node in the selection
 */
 Selection.prototype.before = function( value ) {
 	if (this.length == 0) { return this; }
@@ -1063,7 +1173,9 @@ Selection.prototype.replaceWith = function( value ) {
  * :	Tells if this selection equals the given node or selection.
 */
 Selection.prototype.equals = function( node ) {
-	if (node instanceof Array) {
+	if (typeof(node) === "string" ) {
+		return this.equals(query(node));
+	} else if (node instanceof Array) {
 		if (node.length != this.length) {return false;}
 		for (var i=0 ; i < this.length ; i++ ) {
 			if (node[i] != this[i]) {return false;}
@@ -1075,6 +1187,23 @@ Selection.prototype.equals = function( node ) {
 		return false;
 	}
 }
+
+/**
+ * `Selection.contains(node:Node|Selection?)`
+ *
+ * :	Tells if the current selection contains all of the given nodes/selections.
+*/
+Selection.prototype.contains = function(node) {
+	if (node instanceof Array || Selection.IsElement(node)) {
+		var found = true;
+		for (var i=0 ; found && i < this.length ; i++ ) {
+			found = this.indexOf(node[i]) >= 0;
+		}
+		return found;
+	} else {
+		return this.indexOf(node) >= 0;
+	}
+};
 
 // FIXME: Does not work
 // /**
@@ -1132,14 +1261,16 @@ Selection.prototype.isEmpty = function( ) {
 	return this.length == 0;
 }
 
+// TODO: Implement better rules for value extraction
+
 /**
- * `Selection.val(value?):Any|Selection`
+ * `Selection.val(value?):Any|Selection` / `Selection.value`
  *
  * :	When `value` is not specified ,retrieves the first non-null
  *		value for the given input fields. If value is specified, then
  *		the value will be set in all fields.
 */
-Selection.prototype.val      = function( value ) {
+Selection.prototype.val      = Selection.prototype.value = function( value ) {
 	if (typeof value == "undefined") {
 		for (var i=0 ; i < this.length ; i++ ) {
 			var node = this[i];
@@ -2038,19 +2169,15 @@ Selection.prototype.expand = function(element) {
 	if (element == window || element == document ) { element = document.firstElementChild; }
 	if (!element || element.length == 0) {
 		return this;
+	} else if (typeof element === "string") {
+		return this.expand(query(element));
 	} else if (Selection.IsElement(element)) {
 		this.push(element);
-	} else if (element instanceof NodeList) {
-		// NOTE: We don't call expand here as we want to avoid
-		// a recursive call per element -- it might be premature optimization.
-		for (var i=0 ; i<element.length ; i++) {
-			var e = element[i];
-			if (Selection.IsElement(e)) {
-				this.push(element);
-			}
-		}
-	} else if (Selection.IsList(element)) {
-		for (var i=0;i<element.length;i++) {this.expand(element[i])};
+	} else if (element.nodeType == Node.DOCUMENT_NODE) {
+		// NOTE: This does not work on some mobile browsers.
+		this.expand(element.firstElementChild);
+	} else if (element instanceof NodeList || Selection.IsList(element)) {
+		for (var i=0 ; i<element.length ; i++) {this.expand(element[i]);}
 	} else {
 		console.error("Selection.expand: Unsupported argument", element)
 	}
@@ -2091,11 +2218,15 @@ Selection.prototype.expand = function(element) {
  *
 */
 var select = function( selector, scope ) {
+
 	return (Selection.Is(selector) && !scope) ? selector :  new Selection (selector, scope );
 }
 
+// NOTE: This is a bit recursive as the select is actually a factory function
+// for Selection object, but we also copy the top-level module attributes in
+// it. 
 select.Selection = Selection;
-select.VERSION   = "0.6.9";
+select.VERSION   = "0.7.1";
 select.NAME      = "select"
 select.LICENSE   = "http://ffctn.com/doc/licenses/bsd.html";
 select.STATUS    = "LOADED";
@@ -2105,18 +2236,14 @@ select.isText    = Selection.IsText;
 select.filter    = filter;
 select.match     = match;
 select.query     = query;
-modules.select   = select;
+// We keep a reference to `select` itself.
+select.select    = select;
+select.$         = select;
 
 // -- MODULE EXPORT -----------------------------------------------------------
-if      (typeof extend !== "undefined") {extend.modules.select = select;}
-if      (typeof define === "function"  && define.amd )     {define(function(){ return select; });}
-else if (typeof module !== "undefined" && module.exports ) {module.exports          = select;}
-if      (typeof window !== "undefined") {
-	// FIXME: For some reason, that doesn't work
-	if (typeof (window.$) == "undefined") {window.$ = window.$ || select;}
-	if (typeof (window.S) == "undefined") {window.S = window.S || select;}
-}
-})(modules);
+Object.assign(exports, select);
+if (typeof extend !== "undefined") {extend.module("select", select)}
+if (typeof window !== "undefined") {window.select = select; window.$ = window.S = select.$;}
 
 /** END:MODULE **/
 
@@ -2155,6 +2282,5 @@ if      (typeof window !== "undefined") {
  *
 */
 
-$ = window.modules.select;
+});
 /* EOF - @LITTERATE */
-

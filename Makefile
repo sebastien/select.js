@@ -1,21 +1,21 @@
 VERSION=$(shell grep select.VERSION src/select.js | cut -d'"' -f2)
 LITTERATE=litterate.py
 
-ALL: build/select-$(VERSION).js README.html
-	
+ALL: dist/select-$(VERSION).js dist/select-$(VERSION).min.js README.md
 
-build/select-$(VERSION).js: src/select.js build
+dist/select-$(VERSION).js: src/select.js dist
 	cat src/select.js > $@
 	cd lib/js ; ln -sf ../../build/select-$(VERSION).js select.js
+
+dist/%.min.js: dist/%.js
+	uglifyjs $< > $@
 
 README.md: src/select.js
 	$(LITTERATE) $< > $@
 
-README.html: README.md
-	pandoc -o $@ README.md
+dist:
+	mkdir dist
 
-build:
-	mkdir build
 run:
 	pamela-web
 
