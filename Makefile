@@ -1,5 +1,5 @@
 VERSION=$(shell grep select.VERSION src/select.js | cut -d'"' -f2)
-LITTERATE=litterate.py
+LITTERATE=litterate
 
 ALL: dist/select-$(VERSION).js dist/select-$(VERSION).min.js README.md
 
