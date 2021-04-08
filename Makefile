@@ -1,22 +1,19 @@
-VERSION=$(shell grep select.VERSION src/select.js | cut -d'"' -f2)
-LITTERATE=litterate
+PROJECT:=select
+VERSION:=$(shell grep 'VERSION' src/js/$(PROJECT).js | cut -d'"' -f2 | tail -n1)
 
-ALL: dist/select-$(VERSION).js dist/select-$(VERSION).min.js README.md
+ALL: dist/$(PROJECT)-$(VERSION).js dist/$(PROJECT)-$(VERSION).min.js README.md
+	@echo "OK"
 
-dist/select-$(VERSION).js: src/select.js dist
-	cat src/select.js > $@
-	cd lib/js ; ln -sf ../../build/select-$(VERSION).js select.js
+dist/$(PROJECT)-$(VERSION).js: src/js/$(PROJECT).js dist
+	cat src/js/$(PROJECT).js > "$@"
 
 dist/%.min.js: dist/%.js
-	uglifyjs $< > $@
-
-README.md: src/select.js
-	$(LITTERATE) $< > $@
+	uglifyjs "$<" > "$@"
 
 dist:
 	mkdir dist
 
 run:
-	pamela-web
+	python3 -m http.server
 
 # EOF

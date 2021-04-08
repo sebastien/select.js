@@ -1,0 +1,14 @@
+<html>
+<body>
+	<ul>
+			<li>One</li>
+			<li>Two</li>
+			<li>Three</li>
+		</ul>
+	<div id="placeholder" />
+	<script type="module">
+		import S from "../js/select.js"
+		console.log("Placeholder",S("#placeholder").text(`There are ${S("ul li").length} list items`));
+	</script>
+</body>
+</html>

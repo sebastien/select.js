@@ -1,5 +1,3 @@
-// NOTE: You can generate the documentation using http://github.com/sebastien/litterate
-// $ litterate.py src/select.js | pandoc -o select.html
 /**
  *
  * # Select.js
@@ -8,7 +6,7 @@
  * ```
  * Version :  ${VERSION}
  * URL     :  http://github.com/sebastien/select.js
- * Updated :  2016-08-05
+ * Updated :  2021-04-06
  * ```
  *
  * Select is a subset of jQuery's functions implemented for DOM and SVG
@@ -177,21 +175,6 @@
  * ---
 */
 
-// FROM: http://babeljs.io/docs/plugins/transform-es2015-modules-umd/
-// START:UMD_MODULE_PREAMBLE
-(function (global, factory) {
-	if (typeof define === "function" && define.amd) {
-		define(["exports"], factory);
-	} else if (typeof exports !== "undefined") {
-		factory(exports);
-	} else {
-		var mod = {exports: {}};
-		factory(mod.exports);
-		global.actual = mod.exports;
-	}
-})(this, function (exports) {
-	Object.defineProperty(exports, "__esModule", {value: true});
-// END:UMD_MODULE_PREAMBLE
 
 // TODO: Add a "virtual" mode so that all the changes are made virtually,
 //       then pooled, then applied.
@@ -204,11 +187,11 @@
 
 // -- SHIMS -------------------------------------------------------------------
 
-var String_startsWith = String.prototype.startsWith
+const String_startsWith = String.prototype.startsWith
 ? function(s,t) {return s.startsWith(t);}
 : function(s,t) {return t && s && s.indexOf(t) == 0;}
 
-var String_endsWith = String.prototype.endsWith
+const String_endsWith = String.prototype.endsWith
 ? function(s,t) {return s.endsWith(t);}
 : function(s,t) {var i = s.length-t.length; return i >= 0 && s && s.indexOf(t,i) == i;}
 
@@ -224,10 +207,7 @@ var String_endsWith = String.prototype.endsWith
  * our beloved IE10+.
 */
 
-var _match = null;
-if      (Element.prototype.matches)               {_match = 1;}
-else if (Element.prototype.mozMatchesSelector)    {_match = 2;}
-else if (Element.prototype.webkitMatchesSelector) {_match = 3;}
+const _match = Element.prototype.matches ? 1 :Element.prototype.mozMatchesSelector ? 2 : Element.prototype.webkitMatchesSelector ? 3 : null;
 
 /**
  * `select.match(selector:String, node:Node):Boolean`
@@ -238,7 +218,7 @@ else if (Element.prototype.webkitMatchesSelector) {_match = 3;}
  *
  *     The function returns `true` or `false`
 */
-var match = _match ? function(selector, node) {
+const match = _match ? (selector, node) => {
 	// Here we have a browser match function
 	// -- MACRO:Selector normalization --
 	var index = undefined;
@@ -273,7 +253,7 @@ var match = _match ? function(selector, node) {
 		var matches = exports.query(selector, undefined, index);
 		return matches[index] == node;
 	}
-} : function (selector, node ) {
+} : (selector, node ) => {
 	// Here we need to emulate a browser match
 	if (String_endsWith(selector, ":first")) {
 		return query(selector,node) == node;
@@ -302,7 +282,7 @@ var match = _match ? function(selector, node) {
  *
  *       function returns an array of the matching element nodes.
 */
-var query = function(selector, scope, limit) {
+export const query = (selector, scope, limit) => {
 	// TODO: Implement the `limit` to optimize
 	selector = selector.trim();
 	if (!selector || selector.length == 0) {
@@ -400,7 +380,7 @@ var query = function(selector, scope, limit) {
  *
  *      This function returns the subset of the array with matching nodes.
 */
-var filter = function(selector, nodes) {
+export const filter = (selector, nodes) => {
 	var result = [];
 	for (var i=0 ; i<nodes.length ; i++ ) {
 		var node=nodes[i];
@@ -410,8 +390,6 @@ var filter = function(selector, nodes) {
 	}
 	return result;
 }
-
-
 
 /*
  * Selection Class
@@ -433,176 +411,177 @@ var filter = function(selector, nodes) {
  *
  *      Note that in any case, the *selection will only contain element nodes*.
 */
-var Selection = function( selector, scope) {
-	var nodes = null;
-	if (typeof selector == "string") {
-		// The selector is a string, so we need to find the query.
-		if (!scope) {
-			nodes = query(selector);
+class Selection extends Array {
+
+	 constructor ( selector, scope) {
+		 super()
+		var nodes = null;
+		if (typeof selector == "string") {
+			// The selector is a string, so we need to find the query.
+			if (!scope) {
+				nodes = query(selector);
+			} else {
+				// We have a scope, so we query it already.
+				scope = exports.select(scope);
+				// Now we restrict the selector to the matching result.
+				nodes = scope.find(selector);
+			}
+		} else if (Selection.Is(selector)) {
+			nodes    = selector;
+			scope    = selector.scope;
+			selector = selector.selector;
+			if(selector.scope && scope!=selector.scope){
+				console.error("Selection.new: given scope differs from first argument's", scope, "!=", selector.scope);
+			}
+		} else if (selector) {
+			nodes = Selection.AsElementList(selector);
+		}
+
+		this.selector    = selector;
+		this.scope       = scope;
+		this.isSelection = true;
+		this.expand(nodes);
+		return this;
+	}
+
+	// ------------------------------------------------------------------------
+	//
+	// PREDICATES
+	//
+	// ------------------------------------------------------------------------
+	/**
+	 * Predicates
+	 * ----------
+	 *
+	 *  The following predicates allow to discriminate values and identify their
+	 *  types.
+	*/
+
+	/**
+	 * `Selection.Is(value)`
+	 *
+	 * :	Tells if the given value is a `Selection` instance
+	 *
+	 *      select.Selection.Is(new Selection ());
+	*/
+	static Is (s) {
+		return s && (s.__class__ === Selection);
+	}
+
+	/**
+	 * `Selection.IsList(value)`
+	 *
+	 * :	Tells if the given value is a `Selection`, `Array` or `NodeList`
+	 *
+	*/
+	static IsList (s) {
+		return s instanceof Selection || s instanceof Array || s instanceof NodeList;
+	}
+
+	/**
+	 * `Selection.IsElement(node)`
+	 *
+	 * :	Tells if the given value is a DOM or SVG element
+	 *
+	 * 		select.Selection.IsElement(document.createElement("div"));
+	 * 		select.Selection.IsElement(document) == false
+	*/
+	static IsElement (node) {
+		return node && typeof(node.nodeType) != "undefined" && node.nodeType == Node.ELEMENT_NODE;
+	}
+
+	/**
+	 * `Selection.IsText(node)`
+	 *
+	 * :	Tells if the given value is Text node or not
+	 *
+	*/
+	static IsText (node) {
+		return node && typeof(node.nodeType) != "undefined" && node.nodeType == Node.TEXT_NODE;
+	}
+
+	/**
+	 * `Selection.IsNode(node)`
+	 *
+	 * :	Tells if the given value is a DOM or SVG node
+	 *
+	 * 		select.Selection.IsNode(document.createElement("div")) == true
+	 * 		select.Selection.IsNode(document) == true
+	*/
+	static IsNode (node) {
+		return node && typeof(node.nodeType) != "undefined";
+	}
+
+	/**
+	 * `Selection.IsDOM(node)`
+	 *
+	 * :	Tells wether the node is a DOM node or not
+	 *
+	 * 		select.Selection.IsDOM(document.createElement("div")) == true;
+	 * 		select.Selection.IsDOM(document.createElementNS("http://www.w3.org/2000/svg", "svg")) == false;
+	*/
+	static IsDOM (node) {
+		return node && typeof(node.getBBox) === "undefined";
+	}
+
+	/**
+	 * `Selection.IsSVG(node)`
+	 *
+	 * :	Tells wether the node is an SVG node or not
+	 *
+	 * 		select.Selection.IsSVG(document.createElement("div")) == false;
+	 * 		select.Selection.IsSVG(document.createElementNS("http://www.w3.org/2000/svg", "svg")) == true;
+	*/
+	static IsSVG (node) {
+		// SEE: http://www.w3.org/TR/SVG11/types.html#__svg__SVGLocatable__getBBox
+		return typeof(node.getBBox) != "undefined";
+	}
+
+
+	/**
+	 * `Selection.IsSelection(value)`
+	 *
+	 * :	Tells wether the node a selection instance or not
+	*/
+	static IsSelection (value) {
+		return value instanceof Selection;
+	}
+
+	/**
+	 * `Selection.AsElementList(value:Any)`
+	 *
+	 * :	Ensures that the given value expands to a node list. This will
+	 * 		only match node types and won't do any kind of querying. It just
+	 * 		makes sure that only element nodes are returned.
+	*/
+	static AsElementList(value) {
+		if (!value) {
+			return value;
+		} else if (value.nodeType == Node.ELEMENT_NODE) {
+			return [value];
+		} else if (value.nodeType == Node.DOCUMENT_FRAGMENT_NODE || value.nodeType == Node.DOCUMENT_NODE) {
+			var res = [];
+			var child = value.firstElementChild;
+			while (child) {res.push(child);child = child.nextSibling;}
+			return res;
+		} else if ( value === window ) {
+			return Selection.AsElementList(window.document);
+		} else if (Selection.IsList(value)) {
+			// FIXME: Should recurse
+			var res = [];
+			for (var i=0 ; i<value.length ; i++) {
+				res = res.concat(Selection.AsElementList(value[i]));
+			}
+			return res;
 		} else {
-			// We have a scope, so we query it already.
-			scope = exports.select(scope);
-			// Now we restrict the selector to the matching result.
-			nodes = scope.find(selector);
+			return [];
 		}
-	} else if (Selection.Is(selector)) {
-		nodes    = selector;
-		scope    = selector.scope;
-		selector = selector.selector;
-		if(selector.scope && scope!=selector.scope){
-			console.error("Selection.new: given scope differs from first argument's", scope, "!=", selector.scope);
-		}
-	} else if (selector) {
-		nodes = Selection.AsElementList(selector);
 	}
-	this.set(nodes);
-	this.selector    = selector;
-	this.scope       = scope;
-	this.isSelection = true;
-	this.__class__   = Selection;
-	return this;
-};
 
-// SEE: http://dean.edwards.name/weblog/2006/11/hooray/
-Selection.prototype = new Array();
-
-// ----------------------------------------------------------------------------
-//
-// PREDICATES
-//
-// ----------------------------------------------------------------------------
-/**
- * Predicates
- * ----------
- *
- *  The following predicates allow to discriminate values and identify their
- *  types.
-*/
-
-/**
- * `Selection.Is(value)`
- *
- * :	Tells if the given value is a `Selection` instance
- *
- *      select.Selection.Is(new Selection ());
-*/
-Selection.Is = function (s) {
-	return s && (s.__class__ === Selection);
-}
-
-/**
- * `Selection.IsList(value)`
- *
- * :	Tells if the given value is a `Selection`, `Array` or `NodeList`
- *
-*/
-Selection.IsList = function (s) {
-	return s instanceof Selection || s instanceof Array || s instanceof NodeList;
-}
-
-/**
- * `Selection.IsElement(node)`
- *
- * :	Tells if the given value is a DOM or SVG element
- *
- * 		select.Selection.IsElement(document.createElement("div"));
- * 		select.Selection.IsElement(document) == false
-*/
-Selection.IsElement = function (node) {
-	return node && typeof(node.nodeType) != "undefined" && node.nodeType == Node.ELEMENT_NODE;
-}
-
-/**
- * `Selection.IsText(node)`
- *
- * :	Tells if the given value is Text node or not
- *
-*/
-Selection.IsText = function (node) {
-	return node && typeof(node.nodeType) != "undefined" && node.nodeType == Node.TEXT_NODE;
-}
-
-/**
- * `Selection.IsNode(node)`
- *
- * :	Tells if the given value is a DOM or SVG node
- *
- * 		select.Selection.IsNode(document.createElement("div")) == true
- * 		select.Selection.IsNode(document) == true
-*/
-Selection.IsNode = function (node) {
-	return node && typeof(node.nodeType) != "undefined";
-}
-
-/**
- * `Selection.IsDOM(node)`
- *
- * :	Tells wether the node is a DOM node or not
- *
- * 		select.Selection.IsDOM(document.createElement("div")) == true;
- * 		select.Selection.IsDOM(document.createElementNS("http://www.w3.org/2000/svg", "svg")) == false;
-*/
-Selection.IsDOM = function (node) {
-	return node && typeof(node.getBBox) === "undefined";
-}
-
-/**
- * `Selection.IsSVG(node)`
- *
- * :	Tells wether the node is an SVG node or not
- *
- * 		select.Selection.IsSVG(document.createElement("div")) == false;
- * 		select.Selection.IsSVG(document.createElementNS("http://www.w3.org/2000/svg", "svg")) == true;
-*/
-Selection.IsSVG = function (node) {
-	// SEE: http://www.w3.org/TR/SVG11/types.html#__svg__SVGLocatable__getBBox
-	return typeof(node.getBBox) != "undefined";
-}
-
-
-/**
- * `Selection.IsSelection(value)`
- *
- * :	Tells wether the node a selection instance or not
-*/
-Selection.IsSelection = function (value) {
-	return value instanceof Selection;
-}
-
-/**
- * `Selection.AsElementList(value:Any)`
- *
- * :	Ensures that the given value expands to a node list. This will
- * 		only match node types and won't do any kind of querying. It just
- * 		makes sure that only element nodes are returned.
-*/
-Selection.AsElementList = function(value) {
-	if (!value) {
-		return value;
-	} else if (value.nodeType == Node.ELEMENT_NODE) {
-		return [value];
-	} else if (value.nodeType == Node.DOCUMENT_FRAGMENT_NODE || value.nodeType == Node.DOCUMENT_NODE) {
-		var res = [];
-		var child = value.firstElementChild;
-		while (child) {res.push(child);child = child.nextSibling;}
-		return res;
-	} else if ( value === window ) {
-		return Selection.AsElementList(window.document);
-	} else if (Selection.IsList(value)) {
-		// FIXME: Should recurse
-		var res = [];
-		for (var i=0 ; i<value.length ; i++) {
-			res = res.concat(Selection.AsElementList(value[i]));
-		}
-		return res;
-	} else {
-		return [];
+	static Ensure(node) {
+		return Selection.Is(node) ? node : new Selection(node);
 	}
-}
 
-Selection.Ensure = function(node) {
-	return Selection.Is(node) ? node : new Selection(node);
-}
 
 // ----------------------------------------------------------------------------
 //
@@ -628,7 +607,7 @@ Selection.Ensure = function(node) {
  *      - the resulting selection will be flat (ie. an array of node)
  *
 */
-Selection.prototype.find  = function( selector ) {
+find( selector ) {
 	if (this.length == 0) { return exports.Empty; }
 	var nodes = [];
 	// NOTE: We're dealing with NodeList, so no fancy reduce, etc
@@ -653,7 +632,7 @@ Selection.prototype.find  = function( selector ) {
  *      - `selector` is expected to be a string
  *      - the resulting selection will be flat (ie. an array of node)
 */
-Selection.prototype.filter = function( selector ) {
+filter( selector ) {
 	if (typeof(selector) === "string") {
 		return new Selection (filter(selector, this), this.length > 0 ? this : undefined)
 	} else if (typeof(selector) === "function") {
@@ -670,7 +649,7 @@ Selection.prototype.filter = function( selector ) {
  * :	Invokes the given callback for each element of the selection wrapped
  * 		in a selection object. Breaks if the callback returns `false`.
 */
-Selection.prototype.iterate = function( callback ) {
+iterate ( callback ) {
 	var nodes  = this;
 	for (var i=0 ; i<nodes.length ; i++ ) {
 		if (callback(new Selection(nodes[i]), i) === false) {
@@ -685,7 +664,9 @@ Selection.prototype.iterate = function( callback ) {
  *
  * :	Tells if all the selected nodes match the given selector
 */
-Selection.prototype.is = Selection.prototype.like = function( selector ) {
+like ( selector ) {return this.is(selector)}
+
+is ( selector ) {
 	if (typeof selector === "string") {
 		var result = this.length > 0;
 		for (var i=0 ; i<this.length ; i++ ) {
@@ -705,7 +686,7 @@ Selection.prototype.is = Selection.prototype.like = function( selector ) {
  *
  * :	Returns an array of properly wrapped nodes.
 */
-Selection.prototype.list = function() {
+list() {
 	return this.map(Selection.Ensure)
 }
 
@@ -726,7 +707,7 @@ Selection.prototype.list = function() {
  * :	Returns a new selection made of the *first node* of this selection. If the
  * 		selection is empty or made of 1 node, this function is transparent.
 */
-Selection.prototype.first = function() {
+first() {
 	return this.length <= 1 ? this : select([this[0]], this);
 }
 
@@ -736,7 +717,7 @@ Selection.prototype.first = function() {
  * :	Returns a new selection made of the *last node* of this selection. If the
  * 		selection is empty or made of 1 node, this function is transparent.
 */
-Selection.prototype.last = function() {
+last() {
 	return this.length <= 1 ? this : select([this[this.length - 1]], this);
 }
 
@@ -748,7 +729,8 @@ Selection.prototype.last = function() {
  * 		of the nodes array. If the index is out of the node array bounds,
  * 		the `Empty` selection is returned.
 */
-Selection.prototype.eq = Selection.prototype.get = function(index) {
+eq(index){return this.get(index)}
+get(index) {
 	index = index < 0 ? this.length + index : index ;
 	if (this.length == 1 && index == 0) {
 		return this;
@@ -763,7 +745,7 @@ Selection.prototype.eq = Selection.prototype.get = function(index) {
  * :	Selects each next sibling element of the current selection. If
  * 		`selector` is given, only the matching elements will be added.
 */
-Selection.prototype.next = function(selector) {
+next(selector) {
 	var nodes = [];
 	for (var i=0 ; i<this.length ; i++) {
 		var node    = this[i];
@@ -779,7 +761,8 @@ Selection.prototype.next = function(selector) {
  * :	Selects each previous sibling element of the current selection. If
  * 		`selector` is given, only the matching elements will be added.
 */
-Selection.prototype.previous = Selection.prototype.prev = function(selector) {
+prev(selector) {return this.previous(selector)}
+previous (selector) {
 	var nodes = [];
 	for (var i=0 ; i < this.length ; i++) {
 		var node    = this[i];
@@ -796,7 +779,7 @@ Selection.prototype.previous = Selection.prototype.prev = function(selector) {
  * 		nodes. If a selector is given, only the matching parents
  * 		will be returned.
 */
-Selection.prototype.parent = function(selector) {
+parent(selector) {
 	var nodes = [];
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this[i].parentNode;
@@ -819,7 +802,8 @@ Selection.prototype.parent = function(selector) {
  * 		or it can be a node/selection, in which case it will not
  * 		go beyond the given node.
 */
-Selection.prototype.ancestors = Selection.prototype.parents = function( selector, limit ) {
+ancestors(selector,limit) {return this.parents(selector,limit)}
+parents ( selector, limit ) {
 	var nodes = [];
 	var depth_limit = typeof (limit) === "number" ? limit : -1;
 	var node_limit  = (limit && typeof (limit) !== "number") ? select(limit) : null;
@@ -861,7 +845,7 @@ Selection.prototype.ancestors = Selection.prototype.parents = function( selector
  * 		nodes. If a selector is given, only the matching children
  * 		will be returned.
 */
-Selection.prototype.children = function( selector ) {
+children ( selector ) {
 	var nodes = [];
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this[i];
@@ -885,7 +869,7 @@ Selection.prototype.children = function( selector ) {
  *
  * 		The iteration will exit whenever `callback` returns `false`.
 */
-Selection.prototype.nodes = function( callback ) {
+nodes ( callback ) {
 	var nodes = [];
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this[i];
@@ -912,7 +896,7 @@ Selection.prototype.nodes = function( callback ) {
  *
  * 		The iteration will exit whenever `callback` returns `false`.
 */
-Selection.prototype.walk = function( callback ) {
+walk( callback ) {
 	if (!callback) {return this;}
 	var to_walk = [];
 	var count   = 0;
@@ -948,7 +932,7 @@ Selection.prototype.walk = function( callback ) {
  * :	Appends the given nodes to the first node in the selection. When
  *      a string or number is given, then it is wrapped in a text node.
 */
-Selection.prototype.append = function( value ) {
+append ( value ) {
 	if (this.length == 0) { return this; }
 	var node = this[0];
 	if (Selection.Is(value)) {
@@ -975,7 +959,7 @@ Selection.prototype.append = function( value ) {
  * :	Prepends the given nodes to the first node in the selection. When
  *      a string or number is given, then it is wrapped in a text node.
 */
-Selection.prototype.prepend = function( value ) {
+prepend ( value ) {
 	if (this.length == 0) { return this; }
 	var node = this[0];
 	// We exit early if the node is empty
@@ -1006,7 +990,7 @@ Selection.prototype.prepend = function( value ) {
  *
  * :	Removes all the nodes from this selection from their parent
 */
-Selection.prototype.remove = function() {
+remove () {
 	for (var i=0 ; i<this.length ; i++) {
 		var node=this[i];
 		if (node.parentNode) {node.parentNode.removeChild(node)}
@@ -1020,7 +1004,7 @@ Selection.prototype.remove = function() {
  * :	Appends the given nodes to the first node in the selection. When
  *      a string or number is given, then it is wrapped in a text node.
 */
-Selection.prototype.extend = function( value ) {
+extend ( value ) {
 	if (Selection.IsNode(value)) {
 		this.push(value);
 	} else if (Selection.IsList(value)) {
@@ -1038,7 +1022,7 @@ Selection.prototype.extend = function( value ) {
  *
  * :	Appends the given nodes after first node in the selection
 */
-Selection.prototype.after = function( value ) {
+after ( value ) {
 	if (this.length == 0) { return this; }
 	var node = this[0];
 	var scope = node;
@@ -1088,7 +1072,7 @@ Selection.prototype.after = function( value ) {
  *
  * :	Appends the given nodes before the first node in the selection
 */
-Selection.prototype.before = function( value ) {
+before ( value ) {
 	if (this.length == 0) { return this; }
 	var node = this[0];
 	var scope = node;
@@ -1118,7 +1102,7 @@ Selection.prototype.before = function( value ) {
  * 		or selection will not be changed (but the nodes parent will change,
  * 		obviously).
 */
-Selection.prototype.replaceWith = function( value ) {
+replaceWith ( value ) {
 	if (this.length == 0) {
 		// When the selection is empty, we remove all the child nodes
 		console.warn("Selection.replaceWith: current selection is empty, so given nodes will be removed")
@@ -1172,7 +1156,7 @@ Selection.prototype.replaceWith = function( value ) {
  *
  * :	Tells if this selection equals the given node or selection.
 */
-Selection.prototype.equals = function( node ) {
+equals ( node ) {
 	if (typeof(node) === "string" ) {
 		return this.equals(query(node));
 	} else if (node instanceof Array) {
@@ -1193,7 +1177,7 @@ Selection.prototype.equals = function( node ) {
  *
  * :	Tells if the current selection contains all of the given nodes/selections.
 */
-Selection.prototype.contains = function(node) {
+contains (node) {
 	if (node instanceof Array || Selection.IsElement(node)) {
 		var found = true;
 		for (var i=0 ; found && i < this.length ; i++ ) {
@@ -1222,7 +1206,7 @@ Selection.prototype.contains = function(node) {
  * :	Wraps all the nodes in the give node and returns a new selection with the given node.
  * 		it is equivalent to `$(node).add(this)`
 */
-Selection.prototype.wrap = function( node ) {
+wrap ( node ) {
 	node = $(node);
 	node.add(this);
 	return node;
@@ -1233,7 +1217,7 @@ Selection.prototype.wrap = function( node ) {
  *
  * :	Clones the first node of this selection
 */
-Selection.prototype.clone = function( value ) {
+clone ( value ) {
 	if (this.length == 0) { return this; }
 	var node = this[0];
 	return select(node.cloneNode(true), this);
@@ -1244,7 +1228,7 @@ Selection.prototype.clone = function( value ) {
  *
  * :	Removes all the children from all the nodes in the selection
 */
-Selection.prototype.empty = function( ) {
+empty ( ) {
 	for (var i=0 ; i<this.length ; i++ ) {
 		var node = this[i];
 		while (node.firstChild) { node.removeChild(node.firstChild);}
@@ -1257,7 +1241,7 @@ Selection.prototype.empty = function( ) {
  *
  * :	Tells if the given selection is empty or not.
 */
-Selection.prototype.isEmpty = function( ) {
+isEmpty ( ) {
 	return this.length == 0;
 }
 
@@ -1270,7 +1254,8 @@ Selection.prototype.isEmpty = function( ) {
  *		value for the given input fields. If value is specified, then
  *		the value will be set in all fields.
 */
-Selection.prototype.val      = Selection.prototype.value = function( value ) {
+val(){return this.value()}
+value ( value ) {
 	if (typeof value == "undefined") {
 		for (var i=0 ; i < this.length ; i++ ) {
 			var node = this[i];
@@ -1307,7 +1292,7 @@ Selection.prototype.val      = Selection.prototype.value = function( value ) {
  *
  *      This uses [`Node.textContent`](http://www.w3.org/TR/2004/REC-DOM-Level-3-Core-20040407/core.html#Node3-textContent)
 */
-Selection.prototype.text = function( value ) {
+text ( value ) {
 	var result = undefined;
 	if (typeof value == "undefined") {
 		for (var i=0 ; i < this.length ; i++ ) {
@@ -1344,7 +1329,8 @@ Selection.prototype.text = function( value ) {
  *		FIXME: Not sure if that's the best behaviour... should be clone the
  *		other nodes, or warn?
 */
-Selection.prototype.html = Selection.prototype.contents = function( value ) {
+html(value){return this.contents(value)}
+contents ( value ) {
 	var result = undefined;
 	if (typeof value == "undefined") {
 		// We return the `innerHTML`
@@ -1402,7 +1388,7 @@ Selection.prototype.html = Selection.prototype.contents = function( value ) {
  *
  * 	These function will JSONify non-string values.
 */
-Selection.prototype.attr        = function(name, value) {
+attr(name, value) {
 	if (typeof name === "string") {
 		if (arguments.length == 1) {
 			// We get the style value
@@ -1471,7 +1457,7 @@ Selection.prototype.attr        = function(name, value) {
  *  will be stored as `data-someProperty` and not `data-some-property`
  *  like it would be the case in an original HTML document.
 */
-Selection.prototype.data      = function( name, value, serialize ) {
+data    ( name, value, serialize ) {
 	if (!name) {
 		// There's no name, so we return the dataset
 		for (var i=0 ; i < this.length ; i++ ) {
@@ -1562,7 +1548,7 @@ Selection.prototype.data      = function( name, value, serialize ) {
  *      This uses `Node.classList` with a custom fallback that works for
  *      DOM & SVG nodes.
 */
-Selection.prototype.addClass    = function( className ) {
+addClass  ( className ) {
 	// Supports giving an array of classes
 	if (className instanceof Array) {
 		for (var i=0 ; i < className.length ; i++ ) {
@@ -1614,7 +1600,7 @@ Selection.prototype.addClass    = function( className ) {
  *      This uses `Node.classList` with a custom fallback that works for
  *      DOM & SVG nodes.
 */
-Selection.prototype.removeClass = function( className ) {
+removeClass ( className ) {
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this[i];
 		if (node.classList) {
@@ -1657,7 +1643,7 @@ Selection.prototype.removeClass = function( className ) {
  *
  * :	Tells if there is at least one node that has the given class
 */
-Selection.prototype.hasClass = function(name) {
+hasClass (name) {
 	var lc = (name||"").length;
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this[i];
@@ -1690,7 +1676,7 @@ Selection.prototype.hasClass = function(name) {
  * 		case the value is a predicate, it will be invoked with
  * 		the node and index as arguments.
 */
-Selection.prototype.toggleClass = function(name, value) {
+toggleClass (name, value) {
 	var sel = select();
 	var is_function = value instanceof Function;
 	for (var i=0 ; i < this.length ; i++ ) {
@@ -1738,7 +1724,7 @@ Selection.prototype.toggleClass = function(name, value) {
  *		not a string.
  *
 */
-Selection.prototype.css         = function(name, value) {
+css         (name, value) {
 	if (typeof name === "string") {
 		if (typeof value === "undefined") {
 			// We get the style value
@@ -1783,7 +1769,7 @@ Selection.prototype.css         = function(name, value) {
  *      This uses `getBoundingClientRect()`, returns `0` if the selection
  *      if empty.
 */
-Selection.prototype.width = function() {
+width () {
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node=this[i];
 		var nb = node.getBoundingClientRect();
@@ -1800,7 +1786,7 @@ Selection.prototype.width = function() {
  *      This uses `getBoundingClientRect()`, returns `0` if the selection
  *      is empty.
 */
-Selection.prototype.height = function() {
+height () {
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node=this[i];
 		var nb = node.getBoundingClientRect();
@@ -1819,7 +1805,7 @@ Selection.prototype.height = function() {
  *      This uses `offsetTop` for DOM nodes and `getBoundingClientRect`
  *      for SVG nodes.
 */
-Selection.prototype.offset      = function() {
+offset      () {
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this[i];
 		if (Selection.IsDOM(node)) {
@@ -1838,7 +1824,7 @@ Selection.prototype.offset      = function() {
  *
  * :	TODO
 */
-Selection.prototype.scrollTop = function(value) {
+scrollTop (value) {
 	var has_value = value !== undefined;
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this[i];
@@ -1861,7 +1847,7 @@ Selection.prototype.scrollTop = function(value) {
  *
  * :	TODO
 */
-Selection.prototype.scrollLeft = function(value) {
+scrollLeft (value) {
 	var has_value = value !== undefined;
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this[i];
@@ -1899,7 +1885,7 @@ Selection.prototype.scrollLeft = function(value) {
  *
  * :	Binds the given `callback` to the focus event. See Events section.
 */
-Selection.prototype.focus = function(callbacl) {
+focus (callbacl) {
 	if (typeof callback == "undefined") {
 		for (var i=0 ; i < this.length ; i++ ) {
 			var node = this[i];
@@ -1926,7 +1912,7 @@ Selection.prototype.focus = function(callbacl) {
  *
  * :	Binds the given `callback` to the select event. See Events section.
 */
-Selection.prototype.select = function(callback) {
+select (callback) {
 	if (typeof callback == "undefined") {
 		var s = window.getSelection();
 		s.removeAllRanges();
@@ -1971,7 +1957,7 @@ Selection.prototype.select = function(callback) {
  * :	Binds the given `callback` to handle the given `event` in the
  * 		selected elements.
 */
-Selection.prototype.bind = function( event, callback, capture ) {
+bind( event, callback, capture ) {
 	capture = capture && true;
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this[i];
@@ -1986,7 +1972,7 @@ Selection.prototype.bind = function( event, callback, capture ) {
  * :	Unbinds the given `callback` to handle the given `event` in the
  * 		selected elements.
 */
-Selection.prototype.unbind = function( event, callback ) {
+unbind ( event, callback ) {
 	for (var i=0 ; i < this.length ; i++ ) {
 		var node = this[i];
 		node.removeEventListener( event, callback );
@@ -2004,7 +1990,7 @@ Selection.prototype.unbind = function( event, callback ) {
  *
  * 		See <https://developer.mozilla.org/en-US/docs/Web/Guide/Events/Creating_and_triggering_events> for more details.
 */
-Selection.prototype.trigger = function( event ) {
+trigger ( event ) {
 	// NOTE: We're doing custom event here, but we might want to be a little
 	// bit smarter than that.
 	if (typeof event === "string") {
@@ -2077,26 +2063,26 @@ Selection.prototype.trigger = function( event ) {
 // SEE: https://en.wikipedia.org/wiki/DOM_events
 // Here we opt for a code generation approach. This adds a minor performance
 // penalty at loading, and saves a few lines.
-Selection.EVENTS = [
-	"click",     "dblclick",
-	"mousedown", "mouseup",  "mouseover", "mousemove", "mouseout", "mouseenter", "mouseleave",
-	"dragstart", "drag",     "dragenter", "dragleave", "dragover",
-	"drop",      "dragend",
-	"keydown",   "keypress", "keyup",
-	"load",      "unload",   "resize",    "scroll",
-	"select",    "change",   "input",
-	"submit",    "reset",
-	"focus",     "blur",
-	"focusin",   "focusout"
-];
-Selection.EVENTS.forEach(function(event){
-	// NOTE: We do not redefine/override functions
-	if (typeof Selection.prototype[event] == "undefined") {
-		Selection.prototype[event] = function(callback, capture){
-			return this.bind(event, callback, capture);
-		}
-	}
-})
+// static EVENTS = [
+// 	"click",     "dblclick",
+// 	"mousedown", "mouseup",  "mouseover", "mousemove", "mouseout", "mouseenter", "mouseleave",
+// 	"dragstart", "drag",     "dragenter", "dragleave", "dragover",
+// 	"drop",      "dragend",
+// 	"keydown",   "keypress", "keyup",
+// 	"load",      "unload",   "resize",    "scroll",
+// 	"select",    "change",   "input",
+// 	"submit",    "reset",
+// 	"focus",     "blur",
+// 	"focusin",   "focusout"
+// ].reduce( (r,event) => {
+// 	// NOTE: We do not redefine/override functions
+// 	if (typeof Selection.prototype[event] == "undefined") {
+// 		Selection.prototype[event] = function(callback, capture){
+// 			return this.bind(event, callback, capture);
+// 		}
+// 	}
+// 	return r;
+// });
 
 // ----------------------------------------------------------------------------
 //
@@ -2117,7 +2103,7 @@ Selection.EVENTS.forEach(function(event){
  * 		This is similar to `eq`, except that it returns the node instead
  * 		of a selection.
 */
-Selection.prototype.n = Selection.prototype.node = function(index) {
+node (index) {
 	index = index || 0;
 	index = index < 0 ? this.length - index : index;
 	if (index >= 0 && index < this.length) {
@@ -2133,7 +2119,7 @@ Selection.prototype.n = Selection.prototype.node = function(index) {
  * :	Sets this selection's content  to be the given node, array
  *      of nodes or selection.
 */
-Selection.prototype.set = function(value) {
+set (value) {
 	return this.clear().expand(value);
 }
 
@@ -2142,7 +2128,7 @@ Selection.prototype.set = function(value) {
  *
  * :	Creates a copy fo the selection, but not a copy of the nodes.
 */
-Selection.prototype.copy = function(value) {
+copy (value) {
 	return new Selection().expand(value);
 }
 
@@ -2152,9 +2138,9 @@ Selection.prototype.copy = function(value) {
  * :	Clears the current selection until there are only `length` elements
  *      available.
 */
-Selection.prototype.clear = function(length) {
+clear (length) {
 	length = length || 0;
-	this.splice(length, this.length - length);
+	super.splice(length, this.length - length);
 	return this;
 }
 
@@ -2164,7 +2150,7 @@ Selection.prototype.clear = function(length) {
  * :	Expands the selection with the given element(s). Non-element
  *      values will be filtered out.
 */
-Selection.prototype.expand = function(element) {
+expand (element) {
 	// We normalize the element
 	if (element == window || element == document ) { element = document.firstElementChild; }
 	if (!element || element.length == 0) {
@@ -2184,6 +2170,7 @@ Selection.prototype.expand = function(element) {
 	return this;
 }
 
+}
 // ----------------------------------------------------------------------------
 //
 // MAIN
@@ -2217,16 +2204,16 @@ Selection.prototype.expand = function(element) {
  * - `extend.modules.select` if the Extend library is loaded.
  *
 */
-var select = function( selector, scope ) {
-
+export const select = ( selector, scope ) => {
 	return (Selection.Is(selector) && !scope) ? selector :  new Selection (selector, scope );
 }
 
 // NOTE: This is a bit recursive as the select is actually a factory function
 // for Selection object, but we also copy the top-level module attributes in
 // it. 
+//
 select.Selection = Selection;
-select.VERSION   = "0.7.1";
+select.VERSION   = "1.0.0b0";
 select.NAME      = "select"
 select.LICENSE   = "http://ffctn.com/doc/licenses/bsd.html";
 select.STATUS    = "LOADED";
@@ -2236,15 +2223,9 @@ select.isText    = Selection.IsText;
 select.filter    = filter;
 select.match     = match;
 select.query     = query;
-// We keep a reference to `select` itself.
 select.select    = select;
-select.$         = select;
+export const S = select;
+export const $ = select;
+export default select;
 
-// -- MODULE EXPORT -----------------------------------------------------------
-Object.assign(exports, select);
-if (typeof extend !== "undefined") {extend.module("select", select)}
-if (typeof window !== "undefined") {window.select = select; window.$ = window.S = select.$;}
-
-/** END:MODULE **/
-});
-/* EOF - @LITTERATE */
+/* EOF - @LITERATE */
