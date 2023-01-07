@@ -19,4 +19,7 @@
   "bugs": {
     "url": "https://github.com/sebastien/select.js/issues"
   },
+  "devDependencies": {
+    "eslint": "^8.31.0"
+  }
 }
