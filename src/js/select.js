@@ -321,7 +321,7 @@ export const query = (selector, scope, limit) => {
 		const nodes = (scope || document).childNodes;
 		let result = null;
 		// Now we match the root nodes of the selector
-		for (let j = 0; i < nodes.length; i++) {
+		for (let j = 0; i < nodes.length; j++) {
 			const n = nodes[j];
 			if (match(selector_node, n) && n.nodeType == Node.ELEMENT_NODE) {
 				matching.push(n);
@@ -330,7 +330,7 @@ export const query = (selector, scope, limit) => {
 		if (selector_child) {
 			// If we have a child selector, now is the time to run the query
 			result = [];
-			for (let i = 0; i < matching.length; i++) {
+			for (let j = 0; j < matching.length; j++) {
 				result = result.concat(
 					select.query(selector_child, matching[i]),
 				);
@@ -1645,7 +1645,7 @@ export class Selection extends Array {
 						const _ = a[j];
 						const n = _.name;
 						if (n.startsWith("data-")) {
-							const v = _.value;
+							let v = _.value;
 							// NOTE: We don't call `data` again for/ performance.
 							try {
 								v = JSON.parse(v);
@@ -1779,14 +1779,14 @@ export class Selection extends Array {
 			if (node.classList) {
 				node.classList.remove(className);
 			} else {
-				const c = node.getAttribute("class");
+				let c = node.getAttribute("class");
 				if (c && c.length > 0) {
 					const m = c.indexOf(className);
 					if (m >= 0) {
 						// We only do something if there's a match
 						const la = c.length || 0;
 						const lc = className.length;
-						const nc = "";
+						let nc = "";
 						// NOTE: This is an optimized version of the classlist. We could do
 						// a simple split/join, but I *assume* this is faster. Premature
 						// optimization FTW!
