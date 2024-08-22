@@ -46,14 +46,15 @@
 			},
 		})
 		const TodoList = $.ui("#TodoList").does({
-			items: ({items}) => TodoItem.apply(items),
+			items: (items) => TodoItem.apply(items),
 		}).remove()
 		const res = TodoList.clone()
 		$("#Todo").append(res)
-		console.log("RES", {res, TodoList, TodoItem})
-		res.out.items.render([{label: "Buy cheese"}, {label: "Buy Wine"}], TodoItem)
+		//res.out.items.render([{label: "Buy cheese"}, {label: "Buy Wine"}], TodoItem)
 		// TODO: Remove does not work
-		// res.out.items.render([{label: "Buy cheese"}], TodoItem)
+		//res.out.items.render([{label: "Buy cheese"}], TodoItem)
+		//res.set([{label: "Todo 1"}])
+		res.set([{label: "Todo 1"}, {label: "Todo 2"}, {label: "Todo 3"}])
 		//res.set([{label: "Todo 1"}])
 	</script>
 </body>
