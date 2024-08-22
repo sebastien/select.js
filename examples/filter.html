@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI ― Filter</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/" } }
+	</script>
+</head>
+
+<body>
+	<div id="ui"></div>
+
+	<div id="Country">
+		<li>
+			<!-- TODO: name|format -->
+			<code out="code"></code>
+			<span out="name"></span>
+		</li>
+	</div>
+
+	<div id="FilteredList">
+		<!-- TODO: Support for input -->
+		<input in="filter" placeholder="Filter" />
+		<!-- TODO: items=data.field|format -->
+		<ul out="items">
+			<li when="!data.items?.length">Empty</li>
+		</ul>
+	</div>
+
+	<script type="module">
+		import $ from "@./select.ui.js"
+		const Country = $.ui("#Country").remove().does({
+			name: ({name}) => name,
+			code: ({code}) => code,
+		})
+		const FilteredList = $.ui("#FilteredList").remove().does({
+			// FIXME: This probably won't update
+			items: ({items, filter}) => Country.apply(filter ? items.filter(_ => _.name.toLowerCase().startsWith(filter)) : items),
+		})
+		const list = FilteredList.clone()
+		$("#ui").append(list)
+		const countries = await fetch("./countries.json").then(_ => _.json());
+		list.set({items: countries, filter: "an"})
+	</script>
+</body>
+
+</html>

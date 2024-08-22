@@ -58,7 +58,7 @@ class UISelection extends Selection {
 			const expr = node.getAttribute("when");
 			// node.removeAttribute("when");
 			return {
-				predicate: new Function(`return (()=>(${expr}))`)(),
+				predicate: new Function(`return ((self,data)=>(${expr}))`)(),
 				placeholder: document.createComment(expr),
 				node,
 			};
@@ -154,7 +154,6 @@ class UISelection extends Selection {
 	onPub(event) {
 		event.current = this;
 		let propagate = true;
-		console.log("GOT", event);
 		if (this.subs) {
 			const hl = this.subs.get(event.name);
 			if (hl) {
@@ -197,8 +196,6 @@ class UISelection extends Selection {
 	doCreate(data, key = this.key, parent = undefined) {
 		// Create a new instance of the selection
 		const ui = this.clone(parent);
-
-		ui.attr("data-xxx", "POUET");
 		ui.set(data, key);
 		return ui;
 	}
@@ -242,7 +239,7 @@ class UISelection extends Selection {
 		}
 		// Taking care of when (showing and hiding)
 		for (const { predicate, node, placeholder } of this.when) {
-			const v = predicate.apply(data || {}, ui);
+			const v = predicate(ui, data || {});
 			if (v) {
 				if (!node.parentNode) {
 					placeholder.parentNode.replaceChild(node, placeholder);

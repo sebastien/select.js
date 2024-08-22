@@ -16,12 +16,12 @@
 
 
 	<div id="TodoItem" data-state="{edited:false}">
-		<div when="!this.edited">
+		<div when="!data.edited">
 			<span out="label">Placeholder</span>
 			<button on="edit">Edit</button>
 			<button on="remove">Remove</button>
 		</div>
-		<div when="this.edited">
+		<div when="data.edited">
 			<input in="label"></span>
 			<button on="save">Save</button>
 			<a href="#" on="cancel">cancel</a>
@@ -30,7 +30,7 @@
 
 	<div id="TodoList">
 		<ul out="items">
-			<li when="!this.length">Empty</li>
+			<li when="!data.length">Empty</li>
 		</ul>
 		<button on="add">Add</button>
 	</div>
@@ -47,6 +47,8 @@
 			},
 		})
 		const TodoList = $.ui("#TodoList").does({
+			// TODO: What if we want to wrap it in an li?, maybe
+			// items: (items) => h.li(h(TodoItem, items)),
 			items: (items) => TodoItem.apply(items),
 			add: (event, self, data = []) => {
 				self.update([...data, {label: `Todo ${data.length}`}])
