@@ -29,6 +29,12 @@ const slots = (name, scope, processor = undefined, initial = {}) =>
 		return r;
 	}, initial);
 
+class AppliedUISelection {
+	constructor(selection, data) {
+		this.selection = selection;
+		this.data = data;
+	}
+}
 class UISelection extends Selection {
 	constructor(...args) {
 		super(...args);
@@ -65,6 +71,10 @@ class UISelection extends Selection {
 		return res;
 	}
 
+	apply(data) {
+		return AppliedUISelection(this, data);
+	}
+
 	does(behavior) {
 		Object.assign(this.behavior, behavior);
 		return this;
@@ -73,6 +83,10 @@ class UISelection extends Selection {
 	// ========================================================================
 	// DATA
 	// ========================================================================
+
+	set(data) {
+		this.render(data);
+	}
 
 	update(data) {
 		this.render(data);
@@ -93,11 +107,19 @@ class UISelection extends Selection {
 				const handlers = this.behavior[k];
 				if (handlers) {
 					for (const event in handlers) {
-						ui.on[k].bind(event, handlers[event].bind(ui));
+						const h = handlers[event];
+						ui.on[k].bind(event, (event) => {
+							return h.apply(ui.data ?? current, [
+								event,
+								ui,
+								key,
+							]);
+						});
 					}
 				}
 			}
 			// We update it
+			console.log("CREATE", current, this.behavior);
 			ui.renderer(current, key, ui);
 			return ui;
 		} else if (current === undefined) {
@@ -116,16 +138,32 @@ class UISelection extends Selection {
 			);
 			// Taking care of behaviour. Note that the behaviour
 			// will apply to all the states.
+			console.log("UPDATE", current, this.behavior);
 			for (const k in this.behavior) {
-				let ui = this.out[k];
+				const ui = this.out[k];
 				if (ui) {
-					const v = this.behavior[k].apply(ui, [
-						current,
-						key,
-						previous,
-						k,
-					]);
-					ui.render(v);
+					const v = this.behavior[k];
+					console.log("BEHAVIOR", k, "=", v);
+					if (v instanceof UISelection) {
+						// Behaviour is a selection, so we map the
+						// current value to it.
+						ui.render(current, v);
+					} else if (v instanceof Function) {
+						// Otherwise it's a function, we either…
+						const w = v.apply(current, [key, ui]);
+						// TODO: We may want to have an applied selection as well
+						if (w instanceof UISelection) {
+							// … produces a UISelection (dynamic component)
+							ui.render(current, w);
+						} else if (w instanceof AppliedUISelection) {
+							ui.render(w.data, w.selection);
+						} else {
+							// … or a derived value that we then render
+							ui.render(w);
+						}
+					} else {
+						ui.render(v);
+					}
 				}
 			}
 			// Taking care of when (showing and hiding)

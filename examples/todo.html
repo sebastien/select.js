@@ -38,16 +38,23 @@
 		import $ from "@./select.ui.js"
 		const TodoItem = $.ui("#TodoItem").remove().does({
 			label: ({label}) => label,
-			edit: {click: (event) => console.log("Clicked on", this)},
-			remove: {click: (event) => console.log("Clicked on", this)},
+			edit: {
+				click: function (event) {console.log("Edit", this, event)},
+			},
+			remove: {
+				click: function (event) {console.log("Remove", this, event)},
+			},
 		})
 		const TodoList = $.ui("#TodoList").does({
-			items: TodoItem,
+			items: ({items}) => TodoItem.apply(items),
 		}).remove()
 		const res = TodoList.clone()
 		$("#Todo").append(res)
 		console.log("RES", {res, TodoList, TodoItem})
-		res.out.items.render([{label: "Buy cheese"}, {label: "Buy Wine"}])//, TodoItem)
+		res.out.items.render([{label: "Buy cheese"}, {label: "Buy Wine"}], TodoItem)
+		// TODO: Remove does not work
+		// res.out.items.render([{label: "Buy cheese"}], TodoItem)
+		//res.set([{label: "Todo 1"}])
 	</script>
 </body>
 
