@@ -8,20 +8,21 @@ const Type = {
 };
 
 const type = (value) =>
-	value === undefined || value === undefined
+	value === undefined || value === null
 		? Type.Null
 		: value instanceof Array
-			? Type.List
-			: Object.getPrototypeOf(value) === Object.prototype
-				? Type.Dict
-				: Type.Atom;
+		? Type.List
+		: Object.getPrototypeOf(value) === Object.prototype
+		? Type.Dict
+		: Type.Atom;
 
 const slots = (name, parent, processor = undefined, initial = {}) =>
 	$(`[${name}]`, parent).reduce((r, n) => {
 		const k = n.getAttribute(name);
+		// TODO: Clean up attributes
 		// n.removeAttribute(name);
 		if (r[k] === undefined) {
-			const v = new UISelection(n);
+			const v = new UITemplate(n);
 			v.parent = parent;
 			r[k] = processor ? processor(v, n, k) : v;
 		} else {
@@ -39,13 +40,14 @@ class UIEvent {
 	}
 }
 
-class AppliedUISelection {
+class AppliedUITemplate {
 	constructor(selection, data) {
 		this.selection = selection;
 		this.data = data;
 	}
 }
-class UISelection extends Selection {
+
+class UITemplate extends Selection {
 	constructor(...args) {
 		super(...args);
 
@@ -54,6 +56,7 @@ class UISelection extends Selection {
 		this.on = slots("on", this);
 		this.in = slots("in", this);
 		this.out = slots("out", this);
+		this.inout = slots("inout", this);
 		this.when = $("[when]", this).map((node) => {
 			const expr = node.getAttribute("when");
 			// node.removeAttribute("when");
@@ -86,25 +89,51 @@ class UISelection extends Selection {
 		res.parent = parent;
 		// We bind the event handlers
 		for (const k in res.on) {
-			let handlers = res.behavior[k];
-			if (handlers instanceof Function) {
-				// TODO: Select the best type of event for the target
-				handlers = { click: handlers };
-			}
-			if (handlers) {
-				for (const event in handlers) {
-					const h = handlers[event];
-					res.on[k].bind(event, (event) =>
-						h(event, res, res.data, res.key),
-					);
-				}
-			}
+			res._bindHandlers(k, res.on[k]);
+		}
+		for (const k in res.in) {
+			res._bindHandlers(k, res.in[k]);
+		}
+		for (const k in res.inout) {
+			res._bindHandlers(k, res.inout[k]);
 		}
 		return res;
 	}
 
+	// TODO: Rename
+	_bindHandlers(name, target) {
+		let handlers = this.behavior[name];
+		if (handlers instanceof Function) {
+			// TODO: Select the best type of event for the target
+			handlers = { _: handlers };
+		}
+		if (handlers) {
+			for (let event in handlers) {
+				const h = handlers[event];
+				if (event === "_") {
+					switch (target[0]?.nodeName) {
+						case "INPUT":
+						case "TEXTAREA":
+						case "SELECT":
+							event = "input";
+							break;
+						case "FORM":
+							event = "submit";
+							break;
+						default:
+							event = "click";
+					}
+				}
+				target.bind(event, (event) =>
+					// Arguments are (event, self, data, key)
+					h(event, this, this.data, this.key)
+				);
+			}
+		}
+	}
+
 	apply(data) {
-		return new AppliedUISelection(this, data);
+		return new AppliedUITemplate(this, data);
 	}
 
 	// ========================================================================
@@ -158,8 +187,7 @@ class UISelection extends Selection {
 			const hl = this.subs.get(event.name);
 			if (hl) {
 				for (const h of hl) {
-					// We do an early exit when `false` is returned,
-					// Or stop propagation on `null`
+					// We do an early exit when `false` is returned, Or stop propagation on `null`
 					const c = h(event, this, this.data, this.key);
 					if (c === false) {
 						return event;
@@ -184,7 +212,7 @@ class UISelection extends Selection {
 
 	update(data, key = this.key) {
 		this.key = key;
-		this.render(data);
+		this.render(this.data ? { ...this.data, ...data } : data);
 	}
 
 	// ========================================================================
@@ -212,28 +240,33 @@ class UISelection extends Selection {
 		// Taking care of behaviour. Note that the behaviour
 		// will apply to all the states.
 		for (const k in this.behavior) {
-			const ui = this.out[k];
-			if (ui) {
-				const v = this.behavior[k];
-				if (v instanceof UISelection) {
-					// Behaviour is a selection, so we map the
-					// current value to it.
-					ui.render(data, v);
-				} else if (v instanceof Function) {
-					// Otherwise it's a function, we either…
-					const w = v.apply(data, [data, key, ui]);
-					// TODO: We may want to have an applied selection as well
-					if (w instanceof UISelection) {
-						// … produces a UISelection (dynamic component)
-						ui.render(data, w);
-					} else if (w instanceof AppliedUISelection) {
-						ui.render(w.data, w.selection);
+			for (const set of [this.out, this.inout]) {
+				const ui = set[k];
+				if (ui) {
+					const v = this.behavior[k];
+					if (v instanceof UITemplate) {
+						// Behaviour is a selection, so we map the
+						// current value to it.
+						ui.render(data, v);
+					} else if (v instanceof Function) {
+						// Otherwise it's a function, we either…
+						const w =
+							set === this.inout
+								? v(null, ui, data, key)
+								: v(data, key, ui);
+						// TODO: We may want to have an applied selection as well
+						if (w instanceof UITemplate) {
+							// … produces a UITemplate (dynamic component)
+							ui.render(data, w);
+						} else if (w instanceof AppliedUITemplate) {
+							ui.render(w.data, w.selection);
+						} else {
+							// … or a derived value that we then render
+							ui.render(w);
+						}
 					} else {
-						// … or a derived value that we then render
-						ui.render(w);
+						ui.render(v);
 					}
-				} else {
-					ui.render(v);
 				}
 			}
 		}
@@ -357,7 +390,7 @@ class UISelection extends Selection {
 	}
 }
 
-const ui = (selection) => new UISelection(selection);
+const ui = (selection) => new UITemplate(selection);
 
 export default Object.assign($, { ui });
 // EOF

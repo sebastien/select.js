@@ -23,7 +23,7 @@
 
 	<div id="FilteredList">
 		<!-- TODO: Support for input -->
-		<input in="filter" placeholder="Filter" />
+		<input inout="filter" placeholder="Filter" />
 		<!-- TODO: items=data.field|format -->
 		<ul out="items">
 			<li when="!data.items?.length">Empty</li>
@@ -37,8 +37,10 @@
 			code: ({code}) => code,
 		})
 		const FilteredList = $.ui("#FilteredList").remove().does({
-			// FIXME: This probably won't update
-			items: ({items, filter}) => Country.apply(filter ? items.filter(_ => _.name.toLowerCase().startsWith(filter)) : items),
+			items: ({items, filter}) => Country.apply(items ? filter ? items.filter(_ => _.name.toLowerCase().startsWith(filter)) : items : null),
+			filter: (event, self, data) => {
+				return event ? self.update({filter: event.target.value}) : data.filter
+			},
 		})
 		const list = FilteredList.clone()
 		$("#ui").append(list)
