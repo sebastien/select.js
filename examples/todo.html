@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI example</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/" } }
+	</script>
+</head>
+
+<body>
+	<div id="Todo">
+	</div>
+
+
+	<div id="TodoItem" data-state="{edited:false}">
+		<div when="!this.edited">
+			<span out="label">Placeholder</span>
+			<button on="edit">Edit</button>
+			<button on="remove">Remove</button>
+		</div>
+		<div when="this.edited">
+			<input in="label"></span>
+			<button on="save">Save</button>
+			<a href="#" on="cancel">cancel</a>
+		</div>
+	</div>
+
+	<div id="TodoList">
+		<ul out="items">
+			<li>Empty</li>
+		</ul>
+	</div>
+
+	<script type="module">
+		import $ from "@./select.ui.js"
+		const TodoItem = $.ui("#TodoItem").remove().does({
+			label: ({label}) => label,
+			edit: {click: (event) => console.log("Clicked on", this)},
+			remove: {click: (event) => console.log("Clicked on", this)},
+		})
+		const TodoList = $.ui("#TodoList").does({
+			items: TodoItem,
+		}).remove()
+		const res = TodoList.clone()
+		$("#Todo").append(res)
+		console.log("RES", {res, TodoList, TodoItem})
+		res.out.items.render([{label: "Buy cheese"}, {label: "Buy Wine"}])//, TodoItem)
+	</script>
+</body>
+
+</html>
