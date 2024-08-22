@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI ― Inspector</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/" } }
+	</script>
+</head>
+
+<body>
+	<div id="ui"></div>
+
+	<div id="InspectSymbol">
+		Symbol
+	</div>
+
+	<div id="InspectNumber">
+		Number
+	</div>
+
+	<div id="InspectString">
+		String
+	</div>
+
+	<div id="InspectList">
+		List
+	</div>
+
+	<div id="InspectDict">
+		Dict
+	</div>
+
+	<div id="Inspector">
+		<div out="value">
+		</div>
+
+		<script type="module">
+			import $, {type} from "@./select.ui.js"
+			const InspectDict = $.ui("#InspectDict").remove();
+			const InspectList = $.ui("#InspectList").remove();
+			const InspectString = $.ui("#InspectString").remove();
+			const InspectNumber = $.ui("#InspectNumber").remove();
+			const InspectSymbol = $.ui("#InspectSymbol").remove();
+			// Inspector
+			const Inspector = $.ui("#Inspector").remove().does({
+				value: (self, {value}) => {
+					const t = type(value)
+					self.update({type: t})
+					switch (t) {
+						case type.Null:
+							return InspectSymbol.apply(value, 1)
+						case type.List:
+							return InspectList.apply(value, 1)
+						case type.Dict:
+							return InspectDict.apply(value, 1)
+						case type.String:
+							return InspectString.apply(value, 1)
+						case type.Number:
+							return InspectNumber.apply(value, 1)
+						default:
+							return InspectList.apply(value, 1)
+					}
+				}
+			});
+			const ui = Inspector.clone()
+			$("#ui").append(ui)
+			const data = await fetch("https://cdn.statically.io/gh/sebastien/ui.js/5c3258b1bb775e1529fffcc04cd623f253c50a9a/examples/inspector-speed.json").then(_ => _.json());
+			console.log("DATA", data)
+			ui.set({value: data})
+		</script>
+</body>
+
+</html>

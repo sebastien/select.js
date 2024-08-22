@@ -1,20 +1,29 @@
 import { $, Selection } from "./select.js";
 
-const Type = {
-	Null: 1,
-	Atom: 2,
-	List: 3,
-	Dict: 4,
-};
+export const type = Object.assign(
+	(value) =>
+		value === undefined || value === null
+			? type.Null
+			: value instanceof Array
+			? type.List
+			: Object.getPrototypeOf(value) === Object.prototype
+			? type.Dict
+			: typeof value === "number"
+			? type.Number
+			: typeof value === "string"
+			? type.String
+			: type.Object,
+	{
+		Null: 1,
+		Number: 2,
+		String: 3,
+		Object: 4,
+		List: 10,
+		Dict: 11,
+	}
+);
 
-const type = (value) =>
-	value === undefined || value === null
-		? Type.Null
-		: value instanceof Array
-		? Type.List
-		: Object.getPrototypeOf(value) === Object.prototype
-		? Type.Dict
-		: Type.Atom;
+const eq = (a, b) => a === b;
 
 const slots = (name, parent, processor = undefined, initial = {}) =>
 	$(`[${name}]`, parent).reduce((r, n) => {
@@ -41,9 +50,10 @@ class UIEvent {
 }
 
 class AppliedUITemplate {
-	constructor(selection, data) {
+	constructor(selection, data, cardinality = undefined) {
 		this.selection = selection;
 		this.data = data;
+		this.cardinality = cardinality;
 	}
 }
 
@@ -71,7 +81,7 @@ class UITemplate extends Selection {
 		// Data & State
 		this.data = undefined;
 		this.key = undefined;
-		this.dataType = Type.Null;
+		this.dataType = type.Null;
 		this.rendered = new Map();
 		this.condition = undefined;
 		// Interaction/Behavior (passed in cloned)
@@ -132,8 +142,8 @@ class UITemplate extends Selection {
 		}
 	}
 
-	apply(data) {
-		return new AppliedUITemplate(this, data);
+	apply(data, cardinality) {
+		return new AppliedUITemplate(this, data, cardinality);
 	}
 
 	// ========================================================================
@@ -210,9 +220,22 @@ class UITemplate extends Selection {
 		this.render(data);
 	}
 
-	update(data, key = this.key) {
-		this.key = key;
-		this.render(this.data ? { ...this.data, ...data } : data);
+	update(data) {
+		let same = true;
+
+		if (!this.data) {
+			same = this.data === data;
+		} else {
+			for (const k of data) {
+				if (eq(data[k], this.data[k])) {
+					same = false;
+					break;
+				}
+			}
+		}
+		if (!same) {
+			this.render(this.data ? { ...this.data, ...data } : data);
+		}
 	}
 
 	// ========================================================================
@@ -253,13 +276,16 @@ class UITemplate extends Selection {
 						const w =
 							set === this.inout
 								? v(null, ui, data, key)
-								: v(data, key, ui);
+								: v(ui, data, key);
 						// TODO: We may want to have an applied selection as well
 						if (w instanceof UITemplate) {
 							// … produces a UITemplate (dynamic component)
 							ui.render(data, w);
 						} else if (w instanceof AppliedUITemplate) {
-							ui.render(w.data, w.selection);
+							ui.render(
+								w.cardinality ? [w.data] : w.data,
+								w.selection
+							);
 						} else {
 							// … or a derived value that we then render
 							ui.render(w);
@@ -316,10 +342,11 @@ class UITemplate extends Selection {
 			}
 		} else {
 			switch (data_type) {
-				case Type.Null:
+				case type.Null:
 					this.doClear();
 					break;
-				case Type.Atom:
+				case type.String:
+				case type.Number:
 					{
 						// TODO: We should detect changes
 						let r = this.rendered.get(null);
@@ -332,7 +359,7 @@ class UITemplate extends Selection {
 						}
 					}
 					break;
-				case Type.List:
+				case type.List:
 					if (this.dataType === data_type) {
 						const n = Math.min(this.data.length, data.length);
 						for (let i = 0; i < n; i++) {
@@ -356,7 +383,7 @@ class UITemplate extends Selection {
 						}
 					}
 					break;
-				case Type.Dict:
+				case type.Dict:
 					if (this.dataType === data_type) {
 						for (const k in data) {
 							if (this.data[k] === undefined) {
@@ -364,7 +391,7 @@ class UITemplate extends Selection {
 								this.append(r);
 								this.rendered.set(k, r);
 							} else {
-								this.rendered.get(k).update(data[k], k);
+								this.rendered.get(k).update(data[k]);
 							}
 						}
 						for (const k in this.data) {
