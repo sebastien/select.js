@@ -30,8 +30,9 @@
 
 	<div id="TodoList">
 		<ul out="items">
-			<li>Empty</li>
+			<li when="!this.length">Empty</li>
 		</ul>
+		<button on="add">Add</button>
 	</div>
 
 	<script type="module">
@@ -39,22 +40,28 @@
 		const TodoItem = $.ui("#TodoItem").remove().does({
 			label: ({label}) => label,
 			edit: {
-				click: function (event) {console.log("Edit", this, event)},
+				click: (event, self) => {self.update({edited: !self.data.edited})},
 			},
 			remove: {
-				click: function (event) {console.log("Remove", this, event)},
+				click: (event, self, data) => self.send("Remove", data),
 			},
 		})
 		const TodoList = $.ui("#TodoList").does({
 			items: (items) => TodoItem.apply(items),
+			add: (event, self, data = []) => {
+				self.update([...data, {label: `Todo ${data.length}`}])
+			}
+		}).sub({
+			Remove: (event, self) => self.update(self.data.filter(_ => _ !== event.data)),
 		}).remove()
+		console.log("TODOLIST", TodoList)
 		const res = TodoList.clone()
 		$("#Todo").append(res)
 		//res.out.items.render([{label: "Buy cheese"}, {label: "Buy Wine"}], TodoItem)
 		// TODO: Remove does not work
 		//res.out.items.render([{label: "Buy cheese"}], TodoItem)
 		//res.set([{label: "Todo 1"}])
-		res.set([{label: "Todo 1"}, {label: "Todo 2"}, {label: "Todo 3"}])
+		//res.set([{label: "Todo 1"}, {label: "Todo 2"}, {label: "Todo 3"}])
 		//res.set([{label: "Todo 1"}])
 	</script>
 </body>

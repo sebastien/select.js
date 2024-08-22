@@ -16,18 +16,28 @@ const type = (value) =>
 				? Type.Dict
 				: Type.Atom;
 
-const slots = (name, scope, processor = undefined, initial = {}) =>
-	$(`[${name}]`, scope).reduce((r, n) => {
+const slots = (name, parent, processor = undefined, initial = {}) =>
+	$(`[${name}]`, parent).reduce((r, n) => {
 		const k = n.getAttribute(name);
 		// n.removeAttribute(name);
 		if (r[k] === undefined) {
 			const v = new UISelection(n);
+			v.parent = parent;
 			r[k] = processor ? processor(v, n, k) : v;
 		} else {
 			r[k].push(n);
 		}
 		return r;
 	}, initial);
+
+class UIEvent {
+	constructor(name, data, origin) {
+		this.name = name;
+		this.data = data;
+		this.origin = origin;
+		this.current = undefined;
+	}
+}
 
 class AppliedUISelection {
 	constructor(selection, data) {
@@ -53,21 +63,43 @@ class UISelection extends Selection {
 				node,
 			};
 		});
-
-		// Data
+		// Parent
+		this.parent = undefined;
+		// Data & State
 		this.data = undefined;
 		this.key = undefined;
 		this.dataType = Type.Null;
 		this.rendered = new Map();
 		this.condition = undefined;
-		// Interaction/Behavior
+		// Interaction/Behavior (passed in cloned)
 		this.behavior = undefined;
+		this.subs = undefined;
 		// TODO: Initial state parsing
 	}
 
-	clone() {
+	// TODO: There's a question whether we should have Instance instead
+	// of clone. We could certainly speed up init.
+	clone(parent) {
 		const res = super.clone();
 		res.behavior = this.behavior; //new Object(res.behavior);
+		res.subs = this.subs;
+		res.parent = parent;
+		// We bind the event handlers
+		for (const k in res.on) {
+			let handlers = res.behavior[k];
+			if (handlers instanceof Function) {
+				// TODO: Select the best type of event for the target
+				handlers = { click: handlers };
+			}
+			if (handlers) {
+				for (const event in handlers) {
+					const h = handlers[event];
+					res.on[k].bind(event, (event) =>
+						h(event, res, res.data, res.key),
+					);
+				}
+			}
+		}
 		return res;
 	}
 
@@ -75,9 +107,71 @@ class UISelection extends Selection {
 		return new AppliedUISelection(this, data);
 	}
 
+	// ========================================================================
+	// BEHAVIOUR
+	// ========================================================================
+
 	does(behavior) {
 		this.behavior = Object.assign(this.behavior ?? {}, behavior);
 		return this;
+	}
+
+	// ========================================================================
+	// EVENTS
+	// ========================================================================
+
+	send(event, data) {
+		return this.pub(event, data);
+	}
+
+	pub(event, data) {
+		const res = new UIEvent(event, data, this);
+		this.parent?.onPub(res);
+		return res;
+	}
+
+	sub(event, handler = undefined) {
+		if (typeof event === "string") {
+			if (!handler) {
+				return this;
+			}
+			if (this.subs === undefined) {
+				this.subs = new Map();
+			}
+			if (this.subs.has(event)) {
+				this.subs.get(event).push(handler);
+			} else {
+				this.subs.set(event, [handler]);
+			}
+		} else {
+			for (const k in event) {
+				this.sub(k, event[k]);
+			}
+		}
+		return this;
+	}
+
+	onPub(event) {
+		event.current = this;
+		let propagate = true;
+		console.log("GOT", event);
+		if (this.subs) {
+			const hl = this.subs.get(event.name);
+			if (hl) {
+				for (const h of hl) {
+					// We do an early exit when `false` is returned,
+					// Or stop propagation on `null`
+					const c = h(event, this, this.data, this.key);
+					if (c === false) {
+						return event;
+					} else if (c === null) {
+						propagate = false;
+					}
+				}
+			}
+		}
+		propagate && this.parent?.onPub(event);
+		return event;
 	}
 
 	// ========================================================================
@@ -100,21 +194,10 @@ class UISelection extends Selection {
 
 	// --
 	// Creates, updates or removes a selection based on the argument
-	doCreate(data, key = this.key) {
+	doCreate(data, key = this.key, parent = undefined) {
 		// Create a new instance of the selection
-		const ui = this.clone();
-		// We bind the event handlers
-		for (const k in this.on) {
-			const handlers = this.behavior[k];
-			if (handlers) {
-				for (const event in handlers) {
-					const h = handlers[event];
-					ui.on[k].bind(event, (event) => {
-						return h.apply(ui.data ?? data, [event, ui, key]);
-					});
-				}
-			}
-		}
+		const ui = this.clone(parent);
+
 		ui.attr("data-xxx", "POUET");
 		ui.set(data, key);
 		return ui;
@@ -213,7 +296,7 @@ class UISelection extends Selection {
 						if (r) {
 							r.doUpdate(data);
 						} else {
-							r = ui.doCreate(data);
+							r = ui.doCreate(data, null, this);
 							this.append(r);
 							this.rendered.set(null, r);
 						}
@@ -226,19 +309,18 @@ class UISelection extends Selection {
 							this.rendered.get(i).doUpdate(data[i], i);
 						}
 						for (let i = n; i < data.length; i++) {
-							const r = ui.doCreate(data[i], i);
+							const r = ui.doCreate(data[i], i, this);
 							this.append(r);
 							this.rendered.set(i, r);
 						}
 						for (let i = n; i < this.data.length; i++) {
-							console.log("XXX REMOVE ITEM", i);
 							this.rendered.get(i).doRemove();
 							this.rendered.delete(i);
 						}
 					} else {
 						this.doClear();
 						for (let i = 0; i < data.length; i++) {
-							const r = ui.doCreate(data[i], i);
+							const r = ui.doCreate(data[i], i, this);
 							this.append(r);
 							this.rendered.set(i, r);
 						}
@@ -248,7 +330,7 @@ class UISelection extends Selection {
 					if (this.dataType === data_type) {
 						for (const k in data) {
 							if (this.data[k] === undefined) {
-								const r = ui.doCreate(data[k], k);
+								const r = ui.doCreate(data[k], k, this);
 								this.append(r);
 								this.rendered.set(k, r);
 							} else {
@@ -264,7 +346,7 @@ class UISelection extends Selection {
 					} else {
 						this.doClear();
 						for (const k in data) {
-							const r = ui.doCreate(data[k], k);
+							const r = ui.doCreate(data[k], k, this);
 							this.append(r);
 							this.rendered.set(k, r);
 						}
