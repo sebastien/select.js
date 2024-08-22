@@ -13,64 +13,88 @@
 <body>
 	<div id="ui"></div>
 
-	<div id="InspectSymbol">
-		Symbol
-	</div>
+	<template id="InspectSymbol">
+		Symbol <span out="value"></span>
+	</template>
 
-	<div id="InspectNumber">
-		Number
-	</div>
+	<template id="InspectNumber">
+		Number <span out="value"></span>
+	</template>
 
-	<div id="InspectString">
-		String
-	</div>
+	<template id="InspectString">
+		String <span out="value"></span>
+	</template>
 
-	<div id="InspectList">
-		List
-	</div>
+	<template id="InspectList">
+		<div>
+			List
+			(<span out="count"></span>):
+			<div out="items"></div>
+		</div>
+	</template>
 
-	<div id="InspectDict">
-		Dict
-	</div>
+	<template id="InspectDict">
+		<div>
+			Dict
+			(<span out="count"></span>):
+			<div out="items"></div>
+		</div>
+	</template>
 
-	<div id="Inspector">
+	<template id="Inspector">
 		<div out="value">
 		</div>
+	</template>
 
-		<script type="module">
-			import $, {type} from "@./select.ui.js"
-			const InspectDict = $.ui("#InspectDict").remove();
-			const InspectList = $.ui("#InspectList").remove();
-			const InspectString = $.ui("#InspectString").remove();
-			const InspectNumber = $.ui("#InspectNumber").remove();
-			const InspectSymbol = $.ui("#InspectSymbol").remove();
-			// Inspector
-			const Inspector = $.ui("#Inspector").remove().does({
-				value: (self, {value}) => {
-					const t = type(value)
-					self.update({type: t})
-					switch (t) {
-						case type.Null:
-							return InspectSymbol.apply(value, 1)
-						case type.List:
-							return InspectList.apply(value, 1)
-						case type.Dict:
-							return InspectDict.apply(value, 1)
-						case type.String:
-							return InspectString.apply(value, 1)
-						case type.Number:
-							return InspectNumber.apply(value, 1)
-						default:
-							return InspectList.apply(value, 1)
-					}
-				}
-			});
-			const ui = Inspector.clone()
-			$("#ui").append(ui)
-			const data = await fetch("https://cdn.statically.io/gh/sebastien/ui.js/5c3258b1bb775e1529fffcc04cd623f253c50a9a/examples/inspector-speed.json").then(_ => _.json());
-			console.log("DATA", data)
-			ui.set({value: data})
-		</script>
+	<script type="module">
+		import {ui, type, remap} from "@./select.ui.js"
+		const item = (value) => {
+			const t = type(value)
+			switch (t) {
+				case type.Null:
+					return InspectSymbol({value})
+				case type.List:
+					return InspectList({value})
+				case type.Dict:
+					return InspectDict({value})
+				case type.String:
+					return InspectString({value})
+				case type.Number:
+					return InspectNumber({value})
+				default:
+					return InspectList({value})
+			}
+		}
+		const InspectDict = ui("#InspectDict").does({
+			count: ({value}) => Object.keys(value).length,
+			items: ({value}) => remap(value, _ => item(value)),
+		})
+
+		const InspectList = ui("#InspectList").does({
+			count: ({value}) => value?.length || 0,
+			items: ({value}) => remap(value, _ => item(value)),
+		})
+		const InspectString = ui("#InspectString").does({
+			value: _ => _,
+		})
+		const InspectNumber = ui("#InspectNumber").does({
+			value: _ => _,
+		})
+		const InspectSymbol = ui("#InspectSymbol").does({
+			value: _ => _,
+		})
+		// Inspector
+		const Inspector = ui("#Inspector").does({
+			value: ({value}) => item(value),
+		})
+		const c = Inspector.make();
+		c.mount("#ui");
+		console.log("C", c)
+		const data = await fetch("https://cdn.statically.io/gh/sebastien/ui.js/5c3258b1bb775e1529fffcc04cd623f253c50a9a/examples/inspector-speed.json").then(_ => _.json());
+		console.log("DATA", data)
+		c.set({value: data})
+		window.Inspector = Inspector;
+	</script>
 </body>
 
 </html>
