@@ -191,7 +191,6 @@ class UITemplate {
 		this.when = UITemplateSlot.Find("when", nodes, (slot, expr) => {
 			slot.predicate = new Function(`return ((data, self)=>(${expr}))`)();
 			slot.predicatePlaceholder = document.createComment(expr);
-			console.log("PRE", slot.predicatePlaceholder, { expr });
 			return slot;
 		});
 		// Interaction/Behavior (passed in cloned)
@@ -267,72 +266,80 @@ class UISlot {
 		this.template = template;
 	}
 
+	// --
+	// Renders a slot, which is either replacing the content of the node
+	// with an HTML/text value from the data, or creating one or more
+	// `UIInstance` in case the data returns an applied template or
+	// a collection of applied templates.
 	render(data) {
-		// TODO: If data
-		// if (this.placeholder && this.placeholder[0]?.parentNode) {
-		// 	for (const node of this.placeholder) {
-		// 	}
-		// }
-		// We set the node text;
-
-		//setNodeText(this.node, asText(data));
-		if (this.template.predicate) {
-			if (!this.template.predicate(data)) {
-				this.hide();
-				return this;
-			} else {
-				this.show();
+		if (data === null) {
+			// TODO: Introduce placeholder
+		} else if (this.placeholder && this.placeholder[0]?.parentNode) {
+			for (const n of this.placeholder) {
+				n.parentNode.removeChild(n);
 			}
 		}
 		const t = type(data);
-		console.log("RENDER", data, t);
-		if (data instanceof AppliedUITemplate) {
-			console.log("TODO:Applied template rendering");
-		} else if (t === type.List) {
-			// Mapping
-			const items = data;
-			let previous = null;
-			const n = items.length;
-			for (let i = 0; i < n; i++) {
-				const item = items[i];
-				if (!this.mapping.has(i)) {
-					let r = undefined;
-					if (item instanceof AppliedUITemplate) {
-						r = item.template.make();
-						previous = r.set(items[i]).mount(this.node, previous);
-					} else {
-						r = document.createTextElement(asText(item));
-						// TODO: Use mount and sibling
-						this.node.appendChild(r);
-						previous = r;
-					}
-					this.mapping.set(i, r);
+		// We normalize the value... it's always going to be a list/map,
+		// the default item is `_`
+		const items = t === type.List || t === type.Dict ? data : { _: data };
+		let previous = null;
+		for (const k in items) {
+			const item = items[k];
+			if (!this.mapping.has(k)) {
+				let r = undefined;
+				if (item instanceof AppliedUITemplate) {
+					r = item.template.make();
+					previous = r.set(item.data).mount(this.node, previous);
 				} else {
-					const r = this.mapping.get(i);
-					if (r instanceof UIInstance) {
-						r.set(items[i]);
+					r = document.createTextNode(asText(item));
+					// TODO: Use mount and sibling
+					this.node.appendChild(r);
+					this.node.appendChild(document.createComment("asdsada"));
+					this.node.setAttribute("title", "pouet");
+					previous = r;
+				}
+				this.mapping.set(k, r);
+			} else {
+				const r = this.mapping.get(k);
+				if (r instanceof UIInstance) {
+					if (item instanceof AppliedUITemplate) {
+						if (item.template === r.template) {
+							r.set(item.data);
+						} else {
+							console.error("Not implemented: change in element");
+						}
+					} else {
+						r.set(item);
+					}
+				} else {
+					if (item instanceof AppliedUITemplate) {
+						console.error(
+							"Not implemented: change from non UIInstance to UIInstance"
+						);
 					} else {
 						setNodeText(r, asText(item));
 					}
-					// TODO: We may want to ensure the order is as expected
 				}
-			}
-			const to_clear = [];
-			for (const [k, v] of this.mapping.entries()) {
-				if (typeof k !== "number" || k < 0 || k >= n) {
-					if (v instanceof UIInstance) {
-						v.unmount();
-					} else {
-						v.parentNode?.removeChild(v);
-					}
-					to_clear.push(k);
-				}
-			}
-			for (const k in to_clear) {
-				this.mapping.delete(k);
+				// TODO: We may want to ensure the order is as expected
 			}
 		}
+		// We clear the extra
+		const to_clear = [];
+		for (const [k, v] of this.mapping.entries()) {
+			if (items[k] === undefined)
+				if (v instanceof UIInstance) {
+					v.unmount();
+				} else {
+					v.parentNode?.removeChild(v);
+				}
+			to_clear.push(k);
+		}
+		for (const k in to_clear) {
+			this.mapping.delete(k);
+		}
 	}
+
 	show() {
 		if (this.predicatePlaceholder && this.predicatePlaceholder.parentNode) {
 			this.predicatePlaceholder.parentNode.replaceChild(
@@ -342,6 +349,7 @@ class UISlot {
 		}
 		return this;
 	}
+
 	hide() {
 		if (this.predicatePlaceholder && this.node.parentNode) {
 			this.node.parentNode.replaceChild(
@@ -517,11 +525,19 @@ class UIInstance {
 		if (node) {
 			// TODO: Should follow previous
 			if (this.nodes[0].parentNode !== node) {
-				for (let i = 0; i < this.nodes.length; i++) {
-					node.appendChild(this.nodes[i]);
+				for (const n of this.nodes) {
+					node.appendChild(n);
 				}
+			} else {
+				console.log("Already mounted", this.nodes);
+			}
+		} else {
+			console.warn("Unable to mount as node is empty");
+			for (const node of this.nodes) {
+				node.parentNode?.removeChild(node);
 			}
 		}
+
 		return this.nodes[this.nodes.length - 1];
 	}
 
@@ -581,7 +597,6 @@ class UIInstance {
 					}
 				}
 			}
-			console.log("RENDER:when", this.when);
 
 			// // TODO: Should detect a change
 			// if (this.behavior) {

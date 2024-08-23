@@ -57,8 +57,9 @@
 		}).sub({
 			Remove: (event, self) => self.set(self.data.filter(_ => _ !== event.data)),
 		})
-		const res = TodoList.make().set({items: [{label: "Buy wine"}]})
+		const res = TodoList.make()
 		res.mount("#Todo")
+		res.set({items: [{label: "Buy wine"}]})
 	</script>
 </body>
 
