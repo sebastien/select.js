@@ -325,7 +325,7 @@ class UISlot {
 			}
 		} else if (this.placeholder && this.placeholder[0]?.parentNode) {
 			for (const n of this.placeholder) {
-				n.parentNode.removeChild(n);
+				n.parentNode?.removeChild(n);
 			}
 		}
 		// We normalize the value... it's always going to be a list/map,
@@ -338,7 +338,8 @@ class UISlot {
 				let r = undefined;
 				if (item instanceof AppliedUITemplate) {
 					r = item.template.new(this.parent);
-					previous = r.set(item.data, k).mount(this.node, previous);
+					r.set(item.data, k).mount(this.node, previous);
+					previous = r.nodes.at(-1);
 				} else if (isInputNode(this.node)) {
 					setNodeText(this.node, asText(item));
 					r = this.node;
@@ -591,7 +592,7 @@ class UIInstance {
 			}
 		}
 
-		return this.nodes[this.nodes.length - 1];
+		return this;
 	}
 
 	unmount() {

@@ -33,19 +33,17 @@
 	<script type="module">
 		import ui from "@./select.ui.js"
 		const Country = ui("#Country").does({
-			name: ({name}) => name,
-			code: ({code}) => code,
+			name: (self, {name}) => name,
+			code: (self, {code}) => code,
 		})
 		const FilteredList = ui("#FilteredList").does({
-			items: ({items, filter}) => (items ? filter ? items.filter(_ => _.name.toLowerCase().startsWith(filter)) : items : []).map(_ => Country(_)),
-			filter: (event, self, data) => {
+			items: (self, {items, filter}) => (items ? filter ? items.filter(_ => _.name.toLowerCase().startsWith(filter)) : items : []).map(_ => Country(_)),
+			filter: (self, data, event) => {
 				return event ? self.update({filter: event.target.value}) : data.filter
 			},
 		})
-		const list = FilteredList.make()
-		list.mount("#ui");
 		const countries = await fetch("./countries.json").then(_ => _.json());
-		list.set({items: countries, filter: "an"})
+		FilteredList.new().mount("#ui").set({items: countries, filter: "an"})
 	</script>
 </body>
 
