@@ -6,7 +6,8 @@
 // /____/\___/_/\___/\___/\__/   \____/___/
 // ```
 //
-// A standalone, simple UI rendering library.
+// A standalone, simple and performant UI rendering library, design
+// for quickly creating interactive UIs and visualisations.
 
 export const len = (v) => {
 	const t = typeof v;
@@ -22,6 +23,7 @@ export const len = (v) => {
 	return 1;
 };
 
+const parser = new DOMParser();
 export const type = Object.assign(
 	(value) =>
 		value === undefined || value === null
@@ -672,11 +674,17 @@ class UIInstance {
 export const ui = (selection, scope = document) => {
 	if (typeof selection === "string") {
 		let nodes = [];
-		for (const node of document.querySelectorAll(selection)) {
-			if (node.nodeName === "TEMPLATE") {
-				nodes = [...nodes, ...node.content.childNodes];
-			} else {
-				nodes.push(node);
+		if (/\s*</.test(selection)) {
+			// We support parsing HTML
+			const doc = parser.parseFromString(selection, "text/html");
+			nodes = [...doc.body.childNodes];
+		} else {
+			for (const node of document.querySelectorAll(selection)) {
+				if (node.nodeName === "TEMPLATE") {
+					nodes = [...nodes, ...node.content.childNodes];
+				} else {
+					nodes.push(node);
+				}
 			}
 		}
 		const tmpl = new UITemplate(nodes);
