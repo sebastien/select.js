@@ -327,13 +327,14 @@ class UISlot {
 		// We clear the extra
 		const to_clear = [];
 		for (const [k, v] of this.mapping.entries()) {
-			if (items[k] === undefined)
+			if (items[k] === undefined) {
 				if (v instanceof UIInstance) {
 					v.unmount();
 				} else {
 					v.parentNode?.removeChild(v);
 				}
-			to_clear.push(k);
+				to_clear.push(k);
+			}
 		}
 		for (const k in to_clear) {
 			this.mapping.delete(k);

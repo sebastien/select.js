@@ -44,7 +44,7 @@
 				click: (event, data, self) => {self.update({edited: !self.data.edited})},
 			},
 			remove: {
-				click: (event, data, self) => console.log("REMOVE", data) || self.send("Remove", data),
+				click: (event, data, self) => self.send("Remove", data),
 			},
 		})
 		const TodoList = ui("#TodoList").does({
