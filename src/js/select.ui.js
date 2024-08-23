@@ -3,14 +3,14 @@ export const type = Object.assign(
 		value === undefined || value === null
 			? type.Null
 			: value instanceof Array
-				? type.List
-				: Object.getPrototypeOf(value) === Object.prototype
-					? type.Dict
-					: typeof value === "number"
-						? type.Number
-						: typeof value === "string"
-							? type.String
-							: type.Object,
+			? type.List
+			: Object.getPrototypeOf(value) === Object.prototype
+			? type.Dict
+			: typeof value === "number"
+			? type.Number
+			: typeof value === "string"
+			? type.String
+			: type.Object,
 	{
 		Null: 1,
 		Number: 2,
@@ -18,7 +18,7 @@ export const type = Object.assign(
 		Object: 4,
 		List: 10,
 		Dict: 11,
-	},
+	}
 );
 
 export const remap = (value, f) => {
@@ -58,10 +58,10 @@ const asText = (value) =>
 	value === null || value === undefined
 		? ""
 		: typeof value === "number"
-			? `${value}`
-			: typeof value === "string"
-				? value
-				: JSON.stringify(value);
+		? `${value}`
+		: typeof value === "string"
+		? value
+		: JSON.stringify(value);
 
 const setNodeText = (node, text) => {
 	if (node.nodeType === Node.ELEMENT_NODE) {
@@ -111,27 +111,28 @@ class UITemplateSlot {
 			res.splice(
 				0,
 				0,
-				Array.prototype.indexOf.call(node.parentNode.childNodes, node),
+				Array.prototype.indexOf.call(node.parentNode.childNodes, node)
 			);
 			node = node.parentNode;
 		}
 		return path ? path.concat(res) : res;
 	}
 
-	static Find(name, nodes) {
+	static Find(name, nodes, processor = undefined) {
 		const res = {};
 		let count = 0;
 		const selector = `[${name}]`;
 		const add = (node, parent, i) => {
 			const k = node.getAttribute(name);
 			node.removeAttribute(name);
-			const v = new UITemplateSlot(
+			let v = new UITemplateSlot(
 				node,
 				parent,
-				UITemplateSlot.Path(node, parent, [i]),
+				UITemplateSlot.Path(node, parent, [i])
 			);
+			v = processor ? processor(v, k) : v;
 			if (res[k] === undefined) {
-				res[k] = v;
+				res[k] = [v];
 			} else {
 				res[k].push(v);
 			}
@@ -156,8 +157,8 @@ class UITemplateSlot {
 		this.node = node;
 		this.parent = parent;
 		this.path = path;
-		this.condition = undefined;
-		this.conditionPlaceholder = undefined;
+		this.predicate = undefined;
+		this.predicatePlaceholder = undefined;
 	}
 
 	apply(parent) {
@@ -188,8 +189,10 @@ class UITemplate {
 		this.out = UITemplateSlot.Find("out", nodes);
 		this.inout = UITemplateSlot.Find("inout", nodes);
 		this.when = UITemplateSlot.Find("when", nodes, (slot, expr) => {
-			slot.condition = new Function(`return ((self,data)=>(${expr}))`)();
-			slot.conditionPlaceholder = document.createComment(expr);
+			slot.predicate = new Function(`return ((data, self)=>(${expr}))`)();
+			slot.predicatePlaceholder = document.createComment(expr);
+			console.log("PRE", slot.predicatePlaceholder, { expr });
+			return slot;
 		});
 		// Interaction/Behavior (passed in cloned)
 		this.behavior = undefined;
@@ -258,8 +261,8 @@ class UISlot {
 		this.node = node;
 		this.mapping = new Map();
 		this.placeholder = node.childNodes ? [...node.childNodes] : null;
-		this.conditionPlaceholder = template.conditionPlaceholder
-			? template.conditionPlaceholder.cloneNode(true)
+		this.predicatePlaceholder = template.predicatePlaceholder
+			? template.predicatePlaceholder.cloneNode(true)
 			: null;
 		this.template = template;
 	}
@@ -273,8 +276,8 @@ class UISlot {
 		// We set the node text;
 
 		//setNodeText(this.node, asText(data));
-		if (this.template.condition) {
-			if (!this.template.condition(data)) {
+		if (this.template.predicate) {
+			if (!this.template.predicate(data)) {
 				this.hide();
 				return this;
 			} else {
@@ -331,19 +334,19 @@ class UISlot {
 		}
 	}
 	show() {
-		if (this.conditionPlaceholder && this.conditionPlaceholder.parentNode) {
-			this.conditionPlaceholder.parentNode.replaceChild(
+		if (this.predicatePlaceholder && this.predicatePlaceholder.parentNode) {
+			this.predicatePlaceholder.parentNode.replaceChild(
 				this.node,
-				this.conditionPlaceholder,
+				this.predicatePlaceholder
 			);
 		}
 		return this;
 	}
 	hide() {
-		if (this.conditionPlaceholder && this.node.parentNode) {
+		if (this.predicatePlaceholder && this.node.parentNode) {
 			this.node.parentNode.replaceChild(
-				this.conditionPlaceholder,
-				this.parentNode,
+				this.predicatePlaceholder,
+				this.node
 			);
 		}
 		return this;
@@ -364,10 +367,21 @@ class UIInstance {
 		// Parent
 		this.template = template;
 		this.nodes = template.nodes.map((_) => _.cloneNode(true));
-		this.out = remap(template.out, (_) => _.apply(this.nodes));
-		this.inout = remap(template.inout, (_) => _.apply(this.nodes));
-		this.in = remap(template.in, (_) => _.apply(this.nodes));
-		this.on = remap(template.on, (_) => _.apply(this.nodes));
+		this.in = remap(template.in, (_) =>
+			remap(_, (_) => _.apply(this.nodes))
+		);
+		this.out = remap(template.out, (_) =>
+			remap(_, (_) => _.apply(this.nodes))
+		);
+		this.inout = remap(template.inout, (_) =>
+			remap(_, (_) => _.apply(this.nodes))
+		);
+		this.on = remap(template.on, (_) =>
+			remap(_, (_) => _.apply(this.nodes))
+		);
+		this.when = remap(template.when, (_) =>
+			remap(_, (_) => _.apply(this.nodes))
+		);
 		// TODO: Clone slots
 		this.parent = parent;
 		// Data & State
@@ -375,7 +389,7 @@ class UIInstance {
 		this.key = undefined;
 		this.dataType = type.Null;
 		this.rendered = new Map();
-		this.condition = undefined;
+		this.predicate = undefined;
 		this.bind();
 	}
 
@@ -385,14 +399,12 @@ class UIInstance {
 
 	bind() {
 		// We bind the event handlers
-		for (const k in this.on) {
-			this._bind(k, this.on[k]);
-		}
-		for (const k in this.in) {
-			this._bind(k, this.in[k]);
-		}
-		for (const k in this.inout) {
-			this._bind(k, this.inout[k]);
+		for (const set of [this.on, this.in, this.inout]) {
+			for (const k in set) {
+				for (const _ of set[k]) {
+					this._bind(k, _);
+				}
+			}
 		}
 	}
 
@@ -421,7 +433,7 @@ class UIInstance {
 				}
 				target.node.addEventListener(event, (event) =>
 					// Arguments are (event, self, data, key)
-					h(event, this.data || {}, this, this.key),
+					h(event, this.data || {}, this, this.key)
 				);
 			}
 		}
@@ -544,7 +556,6 @@ class UIInstance {
 			for (const set of [this.out, this.inout]) {
 				if (set) {
 					for (const k in set) {
-						const slot = set[k];
 						let v = data;
 						if (this.template.behavior[k]) {
 							if (behavior.has(k)) {
@@ -555,10 +566,22 @@ class UIInstance {
 								behavior.set(k, v);
 							}
 						}
-						slot.render(v);
+						for (const slot of set[k]) {
+							slot.render(v);
+						}
 					}
 				}
 			}
+			for (const k in this.when) {
+				for (const slot of this.when[k]) {
+					if (slot.template.predicate(data, self)) {
+						slot.show();
+					} else {
+						slot.hide();
+					}
+				}
+			}
+			console.log("RENDER:when", this.when);
 
 			// // TODO: Should detect a change
 			// if (this.behavior) {
@@ -651,83 +674,77 @@ class UIInstance {
 	// LIFE CYCLE
 	// ========================================================================
 
-	// --
-	// Creates, updates or removes a selection based on the argument
-	doCreate(data, key = this.key, parent = undefined) {
-		// Create a new instance of the selection
-		const ui = this.clone(parent);
-		ui.set(data, key);
-		return ui;
-	}
+	// doUpdate(data = this.data, key = this.key) {
+	// 	// Update
+	// 	// Taking care of behaviour. Note that the behaviour
+	// 	// will apply to all the states.
+	// 	for (const k in this.behavior) {
+	// 		for (const set of [this.out, this.inout]) {
+	// 			const ui = set[k];
+	// 			if (ui) {
+	// 				const v = this.behavior[k];
+	// 				if (v instanceof UITemplate) {
+	// 					// Behaviour is a selection, so we map the
+	// 					// current value to it.
+	// 					ui.render(data, v);
+	// 				} else if (v instanceof Function) {
+	// 					// Otherwise it's a function, we either…
+	// 					const w =
+	// 						set === this.inout
+	// 							? v(null, ui, data, key)
+	// 							: v(ui, data, key);
+	// 					// TODO: We may want to have an applied selection as well
+	// 					if (w instanceof UITemplate) {
+	// 						// … produces a UITemplate (dynamic component)
+	// 						ui.render(data, w);
+	// 					} else if (w instanceof AppliedUITemplate) {
+	// 						ui.render(
+	// 							w.cardinality ? [w.data] : w.data,
+	// 							w.selection
+	// 						);
+	// 					} else {
+	// 						// … or a derived value that we then render
+	// 						ui.render(w);
+	// 					}
+	// 				} else {
+	// 					ui.render(v);
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// 	console.log("UPDATE", this.when);
+	// 	//
+	// 	// // Taking care of when (showing and hiding)
+	// 	// for (const { predicate, node, placeholder } of this.when) {
+	// 	// 	const v = predicate(ui, data || {});
+	// 	// 	if (v) {
+	// 	// 		if (!node.parentNode) {
+	// 	// 			placeholder.parentNode.replaceChild(node, placeholder);
+	// 	// 		}
+	// 	// 	} else {
+	// 	// 		if (!placeholder.parentNode) {
+	// 	// 			node.parentNode.replaceChild(placeholder, node);
+	// 	// 		}
+	// 	// 	}
+	// 	// }
+	// 	this.data = data;
+	// 	this.key = key;
+	// }
 
-	doRemove() {
-		this.remove();
-		this.data = undefined;
-		this.key = undefined;
-		return this;
-	}
+	// // FIXME: Do we need that
+	// doRemove() {
+	// 	this.remove();
+	// 	this.data = undefined;
+	// 	this.key = undefined;
+	// 	return this;
+	// }
 
-	doUpdate(data = this.data, key = this.key) {
-		// Update
-		// Taking care of behaviour. Note that the behaviour
-		// will apply to all the states.
-		for (const k in this.behavior) {
-			for (const set of [this.out, this.inout]) {
-				const ui = set[k];
-				if (ui) {
-					const v = this.behavior[k];
-					if (v instanceof UITemplate) {
-						// Behaviour is a selection, so we map the
-						// current value to it.
-						ui.render(data, v);
-					} else if (v instanceof Function) {
-						// Otherwise it's a function, we either…
-						const w =
-							set === this.inout
-								? v(null, ui, data, key)
-								: v(ui, data, key);
-						// TODO: We may want to have an applied selection as well
-						if (w instanceof UITemplate) {
-							// … produces a UITemplate (dynamic component)
-							ui.render(data, w);
-						} else if (w instanceof AppliedUITemplate) {
-							ui.render(
-								w.cardinality ? [w.data] : w.data,
-								w.selection,
-							);
-						} else {
-							// … or a derived value that we then render
-							ui.render(w);
-						}
-					} else {
-						ui.render(v);
-					}
-				}
-			}
-		}
-		// Taking care of when (showing and hiding)
-		for (const { predicate, node, placeholder } of this.when) {
-			const v = predicate(ui, data || {});
-			if (v) {
-				if (!node.parentNode) {
-					placeholder.parentNode.replaceChild(node, placeholder);
-				}
-			} else {
-				if (!placeholder.parentNode) {
-					node.parentNode.replaceChild(placeholder, node);
-				}
-			}
-		}
-		this.data = data;
-		this.key = key;
-	}
-
-	doClear() {
-		for (const v of this.rendered.values()) {
-			v.doRemove();
-		}
-		this.rendered.clear();
-	}
+	// doClear() {
+	// 	for (const v of this.rendered.values()) {
+	// 		v.doRemove();
+	// 	}
+	// 	this.rendered.clear();
+	// }
 }
 
 // ----------------------------------------------------------------------------

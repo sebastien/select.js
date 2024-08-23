@@ -31,7 +31,7 @@
 
 	<template id="TodoList">
 		<ul out="items">
-			<li when="!data.length">Empty</li>
+			<li when="!(data?.items?.length??0)">Empty</li>
 		</ul>
 		<button on="add">Add</button>
 	</template>
@@ -57,7 +57,7 @@
 		}).sub({
 			Remove: (event, self) => self.set(self.data.filter(_ => _ !== event.data)),
 		})
-		const res = TodoList.make()
+		const res = TodoList.make().set({items: [{label: "Buy wine"}]})
 		res.mount("#Todo")
 	</script>
 </body>
