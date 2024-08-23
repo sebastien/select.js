@@ -1,3 +1,27 @@
+// ```
+//    _____      __          __     __  ______
+//   / ___/___  / /__  _____/ /_   / / / /  _/
+//   \__ \/ _ \/ / _ \/ ___/ __/  / / / // /
+//  ___/ /  __/ /  __/ /__/ /_   / /_/ // /
+// /____/\___/_/\___/\___/\__/   \____/___/
+// ```
+//
+// A standalone, simple UI rendering library.
+
+export const len = (v) => {
+	const t = typeof v;
+	if (v === undefined || v === null) {
+		return 0;
+	} else if (v instanceof Array || t === "string") {
+		return v.length;
+	} else if (v instanceof Map || v instanceof Set) {
+		return v.size;
+	} else if (Object.getPrototypeOf(v) === Object.prototype) {
+		return Object.keys(t).length;
+	}
+	return 1;
+};
+
 export const type = Object.assign(
 	(value) =>
 		value === undefined || value === null
@@ -63,22 +87,28 @@ const asText = (value) =>
 		? value
 		: JSON.stringify(value);
 
+const isInputNode = (node) => {
+	switch (node.nodeName) {
+		case "INPUT":
+		case "TEXTAREA":
+		case "SELECT":
+			return true;
+		default:
+			return false;
+	}
+};
 const setNodeText = (node, text) => {
 	switch (node.nodeType) {
 		case Node.TEXT_NODE:
 			node.data = text;
 			break;
 		case Node.ELEMENT_NODE:
-			switch (node.nodeName) {
-				case "INPUT":
-				case "TEXTAREA":
-				case "SELECT":
-					if (node.value !== text) {
-						node.value = text;
-					}
-					break;
-				default:
-					node.textContent = text;
+			if (isInputNode(node)) {
+				if (node.value !== text) {
+					node.value = text;
+				}
+			} else {
+				node.textContent = text;
 			}
 			break;
 	}
@@ -194,7 +224,9 @@ class UITemplate {
 		this.out = UITemplateSlot.Find("out", nodes);
 		this.inout = UITemplateSlot.Find("inout", nodes);
 		this.when = UITemplateSlot.Find("when", nodes, (slot, expr) => {
-			slot.predicate = new Function(`return ((data, self)=>(${expr}))`)();
+			slot.predicate = new Function(
+				`return ((self,data,event)=>(${expr}))`
+			)();
 			slot.predicatePlaceholder = document.createComment(expr);
 			return slot;
 		});
@@ -205,7 +237,7 @@ class UITemplate {
 
 	// TODO: There's a question whether we should have Instance instead
 	// of clone. We could certainly speed up init.
-	make(parent) {
+	new(parent) {
 		return new UIInstance(this, parent);
 	}
 
@@ -278,14 +310,24 @@ class UISlot {
 	// `UIInstance` in case the data returns an applied template or
 	// a collection of applied templates.
 	render(data) {
-		if (data === null) {
-			// TODO: Introduce placeholder
+		const t = type(data);
+		if (len(data) === 0) {
+			if (this.placeholder && !this.placeholder[0]?.parentNode) {
+				let previous = this.node.childNodes[0];
+				for (const node of this.placeholder) {
+					if (!previous || !previous.nextSibling) {
+						this.node.appendChild(node);
+					} else {
+						this.node.insertBefore(node, previous.nextSibling);
+					}
+					previous = node;
+				}
+			}
 		} else if (this.placeholder && this.placeholder[0]?.parentNode) {
 			for (const n of this.placeholder) {
 				n.parentNode.removeChild(n);
 			}
 		}
-		const t = type(data);
 		// We normalize the value... it's always going to be a list/map,
 		// the default item is `_`
 		const items = t === type.List || t === type.Dict ? data : { _: data };
@@ -295,8 +337,11 @@ class UISlot {
 			if (!this.mapping.has(k)) {
 				let r = undefined;
 				if (item instanceof AppliedUITemplate) {
-					r = item.template.make(this.parent);
+					r = item.template.new(this.parent);
 					previous = r.set(item.data, k).mount(this.node, previous);
+				} else if (isInputNode(this.node)) {
+					setNodeText(this.node, asText(item));
+					r = this.node;
 				} else {
 					r = document.createTextNode(asText(item));
 					// TODO: Use mount and sibling
@@ -334,7 +379,7 @@ class UISlot {
 			if (items[k] === undefined) {
 				if (v instanceof UIInstance) {
 					v.unmount();
-				} else {
+				} else if (v !== this.node) {
 					v.parentNode?.removeChild(v);
 				}
 				to_clear.push(k);
@@ -346,6 +391,7 @@ class UISlot {
 	}
 
 	show() {
+		// TODO: Edge case when the slot is a direct node in the instance `.nodes`.
 		if (this.predicatePlaceholder && this.predicatePlaceholder.parentNode) {
 			this.predicatePlaceholder.parentNode.replaceChild(
 				this.node,
@@ -356,6 +402,7 @@ class UISlot {
 	}
 
 	hide() {
+		// TODO: Edge case when the slot is a direct node in the instance `.nodes`.
 		if (this.predicatePlaceholder && this.node.parentNode) {
 			this.node.parentNode.replaceChild(
 				this.predicatePlaceholder,
@@ -431,7 +478,7 @@ class UIInstance {
 			for (let event in handlers) {
 				const h = handlers[event];
 				if (event === "_") {
-					switch (target[0]?.nodeName) {
+					switch (target.node.nodeName) {
 						case "INPUT":
 						case "TEXTAREA":
 						case "SELECT":
@@ -445,8 +492,8 @@ class UIInstance {
 					}
 				}
 				target.node.addEventListener(event, (event) =>
-					// Arguments are (event, self, data, key)
-					h(event, this.data || {}, this, this.key)
+					// Arguments are (self,data,event)
+					h(this, this.data || {}, event)
 				);
 			}
 		}
@@ -475,7 +522,7 @@ class UIInstance {
 			}
 		}
 		if (!same) {
-			this.render(this.data ? { ...this.data, ...data } : data);
+			this.render(this.data ? Object.assign(this.data, data) : data);
 		}
 		return this;
 	}
@@ -493,6 +540,7 @@ class UIInstance {
 		this.parent?.onPub(res);
 		return res;
 	}
+
 	onPub(event) {
 		event.current = this;
 		let propagate = true;
@@ -501,7 +549,7 @@ class UIInstance {
 			if (hl) {
 				for (const h of hl) {
 					// We do an early exit when `false` is returned, Or stop propagation on `null`
-					const c = h(event, this.data, this, this.key);
+					const c = h(this, this.data, event);
 					if (c === false) {
 						return event;
 					} else if (c === null) {
@@ -534,7 +582,7 @@ class UIInstance {
 					node.appendChild(n);
 				}
 			} else {
-				console.log("Already mounted", this.nodes);
+				console.warn("Already mounted", this.nodes);
 			}
 		} else {
 			console.warn("Unable to mount as node is empty");
@@ -548,6 +596,7 @@ class UIInstance {
 
 	unmount() {
 		// TODO: Speedup: if the first node is not mounted, the rest is not.
+		// FIXME: Some root slots would have their node replaced by a placeholder
 		for (const node of this.nodes) {
 			node.parentNode?.removeChild(node);
 		}
@@ -559,7 +608,10 @@ class UIInstance {
 	// functions
 	render(data) {
 		const data_type = type(data);
-		if (!(this.template.out || this.template.inout)) {
+		// FIXME: I'm not sure this condition is good.
+		if (
+			!(this.template.out || this.template.inout || this.templates.inout)
+		) {
 			// By default, unless we have output slots, we render the data
 			// as text and put it in the first node.
 			const text = asText(data);
@@ -575,7 +627,7 @@ class UIInstance {
 			// Apply the behavior for the inout/out fields.
 			// TODO: This is where there may be loops and where there's a need
 			// for optimisation
-			for (const set of [this.out, this.inout]) {
+			for (const set of [this.out, this.inout, this.in]) {
 				if (set) {
 					for (const k in set) {
 						let v = data;
@@ -584,7 +636,7 @@ class UIInstance {
 								v = behavior.get(k);
 							} else {
 								const b = this.template.behavior[k];
-								v = b(data, this);
+								v = b(this, data, null);
 								behavior.set(k, v);
 							}
 						}
@@ -596,176 +648,18 @@ class UIInstance {
 			}
 			for (const k in this.when) {
 				for (const slot of this.when[k]) {
-					if (slot.template.predicate(data, self)) {
+					if (slot.template.predicate(self, data)) {
 						slot.show();
 					} else {
 						slot.hide();
 					}
 				}
 			}
-
-			// // TODO: Should detect a change
-			// if (this.behavior) {
-			// 	// If there's a behavior, then it means we need to do a render
-			// 	// update of all the slots.
-			// 	this.doUpdate(data);
-			// } else {
-			// 	// This is not a mapping, we render a single value
-			// 	this.doClear();
-			// 	this.text(data);
-			// }
-			// FIXME:
-			// const ui = this;
-			// switch (data_type) {
-			// 	case type.Null:
-			// 		this.doClear();
-			// 		break;
-			// 	case type.String:
-			// 	case type.Number:
-			// 		{
-			// 			// TODO: We should detect changes
-			// 			let r = this.rendered.get(null);
-			// 			if (r) {
-			// 				r.doUpdate(data);
-			// 			} else {
-			// 				r = ui.doCreate(data, null, this);
-			// 				this.append(r);
-			// 				this.rendered.set(null, r);
-			// 			}
-			// 		}
-			// 		break;
-			// 	case type.List:
-			// 		if (this.dataType === data_type) {
-			// 			const n = Math.min(this.data.length, data.length);
-			// 			for (let i = 0; i < n; i++) {
-			// 				this.rendered.get(i).doUpdate(data[i], i);
-			// 			}
-			// 			for (let i = n; i < data.length; i++) {
-			// 				const r = ui.doCreate(data[i], i, this);
-			// 				this.append(r);
-			// 				this.rendered.set(i, r);
-			// 			}
-			// 			for (let i = n; i < this.data.length; i++) {
-			// 				this.rendered.get(i).doRemove();
-			// 				this.rendered.delete(i);
-			// 			}
-			// 		} else {
-			// 			this.doClear();
-			// 			for (let i = 0; i < data.length; i++) {
-			// 				const r = ui.doCreate(data[i], i, this);
-			// 				this.append(r);
-			// 				this.rendered.set(i, r);
-			// 			}
-			// 		}
-			// 		break;
-			// 	case type.Dict:
-			// 		if (this.dataType === data_type) {
-			// 			for (const k in data) {
-			// 				if (this.data[k] === undefined) {
-			// 					const r = ui.doCreate(data[k], k, this);
-			// 					this.append(r);
-			// 					this.rendered.set(k, r);
-			// 				} else {
-			// 					this.rendered.get(k).update(data[k]);
-			// 				}
-			// 			}
-			// 			for (const k in this.data) {
-			// 				if (this.data[k] === undefined) {
-			// 					this.rendered.get(k).doRemove();
-			// 					this.rendered.delete(k);
-			// 				}
-			// 			}
-			// 		} else {
-			// 			this.doClear();
-			// 			for (const k in data) {
-			// 				const r = ui.doCreate(data[k], k, this);
-			// 				this.append(r);
-			// 				this.rendered.set(k, r);
-			// 			}
-			// 		}
-			// 		break;
-			// }
 		}
 		this.data = data;
 		this.dataType = data_type;
 		return this;
 	}
-
-	// ========================================================================
-	// LIFE CYCLE
-	// ========================================================================
-
-	// doUpdate(data = this.data, key = this.key) {
-	// 	// Update
-	// 	// Taking care of behaviour. Note that the behaviour
-	// 	// will apply to all the states.
-	// 	for (const k in this.behavior) {
-	// 		for (const set of [this.out, this.inout]) {
-	// 			const ui = set[k];
-	// 			if (ui) {
-	// 				const v = this.behavior[k];
-	// 				if (v instanceof UITemplate) {
-	// 					// Behaviour is a selection, so we map the
-	// 					// current value to it.
-	// 					ui.render(data, v);
-	// 				} else if (v instanceof Function) {
-	// 					// Otherwise it's a function, we either…
-	// 					const w =
-	// 						set === this.inout
-	// 							? v(null, ui, data, key)
-	// 							: v(ui, data, key);
-	// 					// TODO: We may want to have an applied selection as well
-	// 					if (w instanceof UITemplate) {
-	// 						// … produces a UITemplate (dynamic component)
-	// 						ui.render(data, w);
-	// 					} else if (w instanceof AppliedUITemplate) {
-	// 						ui.render(
-	// 							w.cardinality ? [w.data] : w.data,
-	// 							w.selection
-	// 						);
-	// 					} else {
-	// 						// … or a derived value that we then render
-	// 						ui.render(w);
-	// 					}
-	// 				} else {
-	// 					ui.render(v);
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// 	console.log("UPDATE", this.when);
-	// 	//
-	// 	// // Taking care of when (showing and hiding)
-	// 	// for (const { predicate, node, placeholder } of this.when) {
-	// 	// 	const v = predicate(ui, data || {});
-	// 	// 	if (v) {
-	// 	// 		if (!node.parentNode) {
-	// 	// 			placeholder.parentNode.replaceChild(node, placeholder);
-	// 	// 		}
-	// 	// 	} else {
-	// 	// 		if (!placeholder.parentNode) {
-	// 	// 			node.parentNode.replaceChild(placeholder, node);
-	// 	// 		}
-	// 	// 	}
-	// 	// }
-	// 	this.data = data;
-	// 	this.key = key;
-	// }
-
-	// // FIXME: Do we need that
-	// doRemove() {
-	// 	this.remove();
-	// 	this.data = undefined;
-	// 	this.key = undefined;
-	// 	return this;
-	// }
-
-	// doClear() {
-	// 	for (const v of this.rendered.values()) {
-	// 		v.doRemove();
-	// 	}
-	// 	this.rendered.clear();
-	// }
 }
 
 // ----------------------------------------------------------------------------
@@ -789,7 +683,7 @@ export const ui = (selection, scope = document) => {
 		Object.assign(component, {
 			isTemplate: true,
 			template: tmpl,
-			make: (...args) => tmpl.make(...args),
+			new: (...args) => tmpl.new(...args),
 			map: (...args) => tmpl.map(...args),
 			apply: (...args) => tmpl.apply(...args),
 			does: (...args) => (tmpl.does(...args), component),

@@ -23,7 +23,7 @@
 				<button on="remove">Remove</button>
 			</div>
 			<div when="data.edited">
-				<input in="label"></span>
+				<input in="editedLabel"></input>
 				<button on="save">Save</button>
 				<a href="#" on="cancel">cancel</a>
 			</div>
@@ -32,35 +32,39 @@
 
 	<template id="TodoList">
 		<ul out="items">
-			<li when="!(data?.items?.length??0)">Empty</li>
+			<li>Empty</li>
 		</ul>
 		<button on="add">Add</button>
 	</template>
 
 	<script type="module">
 		import {ui, remap} from "@./select.ui.js"
+
+		// We define a TodoItem and use `does({})` to define the behavior.
+		// Each entry is mapped to a one or more `on/out/in` nodes, and the
+		// handlers are of the form `(self,data,event?)`, we use `self.update(…)`
+		// to update the data and `self.send(…)` to propagate up.
 		const TodoItem = ui("#TodoItem").does({
-			label: ({label}) => label,
-			edit: {
-				click: (event, data, self) => {self.update({edited: !self.data.edited})},
-			},
-			remove: {
-				click: (event, data, self) => self.send("Remove", data),
-			},
+			label: (self, {label}) => label,
+			editedLabel: (self, data, event) => event ? self.update({editedLabel: event.target.value}) : data.editedLabel || data.label,
+			save: (self, {editedLabel}, event) => self.update({edited: false, label: editedLabel}),
+			cancel: (self, data, event) => self.update({edited: false}),
+			edit: (self, {edited, label}, event) => self.update({edited: true, editedLabel: label}),
+			remove: (self, data, event) => self.send("Remove", data)
 		})
 		const TodoList = ui("#TodoList").does({
-			// TODO: What if we want to wrap it in an li?, maybe
-			// items: (items) => h.li(h(TodoItem, items)),
-			items: ({items}) => remap(items, _ => TodoItem(_)),
-			add: (event, {items}, self) => {
+			// We return a TodoItem for each data item
+			items: (self, {items}) => items ? items.map(TodoItem) : [],
+			add: (self, {items}, event) => {
 				self.update({items: [...(items || []), {label: `Todo ${items?.length}`}]})
 			}
 		}).sub({
-			Remove: (event, {items}, self) => self.set({items: items.filter(_ => _ !== event.data)}),
+			// We subscribe to the removal of an element.
+			Remove: (self, {items}, event) =>
+				self.set({items: items.filter(_ => _ !== event.data)})
 		})
-		const res = TodoList.make()
-		res.mount("#Todo")
-		res.set({items: [{label: "Buy wine"}]})
+		// We create a new todolist, sets the data and mount it.
+		TodoList.new().set({items: [{label: "Buy wine"}]}).mount("#Todo")
 	</script>
 </body>
 
