@@ -56,7 +56,7 @@
 				self.update({items: [...(items || []), {label: `Todo ${items?.length}`}]})
 			}
 		}).sub({
-			Remove: (event, {items}, self) => console.log("REMOVE", {event, items}) || self.set({items: items.filter(_ => _ !== event.data)}),
+			Remove: (event, {items}, self) => self.set({items: items.filter(_ => _ !== event.data)}),
 		})
 		const res = TodoList.make()
 		res.mount("#Todo")

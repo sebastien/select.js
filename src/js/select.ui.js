@@ -40,7 +40,7 @@ export const remap = (value, f) => {
 	} else if (value instanceof Set) {
 		const res = new Set();
 		for (const v of value) {
-			res.add(k, f(v, undefined));
+			res.add(f(v, undefined));
 		}
 		return res;
 	} else {
@@ -64,18 +64,23 @@ const asText = (value) =>
 		: JSON.stringify(value);
 
 const setNodeText = (node, text) => {
-	if (node.nodeType === Node.ELEMENT_NODE) {
-		switch (node.nodeName) {
-			case "INPUT":
-			case "TEXTAREA":
-			case "SELECT":
-				if (node.value !== text) {
-					node.value = text;
-				}
-				break;
-			default:
-				node.textContent = text;
-		}
+	switch (node.nodeType) {
+		case Node.TEXT_NODE:
+			node.data = text;
+			break;
+		case Node.ELEMENT_NODE:
+			switch (node.nodeName) {
+				case "INPUT":
+				case "TEXTAREA":
+				case "SELECT":
+					if (node.value !== text) {
+						node.value = text;
+					}
+					break;
+				default:
+					node.textContent = text;
+			}
+			break;
 	}
 	return node;
 };
@@ -291,13 +296,11 @@ class UISlot {
 				let r = undefined;
 				if (item instanceof AppliedUITemplate) {
 					r = item.template.make(this.parent);
-					previous = r.set(item.data).mount(this.node, previous);
+					previous = r.set(item.data, k).mount(this.node, previous);
 				} else {
 					r = document.createTextNode(asText(item));
 					// TODO: Use mount and sibling
 					this.node.appendChild(r);
-					this.node.appendChild(document.createComment("asdsada"));
-					this.node.setAttribute("title", "pouet");
 					previous = r;
 				}
 				this.mapping.set(k, r);
@@ -306,12 +309,12 @@ class UISlot {
 				if (r instanceof UIInstance) {
 					if (item instanceof AppliedUITemplate) {
 						if (item.template === r.template) {
-							r.set(item.data);
+							r.set(item.data, k);
 						} else {
 							console.error("Not implemented: change in element");
 						}
 					} else {
-						r.set(item);
+						r.set(item, k);
 					}
 				} else {
 					if (item instanceof AppliedUITemplate) {
@@ -337,7 +340,7 @@ class UISlot {
 				to_clear.push(k);
 			}
 		}
-		for (const k in to_clear) {
+		for (const k of to_clear) {
 			this.mapping.delete(k);
 		}
 	}
@@ -544,6 +547,7 @@ class UIInstance {
 	}
 
 	unmount() {
+		// TODO: Speedup: if the first node is not mounted, the rest is not.
 		for (const node of this.nodes) {
 			node.parentNode?.removeChild(node);
 		}
