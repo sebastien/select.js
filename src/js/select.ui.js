@@ -90,16 +90,15 @@ class UIEvent {
 }
 
 class AppliedUITemplate {
-	constructor(template, data, isMany = false) {
+	constructor(template, data) {
 		this.template = template;
 		this.data = data;
-		this.isMany = isMany;
 	}
 }
 
 // ----------------------------------------------------------------------------
 //
-// UI TEMPLATE
+// UI TEMPLATE SLOT
 //
 // ----------------------------------------------------------------------------
 
@@ -157,6 +156,8 @@ class UITemplateSlot {
 		this.node = node;
 		this.parent = parent;
 		this.path = path;
+		this.condition = undefined;
+		this.conditionPlaceholder = undefined;
 	}
 
 	apply(parent) {
@@ -168,9 +169,15 @@ class UITemplateSlot {
 				node = node ? node.childNodes[i] : node;
 			}
 		}
-		return node ? new UISlot(node) : null;
+		return node ? new UISlot(node, this) : null;
 	}
 }
+
+// ----------------------------------------------------------------------------
+//
+// UI TEMPLATE
+//
+// ----------------------------------------------------------------------------
 
 class UITemplate {
 	constructor(nodes) {
@@ -180,16 +187,10 @@ class UITemplate {
 		this.in = UITemplateSlot.Find("in", nodes);
 		this.out = UITemplateSlot.Find("out", nodes);
 		this.inout = UITemplateSlot.Find("inout", nodes);
-		// TODO
-		// this.when = $("[when]", this).map((node) => {
-		// 	const expr = node.getAttribute("when");
-		// 	// node.removeAttribute("when");
-		// 	return {
-		// 		predicate: new Function(`return ((self,data)=>(${expr}))`)(),
-		// 		placeholder: document.createComment(expr),
-		// 		node,
-		// 	};
-		// });
+		this.when = UITemplateSlot.Find("when", nodes, (slot, expr) => {
+			slot.condition = new Function(`return ((self,data)=>(${expr}))`)();
+			slot.conditionPlaceholder = document.createComment(expr);
+		});
 		// Interaction/Behavior (passed in cloned)
 		this.behavior = undefined;
 		this.subs = undefined;
@@ -202,11 +203,11 @@ class UITemplate {
 	}
 
 	apply(data) {
-		return new AppliedUITemplate(this, data, false);
+		return new AppliedUITemplate(this, data);
 	}
 
 	map(data) {
-		return new AppliedUITemplate(this, data, true);
+		return remap(data, (_) => new AppliedUITemplate(this, data));
 	}
 
 	// ========================================================================
@@ -253,10 +254,14 @@ class UITemplate {
 // --
 // Manages the content that gets rendered in an output.
 class UISlot {
-	constructor(node) {
+	constructor(node, template) {
 		this.node = node;
 		this.mapping = new Map();
 		this.placeholder = node.childNodes ? [...node.childNodes] : null;
+		this.conditionPlaceholder = template.conditionPlaceholder
+			? template.conditionPlaceholder.cloneNode(true)
+			: null;
+		this.template = template;
 	}
 
 	render(data) {
@@ -265,49 +270,83 @@ class UISlot {
 		// 	for (const node of this.placeholder) {
 		// 	}
 		// }
-		if (!(data instanceof AppliedUITemplate)) {
-			// We set the node text;
-			setNodeText(this.node, asText(data));
-		} else {
-			const items = data.isMany ? data.data : [data.data];
-			// Single value
-			console.log("SINGLE VALUE", data, ":", items);
-			let previous = null;
-			switch (type(items)) {
-				case type.List:
-					{
-						const n = items.length;
-						for (let i = 0; i < n; i++) {
-							if (!this.mapping.has(i)) {
-								const r = data.template.make();
-								this.mapping.set(i, r);
-								previous = r
-									.set(items[i])
-									.mount(this.node, previous);
-							} else {
-								previous = this.mapping
-									.get(i)
-									.set(items[i])
-									.mount(this.node, previous);
-							}
-						}
-						const to_clear = [];
-						for (const [k, v] of this.mapping.entries()) {
-							if (typeof k !== "number" || k < 0 || k >= n) {
-								v.unmount();
-								to_clear.push(k);
-							}
-						}
-						for (const k in to_clear) {
-							this.mapping.delete(k);
-						}
-					}
-					break;
-				case type.Dict:
-				default:
-					console.error("Unsupported type", { items });
+		// We set the node text;
+
+		//setNodeText(this.node, asText(data));
+		if (this.template.condition) {
+			if (!this.template.condition(data)) {
+				this.hide();
+				return this;
+			} else {
+				this.show();
 			}
 		}
+		const t = type(data);
+		console.log("RENDER", data, t);
+		if (data instanceof AppliedUITemplate) {
+			console.log("TODO:Applied template rendering");
+		} else if (t === type.List) {
+			// Mapping
+			const items = data;
+			let previous = null;
+			const n = items.length;
+			for (let i = 0; i < n; i++) {
+				const item = items[i];
+				if (!this.mapping.has(i)) {
+					let r = undefined;
+					if (item instanceof AppliedUITemplate) {
+						r = item.template.make();
+						previous = r.set(items[i]).mount(this.node, previous);
+					} else {
+						r = document.createTextElement(asText(item));
+						// TODO: Use mount and sibling
+						this.node.appendChild(r);
+						previous = r;
+					}
+					this.mapping.set(i, r);
+				} else {
+					const r = this.mapping.get(i);
+					if (r instanceof UIInstance) {
+						r.set(items[i]);
+					} else {
+						setNodeText(r, asText(item));
+					}
+					// TODO: We may want to ensure the order is as expected
+				}
+			}
+			const to_clear = [];
+			for (const [k, v] of this.mapping.entries()) {
+				if (typeof k !== "number" || k < 0 || k >= n) {
+					if (v instanceof UIInstance) {
+						v.unmount();
+					} else {
+						v.parentNode?.removeChild(v);
+					}
+					to_clear.push(k);
+				}
+			}
+			for (const k in to_clear) {
+				this.mapping.delete(k);
+			}
+		}
+	}
+	show() {
+		if (this.conditionPlaceholder && this.conditionPlaceholder.parentNode) {
+			this.conditionPlaceholder.parentNode.replaceChild(
+				this.node,
+				this.conditionPlaceholder,
+			);
+		}
+		return this;
+	}
+	hide() {
+		if (this.conditionPlaceholder && this.node.parentNode) {
+			this.node.parentNode.replaceChild(
+				this.conditionPlaceholder,
+				this.parentNode,
+			);
+		}
+		return this;
 	}
 }
 
@@ -328,6 +367,7 @@ class UIInstance {
 		this.out = remap(template.out, (_) => _.apply(this.nodes));
 		this.inout = remap(template.inout, (_) => _.apply(this.nodes));
 		this.in = remap(template.in, (_) => _.apply(this.nodes));
+		this.on = remap(template.on, (_) => _.apply(this.nodes));
 		// TODO: Clone slots
 		this.parent = parent;
 		// Data & State
@@ -336,6 +376,7 @@ class UIInstance {
 		this.dataType = type.Null;
 		this.rendered = new Map();
 		this.condition = undefined;
+		this.bind();
 	}
 
 	// ========================================================================
@@ -344,14 +385,14 @@ class UIInstance {
 
 	bind() {
 		// We bind the event handlers
-		for (const k in this.template.on) {
-			this.bind(k, res.on[k]);
+		for (const k in this.on) {
+			this._bind(k, this.on[k]);
 		}
-		for (const k in this.template.in) {
-			this._bind(k, res.in[k]);
+		for (const k in this.in) {
+			this._bind(k, this.in[k]);
 		}
-		for (const k in this.template.inout) {
-			this._bind(k, res.inout[k]);
+		for (const k in this.inout) {
+			this._bind(k, this.inout[k]);
 		}
 	}
 
@@ -378,9 +419,9 @@ class UIInstance {
 							event = "click";
 					}
 				}
-				target.bind(event, (event) =>
+				target.node.addEventListener(event, (event) =>
 					// Arguments are (event, self, data, key)
-					h(event, this, this.data, this.key),
+					h(event, this.data || {}, this, this.key),
 				);
 			}
 		}
@@ -398,12 +439,11 @@ class UIInstance {
 
 	update(data) {
 		let same = true;
-
 		if (!this.data) {
-			same = this.data === data;
+			same = false;
 		} else {
-			for (const k of data) {
-				if (eq(data[k], this.data[k])) {
+			for (const k in data) {
+				if (!eq(data[k], this.data[k])) {
 					same = false;
 					break;
 				}
@@ -505,7 +545,6 @@ class UIInstance {
 				if (set) {
 					for (const k in set) {
 						const slot = set[k];
-						console.log({ k, slot });
 						let v = data;
 						if (this.template.behavior[k]) {
 							if (behavior.has(k)) {

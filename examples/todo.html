@@ -14,7 +14,7 @@
 	<div id="Todo">
 	</div>
 
-	<div id="TodoItem" data-state="{edited:false}">
+	<template id="TodoItem" data-state="{edited:false}">
 		<li>
 			<div when="!data.edited">
 				<span out="label">Placeholder</span>
@@ -27,38 +27,38 @@
 				<a href="#" on="cancel">cancel</a>
 			</div>
 		</li>
-	</div>
+	</template>
 
-	<div id="TodoList">
+	<template id="TodoList">
 		<ul out="items">
 			<li when="!data.length">Empty</li>
 		</ul>
 		<button on="add">Add</button>
-	</div>
+	</template>
 
 	<script type="module">
-		import $ from "@./select.ui.js"
-		const TodoItem = $.ui("#TodoItem").remove().does({
+		import {ui, remap} from "@./select.ui.js"
+		const TodoItem = ui("#TodoItem").does({
 			label: ({label}) => label,
 			edit: {
-				click: (event, self) => {self.update({edited: !self.data.edited})},
+				click: (event, data, self) => {self.update({edited: !self.data.edited})},
 			},
 			remove: {
-				click: (event, self, data) => self.send("Remove", data),
+				click: (event, data, self) => console.log("REMOVE", data) || self.send("Remove", data),
 			},
 		})
-		const TodoList = $.ui("#TodoList").does({
+		const TodoList = ui("#TodoList").does({
 			// TODO: What if we want to wrap it in an li?, maybe
 			// items: (items) => h.li(h(TodoItem, items)),
-			items: (items) => TodoItem.apply(items),
-			add: (event, self, data = []) => {
-				self.set([...data, {label: `Todo ${data.length}`}])
+			items: ({items}) => remap(items, _ => TodoItem(_)),
+			add: (event, {items}, self) => {
+				self.update({items: [...(items || []), {label: `Todo ${items?.length}`}]})
 			}
 		}).sub({
 			Remove: (event, self) => self.set(self.data.filter(_ => _ !== event.data)),
-		}).remove()
-		const res = TodoList.clone()
-		$("#Todo").append(res)
+		})
+		const res = TodoList.make()
+		res.mount("#Todo")
 	</script>
 </body>
 
