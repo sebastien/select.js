@@ -14,41 +14,53 @@
 	<div id="ui"></div>
 
 	<template id="InspectSymbol">
-		Symbol <span out="value"></span>
+		<span><em>Symbol</em> <code out="value"></code></span>
 	</template>
 
 	<template id="InspectNumber">
-		Number <span out="value"></span>
+		<span><em>Number</em> <code out="value"></code></span>
 	</template>
 
 	<template id="InspectString">
-		String <span out="value"></span>
+		<span><em>String<em><span out="value"></span></span>
 	</template>
 
 	<template id="InspectList">
-		<div>
-			List
-			(<span out="count"></span>):
-			<div out="items"></div>
-		</div>
+		<details>
+			<summary>List (<span out="count"></span>)</summary>
+			<ul out="items">
+				<li>Empty</li>
+			</ul>
+		</details>
+	</template>
+
+	<template id="Item">
+		<li>
+			<code out="key"></code>
+			<code out="value"></code>
+		</li>
 	</template>
 
 	<template id="InspectDict">
-		<div>
-			Dict
-			(<span out="count"></span>):
-			<div out="items"></div>
-		</div>
+		<details>
+			<summary>Dict (<span out="count"></span>)</summary>
+			<ul out="items">
+				<li>Empty</li>
+			</ul>
+		</details>
 	</template>
 
 	<template id="Inspector">
-		<div out="value">
-		</div>
+		<ul out="items">
+			<li>Empty</li>
+		</ul>
 	</template>
 
 	<script type="module">
-		import {ui, type, remap} from "@./select.ui.js"
-		const item = (value) => {
+		import {ui, type, remap, len} from "@./select.ui.js"
+
+		// Matches the rendering of an item to one of the different components.
+		const inspect = (value) => {
 			const t = type(value)
 			switch (t) {
 				case type.Null:
@@ -65,35 +77,29 @@
 					return InspectList({value})
 			}
 		}
-		const InspectDict = ui("#InspectDict").does({
-			count: ({value}) => Object.keys(value).length,
-			items: ({value}) => remap(value, _ => item(value)),
+
+		// We define a common behavior for the component
+		const behavior = {
+			count: (self, {value}) => len(value),
+			value: (self, {value}) => value,
+			items: (self, {value}) => remap(value, (value, key) => Item({key, value})),
+		}
+
+		const Item = ui("#Item").does({
+			key: (self, {key}) => key,
+			value: (self, {value}) => inspect(value),
 		})
 
-		const InspectList = ui("#InspectList").does({
-			count: ({value}) => value?.length || 0,
-			items: ({value}) => remap(value, _ => item(value)),
-		})
-		const InspectString = ui("#InspectString").does({
-			value: _ => _,
-		})
-		const InspectNumber = ui("#InspectNumber").does({
-			value: _ => _,
-		})
-		const InspectSymbol = ui("#InspectSymbol").does({
-			value: _ => _,
-		})
-		// Inspector
-		const Inspector = ui("#Inspector").does({
-			value: ({value}) => item(value),
-		})
-		const c = Inspector.make();
-		c.mount("#ui");
-		console.log("C", c)
-		const data = await fetch("https://cdn.statically.io/gh/sebastien/ui.js/5c3258b1bb775e1529fffcc04cd623f253c50a9a/examples/inspector-speed.json").then(_ => _.json());
-		console.log("DATA", data)
-		c.set({value: data})
-		window.Inspector = Inspector;
+		const InspectDict = ui("#InspectDict").does({...behavior})
+		const InspectList = ui("#InspectList").does({...behavior})
+		const InspectString = ui("#InspectString").does({...behavior})
+		const InspectNumber = ui("#InspectNumber").does({...behavior})
+		const InspectSymbol = ui("#InspectSymbol").does({...behavior})
+		const Inspector = ui("#Inspector").does({...behavior})
+
+		// Now we load the data
+		const data = await fetch("inspector.json").then(_ => _.json());
+		Inspector.new().set({value: data}).mount("#ui");
 	</script>
 </body>
 
