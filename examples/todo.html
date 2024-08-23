@@ -3,7 +3,7 @@
 
 <head>
 	<meta charset="utf-8" />
-	<title>Select UI example</title>
+	<title>Select UI ― ToDo List</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<script type="importmap">
 		{"imports": {"@./": "../src/js/" } }
@@ -11,6 +11,7 @@
 </head>
 
 <body>
+	<h1>Todo list example</h1>
 	<div id="Todo">
 	</div>
 
@@ -55,7 +56,7 @@
 				self.update({items: [...(items || []), {label: `Todo ${items?.length}`}]})
 			}
 		}).sub({
-			Remove: (event, self) => self.set(self.data.filter(_ => _ !== event.data)),
+			Remove: (event, {items}, self) => console.log("REMOVE", {event, items}) || self.set({items: items.filter(_ => _ !== event.data)}),
 		})
 		const res = TodoList.make()
 		res.mount("#Todo")

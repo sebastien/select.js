@@ -161,8 +161,8 @@ class UITemplateSlot {
 		this.predicatePlaceholder = undefined;
 	}
 
-	apply(parent) {
-		let node = parent;
+	apply(nodes, parent) {
+		let node = nodes;
 		for (const i of this.path) {
 			if (node instanceof Array) {
 				node = node[i];
@@ -170,7 +170,7 @@ class UITemplateSlot {
 				node = node ? node.childNodes[i] : node;
 			}
 		}
-		return node ? new UISlot(node, this) : null;
+		return node ? new UISlot(node, this, parent) : null;
 	}
 }
 
@@ -183,7 +183,7 @@ class UITemplateSlot {
 class UITemplate {
 	constructor(nodes) {
 		this.nodes = nodes;
-		// Slots
+		// Slots, will be processed by instance
 		this.on = UITemplateSlot.Find("on", nodes);
 		this.in = UITemplateSlot.Find("in", nodes);
 		this.out = UITemplateSlot.Find("out", nodes);
@@ -193,7 +193,7 @@ class UITemplate {
 			slot.predicatePlaceholder = document.createComment(expr);
 			return slot;
 		});
-		// Interaction/Behavior (passed in cloned)
+		// Interaction/Behavior (accessed from UIInstance)
 		this.behavior = undefined;
 		this.subs = undefined;
 	}
@@ -256,7 +256,8 @@ class UITemplate {
 // --
 // Manages the content that gets rendered in an output.
 class UISlot {
-	constructor(node, template) {
+	constructor(node, template, parent) {
+		this.parent = parent;
 		this.node = node;
 		this.mapping = new Map();
 		this.placeholder = node.childNodes ? [...node.childNodes] : null;
@@ -289,7 +290,7 @@ class UISlot {
 			if (!this.mapping.has(k)) {
 				let r = undefined;
 				if (item instanceof AppliedUITemplate) {
-					r = item.template.make();
+					r = item.template.make(this.parent);
 					previous = r.set(item.data).mount(this.node, previous);
 				} else {
 					r = document.createTextNode(asText(item));
@@ -375,23 +376,23 @@ class UIInstance {
 	constructor(template, parent) {
 		// Parent
 		this.template = template;
+		// FIXME: This is on the hotpath
 		this.nodes = template.nodes.map((_) => _.cloneNode(true));
 		this.in = remap(template.in, (_) =>
-			remap(_, (_) => _.apply(this.nodes))
+			remap(_, (_) => _.apply(this.nodes, this))
 		);
 		this.out = remap(template.out, (_) =>
-			remap(_, (_) => _.apply(this.nodes))
+			remap(_, (_) => _.apply(this.nodes, this))
 		);
 		this.inout = remap(template.inout, (_) =>
-			remap(_, (_) => _.apply(this.nodes))
+			remap(_, (_) => _.apply(this.nodes, this))
 		);
 		this.on = remap(template.on, (_) =>
-			remap(_, (_) => _.apply(this.nodes))
+			remap(_, (_) => _.apply(this.nodes, this))
 		);
 		this.when = remap(template.when, (_) =>
-			remap(_, (_) => _.apply(this.nodes))
+			remap(_, (_) => _.apply(this.nodes, this))
 		);
-		// TODO: Clone slots
 		this.parent = parent;
 		// Data & State
 		this.data = undefined;
@@ -492,12 +493,12 @@ class UIInstance {
 	onPub(event) {
 		event.current = this;
 		let propagate = true;
-		if (this.subs) {
-			const hl = this.subs.get(event.name);
+		if (this.template.subs) {
+			const hl = this.template.subs.get(event.name);
 			if (hl) {
 				for (const h of hl) {
 					// We do an early exit when `false` is returned, Or stop propagation on `null`
-					const c = h(event, this, this.data, this.key);
+					const c = h(event, this.data, this, this.key);
 					if (c === false) {
 						return event;
 					} else if (c === null) {
