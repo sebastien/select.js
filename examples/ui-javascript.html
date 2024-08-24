@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI ― JavaScript Module</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/" } }
+	</script>
+</head>
+
+<body>
+	<div id="ui"></div>
+
+	<script type="module">
+		import ui from "@./select.ui.js"
+		// Components can be directly specified in HTML. It's compact and
+		// fast, a better option that creating it in JavaScript.
+		ui(`<div out="message"><em>No message</em></div>`).does({
+			message: (self, {message}) => message,
+		}).new().set({message: "Hello, World!"}).mount("#ui");
+	</script>
+</body>
+
+</html>

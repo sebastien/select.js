@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI ― Filter</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/" } }
+	</script>
+</head>
+
+<body>
+	<div id="ui"></div>
+
+	<div id="Country">
+		<li>
+			<!-- TODO: name|format -->
+			<code out="code"></code>
+			<span out="name"></span>
+		</li>
+	</div>
+
+	<template id="FilteredList">
+		<!-- TODO: Support for input -->
+		<input inout="filter" placeholder="Filter" />
+		<!-- TODO: items=data.field|format -->
+		<ul out="items">
+			<li when="!data.items?.length">Empty</li>
+		</ul>
+	</template>
+
+	<script type="module">
+		import ui from "@./select.ui.js"
+		const Country = ui("#Country").does({
+			name: (self, {name}) => name,
+			code: (self, {code}) => code,
+		})
+		const FilteredList = ui("#FilteredList").does({
+			items: (self, {items, filter}) => (items ? filter ? items.filter(_ => _.name.toLowerCase().startsWith(filter)) : items : []).map(_ => Country(_)),
+			filter: (self, data, event) => {
+				return event ? self.update({filter: event.target.value}) : data.filter
+			},
+		})
+		const countries = await fetch("./countries.json").then(_ => _.json());
+		FilteredList.new().mount("#ui").set({items: countries, filter: "an"})
+	</script>
+</body>
+
+</html>

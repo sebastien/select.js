@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Select UI ― Inspector (Preact)</title>
+	<link rel="stylesheet" href="../src/css/ui.css" type="text/css" media="all" />
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/" } }
+	</script>
+</head>
+
+<body>
+	<div id="Inspector">
+	</div>
+
+	<script type="module">
+		import {h, render} from 'https://esm.sh/preact';
+		import {useState, useEffect} from 'https://esm.sh/preact/hooks';
+		import htm from 'https://esm.sh/htm';
+		import {type, len, remap} from "@./select.ui.js"
+
+		// Initialize htm with Preact
+		const html = htm.bind(h);
+
+		function InspectSymbol({value}) {
+			return h("span", {}, h("em", {}, "Boolean"), h("code", {}, `${value}`))
+		}
+		function InspectObject({value}) {
+			return h("span", h("em", {}, "Object"), h("code", {}, JSON.stringify(value)))
+		}
+		function InspectNumber({value}) {
+			return h("span", {}, h("em", {}, "Number"), h("code", {}, value))
+		}
+		function InspectString({value}) {
+			return h("span", {}, h("em", {}, "String"), h("code", {}, value))
+		}
+		function InspectList({value}) {
+			const n = len(value)
+			return h("details", {}, h("summary", {}, "List (", h("span", {}, n), ")"), h("ul", {}, n === 0 ? h("li", "Empty") : value.map((value, key) => Item({value, key}))))
+		}
+		function InspectDict({value}) {
+			const n = len(value)
+			return h("details", {}, h("summary", {}, "List (", h("span", {}, n), ")"), h("ul", {}, n === 0 ? h("li", "Empty") : Object.entries(value).map(([key, value]) => Item({value, key}))))
+		}
+		const inspect = (value) => {
+			const t = type(value)
+			switch (t) {
+				case type.List:
+					return InspectList({value})
+				case type.Dict:
+					return InspectDict({value})
+				case type.String:
+					return InspectString({value})
+				case type.Number:
+					return InspectNumber({value})
+				case type.Boolean:
+				case type.Null:
+					return InspectSymbol({value})
+				default:
+					return InspectObject({value})
+			}
+		}
+		function Item({key, value}) {
+			return h("li", {}, h("code", {}, key), h("code", {}, inspect(value)))
+		}
+		function Inspector({value}) {
+			const n = len(value)
+			return h("ul", {}, n === 0 ? h("li", {}, "Empty") : value instanceof Array ? value.map((value, key) => Item({value, key})) : Object.entries(value).map(([key, value]) => Item({value, key})))
+		}
+
+		// Run: Scripting:2333ms, Rendering:2401ms
+		// Heap(max):65Mb, Nodes(max):322k
+		const data = await fetch("inspector.json").then(_ => _.json());
+		render(Inspector({value: data}), document.getElementById("Inspector"));
+	</script>
+</body>
+
+</html>

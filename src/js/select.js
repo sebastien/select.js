@@ -200,10 +200,10 @@
 const _match = Element.prototype.matches
 	? 1
 	: Element.prototype.mozMatchesSelector
-		? 2
-		: Element.prototype.webkitMatchesSelector
-			? 3
-			: null;
+	? 2
+	: Element.prototype.webkitMatchesSelector
+	? 3
+	: null;
 
 /**
  * `select.match(selector:String, node:Node):Boolean`
@@ -246,7 +246,7 @@ const match = _match
 							);
 						default:
 							console.error(
-								"select.match: browser not supported",
+								"select.match: browser not supported"
 							);
 							select.STATUS = "FAILED";
 							return node.matches(selector);
@@ -259,7 +259,7 @@ const match = _match
 						"and node",
 						node,
 						":",
-						e,
+						e
 					);
 					return null;
 				}
@@ -268,7 +268,7 @@ const match = _match
 				const matches = query(selector, undefined, index);
 				return matches[index] == node;
 			}
-		}
+	  }
 	: (selector, node) => {
 			// Here we need to emulate a browser match
 			if (selector.endsWith(":first")) {
@@ -287,7 +287,7 @@ const match = _match
 				}
 				return false;
 			}
-		};
+	  };
 
 /**
  * `select.query(selector:String, node:Node?):[Element]`
@@ -311,7 +311,7 @@ export const query = (selector, scope, limit) => {
 		// `>div[id="value with space"]>span`
 		const i = Math.min(
 			Math.max(selector.indexOf(">"), 0),
-			Math.max(selector.indexOf(" "), 0),
+			Math.max(selector.indexOf(" "), 0)
 		);
 		// Now we extract the node selector and the child(ren) selector.
 		const selector_node = i > 0 ? selector.substring(0, i) : selector;
@@ -321,7 +321,7 @@ export const query = (selector, scope, limit) => {
 		const nodes = (scope || document).childNodes;
 		let result = null;
 		// Now we match the root nodes of the selector
-		for (let j = 0; i < nodes.length; i++) {
+		for (let j = 0; i < nodes.length; j++) {
 			const n = nodes[j];
 			if (match(selector_node, n) && n.nodeType == Node.ELEMENT_NODE) {
 				matching.push(n);
@@ -330,9 +330,9 @@ export const query = (selector, scope, limit) => {
 		if (selector_child) {
 			// If we have a child selector, now is the time to run the query
 			result = [];
-			for (let i = 0; i < matching.length; i++) {
+			for (let j = 0; j < matching.length; j++) {
 				result = result.concat(
-					select.query(selector_child, matching[i]),
+					select.query(selector_child, matching[i])
 				);
 			}
 		} else {
@@ -452,7 +452,7 @@ export class Selection extends Array {
 					"Selection.new: given scope differs from first argument's",
 					scope,
 					"!=",
-					selector.scope,
+					selector.scope
 				);
 			}
 		} else if (selector) {
@@ -676,16 +676,16 @@ export class Selection extends Array {
 		if (typeof selector === "string") {
 			return new Selection(
 				filter(selector, this),
-				this.length > 0 ? this : undefined,
+				this.length > 0 ? this : undefined
 			);
 		} else if (typeof selector === "function") {
 			return new Selection(
-				Array.prototype.filter.apply(this, [selector]),
+				Array.prototype.filter.apply(this, [selector])
 			);
 		} else {
 			console.error(
 				"Selection.filter(): selector string or predicate expected, got",
-				selector,
+				selector
 			);
 			return None;
 		}
@@ -1029,7 +1029,7 @@ export class Selection extends Array {
 		} else if (value) {
 			console.error(
 				"Selection.append: value is expected to be Number, String, Node, [Node] or Selection, got",
-				value,
+				value
 			);
 		}
 		return this;
@@ -1073,7 +1073,7 @@ export class Selection extends Array {
 		} else if (value) {
 			console.error(
 				"Selection.prepend: value is expected to be Number, String, Node, [Node] or Selection, got",
-				value,
+				value
 			);
 		}
 		return this;
@@ -1110,7 +1110,7 @@ export class Selection extends Array {
 		} else {
 			console.error(
 				"Selection.extend: value must be a node, selection or list, got",
-				value,
+				value
 			);
 		}
 		return this;
@@ -1150,7 +1150,7 @@ export class Selection extends Array {
 			} else {
 				console.error(
 					"Selection.after: value is expected to be Node, [Node] or Selection, got",
-					value,
+					value
 				);
 			}
 		} else {
@@ -1169,7 +1169,7 @@ export class Selection extends Array {
 			} else {
 				console.error(
 					"Selection.after: value is expected to be Node, [Node] or Selection, got",
-					value,
+					value
 				);
 			}
 		}
@@ -1202,7 +1202,7 @@ export class Selection extends Array {
 		} else {
 			console.error(
 				"Selection.before: value is expected to be Node, [Node] or Selection, got",
-				value,
+				value
 			);
 		}
 		return this;
@@ -1220,7 +1220,7 @@ export class Selection extends Array {
 		if (this.length == 0) {
 			// When the selection is empty, we remove all the child nodes
 			console.warn(
-				"Selection.replaceWith: current selection is empty, so given nodes will be removed",
+				"Selection.replaceWith: current selection is empty, so given nodes will be removed"
 			);
 			if (Selection.IsNode(value)) {
 				if (value.parentNode) {
@@ -1264,7 +1264,7 @@ export class Selection extends Array {
 			} else {
 				console.error(
 					"Selection.replaceWith: value is expected to be Node, [Node] or Selection, got",
-					value,
+					value
 				);
 			}
 			// We remove all the nodes in the current selection
@@ -1360,7 +1360,7 @@ export class Selection extends Array {
 		for (const child of this) {
 			if (res === undefined) {
 				res = new (Object.getPrototypeOf(this).constructor)(
-					child.cloneNode(true),
+					child.cloneNode(true)
 				);
 			} else {
 				res.push(child.cloneNode(true));
@@ -1453,10 +1453,27 @@ export class Selection extends Array {
 			}
 			return result;
 		} else {
-			value = typeof value === "string" ? value : JSON.stringify(value);
+			value =
+				value === null || value === undefined
+					? ""
+					: typeof value === "number"
+					? `${value}`
+					: typeof value === "string"
+					? value
+					: JSON.stringify(value);
 			for (let i = 0; i < this.length; i++) {
 				const node = this[i];
-				node.textContent = value;
+				switch (node.nodeName) {
+					case "INPUT":
+					case "TEXTAREA":
+					case "SELECT":
+						if (node.value !== value) {
+							node.value = value;
+						}
+						break;
+					default:
+						node.textContent = value;
+				}
 			}
 			return this;
 		}
@@ -1559,8 +1576,8 @@ export class Selection extends Array {
 					typeof value === "string"
 						? value
 						: value === null
-							? value
-							: JSON.stringify(value);
+						? value
+						: JSON.stringify(value);
 				for (let i = 0; i < this.length; i++) {
 					const node = this[i];
 					if (value === null) {
@@ -1645,7 +1662,7 @@ export class Selection extends Array {
 						const _ = a[j];
 						const n = _.name;
 						if (n.startsWith("data-")) {
-							const v = _.value;
+							let v = _.value;
 							// NOTE: We don't call `data` again for/ performance.
 							try {
 								v = JSON.parse(v);
@@ -1779,14 +1796,14 @@ export class Selection extends Array {
 			if (node.classList) {
 				node.classList.remove(className);
 			} else {
-				const c = node.getAttribute("class");
+				let c = node.getAttribute("class");
 				if (c && c.length > 0) {
 					const m = c.indexOf(className);
 					if (m >= 0) {
 						// We only do something if there's a match
 						const la = c.length || 0;
 						const lc = className.length;
-						const nc = "";
+						let nc = "";
 						// NOTE: This is an optimized version of the classlist. We could do
 						// a simple split/join, but I *assume* this is faster. Premature
 						// optimization FTW!
@@ -1913,7 +1930,7 @@ export class Selection extends Array {
 					// SEE: http://devdocs.io/dom/window/getcomputedstyle
 					const style = document.defaultView.getComputedStyle(
 						this[i],
-						null,
+						null
 					)[name];
 					if (typeof style != "undefined") {
 						return style;

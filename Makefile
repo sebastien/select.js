@@ -1,9 +1,10 @@
 PROJECT:=select
 VERSION:=$(shell grep 'VERSION' src/js/$(PROJECT).js | cut -d'"' -f2 | tail -n1)
 PORT?=8001
+SOURCES_JS=$(wildcard src/js/*.js)
 BUILD_ALL:=\
-	dist/$(PROJECT).js \
-	dist/$(PROJECT).min.js
+	$(SOURCES_JS:src/js/%.js=dist/%.js)\
+	$(SOURCES_JS:src/js/%.js=dist/%.min.js)\
 
 all: $(BUILD_ALL)
 	@echo "OK"
@@ -11,16 +12,13 @@ all: $(BUILD_ALL)
 run:
 	@python3 -m http.server $(PORT)
 
-dist:
-	@mkdir -p $@
-
-dist/$(PROJECT).js: src/js/$(PROJECT).js dist
+dist/%.js: src/js/%.js
 	@mkdir -p $(dir $@); true
 	cat src/js/$(PROJECT).js > "$@"
 
 dist/%.min.js: dist/%.js
 	@mkdir -p $(dir $@); true
-	uglifyjs "$<" > "$@"
+	esbuild "$<" > "$@"
 
 .ONESHELL:
 

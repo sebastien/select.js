@@ -3,7 +3,7 @@
 
 <head>
 	<meta charset="utf-8" />
-	<title>Select UI example</title>
+	<title>Select UI ― ToDo List</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<script type="importmap">
 		{"imports": {"@./": "../src/js/" } }
@@ -11,43 +11,60 @@
 </head>
 
 <body>
+	<h1>Todo list example</h1>
 	<div id="Todo">
 	</div>
 
+	<template id="TodoItem" data-state="{edited:false}">
+		<li>
+			<div when="!data.edited">
+				<span out="label">Placeholder</span>
+				<button on="edit">Edit</button>
+				<button on="remove">Remove</button>
+			</div>
+			<div when="data.edited">
+				<input in="editedLabel"></input>
+				<button on="save">Save</button>
+				<a href="#" on="cancel">cancel</a>
+			</div>
+		</li>
+	</template>
 
-	<div id="TodoItem" data-state="{edited:false}">
-		<div when="!this.edited">
-			<span out="label">Placeholder</span>
-			<button on="edit">Edit</button>
-			<button on="remove">Remove</button>
-		</div>
-		<div when="this.edited">
-			<input in="label"></span>
-			<button on="save">Save</button>
-			<a href="#" on="cancel">cancel</a>
-		</div>
-	</div>
-
-	<div id="TodoList">
+	<template id="TodoList">
 		<ul out="items">
 			<li>Empty</li>
 		</ul>
-	</div>
+		<button on="add">Add</button>
+	</template>
 
 	<script type="module">
-		import $ from "@./select.ui.js"
-		const TodoItem = $.ui("#TodoItem").remove().does({
-			label: ({label}) => label,
-			edit: {click: (event) => console.log("Clicked on", this)},
-			remove: {click: (event) => console.log("Clicked on", this)},
+		import {ui, remap} from "@./select.ui.js"
+
+		// We define a TodoItem and use `does({})` to define the behavior.
+		// Each entry is mapped to a one or more `on/out/in` nodes, and the
+		// handlers are of the form `(self,data,event?)`, we use `self.update(…)`
+		// to update the data and `self.send(…)` to propagate up.
+		const TodoItem = ui("#TodoItem").does({
+			label: (self, {label}) => label,
+			editedLabel: (self, data, event) => event ? self.update({editedLabel: event.target.value}) : data.editedLabel || data.label,
+			save: (self, {editedLabel}, event) => self.update({edited: false, label: editedLabel}),
+			cancel: (self, data, event) => self.update({edited: false}),
+			edit: (self, {edited, label}, event) => self.update({edited: true, editedLabel: label}),
+			remove: (self, data, event) => self.send("Remove", data)
 		})
-		const TodoList = $.ui("#TodoList").does({
-			items: TodoItem,
-		}).remove()
-		const res = TodoList.clone()
-		$("#Todo").append(res)
-		console.log("RES", {res, TodoList, TodoItem})
-		res.out.items.render([{label: "Buy cheese"}, {label: "Buy Wine"}])//, TodoItem)
+		const TodoList = ui("#TodoList").does({
+			// We return a TodoItem for each data item
+			items: (self, {items}) => items ? items.map(TodoItem) : [],
+			add: (self, {items}, event) => {
+				self.update({items: [...(items || []), {label: `Todo ${items?.length}`}]})
+			}
+		}).sub({
+			// We subscribe to the removal of an element.
+			Remove: (self, {items}, event) =>
+				self.set({items: items.filter(_ => _ !== event.data)})
+		})
+		// We create a new todolist, sets the data and mount it.
+		TodoList.new().set({items: [{label: "Buy wine"}]}).mount("#Todo")
 	</script>
 </body>
 
