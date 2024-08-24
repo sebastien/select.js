@@ -36,12 +36,15 @@ export const type = Object.assign(
 			? type.Number
 			: typeof value === "string"
 			? type.String
+			: typeof value === "boolean"
+			? type.Boolean
 			: type.Object,
 	{
 		Null: 1,
 		Number: 2,
-		String: 3,
-		Object: 4,
+		Boolean: 3,
+		String: 4,
+		Object: 5,
 		List: 10,
 		Dict: 11,
 	}
@@ -300,9 +303,10 @@ class UISlot {
 		this.node = node;
 		this.mapping = new Map();
 		this.placeholder = node.childNodes ? [...node.childNodes] : null;
-		this.predicatePlaceholder = template.predicatePlaceholder
-			? template.predicatePlaceholder.cloneNode(true)
-			: null;
+		this.predicatePlaceholder =
+			template.predicate && template.predicatePlaceholder
+				? template.predicatePlaceholder.cloneNode(true)
+				: null;
 		this.template = template;
 	}
 
@@ -452,6 +456,7 @@ class UIInstance {
 		this.key = undefined;
 		this.dataType = type.Null;
 		this.rendered = new Map();
+		this.behavior = new Map();
 		this.predicate = undefined;
 		this.bind();
 	}
@@ -626,7 +631,6 @@ class UIInstance {
 			}
 			// TODO: Or text node if not set
 		} else {
-			const behavior = new Map();
 			// Apply the behavior for the inout/out fields.
 			// TODO: This is where there may be loops and where there's a need
 			// for optimisation
@@ -635,12 +639,12 @@ class UIInstance {
 					for (const k in set) {
 						let v = data;
 						if (this.template.behavior[k]) {
-							if (behavior.has(k)) {
-								v = behavior.get(k);
+							if (this.behavior.has(k)) {
+								v = this.behavior.get(k);
 							} else {
 								const b = this.template.behavior[k];
 								v = b(this, data, null);
-								behavior.set(k, v);
+								this.behavior.set(k, v);
 							}
 						}
 						for (const slot of set[k]) {
@@ -649,6 +653,7 @@ class UIInstance {
 					}
 				}
 			}
+			this.behavior.clear();
 			for (const k in this.when) {
 				for (const slot of this.when[k]) {
 					if (slot.template.predicate(self, data)) {

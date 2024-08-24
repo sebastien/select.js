@@ -13,6 +13,10 @@
 <body>
 	<div id="ui"></div>
 
+	<template id="InspectObject">
+		<span><em>Object</em> <code out="value"></code></span>
+	</template>
+
 	<template id="InspectSymbol">
 		<span><em>Symbol</em> <code out="value"></code></span>
 	</template>
@@ -63,8 +67,6 @@
 		const inspect = (value) => {
 			const t = type(value)
 			switch (t) {
-				case type.Null:
-					return InspectSymbol({value})
 				case type.List:
 					return InspectList({value})
 				case type.Dict:
@@ -73,8 +75,11 @@
 					return InspectString({value})
 				case type.Number:
 					return InspectNumber({value})
+				case type.Boolean:
+				case type.Null:
+					return InspectSymbol({value})
 				default:
-					return InspectList({value})
+					return InspectObject({value})
 			}
 		}
 

@@ -25,27 +25,28 @@
 		const html = htm.bind(h);
 
 		function InspectSymbol({value}) {
-			return h("span", h("em", "Symbol"), h("code", value))
+			return h("span", {}, h("em", {}, "Boolean"), h("code", {}, `${value}`))
+		}
+		function InspectObject({value}) {
+			return h("span", h("em", {}, "Object"), h("code", {}, JSON.stringify(value)))
 		}
 		function InspectNumber({value}) {
-			return h("span", h("em", "Number"), h("code", value))
+			return h("span", {}, h("em", {}, "Number"), h("code", {}, value))
 		}
 		function InspectString({value}) {
-			return h("span", h("em", "String"), h("code", value))
+			return h("span", {}, h("em", {}, "String"), h("code", {}, value))
 		}
 		function InspectList({value}) {
 			const n = len(value)
-			return h("details", h("summary", "List (", h("span", n), ")"), h("ul", n === 0 ? h("li", "Empty") : value.map((value, key) => Item({value, key}))))
+			return h("details", {}, h("summary", {}, "List (", h("span", {}, n), ")"), h("ul", {}, n === 0 ? h("li", "Empty") : value.map((value, key) => Item({value, key}))))
 		}
 		function InspectDict({value}) {
 			const n = len(value)
-			return h("details", h("summary", "List (", h("span", n), ")"), h("ul", n === 0 ? h("li", "Empty") : Object.entries(value).map(([key, value]) => Item({value, key}))))
+			return h("details", {}, h("summary", {}, "List (", h("span", {}, n), ")"), h("ul", {}, n === 0 ? h("li", "Empty") : Object.entries(value).map(([key, value]) => Item({value, key}))))
 		}
 		const inspect = (value) => {
 			const t = type(value)
 			switch (t) {
-				case type.Null:
-					return InspectSymbol({value})
 				case type.List:
 					return InspectList({value})
 				case type.Dict:
@@ -54,16 +55,19 @@
 					return InspectString({value})
 				case type.Number:
 					return InspectNumber({value})
+				case type.Boolean:
+				case type.Null:
+					return InspectSymbol({value})
 				default:
-					return InspectList({value})
+					return InspectObject({value})
 			}
 		}
 		function Item({key, value}) {
-			return h("li", h("code", key), h("code", inspect(value)))
+			return h("li", {}, h("code", {}, key), h("code", {}, inspect(value)))
 		}
 		function Inspector({value}) {
 			const n = len(value)
-			return h("ul", n === 0 ? h("li", "Empty") : value instanceof Array ? value.map((key, value) => Item({value, key})) : Object.entries(value).map(([key, value]) => Item({value, key})))
+			return h("ul", {}, n === 0 ? h("li", {}, "Empty") : value instanceof Array ? value.map((value, key) => Item({value, key})) : Object.entries(value).map(([key, value]) => Item({value, key})))
 		}
 
 		// Run: Scripting:2333ms, Rendering:2401ms
