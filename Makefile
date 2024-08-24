@@ -12,6 +12,11 @@ all: $(BUILD_ALL)
 run:
 	@python3 -m http.server $(PORT)
 
+clean:
+	@for FILE in $(BUILD_ALL); do
+		if [ -e "$$FILE" ]; then unlink "$$FILE"; fi
+	done
+
 dist/%.js: src/js/%.js
 	@mkdir -p $(dir $@); true
 	cat src/js/$(PROJECT).js > "$@"
