@@ -4,7 +4,8 @@ PORT?=8001
 SOURCES_JS=$(wildcard src/js/*.js)
 BUILD_ALL:=\
 	$(SOURCES_JS:src/js/%.js=dist/%.js)\
-	$(SOURCES_JS:src/js/%.js=dist/%.min.js)\
+	$(SOURCES_JS:src/js/%.js=dist/%.min.js)
+DIST_ALL:=$(BUILD_ALL)
 
 all: $(BUILD_ALL)
 	@echo "OK"
@@ -16,14 +17,21 @@ clean:
 	@for FILE in $(BUILD_ALL); do
 		if [ -e "$$FILE" ]; then unlink "$$FILE"; fi
 	done
+	echo "[clean] $(BUILD_ALL)"
+
+.PHONY: dist
+dist: $(DIST_ALL)
+	@
 
 dist/%.js: src/js/%.js
 	@mkdir -p $(dir $@); true
 	cat src/js/$(PROJECT).js > "$@"
+	echo "[DIST] $$(du -hs $@)"
 
 dist/%.min.js: dist/%.js
 	@mkdir -p $(dir $@); true
-	esbuild "$<" > "$@"
+	esbuild --minify --platform=browser "$<" > "$@"
+	echo "[DIST] $$(du -hs $@)"
 
 .ONESHELL:
 
