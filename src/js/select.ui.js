@@ -120,6 +120,33 @@ const setNodeText = (node, text) => {
 	return node;
 };
 
+// class TrackingProxy extends Proxy {
+// 	constructor(target) {
+// 		super(target, {
+// 			get: this.trackAccess.bind(this),
+// 		});
+// 		this.accessedProperties = new Set();
+// 	}
+//
+// 	trackAccess(target, property) {
+// 		this.accessedProperties.add(property);
+// 		return target[property];
+// 	}
+// }
+
+const createTrackingProxy = (data) => {
+	const accessed = new Set();
+	return [
+		new Proxy(data, {
+			get(target, property) {
+				accessed.add(property);
+				return target[property];
+			},
+		}),
+		accessed,
+	];
+};
+
 class UIEvent {
 	constructor(name, data, origin) {
 		this.name = name;
@@ -201,7 +228,7 @@ class UITemplateSlot {
 		this.predicatePlaceholder = undefined;
 	}
 
-	apply(nodes, parent) {
+	apply(nodes, parent, raw = false) {
 		let node = nodes;
 		for (const i of this.path) {
 			if (node instanceof Array) {
@@ -210,7 +237,7 @@ class UITemplateSlot {
 				node = node ? node.childNodes[i] : node;
 			}
 		}
-		return node ? new UISlot(node, this, parent) : null;
+		return node ? (raw ? node : new UISlot(node, this, parent)) : null;
 	}
 }
 
@@ -228,6 +255,7 @@ class UITemplate {
 		this.in = UITemplateSlot.Find("in", nodes);
 		this.out = UITemplateSlot.Find("out", nodes);
 		this.inout = UITemplateSlot.Find("inout", nodes);
+		this.ref = UITemplateSlot.Find("ref", nodes);
 		this.when = UITemplateSlot.Find("when", nodes, (slot, expr) => {
 			slot.predicate = new Function(
 				`return ((self,data,event)=>(${expr}))`
@@ -236,6 +264,7 @@ class UITemplate {
 			return slot;
 		});
 		// Interaction/Behavior (accessed from UIInstance)
+		this.initializer = undefined;
 		this.behavior = undefined;
 		this.subs = undefined;
 	}
@@ -258,6 +287,11 @@ class UITemplate {
 	// BEHAVIOUR
 	// ========================================================================
 
+	init(init) {
+		this.initializer = init;
+		return this;
+	}
+
 	does(behavior) {
 		this.behavior = Object.assign(this.behavior ?? {}, behavior);
 		return this;
@@ -267,6 +301,7 @@ class UITemplate {
 	// EVENTS
 	// ========================================================================
 
+	// FIXME: Should be on
 	sub(event, handler = undefined) {
 		if (typeof event === "string") {
 			if (!handler) {
@@ -338,9 +373,18 @@ class UISlot {
 		// the default item is `_`
 		const items = t === type.List || t === type.Dict ? data : { _: data };
 		let previous = null;
+		// NOTE: Mapping values can be:
+		// - A `UIInstance` (it's an applied slot, ie. it has a UITemplate)
+		// - A node when no UITemplate, but the given items is a node
+		// - A text node (no UITemplate)
+		// Items can be:
+		// - An AppliedUITemplate, in which case we create a new instance
+		// - A DOM node, in which case we add the DOM node as is
+		// - Anything else, which is then converted to text.
 		for (const k in items) {
 			const item = items[k];
 			if (!this.mapping.has(k)) {
+				// Creation: we don't have mapping for the item
 				let r = undefined;
 				if (item instanceof AppliedUITemplate) {
 					r = item.template.new(this.parent);
@@ -349,6 +393,10 @@ class UISlot {
 				} else if (isInputNode(this.node)) {
 					setNodeText(this.node, asText(item));
 					r = this.node;
+				} else if (item instanceof Node) {
+					// TODO: Insert after previous
+					this.node.appendChild(item);
+					r = item;
 				} else {
 					r = document.createTextNode(asText(item));
 					// TODO: Use mount and sibling
@@ -357,22 +405,43 @@ class UISlot {
 				}
 				this.mapping.set(k, r);
 			} else {
+				// Update: we do have a key like that
 				const r = this.mapping.get(k);
 				if (r instanceof UIInstance) {
 					if (item instanceof AppliedUITemplate) {
 						if (item.template === r.template) {
 							r.set(item.data, k);
 						} else {
+							// It's a different template. We need to unmount the
+							// current instance and replace it with the new one.
 							console.error("Not implemented: change in element");
 						}
 					} else {
 						r.set(item, k);
+					}
+				} else if (isInputNode(this.node)) {
+					setNodeText(this.node, asText(item));
+				} else if (r?.nodeType === Node.ELEMENT_NODE) {
+					if (item instanceof AppliedUITemplate) {
+						console.error(
+							"Not implemented: change from non UIInstance to UIInstance"
+						);
+					} else if (item instanceof Node) {
+						r.parentNode.replaceChild(item, r);
+						this.mapping.set(k, item);
+					} else {
+						const t = document.createTextNode(asText(item));
+						r.parentNode.replaceChild(t, r);
+						this.mapping.set(k, t);
 					}
 				} else {
 					if (item instanceof AppliedUITemplate) {
 						console.error(
 							"Not implemented: change from non UIInstance to UIInstance"
 						);
+					} else if (item instanceof Node) {
+						r.parentNode.replaceChild(item, r);
+						this.mapping.set(k, item);
 					} else {
 						setNodeText(r, asText(item));
 					}
@@ -420,6 +489,12 @@ class UISlot {
 	}
 }
 
+class BehaviorState {
+	constructor() {
+		this.value = undefined;
+		this.dependencies = new Set();
+	}
+}
 // ----------------------------------------------------------------------------
 //
 // UI INSTANCE
@@ -444,6 +519,10 @@ class UIInstance {
 		this.inout = remap(template.inout, (_) =>
 			remap(_, (_) => _.apply(this.nodes, this))
 		);
+		this.ref = remap(template.ref, (_) => {
+			const r = remap(_, (_) => _.apply(this.nodes, this, true));
+			return r.length === 1 ? r[0] : r;
+		});
 		this.on = remap(template.on, (_) =>
 			remap(_, (_) => _.apply(this.nodes, this))
 		);
@@ -459,11 +538,41 @@ class UIInstance {
 		this.behavior = new Map();
 		this.predicate = undefined;
 		this.bind();
+		this.initial = undefined;
+		this._renderer = () => this.render();
+		if (template.initializer) {
+			const state = template.initializer();
+			if (state) {
+				for (const k in state) {
+					const v = state[k];
+					if (v && v?.isReactive) {
+						// FIXME: This does a FULL render, even on a single
+						// cell change.
+						v.sub(this._renderer);
+					}
+				}
+				this.initial = state;
+			}
+			this.set(state);
+		}
 	}
 
 	// ========================================================================
 	// BEHAVIOR
 	// ========================================================================
+
+	dispose() {
+		if (this.initial) {
+			for (const k in this.initial) {
+				const v = this.initial[k];
+				if (v && v?.isReactive) {
+					// FIXME: This does a FULL render, even on a single
+					// cell change.
+					v.unsub(this._renderer);
+				}
+			}
+		}
+	}
 
 	bind() {
 		// We bind the event handlers
@@ -517,15 +626,23 @@ class UIInstance {
 		return this;
 	}
 
-	update(data) {
-		let same = true;
+	update(data, force = false) {
+		let same = force ? false : true;
 		if (!this.data) {
 			same = false;
-		} else {
+		} else if (same) {
 			for (const k in data) {
-				if (!eq(data[k], this.data[k])) {
+				const existing = this.data[k];
+				const updated = data[k];
+				if (!eq(existing, updated)) {
 					same = false;
-					break;
+					// We sub/unsub if there's a reactive cell in the update
+					if (existing?.isReactive) {
+						existing.unsub(this._renderer);
+					}
+					if (updated?.isReactive) {
+						updated.sub(this._renderer);
+					}
 				}
 			}
 		}
@@ -578,7 +695,12 @@ class UIInstance {
 		if (typeof node === "string") {
 			const n = document.querySelector(node);
 			if (!n) {
-				console.error("Selector is empty", node);
+				console.error(
+					"Selector is empty, cannot mounted component",
+					node,
+					{ component: this.template }
+				);
+				return this;
 			} else {
 				node = n;
 			}
@@ -614,7 +736,8 @@ class UIInstance {
 	// --
 	// Renders the given data, using `create`, `update` and `remove`
 	// functions
-	render(data) {
+	// TODO: Should take a "changes" and know which behaviour should be updated
+	render(data = this.data) {
 		const data_type = type(data);
 		// FIXME: I'm not sure this condition is good.
 		if (
@@ -643,6 +766,10 @@ class UIInstance {
 								v = this.behavior.get(k);
 							} else {
 								const b = this.template.behavior[k];
+								// const [tracked_data, accessed] =
+								// 	createTrackingProxy(data);
+								// v = b(this, tracked_data, null);
+								// console.log("TRACKED_DATA", accessed);
 								v = b(this, data, null);
 								this.behavior.set(k, v);
 							}
@@ -692,15 +819,18 @@ export const ui = (selection, scope = document) => {
 				}
 			}
 		}
+		// TODO: Should retrieve id and assign a name.
 		const tmpl = new UITemplate(nodes);
 		const component = (...args) => tmpl.apply(...args);
 		Object.assign(component, {
 			isTemplate: true,
 			template: tmpl,
 			new: (...args) => tmpl.new(...args),
+			init: (...args) => tmpl.init(...args),
 			map: (...args) => tmpl.map(...args),
 			apply: (...args) => tmpl.apply(...args),
 			does: (...args) => (tmpl.does(...args), component),
+			on: (...args) => (tmpl.sub(...args), component),
 			sub: (...args) => (tmpl.sub(...args), component),
 		});
 		return component;
