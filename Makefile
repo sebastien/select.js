@@ -25,7 +25,7 @@ dist: $(DIST_ALL)
 
 dist/%.js: src/js/%.js
 	@mkdir -p $(dir $@); true
-	cat src/js/$(PROJECT).js > "$@"
+	cat src/js/$*.js > "$@"
 	echo "[DIST] $$(du -hs $@)"
 
 dist/%.min.js: dist/%.js
