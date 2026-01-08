@@ -66,10 +66,10 @@ const normpath = (path) =>
 		path === Nothing
 			? null
 			: path instanceof Array
-			? path
-			: path !== undefined
-			? [path]
-			: null);
+				? path
+				: path !== undefined
+					? [path]
+					: null);
 
 // ----------------------------------------------------------------------------
 //
@@ -119,8 +119,8 @@ class Selections {
 			path instanceof Array
 				? path
 				: path !== undefined && path !== null
-				? [path]
-				: [];
+					? [path]
+					: [];
 		let scope = this.selections;
 		for (const key of path) {
 			if (scope.has(key)) {
@@ -343,7 +343,7 @@ export class Selected extends Reactive {
 		return this.parent.set(
 			value,
 			path ? [...this.path, path] : this.path,
-			force
+			force,
 		);
 	}
 }

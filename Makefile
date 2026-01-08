@@ -11,7 +11,7 @@ all: $(BUILD_ALL)
 	@echo "OK"
 
 run:
-	@python3 -m http.server $(PORT)
+	@mise x -- python3 -m http.server $(PORT)
 
 clean:
 	@for FILE in $(BUILD_ALL); do
@@ -30,7 +30,7 @@ dist/%.js: src/js/%.js
 
 dist/%.min.js: dist/%.js
 	@mkdir -p $(dir $@); true
-	esbuild --minify --platform=browser "$<" > "$@"
+	@mise x -- bun build --minify --outfile="$@" "$<"
 	echo "[DIST] $$(du -hs $@)"
 
 .ONESHELL:

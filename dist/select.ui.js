@@ -29,16 +29,16 @@ export const type = Object.assign(
 		value === undefined || value === null
 			? type.Null
 			: value instanceof Array
-			? type.List
-			: Object.getPrototypeOf(value) === Object.prototype
-			? type.Dict
-			: typeof value === "number"
-			? type.Number
-			: typeof value === "string"
-			? type.String
-			: typeof value === "boolean"
-			? type.Boolean
-			: type.Object,
+				? type.List
+				: Object.getPrototypeOf(value) === Object.prototype
+					? type.Dict
+					: typeof value === "number"
+						? type.Number
+						: typeof value === "string"
+							? type.String
+							: typeof value === "boolean"
+								? type.Boolean
+								: type.Object,
 	{
 		Null: 1,
 		Number: 2,
@@ -47,7 +47,7 @@ export const type = Object.assign(
 		Object: 5,
 		List: 10,
 		Dict: 11,
-	}
+	},
 );
 
 export const remap = (value, f) => {
@@ -87,10 +87,10 @@ const asText = (value) =>
 	value === null || value === undefined
 		? ""
 		: typeof value === "number"
-		? `${value}`
-		: typeof value === "string"
-		? value
-		: JSON.stringify(value);
+			? `${value}`
+			: typeof value === "string"
+				? value
+				: JSON.stringify(value);
 
 const isInputNode = (node) => {
 	switch (node.nodeName) {
@@ -178,7 +178,7 @@ class UITemplateSlot {
 			res.splice(
 				0,
 				0,
-				Array.prototype.indexOf.call(node.parentNode.childNodes, node)
+				Array.prototype.indexOf.call(node.parentNode.childNodes, node),
 			);
 			node = node.parentNode;
 		}
@@ -195,7 +195,7 @@ class UITemplateSlot {
 			let v = new UITemplateSlot(
 				node,
 				parent,
-				UITemplateSlot.Path(node, parent, [i])
+				UITemplateSlot.Path(node, parent, [i]),
 			);
 			v = processor ? processor(v, k) : v;
 			if (res[k] === undefined) {
@@ -258,7 +258,7 @@ class UITemplate {
 		this.ref = UITemplateSlot.Find("ref", nodes);
 		this.when = UITemplateSlot.Find("when", nodes, (slot, expr) => {
 			slot.predicate = new Function(
-				`return ((self,data,event)=>(${expr}))`
+				`return ((self,data,event)=>(${expr}))`,
 			)();
 			slot.predicatePlaceholder = document.createComment(expr);
 			return slot;
@@ -424,7 +424,7 @@ class UISlot {
 				} else if (r?.nodeType === Node.ELEMENT_NODE) {
 					if (item instanceof AppliedUITemplate) {
 						console.error(
-							"Not implemented: change from non UIInstance to UIInstance"
+							"Not implemented: change from non UIInstance to UIInstance",
 						);
 					} else if (item instanceof Node) {
 						r.parentNode.replaceChild(item, r);
@@ -437,7 +437,7 @@ class UISlot {
 				} else {
 					if (item instanceof AppliedUITemplate) {
 						console.error(
-							"Not implemented: change from non UIInstance to UIInstance"
+							"Not implemented: change from non UIInstance to UIInstance",
 						);
 					} else if (item instanceof Node) {
 						r.parentNode.replaceChild(item, r);
@@ -471,7 +471,7 @@ class UISlot {
 		if (this.predicatePlaceholder && this.predicatePlaceholder.parentNode) {
 			this.predicatePlaceholder.parentNode.replaceChild(
 				this.node,
-				this.predicatePlaceholder
+				this.predicatePlaceholder,
 			);
 		}
 		return this;
@@ -482,7 +482,7 @@ class UISlot {
 		if (this.predicatePlaceholder && this.node.parentNode) {
 			this.node.parentNode.replaceChild(
 				this.predicatePlaceholder,
-				this.node
+				this.node,
 			);
 		}
 		return this;
@@ -511,23 +511,23 @@ class UIInstance {
 		// FIXME: This is on the hotpath
 		this.nodes = template.nodes.map((_) => _.cloneNode(true));
 		this.in = remap(template.in, (_) =>
-			remap(_, (_) => _.apply(this.nodes, this))
+			remap(_, (_) => _.apply(this.nodes, this)),
 		);
 		this.out = remap(template.out, (_) =>
-			remap(_, (_) => _.apply(this.nodes, this))
+			remap(_, (_) => _.apply(this.nodes, this)),
 		);
 		this.inout = remap(template.inout, (_) =>
-			remap(_, (_) => _.apply(this.nodes, this))
+			remap(_, (_) => _.apply(this.nodes, this)),
 		);
 		this.ref = remap(template.ref, (_) => {
 			const r = remap(_, (_) => _.apply(this.nodes, this, true));
 			return r.length === 1 ? r[0] : r;
 		});
 		this.on = remap(template.on, (_) =>
-			remap(_, (_) => _.apply(this.nodes, this))
+			remap(_, (_) => _.apply(this.nodes, this)),
 		);
 		this.when = remap(template.when, (_) =>
-			remap(_, (_) => _.apply(this.nodes, this))
+			remap(_, (_) => _.apply(this.nodes, this)),
 		);
 		this.parent = parent;
 		// Data & State
@@ -610,7 +610,7 @@ class UIInstance {
 				}
 				target.node.addEventListener(event, (event) =>
 					// Arguments are (self,data,event)
-					h(this, this.data || {}, event)
+					h(this, this.data || {}, event),
 				);
 			}
 		}
@@ -698,7 +698,7 @@ class UIInstance {
 				console.error(
 					"Selector is empty, cannot mounted component",
 					node,
-					{ component: this.template }
+					{ component: this.template },
 				);
 				return this;
 			} else {
