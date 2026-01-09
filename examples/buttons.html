@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI ― Button States with out:attr</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/" } }
+	</script>
+	<style>
+		body {
+			font-family: system-ui, sans-serif;
+			padding: 20px;
+			max-width: 600px;
+			margin: 0 auto;
+		}
+
+		.btn {
+			padding: 8px 16px;
+			border: none;
+			border-radius: 4px;
+			cursor: pointer;
+			margin: 4px;
+			font-size: 14px;
+			transition: all 0.2s ease;
+		}
+
+		.btn-primary {
+			background: #007bff;
+			color: white;
+		}
+
+		.btn-primary:hover:not(:disabled) {
+			background: #0056b3;
+		}
+
+		.btn-success {
+			background: #28a745;
+			color: white;
+		}
+
+		.btn-success:hover:not(:disabled) {
+			background: #1e7e34;
+		}
+
+		.btn-danger {
+			background: #dc3545;
+			color: white;
+		}
+
+		.btn-danger:hover:not(:disabled) {
+			background: #bd2130;
+		}
+
+		.btn-loading {
+			opacity: 0.7;
+			cursor: wait;
+		}
+
+		.btn:disabled {
+			opacity: 0.5;
+			cursor: not-allowed;
+		}
+
+		hr {
+			margin: 20px 0;
+			border: none;
+			border-top: 1px solid #eee;
+		}
+
+		.controls {
+			display: flex;
+			gap: 8px;
+			flex-wrap: wrap;
+		}
+
+		.controls button {
+			padding: 6px 12px;
+			border: 1px solid #ccc;
+			border-radius: 4px;
+			background: white;
+			cursor: pointer;
+		}
+
+		.controls button:hover {
+			background: #f5f5f5;
+		}
+
+		h3 {
+			margin-top: 0;
+		}
+	</style>
+</head>
+
+<body>
+	<div id="ui"></div>
+
+	<template id="ActionButton">
+		<button class="btn" out:class="btnClass" out:disabled="isDisabled" out:aria-busy="loading" out:style="customStyle"
+			on="click">
+			<span out="label">Button</span>
+		</button>
+	</template>
+
+	<template id="ButtonDemo">
+		<div>
+			<h3>Button States Demo</h3>
+			<p>This example demonstrates <code>out:attr</code> bindings for dynamic styles, classes, and attributes.</p>
+
+			<div out="buttons"></div>
+
+			<hr>
+
+			<div class="controls">
+				<button on="toggleLoading">Toggle Loading</button>
+				<button on="toggleDisabled">Toggle Disabled</button>
+				<button on="cycleVariant">Cycle Variant</button>
+			</div>
+
+			<hr>
+
+			<div>
+				<strong>Current State:</strong>
+				<ul>
+					<li>Loading: <code out="loadingState">false</code></li>
+					<li>Disabled: <code out="disabledState">false</code></li>
+					<li>Variant: <code out="variantState">primary</code></li>
+				</ul>
+			</div>
+		</div>
+	</template>
+
+	<script type="module">
+		import ui from "@./select.ui.js"
+
+		// ActionButton demonstrates multiple out:attr bindings:
+		// - out:class for dynamic CSS classes (object format like clsx)
+		// - out:disabled for boolean attribute
+		// - out:aria-busy for accessibility
+		// - out:style for inline styles (object format)
+		const ActionButton = ui("#ActionButton").does({
+			label: (self, { label }) => label || "Click me",
+
+			// Class binding: object format where keys are class names
+			// and values determine if the class should be applied
+			btnClass: (self, { variant, loading, disabled }) => ({
+				[`btn-${variant || 'primary'}`]: true,
+				'btn-loading': loading,
+			}),
+
+			// Boolean attribute: truthy adds it, falsy removes it
+			isDisabled: (self, { disabled, loading }) => disabled || loading,
+
+			// Aria attribute for accessibility
+			loading: (self, { loading }) => loading ? "true" : null,
+
+			// Style binding: object format with camelCase properties
+			// Returns null to not apply any custom styles
+			customStyle: (self, { highlight }) => highlight
+				? { boxShadow: '0 0 10px gold', transform: 'scale(1.05)' }
+				: null,
+
+			// Event handler
+			click: (self, data, event) => {
+				if (!data.disabled && !data.loading) {
+					self.send("Click", data);
+				}
+			},
+		});
+
+		const variants = ['primary', 'success', 'danger'];
+
+		const ButtonDemo = ui("#ButtonDemo")
+			.init(() => ({
+				loading: false,
+				disabled: false,
+				variantIndex: 0,
+			}))
+			.does({
+				// Nested components with dynamic props
+				buttons: (self, { loading, disabled, variantIndex }) => [
+					ActionButton({
+						label: "Submit",
+						variant: variants[variantIndex],
+						loading,
+						disabled
+					}),
+					ActionButton({
+						label: "Cancel",
+						variant: "danger",
+						disabled
+					}),
+					ActionButton({
+						label: "Special",
+						variant: "success",
+						highlight: true
+					}),
+				],
+
+				// State display
+				loadingState: (self, { loading }) => String(loading),
+				disabledState: (self, { disabled }) => String(disabled),
+				variantState: (self, { variantIndex }) => variants[variantIndex],
+
+				// Control handlers
+				toggleLoading: (self, { loading }) => self.update({ loading: !loading }),
+				toggleDisabled: (self, { disabled }) => self.update({ disabled: !disabled }),
+				cycleVariant: (self, { variantIndex }) =>
+					self.update({ variantIndex: (variantIndex + 1) % variants.length }),
+			})
+			.on({
+				Click: (self, data, event) => console.log("Button clicked:", event.data),
+			});
+
+		ButtonDemo.new().mount("#ui");
+	</script>
+</body>
+
+</html>

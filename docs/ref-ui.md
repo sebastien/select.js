@@ -50,14 +50,15 @@ const Button = ui("#Button");
 
 ### Slot Attributes
 
-| Attribute | Purpose                                  |
-| --------- | ---------------------------------------- |
-| `out`     | Output slot - renders data to DOM        |
-| `in`      | Input slot - captures user input         |
-| `inout`   | Bidirectional - both input and output    |
-| `on`      | Event handler binding                    |
-| `when`    | Conditional rendering                    |
-| `ref`     | Direct DOM node reference                |
+| Attribute    | Purpose                                  |
+| ------------ | ---------------------------------------- |
+| `out`        | Output slot - renders data to DOM        |
+| `out:<attr>` | Attribute slot - binds data to attribute |
+| `in`         | Input slot - captures user input         |
+| `inout`      | Bidirectional - both input and output    |
+| `on`         | Event handler binding                    |
+| `when`       | Conditional rendering                    |
+| `ref`        | Direct DOM node reference                |
 
 ### Component Lifecycle
 
@@ -328,6 +329,99 @@ Direct access to DOM nodes.
 })
 ```
 
+### Attribute Slots (`out:<attr>`)
+
+Bind behavior outputs directly to element attributes. Use `out:<attr>` where
+`<attr>` is the attribute name, optionally with a custom slot name.
+
+```html
+<!-- Uses "disabled" as the behavior name -->
+<button out:disabled>Submit</button>
+
+<!-- Uses "isDisabled" as the behavior name -->
+<button out:disabled="isDisabled">Submit</button>
+
+<!-- Multiple attribute bindings -->
+<div out:class="classes" out:style="styles" out:data-id="itemId">
+  Content
+</div>
+```
+
+```javascript
+.does({
+  isDisabled: (self, { loading }) => loading,
+  classes: (self, { active }) => ({ active, highlight: true }),
+  styles: (self, { color }) => ({ backgroundColor: color }),
+  itemId: (self, { id }) => id,
+})
+```
+
+**Handler signature:** `(self, data, attrValue, node) => value`
+
+- `self` - The component instance
+- `data` - Current component data
+- `attrValue` - Current attribute value (string or null)
+- `node` - The DOM element
+
+#### Special Handling for `class`
+
+Returns are additive (original template classes preserved). Falsy values are
+filtered out (like `clsx`):
+
+```javascript
+// Object format - keys are class names, values toggle them
+classes: (self, { active, error }) => ({
+  active: active,      // Add "active" if truthy
+  error: error,        // Add "error" if truthy
+  highlight: true,     // Always add "highlight"
+  disabled: false,     // Never add "disabled"
+})
+
+// Array format - all truthy values become classes
+classes: (self, { type }) => [
+  'btn',
+  `btn-${type}`,
+  type === 'primary' && 'btn-bold'
+]
+
+// String format
+classes: (self, { type }) => `btn btn-${type}`
+```
+
+#### Special Handling for `style`
+
+Returns are additive (original template styles preserved):
+
+```javascript
+// Object format - camelCase properties
+styles: (self, { bg, size }) => ({
+  backgroundColor: bg,
+  fontSize: `${size}px`,
+  padding: null,  // Removes this property
+})
+
+// String format
+styles: (self, { bg }) => `background-color: ${bg}; padding: 10px`
+```
+
+#### Boolean Attributes
+
+For attributes like `disabled`, `hidden`, `readonly`:
+
+```javascript
+// Truthy adds the attribute, falsy removes it
+isDisabled: (self, { loading, error }) => loading || error,
+isHidden: (self, { visible }) => !visible,
+```
+
+#### Regular Attributes
+
+```javascript
+// Set to value, or remove with null/undefined
+ariaLabel: (self, { label }) => label,
+dataId: (self, { id }) => id ?? null,  // null removes attribute
+```
+
 ## Nesting Components
 
 ### Using Applied Templates
@@ -543,6 +637,53 @@ const Counter = ui(`
   });
 ```
 
+### Dynamic Styling
+
+Use `out:class` and `out:style` for reactive styling without direct DOM
+manipulation:
+
+```javascript
+const StatusBadge = ui(`
+  <span class="badge" out:class="badgeClass" out:style="badgeStyle" out="label">
+    Status
+  </span>
+`).does({
+  label: (self, { status }) => status,
+  badgeClass: (self, { status }) => ({
+    'badge-success': status === 'active',
+    'badge-warning': status === 'pending',
+    'badge-danger': status === 'error',
+  }),
+  badgeStyle: (self, { pulse }) => pulse
+    ? { animation: 'pulse 1s infinite' }
+    : null,
+});
+
+// Usage
+StatusBadge.new().set({ status: 'active', pulse: true }).mount('#app');
+```
+
+```javascript
+// Button with dynamic variants
+const Button = ui(`
+  <button class="btn" out:class="btnClass" out:disabled="isDisabled" on="click">
+    <span out="label">Click</span>
+  </button>
+`).does({
+  label: (self, { label }) => label,
+  btnClass: (self, { variant, loading }) => ({
+    [`btn-${variant || 'primary'}`]: true,
+    'btn-loading': loading,
+  }),
+  isDisabled: (self, { disabled, loading }) => disabled || loading,
+  click: (self, data, event) => {
+    if (!data.disabled && !data.loading) {
+      self.send("Click", data);
+    }
+  },
+});
+```
+
 ## Best Practices
 
 1. **Use templates in HTML** for better readability and performance
@@ -550,6 +691,7 @@ const Counter = ui(`
    state changes
 3. **Use `update()` for partial updates** instead of `set()` to preserve state
 4. **Leverage `when` attributes** for conditional UI instead of JavaScript logic
-5. **Use `ref` sparingly** - prefer data binding over direct DOM manipulation
+5. **Use `ref` sparingly** - prefer `out:attr` bindings over direct DOM manipulation
 6. **Send events up, pass data down** - follow unidirectional data flow
 7. **Use `init()` with cells** for complex reactive state management
+8. **Prefer `out:class` and `out:style`** over manipulating `ref` nodes directly
