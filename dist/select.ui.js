@@ -9,16 +9,19 @@
 // A standalone, simple and performant UI rendering library, design
 // for quickly creating interactive UIs and visualisations.
 
+import { expand } from "./select.cells.js";
+
 export const len = (v) => {
-	const t = typeof v;
 	if (v === undefined || v === null) {
 		return 0;
-	} else if (v instanceof Array || t === "string") {
+	} else if (v instanceof Array) {
+		return v.length;
+	} else if (typeof v === "string") {
 		return v.length;
 	} else if (v instanceof Map || v instanceof Set) {
 		return v.size;
 	} else if (Object.getPrototypeOf(v) === Object.prototype) {
-		return Object.keys(t).length;
+		return Object.keys(v).length;
 	}
 	return 1;
 };
@@ -83,14 +86,17 @@ export const remap = (value, f) => {
 
 const eq = (a, b) => a === b;
 
-const asText = (value) =>
-	value === null || value === undefined
+const asText = (value) => {
+	// Expand reactive values to their underlying value
+	value = expand(value);
+	return value === null || value === undefined
 		? ""
 		: typeof value === "number"
 			? `${value}`
 			: typeof value === "string"
 				? value
 				: JSON.stringify(value);
+};
 
 const isInputNode = (node) => {
 	switch (node.nodeName) {
@@ -239,6 +245,292 @@ class UITemplateSlot {
 		}
 		return node ? (raw ? node : new UISlot(node, this, parent)) : null;
 	}
+
+	// --
+	// Finds all attributes starting with `prefix` (e.g., "out:") in the given nodes.
+	// Returns a map of slotName -> [UIAttributeTemplateSlot, ...]
+	static FindAttr(prefix, nodes) {
+		const res = {};
+		let count = 0;
+		for (let i = 0; i < nodes.length; i++) {
+			const parent = nodes[i];
+			const processNode = (node) => {
+				if (!node.attributes) return;
+				const toRemove = [];
+				for (const attr of node.attributes) {
+					if (attr.name.startsWith(prefix)) {
+						const attrName = attr.name.slice(prefix.length); // e.g., "style", "class", "disabled"
+						const slotName = attr.value || attrName; // Use attr value or default to attrName
+						const originalValue = node.getAttribute(attrName); // Preserve original for additive
+						toRemove.push(attr.name);
+
+						const slot = new UIAttributeTemplateSlot(
+							node,
+							parent,
+							UITemplateSlot.Path(node, parent, [i]),
+							attrName,
+							slotName,
+							originalValue,
+						);
+
+						if (!res[slotName]) res[slotName] = [];
+						res[slotName].push(slot);
+						count++;
+					}
+				}
+				for (const name of toRemove) node.removeAttribute(name);
+			};
+			processNode(parent);
+			if (parent.querySelectorAll) {
+				for (const node of parent.querySelectorAll("*"))
+					processNode(node);
+			}
+		}
+		return count ? res : null;
+	}
+
+	// --
+	// Finds all attributes starting with `prefix` (e.g., "on:") in the given nodes.
+	// Returns a map of handlerName -> [UIEventTemplateSlot, ...]
+	// For "on:click" the eventType is "click", handlerName defaults to eventType if no value.
+	static FindEvent(prefix, nodes) {
+		const res = {};
+		let count = 0;
+		for (let i = 0; i < nodes.length; i++) {
+			const parent = nodes[i];
+			const processNode = (node) => {
+				if (!node.attributes) return;
+				const toRemove = [];
+				for (const attr of node.attributes) {
+					if (attr.name.startsWith(prefix)) {
+						const eventType = attr.name.slice(prefix.length); // e.g., "click", "submit"
+						const handlerName = attr.value || eventType; // Default to eventType if no value
+						toRemove.push(attr.name);
+
+						const slot = new UIEventTemplateSlot(
+							node,
+							parent,
+							UITemplateSlot.Path(node, parent, [i]),
+							eventType,
+							handlerName,
+						);
+
+						if (!res[handlerName]) res[handlerName] = [];
+						res[handlerName].push(slot);
+						count++;
+					}
+				}
+				for (const name of toRemove) node.removeAttribute(name);
+			};
+			processNode(parent);
+			if (parent.querySelectorAll) {
+				for (const node of parent.querySelectorAll("*"))
+					processNode(node);
+			}
+		}
+		return count ? res : null;
+	}
+}
+
+// ----------------------------------------------------------------------------
+//
+// UI ATTRIBUTE TEMPLATE SLOT
+//
+// ----------------------------------------------------------------------------
+
+class UIAttributeTemplateSlot {
+	constructor(node, parent, path, attrName, slotName, originalValue) {
+		this.node = node;
+		this.parent = parent;
+		this.path = path;
+		this.attrName = attrName;
+		this.slotName = slotName;
+		this.originalValue = originalValue;
+	}
+
+	apply(nodes, parent) {
+		let node = nodes;
+		for (const i of this.path) {
+			if (node instanceof Array) {
+				node = node[i];
+			} else {
+				node = node ? node.childNodes[i] : node;
+			}
+		}
+		return node ? new UIAttributeSlot(node, this, parent) : null;
+	}
+}
+
+// ----------------------------------------------------------------------------
+//
+// UI ATTRIBUTE SLOT
+//
+// ----------------------------------------------------------------------------
+
+class UIAttributeSlot {
+	constructor(node, template, parent) {
+		this.node = node;
+		this.template = template;
+		this.parent = parent;
+		this.attrName = template.attrName;
+		// Store original classes/styles for additive behavior
+		this.originalClasses =
+			template.attrName === "class"
+				? new Set(
+						(template.originalValue || "")
+							.split(/\s+/)
+							.filter(Boolean),
+					)
+				: null;
+		this.originalStyle =
+			template.attrName === "style" ? template.originalValue || "" : null;
+		this.appliedClasses = new Set(); // Track what we've added
+		this.appliedStyles = new Map(); // Track style properties we've set
+	}
+
+	render(value) {
+		if (this.attrName === "class") {
+			this._renderClass(value);
+		} else if (this.attrName === "style") {
+			this._renderStyle(value);
+		} else {
+			this._renderAttr(value);
+		}
+	}
+
+	_renderClass(value) {
+		// Remove previously applied classes (but keep original template classes)
+		for (const cls of this.appliedClasses) {
+			if (!this.originalClasses.has(cls)) {
+				this.node.classList.remove(cls);
+			}
+		}
+		this.appliedClasses.clear();
+
+		if (value == null) return;
+
+		if (typeof value === "object" && !Array.isArray(value)) {
+			// Object format: { active: true, disabled: false }
+			for (const [cls, enabled] of Object.entries(value)) {
+				if (enabled && cls && cls.trim()) {
+					this.node.classList.add(cls.trim());
+					this.appliedClasses.add(cls.trim());
+				}
+			}
+		} else {
+			// String or Array format - filter out falsy values like clsx
+			const classes = Array.isArray(value)
+				? value
+				: String(value).split(/\s+/);
+			for (const cls of classes) {
+				if (cls && typeof cls === "string" && cls.trim()) {
+					this.node.classList.add(cls.trim());
+					this.appliedClasses.add(cls.trim());
+				}
+			}
+		}
+	}
+
+	_renderStyle(value) {
+		// Remove previously applied styles
+		for (const prop of this.appliedStyles.keys()) {
+			this.node.style.removeProperty(prop);
+		}
+		this.appliedStyles.clear();
+
+		// Re-apply original inline styles if they were removed
+		if (this.originalStyle) {
+			const tempDiv = document.createElement("div");
+			tempDiv.style.cssText = this.originalStyle;
+			for (const prop of tempDiv.style) {
+				if (!this.node.style.getPropertyValue(prop)) {
+					this.node.style.setProperty(
+						prop,
+						tempDiv.style.getPropertyValue(prop),
+					);
+				}
+			}
+		}
+
+		if (value == null) return;
+
+		if (typeof value === "object") {
+			// Object format: { backgroundColor: 'red', padding: '10px' }
+			for (const [prop, val] of Object.entries(value)) {
+				if (val != null) {
+					// Convert camelCase to kebab-case
+					const kebabProp = prop
+						.replace(/([A-Z])/g, "-$1")
+						.toLowerCase();
+					this.node.style.setProperty(kebabProp, val);
+					this.appliedStyles.set(kebabProp, val);
+				}
+			}
+		} else {
+			// String format: "background-color: red; padding: 10px"
+			const tempDiv = document.createElement("div");
+			tempDiv.style.cssText = value;
+			for (const prop of tempDiv.style) {
+				const val = tempDiv.style.getPropertyValue(prop);
+				this.node.style.setProperty(prop, val);
+				this.appliedStyles.set(prop, val);
+			}
+		}
+	}
+
+	_renderAttr(value) {
+		if (value == null || value === false) {
+			this.node.removeAttribute(this.attrName);
+		} else if (value === true) {
+			this.node.setAttribute(this.attrName, "");
+		} else {
+			this.node.setAttribute(this.attrName, String(value));
+		}
+	}
+}
+
+// ----------------------------------------------------------------------------
+//
+// UI EVENT TEMPLATE SLOT
+//
+// ----------------------------------------------------------------------------
+
+class UIEventTemplateSlot {
+	constructor(node, parent, path, eventType, handlerName) {
+		this.node = node;
+		this.parent = parent;
+		this.path = path;
+		this.eventType = eventType;
+		this.handlerName = handlerName;
+	}
+
+	apply(nodes, parent) {
+		let node = nodes;
+		for (const i of this.path) {
+			if (node instanceof Array) {
+				node = node[i];
+			} else {
+				node = node ? node.childNodes[i] : node;
+			}
+		}
+		return node ? new UIEventSlot(node, this, parent) : null;
+	}
+}
+
+// ----------------------------------------------------------------------------
+//
+// UI EVENT SLOT
+//
+// ----------------------------------------------------------------------------
+
+class UIEventSlot {
+	constructor(node, template, parent) {
+		this.node = node;
+		this.template = template;
+		this.parent = parent;
+		this.eventType = template.eventType;
+		this.handlerName = template.handlerName;
+	}
 }
 
 // ----------------------------------------------------------------------------
@@ -251,7 +543,7 @@ class UITemplate {
 	constructor(nodes) {
 		this.nodes = nodes;
 		// Slots, will be processed by instance
-		this.on = UITemplateSlot.Find("on", nodes);
+		this.on = UITemplateSlot.FindEvent("on:", nodes);
 		this.in = UITemplateSlot.Find("in", nodes);
 		this.out = UITemplateSlot.Find("out", nodes);
 		this.inout = UITemplateSlot.Find("inout", nodes);
@@ -263,6 +555,8 @@ class UITemplate {
 			slot.predicatePlaceholder = document.createComment(expr);
 			return slot;
 		});
+		// Attribute slots (out:style, out:class, out:disabled, etc.)
+		this.outAttr = UITemplateSlot.FindAttr("out:", nodes);
 		// Interaction/Behavior (accessed from UIInstance)
 		this.initializer = undefined;
 		this.behavior = undefined;
@@ -529,6 +823,10 @@ class UIInstance {
 		this.when = remap(template.when, (_) =>
 			remap(_, (_) => _.apply(this.nodes, this)),
 		);
+		// Attribute slots (out:style, out:class, etc.)
+		this.outAttr = remap(template.outAttr, (_) =>
+			remap(_, (_) => _.apply(this.nodes, this)),
+		);
 		this.parent = parent;
 		// Data & State
 		this.data = undefined;
@@ -575,44 +873,61 @@ class UIInstance {
 	}
 
 	bind() {
-		// We bind the event handlers
-		for (const set of [this.on, this.in, this.inout]) {
+		// We bind the event handlers for on: slots (explicit event type)
+		for (const k in this.on) {
+			for (const slot of this.on[k]) {
+				this._bindEvent(k, slot);
+			}
+		}
+		// We bind the event handlers for in/inout slots (inferred event type)
+		for (const set of [this.in, this.inout]) {
 			for (const k in set) {
-				for (const _ of set[k]) {
-					this._bind(k, _);
+				for (const slot of set[k]) {
+					this._bindInput(k, slot);
 				}
 			}
 		}
 	}
 
-	// TODO: Rename
-	_bind(name, target, handlers = this.template.behavior[name]) {
-		if (handlers instanceof Function) {
-			// TODO: Select the best type of event for the target
-			handlers = { _: handlers };
-		}
-		if (handlers) {
-			for (let event in handlers) {
-				const h = handlers[event];
-				if (event === "_") {
-					switch (target.node.nodeName) {
-						case "INPUT":
-						case "TEXTAREA":
-						case "SELECT":
-							event = "input";
-							break;
-						case "FORM":
-							event = "submit";
-							break;
-						default:
-							event = "click";
+	// Binds an event slot with explicit event type (on:click, on:submit, etc.)
+	_bindEvent(name, target, handler = this.template.behavior[name]) {
+		if (handler) {
+			target.node.addEventListener(target.eventType, (event) => {
+				// Arguments are (self,data,event)
+				const result = handler(this, this.data || {}, event);
+				// If handler returns an object, update reactive cells in data
+				if (result && typeof result === "object" && !Array.isArray(result)) {
+					for (const key in result) {
+						const cell = this.data?.[key];
+						if (cell?.isReactive) {
+							cell.set(result[key]);
+						}
 					}
 				}
-				target.node.addEventListener(event, (event) =>
-					// Arguments are (self,data,event)
-					h(this, this.data || {}, event),
-				);
+			});
+		}
+	}
+
+	// Binds an input slot with inferred event type (in, inout)
+	_bindInput(name, target, handler = this.template.behavior[name]) {
+		if (handler) {
+			let event;
+			switch (target.node.nodeName) {
+				case "INPUT":
+				case "TEXTAREA":
+				case "SELECT":
+					event = "input";
+					break;
+				case "FORM":
+					event = "submit";
+					break;
+				default:
+					event = "click";
 			}
+			target.node.addEventListener(event, (event) =>
+				// Arguments are (self,data,event)
+				handler(this, this.data || {}, event),
+			);
 		}
 	}
 
@@ -706,16 +1021,25 @@ class UIInstance {
 			}
 		}
 		if (node) {
-			// TODO: Should follow previous
 			if (this.nodes[0].parentNode !== node) {
-				for (const n of this.nodes) {
-					node.appendChild(n);
+				if (previous && previous.parentNode === node) {
+					for (const n of this.nodes) {
+						node.insertBefore(n, previous.nextSibling);
+						previous = n;
+					}
+				} else {
+					for (const n of this.nodes) {
+						node.appendChild(n);
+					}
 				}
 			} else {
 				console.warn("Already mounted", this.nodes);
 			}
 		} else {
-			console.warn("Unable to mount as node is empty");
+			console.warn("Unable to mount as node is undefined", {
+				node,
+				self: this,
+			});
 			for (const node of this.nodes) {
 				node.parentNode?.removeChild(node);
 			}
@@ -738,10 +1062,23 @@ class UIInstance {
 	// functions
 	// TODO: Should take a "changes" and know which behaviour should be updated
 	render(data = this.data) {
+		if (!this.template) {
+			console.error(
+				"UIInstance.render() called on instance with undefined template",
+				{ instance: this },
+			);
+			return this;
+		}
+
 		const data_type = type(data);
 		// FIXME: I'm not sure this condition is good.
 		if (
-			!(this.template.out || this.template.inout || this.templates.inout)
+			!(
+				this.template.out ||
+				this.template.inout ||
+				this.template.in ||
+				this.template.outAttr
+			)
 		) {
 			// By default, unless we have output slots, we render the data
 			// as text and put it in the first node.
@@ -760,8 +1097,8 @@ class UIInstance {
 			for (const set of [this.out, this.inout, this.in]) {
 				if (set) {
 					for (const k in set) {
-						let v = data;
-						if (this.template.behavior[k]) {
+						let v;
+						if (this.template.behavior?.[k]) {
 							if (this.behavior.has(k)) {
 								v = this.behavior.get(k);
 							} else {
@@ -773,6 +1110,11 @@ class UIInstance {
 								v = b(this, data, null);
 								this.behavior.set(k, v);
 							}
+						} else if (data && k in data) {
+							// Use corresponding property from data if no behavior defined
+							v = expand(data[k]);
+						} else {
+							v = data;
 						}
 						for (const slot of set[k]) {
 							slot.render(v);
@@ -783,11 +1125,35 @@ class UIInstance {
 			this.behavior.clear();
 			for (const k in this.when) {
 				for (const slot of this.when[k]) {
-					if (slot.template.predicate(self, data)) {
+					if (slot.template.predicate(this, data)) {
 						slot.show();
 					} else {
 						slot.hide();
 					}
+				}
+			}
+			// Render attribute slots (out:style, out:class, etc.)
+			for (const k in this.outAttr) {
+				let v = data;
+				if (this.template.behavior?.[k]) {
+					if (this.behavior.has(k)) {
+						v = this.behavior.get(k);
+					} else {
+						const b = this.template.behavior[k];
+						for (const slot of this.outAttr[k]) {
+							const attrValue = slot.node.getAttribute(
+								slot.attrName,
+							);
+							// Handler signature: (self, data, attrValue, node)
+							v = b(this, data, attrValue, slot.node);
+							slot.render(v);
+						}
+						this.behavior.set(k, v);
+						continue; // Already rendered in the loop above
+					}
+				}
+				for (const slot of this.outAttr[k]) {
+					slot.render(v);
 				}
 			}
 		}
@@ -804,6 +1170,15 @@ class UIInstance {
 // ----------------------------------------------------------------------------
 
 export const ui = (selection, scope = document) => {
+	if (selection === null || selection === undefined) {
+		throw new Error(
+			`ui() received ${selection === null ? "null" : "undefined"} as selection. ` +
+				`Expected a CSS selector string, an HTML string starting with "<", ` +
+				`a DOM Node, or an array of DOM Nodes. ` +
+				`Example: ui("#container") or ui("<div>Hello</div>")`,
+		);
+	}
+
 	if (typeof selection === "string") {
 		let nodes = [];
 		if (/\s*</.test(selection)) {
@@ -819,6 +1194,12 @@ export const ui = (selection, scope = document) => {
 				}
 			}
 		}
+		if (nodes.length === 0) {
+			console.warn(
+				`ui() selector "${selection}" did not match any elements`,
+				{ scope },
+			);
+		}
 		// TODO: Should retrieve id and assign a name.
 		const tmpl = new UITemplate(nodes);
 		const component = (...args) => tmpl.apply(...args);
@@ -826,15 +1207,39 @@ export const ui = (selection, scope = document) => {
 			isTemplate: true,
 			template: tmpl,
 			new: (...args) => tmpl.new(...args),
-			init: (...args) => tmpl.init(...args),
-			map: (...args) => tmpl.map(...args),
-			apply: (...args) => tmpl.apply(...args),
+			init: (...args) => (tmpl.init(...args), component),
+			map: (...args) => (tmpl.map(...args), component),
+			apply: (...args) => (tmpl.apply(...args), component),
 			does: (...args) => (tmpl.does(...args), component),
 			on: (...args) => (tmpl.sub(...args), component),
 			sub: (...args) => (tmpl.sub(...args), component),
 		});
 		return component;
 	}
+
+	if (selection instanceof Node || Array.isArray(selection)) {
+		const nodes = selection instanceof Node ? [selection] : selection;
+		const tmpl = new UITemplate([...nodes]);
+		const component = (...args) => tmpl.apply(...args);
+		Object.assign(component, {
+			isTemplate: true,
+			template: tmpl,
+			new: (...args) => tmpl.new(...args),
+			init: (...args) => (tmpl.init(...args), component),
+			map: (...args) => (tmpl.map(...args), component),
+			apply: (...args) => (tmpl.apply(...args), component),
+			does: (...args) => (tmpl.does(...args), component),
+			on: (...args) => (tmpl.sub(...args), component),
+			sub: (...args) => (tmpl.sub(...args), component),
+		});
+		return component;
+	}
+
+	throw new Error(
+		`ui() received an invalid selection type: ${typeof selection}. ` +
+			`Expected a string (CSS selector or HTML), a DOM Node, or an array of DOM Nodes. ` +
+			`Received: ${selection}`,
+	);
 };
 
 export default ui;

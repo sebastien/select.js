@@ -321,7 +321,7 @@ export const query = (selector, scope, limit) => {
 		const nodes = (scope || document).childNodes;
 		let result = null;
 		// Now we match the root nodes of the selector
-		for (let j = 0; i < nodes.length; j++) {
+		for (let j = 0; j < nodes.length; j++) {
 			const n = nodes[j];
 			if (match(selector_node, n) && n.nodeType == Node.ELEMENT_NODE) {
 				matching.push(n);
@@ -332,7 +332,7 @@ export const query = (selector, scope, limit) => {
 			result = [];
 			for (let j = 0; j < matching.length; j++) {
 				result = result.concat(
-					select.query(selector_child, matching[i]),
+					select.query(selector_child, matching[j]),
 				);
 			}
 		} else {
@@ -787,7 +787,7 @@ export class Selection extends Array {
 		if (this.length == 1 && index == 0) {
 			return this;
 		} else {
-			return 0 <= index < this.length
+			return 0 <= index && index < this.length
 				? select([this[index]], this)
 				: new Selection();
 		}
@@ -875,7 +875,7 @@ export class Selection extends Array {
 		// We need to support :first directly here
 		if (is_string && selector.endsWith(":first")) {
 			selector = selector.substring(0, selector.length - 6);
-			index = 0;
+			let index = 0;
 		}
 		for (let i = 0; i < this.length; i++) {
 			let node = this[i].parentNode;
@@ -1646,7 +1646,7 @@ export class Selection extends Array {
 					// NOTE: We do neet to expand the dataset, and not
 					// return the dataset as is.
 					for (const k in node.dataset) {
-						v = node.dataset[k];
+						let v = node.dataset[k];
 						try {
 							v = JSON.parse(v);
 						} catch (e) {}
@@ -1764,8 +1764,8 @@ export class Selection extends Array {
 					const m = c.indexOf(className);
 					const la = c.length || 0;
 					const lc = className.length;
-					const p = n - 1;
 					const n = m + lc;
+					const p = m - 1;
 					// If the className is not surrounded by spaces or start/end, then
 					// we can add it
 					if (
@@ -1808,8 +1808,8 @@ export class Selection extends Array {
 						// a simple split/join, but I *assume* this is faster. Premature
 						// optimization FTW!
 						while (m >= 0) {
-							const p = n - 1;
 							const n = m + lc;
+							const p = m - 1;
 							// If the className is surrounded by spaces or start/end, then
 							// we can remove it.
 							if (
@@ -1844,7 +1844,7 @@ export class Selection extends Array {
 				return node.classList.contains(name);
 			} else {
 				const c = node.className || "";
-				if (c & (c.length > 0)) {
+				if (c && (c.length > 0)) {
 					const m = c.indexOf(name);
 					if (m >= 0) {
 						const la = c.length || 0;
@@ -1951,7 +1951,6 @@ export class Selection extends Array {
 			}
 			return this;
 		}
-		return this;
 	}
 
 	// ----------------------------------------------------------------------------
@@ -2027,7 +2026,7 @@ export class Selection extends Array {
 	 * :	TODO
 	 */
 	scrollTop(value) {
-		const has_value = value !== undefined;
+		const has_value = value !== undefined && value !== null;
 		for (let i = 0; i < this.length; i++) {
 			const node = this[i];
 			if (Selection.IsDOM(node)) {
@@ -2050,7 +2049,7 @@ export class Selection extends Array {
 	 * :	TODO
 	 */
 	scrollLeft(value) {
-		const has_value = value !== undefined;
+		const has_value = value !== undefined && value !== null;
 		for (let i = 0; i < this.length; i++) {
 			const node = this[i];
 			if (Selection.IsDOM(node)) {
@@ -2100,7 +2099,7 @@ export class Selection extends Array {
 			}
 			return this;
 		} else {
-			return this.bind("select", callback);
+			return this.bind("focus", callback);
 		}
 	}
 
@@ -2195,10 +2194,7 @@ export class Selection extends Array {
 		// bit smarter than that.
 		if (typeof event === "string") {
 			// SEE: http://stackoverflow.com/questions/5342917/custom-events-in-ie-without-using-libraries
-			// was before: event = new CustomEvent(event);  (does not work on IE11)
-			const name = event;
-			event = document.createEvent("HTMLEvents");
-			event.initEvent(name, true, true);
+			event = new CustomEvent(event, { bubbles: true, cancelable: true });
 		}
 		for (let i = 0; i < this.length; i++) {
 			const node = this[i];
@@ -2303,7 +2299,7 @@ export class Selection extends Array {
 	 * 		of a selection.
 	 */
 	node(index) {
-		index = index || 0;
+		index = index === undefined ? 0 : index;
 		index = index < 0 ? this.length - index : index;
 		if (index >= 0 && index < this.length) {
 			return this[index];

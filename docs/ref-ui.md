@@ -6,9 +6,9 @@ creating interactive UIs and visualizations.
 ## Overview
 
 Select UI uses a template-based approach with declarative data binding. You
-define templates in HTML with special attributes (`out`, `in`, `inout`, `on`,
-`when`, `ref`) and connect them to behavior handlers that manage state and
-rendering.
+define templates in HTML with special attributes (`out`, `in`, `inout`,
+`on:<event>`, `when`, `ref`) and connect them to behavior handlers that manage
+state and rendering.
 
 ## Quick Start
 
@@ -50,15 +50,15 @@ const Button = ui("#Button");
 
 ### Slot Attributes
 
-| Attribute    | Purpose                                  |
-| ------------ | ---------------------------------------- |
-| `out`        | Output slot - renders data to DOM        |
-| `out:<attr>` | Attribute slot - binds data to attribute |
-| `in`         | Input slot - captures user input         |
-| `inout`      | Bidirectional - both input and output    |
-| `on`         | Event handler binding                    |
-| `when`       | Conditional rendering                    |
-| `ref`        | Direct DOM node reference                |
+| Attribute      | Purpose                                  |
+| -------------- | ---------------------------------------- |
+| `out`          | Output slot - renders data to DOM        |
+| `out:<attr>`   | Attribute slot - binds data to attribute |
+| `in`           | Input slot - captures user input         |
+| `inout`        | Bidirectional - both input and output    |
+| `on:<event>`   | Event handler binding                    |
+| `when`         | Conditional rendering                    |
+| `ref`          | Direct DOM node reference                |
 
 ### Component Lifecycle
 
@@ -150,7 +150,7 @@ Defines handlers for slots. Each handler receives `(self, data, event?)`.
 const Counter = ui(`
   <div>
     <span out="count">0</span>
-    <button on="increment">+</button>
+    <button on:click="increment">+</button>
   </div>
 `).does({
   count: (self, { count }) => count ?? 0,
@@ -162,7 +162,7 @@ const Counter = ui(`
 
 - `self` - The component instance
 - `data` - Current component data
-- `event` - DOM event (for `on`/`in` handlers)
+- `event` - DOM event (for `on:<event>`/`in` handlers)
 
 ### Event Subscription
 
@@ -265,16 +265,22 @@ Both display and capture data.
 })
 ```
 
-### Event Slots (`on`)
+### Event Slots (`on:<event>`)
 
-Bind event handlers. Default event is determined by element type:
-
-- `INPUT`, `TEXTAREA`, `SELECT` - `input` event
-- `FORM` - `submit` event
-- Others - `click` event
+Bind event handlers with explicit event types using `on:<event>="handlerName"`.
 
 ```html
-<button on="save">Save</button>
+<!-- Click event with "save" handler -->
+<button on:click="save">Save</button>
+
+<!-- Handler name defaults to event type if omitted -->
+<button on:click>Click me</button>
+
+<!-- Form submit -->
+<form on:submit="handleSubmit">...</form>
+
+<!-- Multiple events on same element -->
+<button on:click="save" on:mouseenter="highlight">Save</button>
 ```
 
 ```javascript
@@ -282,16 +288,11 @@ Bind event handlers. Default event is determined by element type:
   save: (self, data, event) => {
     console.log("Saving:", data);
   },
-})
-```
-
-Specify custom events:
-
-```javascript
-.does({
-  save: {
-    click: (self, data, event) => { /* ... */ },
-    mouseenter: (self, data, event) => { /* ... */ },
+  click: (self, data, event) => {
+    console.log("Clicked!");
+  },
+  highlight: (self, data, event) => {
+    event.target.classList.add("highlighted");
   },
 })
 ```
@@ -304,11 +305,11 @@ Show/hide elements based on expressions. The expression has access to `self`,
 ```html
 <div when="data.editing">
   <input in="editValue" />
-  <button on="save">Save</button>
+  <button on:click="save">Save</button>
 </div>
 <div when="!data.editing">
   <span out="value"></span>
-  <button on="edit">Edit</button>
+  <button on:click="edit">Edit</button>
 </div>
 ```
 
@@ -447,7 +448,7 @@ Children send events up to parents.
 const Item = ui(`
   <li>
     <span out="name"></span>
-    <button on="remove">X</button>
+    <button on:click="remove">X</button>
   </li>
 `).does({
   name: (self, { name }) => name,
@@ -524,7 +525,7 @@ remap({ a: 1, b: 2 }, (v, k) => v * 2); // { a: 2, b: 4 }
 
 ```html
 <template id="LoginForm">
-  <form on="submit">
+  <form on:submit>
     <input inout="username" placeholder="Username" />
     <input inout="password" type="password" placeholder="Password" />
     <button type="submit">Login</button>
@@ -571,12 +572,12 @@ const FilteredList = ui(`
 <template id="EditableItem">
   <div when="!data.editing">
     <span out="value"></span>
-    <button on="edit">Edit</button>
+    <button on:click="edit">Edit</button>
   </div>
   <div when="data.editing">
     <input inout="editValue" />
-    <button on="save">Save</button>
-    <button on="cancel">Cancel</button>
+    <button on:click="save">Save</button>
+    <button on:click="cancel">Cancel</button>
   </div>
 </template>
 ```
@@ -623,7 +624,7 @@ import cell, { derived } from "./select.cells.js";
 const Counter = ui(`
   <div>
     <span out="display"></span>
-    <button on="increment">+</button>
+    <button on:click="increment">+</button>
   </div>
 `)
   .init(() => {
@@ -666,7 +667,7 @@ StatusBadge.new().set({ status: 'active', pulse: true }).mount('#app');
 ```javascript
 // Button with dynamic variants
 const Button = ui(`
-  <button class="btn" out:class="btnClass" out:disabled="isDisabled" on="click">
+  <button class="btn" out:class="btnClass" out:disabled="isDisabled" on:click>
     <span out="label">Click</span>
   </button>
 `).does({

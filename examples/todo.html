@@ -19,13 +19,13 @@
 		<li>
 			<div when="!data.edited">
 				<span out="label">Placeholder</span>
-				<button on="edit">Edit</button>
-				<button on="remove">Remove</button>
+				<button on:click="edit">Edit</button>
+				<button on:click="remove">Remove</button>
 			</div>
 			<div when="data.edited">
 				<input in="editedLabel"></input>
-				<button on="save">Save</button>
-				<a href="#" on="cancel">cancel</a>
+				<button on:click="save">Save</button>
+				<a href="#" on:click="cancel">cancel</a>
 			</div>
 		</li>
 	</template>
@@ -34,7 +34,7 @@
 		<ul out="items">
 			<li>Empty</li>
 		</ul>
-		<button on="add">Add</button>
+		<button on:click="add">Add</button>
 	</template>
 
 	<script type="module">

@@ -98,7 +98,7 @@
 
 	<template id="ActionButton">
 		<button class="btn" out:class="btnClass" out:disabled="isDisabled" out:aria-busy="loading" out:style="customStyle"
-			on="click">
+			on:click>
 			<span out="label">Button</span>
 		</button>
 	</template>
@@ -113,9 +113,9 @@
 			<hr>
 
 			<div class="controls">
-				<button on="toggleLoading">Toggle Loading</button>
-				<button on="toggleDisabled">Toggle Disabled</button>
-				<button on="cycleVariant">Cycle Variant</button>
+				<button on:click="toggleLoading">Toggle Loading</button>
+				<button on:click="toggleDisabled">Toggle Disabled</button>
+				<button on:click="cycleVariant">Cycle Variant</button>
 			</div>
 
 			<hr>
