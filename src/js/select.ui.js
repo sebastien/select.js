@@ -14,7 +14,7 @@ import { expand } from "./select.cells.js";
 export const len = (v) => {
 	if (v === undefined || v === null) {
 		return 0;
-	} else if (v instanceof Array) {
+	} else if (Array.isArray(v)) {
 		return v.length;
 	} else if (typeof v === "string") {
 		return v.length;
@@ -31,7 +31,7 @@ export const type = Object.assign(
 	(value) =>
 		value === undefined || value === null
 			? type.Null
-			: value instanceof Array
+			: Array.isArray(value)
 				? type.List
 				: Object.getPrototypeOf(value) === Object.prototype
 					? type.Dict
@@ -61,7 +61,7 @@ export const remap = (value, f) => {
 		typeof value === "string"
 	) {
 		return value;
-	} else if (value instanceof Array) {
+	} else if (Array.isArray(value)) {
 		return value.map(f);
 	} else if (value instanceof Map) {
 		const res = new Map();
@@ -140,7 +140,7 @@ const setNodeText = (node, text) => {
 // 	}
 // }
 
-const createTrackingProxy = (data) => {
+const _createTrackingProxy = (data) => {
 	const accessed = new Set();
 	return [
 		new Proxy(data, {
@@ -214,7 +214,7 @@ class UITemplateSlot {
 		};
 		for (let i = 0; i < nodes.length; i++) {
 			const parent = nodes[i];
-			if (parent.matches && parent.matches(selector)) {
+			if (parent.matches?.(selector)) {
 				add(parent, parent, i);
 			}
 			if (parent.querySelectorAll) {
@@ -237,7 +237,7 @@ class UITemplateSlot {
 	apply(nodes, parent, raw = false) {
 		let node = nodes;
 		for (const i of this.path) {
-			if (node instanceof Array) {
+			if (Array.isArray(node)) {
 				node = node[i];
 			} else {
 				node = node ? node.childNodes[i] : node;
@@ -351,7 +351,7 @@ class UIAttributeTemplateSlot {
 	apply(nodes, parent) {
 		let node = nodes;
 		for (const i of this.path) {
-			if (node instanceof Array) {
+			if (Array.isArray(node)) {
 				node = node[i];
 			} else {
 				node = node ? node.childNodes[i] : node;
@@ -398,7 +398,7 @@ class UIAttributeSlot {
 		}
 	}
 
-	_renderClass(value) {
+	_renderClass(...values) {
 		// Remove previously applied classes (but keep original template classes)
 		for (const cls of this.appliedClasses) {
 			if (!this.originalClasses.has(cls)) {
@@ -407,27 +407,41 @@ class UIAttributeSlot {
 		}
 		this.appliedClasses.clear();
 
-		if (value == null) return;
+		const classes = [];
 
-		if (typeof value === "object" && !Array.isArray(value)) {
-			// Object format: { active: true, disabled: false }
-			for (const [cls, enabled] of Object.entries(value)) {
-				if (enabled && cls && cls.trim()) {
-					this.node.classList.add(cls.trim());
-					this.appliedClasses.add(cls.trim());
+		const flatten = (value) => {
+			if (value == null) return;
+			if (typeof value === "boolean") return;
+			if (typeof value === "string") {
+				const parts = value.trim().split(/\s+/);
+				for (const part of parts) {
+					if (part) classes.push(part);
+				}
+				return;
+			}
+			if (Array.isArray(value)) {
+				for (const item of value) {
+					flatten(item);
+				}
+				return;
+			}
+			if (typeof value === "object") {
+				for (const [cls, enabled] of Object.entries(value)) {
+					if (enabled && cls && typeof cls === "string") {
+						const trimmed = cls.trim();
+						if (trimmed) classes.push(trimmed);
+					}
 				}
 			}
-		} else {
-			// String or Array format - filter out falsy values like clsx
-			const classes = Array.isArray(value)
-				? value
-				: String(value).split(/\s+/);
-			for (const cls of classes) {
-				if (cls && typeof cls === "string" && cls.trim()) {
-					this.node.classList.add(cls.trim());
-					this.appliedClasses.add(cls.trim());
-				}
-			}
+		};
+
+		for (const value of values) {
+			flatten(value);
+		}
+
+		for (const cls of classes) {
+			this.node.classList.add(cls);
+			this.appliedClasses.add(cls);
 		}
 	}
 
@@ -507,7 +521,7 @@ class UIEventTemplateSlot {
 	apply(nodes, parent) {
 		let node = nodes;
 		for (const i of this.path) {
-			if (node instanceof Array) {
+			if (Array.isArray(node)) {
 				node = node[i];
 			} else {
 				node = node ? node.childNodes[i] : node;
@@ -658,7 +672,7 @@ class UISlot {
 					previous = node;
 				}
 			}
-		} else if (this.placeholder && this.placeholder[0]?.parentNode) {
+		} else if (this.placeholder?.[0]?.parentNode) {
 			for (const n of this.placeholder) {
 				n.parentNode?.removeChild(n);
 			}
@@ -679,7 +693,7 @@ class UISlot {
 			const item = items[k];
 			if (!this.mapping.has(k)) {
 				// Creation: we don't have mapping for the item
-				let r = undefined;
+				let r;
 				if (item instanceof AppliedUITemplate) {
 					r = item.template.new(this.parent);
 					r.set(item.data, k).mount(this.node, previous);
@@ -762,7 +776,7 @@ class UISlot {
 
 	show() {
 		// TODO: Edge case when the slot is a direct node in the instance `.nodes`.
-		if (this.predicatePlaceholder && this.predicatePlaceholder.parentNode) {
+		if (this.predicatePlaceholder?.parentNode) {
 			this.predicatePlaceholder.parentNode.replaceChild(
 				this.node,
 				this.predicatePlaceholder,
@@ -783,7 +797,7 @@ class UISlot {
 	}
 }
 
-class BehaviorState {
+class _BehaviorState {
 	constructor() {
 		this.value = undefined;
 		this.dependencies = new Set();
@@ -843,7 +857,7 @@ class UIInstance {
 			if (state) {
 				for (const k in state) {
 					const v = state[k];
-					if (v && v?.isReactive) {
+					if (v?.isReactive) {
 						// FIXME: This does a FULL render, even on a single
 						// cell change.
 						v.sub(this._renderer);
@@ -863,7 +877,7 @@ class UIInstance {
 		if (this.initial) {
 			for (const k in this.initial) {
 				const v = this.initial[k];
-				if (v && v?.isReactive) {
+				if (v?.isReactive) {
 					// FIXME: This does a FULL render, even on a single
 					// cell change.
 					v.unsub(this._renderer);
@@ -942,7 +956,7 @@ class UIInstance {
 	}
 
 	update(data, force = false) {
-		let same = force ? false : true;
+		let same = !force;
 		if (!this.data) {
 			same = false;
 		} else if (same) {
@@ -1114,7 +1128,7 @@ class UIInstance {
 							// Use corresponding property from data if no behavior defined
 							v = expand(data[k]);
 						} else {
-							v = data;
+							v = undefined;
 						}
 						for (const slot of set[k]) {
 							slot.render(v);
@@ -1134,7 +1148,7 @@ class UIInstance {
 			}
 			// Render attribute slots (out:style, out:class, etc.)
 			for (const k in this.outAttr) {
-				let v = data;
+				let v;
 				if (this.template.behavior?.[k]) {
 					if (this.behavior.has(k)) {
 						v = this.behavior.get(k);
@@ -1151,6 +1165,9 @@ class UIInstance {
 						this.behavior.set(k, v);
 						continue; // Already rendered in the loop above
 					}
+				} else if (data && k in data) {
+					// Use corresponding property from data if no behavior defined
+					v = expand(data[k]);
 				}
 				for (const slot of this.outAttr[k]) {
 					slot.render(v);
@@ -1207,12 +1224,30 @@ export const ui = (selection, scope = document) => {
 			isTemplate: true,
 			template: tmpl,
 			new: (...args) => tmpl.new(...args),
-			init: (...args) => (tmpl.init(...args), component),
-			map: (...args) => (tmpl.map(...args), component),
-			apply: (...args) => (tmpl.apply(...args), component),
-			does: (...args) => (tmpl.does(...args), component),
-			on: (...args) => (tmpl.sub(...args), component),
-			sub: (...args) => (tmpl.sub(...args), component),
+			init: (...args) => {
+				tmpl.init(...args);
+				return component;
+			},
+			map: (...args) => {
+				tmpl.map(...args);
+				return component;
+			},
+			apply: (...args) => {
+				tmpl.apply(...args);
+				return component;
+			},
+			does: (...args) => {
+				tmpl.does(...args);
+				return component;
+			},
+			on: (...args) => {
+				tmpl.sub(...args);
+				return component;
+			},
+			sub: (...args) => {
+				tmpl.sub(...args);
+				return component;
+			},
 		});
 		return component;
 	}
@@ -1225,12 +1260,30 @@ export const ui = (selection, scope = document) => {
 			isTemplate: true,
 			template: tmpl,
 			new: (...args) => tmpl.new(...args),
-			init: (...args) => (tmpl.init(...args), component),
-			map: (...args) => (tmpl.map(...args), component),
-			apply: (...args) => (tmpl.apply(...args), component),
-			does: (...args) => (tmpl.does(...args), component),
-			on: (...args) => (tmpl.sub(...args), component),
-			sub: (...args) => (tmpl.sub(...args), component),
+			init: (...args) => {
+				tmpl.init(...args);
+				return component;
+			},
+			map: (...args) => {
+				tmpl.map(...args);
+				return component;
+			},
+			apply: (...args) => {
+				tmpl.apply(...args);
+				return component;
+			},
+			does: (...args) => {
+				tmpl.does(...args);
+				return component;
+			},
+			on: (...args) => {
+				tmpl.sub(...args);
+				return component;
+			},
+			sub: (...args) => {
+				tmpl.sub(...args);
+				return component;
+			},
 		});
 		return component;
 	}

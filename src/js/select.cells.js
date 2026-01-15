@@ -1,7 +1,7 @@
 const Nothing = Object.freeze(new Object());
 const Something = Object.freeze(new Object());
 export const access = (context, path, offset = 0) => {
-	if (path && path.length && context !== undefined) {
+	if (path?.length && context !== undefined) {
 		const n = path.length;
 		// Note that it's a feature here to allow an offset greater than the path
 		for (
@@ -47,7 +47,7 @@ export const assign = (scope, path, value, merge = undefined, offset = 0) => {
 		}
 		// If it's an array and the key is a number, we expand it so that
 		// we can set the key;
-		if (typeof k === "number" && s instanceof Array) {
+		if (typeof k === "number" && Array.isArray(s)) {
 			while (s.length <= k) {
 				s.push(undefined);
 			}
@@ -61,15 +61,16 @@ export const assign = (scope, path, value, merge = undefined, offset = 0) => {
 	return root;
 };
 
-const normpath = (path) =>
-	(path =
-		path === Nothing
-			? null
-			: path instanceof Array
-				? path
-				: path !== undefined
-					? [path]
-					: null);
+const normpath = (path) => {
+	if (path === Nothing) {
+		return null;
+	} else if (Array.isArray(path)) {
+		return path;
+	} else if (path !== undefined) {
+		return [path];
+	}
+	return null;
+};
 
 // ----------------------------------------------------------------------------
 //
@@ -115,12 +116,11 @@ class Selections {
 	}
 
 	scope(path, create = false) {
-		path =
-			path instanceof Array
-				? path
-				: path !== undefined && path !== null
-					? [path]
-					: [];
+		path = Array.isArray(path)
+			? path
+			: path !== undefined && path !== null
+				? [path]
+				: [];
 		let scope = this.selections;
 		for (const key of path) {
 			if (scope.has(key)) {
@@ -183,7 +183,7 @@ class Reactive {
 			// pass
 		} else if (value instanceof Reactive) {
 			yield [value, path];
-		} else if (value instanceof Array) {
+		} else if (Array.isArray(value)) {
 			for (let i = 0; i < value.length; i++) {
 				for (const _ of Reactive.Walk(value[i], [...path, i])) {
 					yield _;
@@ -210,7 +210,7 @@ class Reactive {
 			return value;
 		} else if (value instanceof Reactive) {
 			return value.value;
-		} else if (value instanceof Array) {
+		} else if (Array.isArray(value)) {
 			return value.map((_) => Reactive.Expand(_));
 		} else if (Object.getPrototypeOf(value) === Object.prototype) {
 			const res = {};
@@ -233,7 +233,7 @@ class Reactive {
 
 	// TODO: A selection should be a path
 	select(path) {
-		path = path instanceof Array ? path : [path];
+		path = Array.isArray(path) ? path : [path];
 		this.selections = this.selections ?? new Selections();
 		const sel = new Selected(this.value, path);
 		sel.parent = this;
@@ -283,7 +283,7 @@ class Reactive {
 			this.value === undefined
 		) {
 			return 0;
-		} else if (this.value instanceof Array) {
+		} else if (Array.isArray(this.value)) {
 			return this.value.length;
 		} else if (Object.getPrototypeOf(this.value) === Object.prototype) {
 			return Object.keys(this.value).length;
@@ -297,7 +297,7 @@ class Reactive {
 			return null;
 		} else if (this.value === undefined) {
 			return null;
-		} else if (this.value instanceof Array) {
+		} else if (Array.isArray(this.value)) {
 			return this.value.map(functor);
 		} else if (Object.getPrototypeOf(this.value) === Object.prototype) {
 			const res = [];
@@ -360,7 +360,7 @@ export class Cell extends Reactive {
 	}
 
 	// TODO: Maybe patch?
-	_update(value, path, force = false) {
+	_update(value, path, _force = false) {
 		path = normpath(path);
 		// TODO: Check existing
 		// const existing = access(value, path);
@@ -390,7 +390,7 @@ export class Cell extends Reactive {
 	push(value) {
 		if (this.revision === -1) {
 			this.value = [value];
-		} else if (this.value instanceof Array) {
+		} else if (Array.isArray(this.value)) {
 			this.value.push(value);
 		} else {
 			this.value = [this.value, value];
@@ -416,7 +416,7 @@ class Derivation extends Reactive {
 		this.expanded = Reactive.Expand(template);
 		this.value = initial
 			? this.processor
-				? this.expanded instanceof Array
+				? Array.isArray(this.expanded)
 					? this.processor(...this.expanded)
 					: this.processor(this.expanded)
 				: this.expanded
@@ -431,7 +431,7 @@ class Derivation extends Reactive {
 				// NOTE: We way want to debounce the updates
 				this.expanded = assign(this.expanded, path, value);
 				this.value = this.processor
-					? this.expanded instanceof Array
+					? Array.isArray(this.expanded)
 						? this.processor(...this.expanded)
 						: this.processor(this.expanded)
 					: this.expanded;
