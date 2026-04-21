@@ -82,77 +82,40 @@ const Component = ui("#MyTemplate");
 
 Returns a component function with these methods:
 
-- `Component(data)` - Create an applied template for composition
-- `new(parent?)` - Create a new instance
-- `does(behavior)` - Define behavior handlers
-- `on(event, handler)` / `sub(event, handler)` - Subscribe to events
-- `init(initializer)` - Define initial state
-- `apply(data)` - Create an applied template (for nesting)
-- `map(data)` - Map data to applied templates
-- `ui.register(name, component)` / `ui.resolve(name)` - Dynamic component registry
+- `new(parent?)`: Create a new component instance.
+- `does(behavior)`: Define behavior handlers for slots. Returns the component for chaining.
+- `init(initializer)`: Define initial state (often used with cells). Returns the component for chaining.
+- `on(event, handler)` / `sub(event, handler)`: Subscribe to events bubbled by child instances. Returns the component for chaining.
+- `map(data)`: Map a collection of data to a list of applied templates.
+- `apply(data)`: Create an applied template for composition (alias to calling the component as a function).
+- `ui.register(name, component)`: Register a component in the global registry.
+- `ui.resolve(name)`: Resolve a component from the global registry.
 
 ### Component Instance Methods
 
-#### `.set(data, key?)`
+- `set(data, key?)`: Replaces the instance data and triggers a re-render.
+- `update(data, force?)`: Merges partial data updates and re-renders only if tracked dependencies changed.
+- `mount(target, previous?)`: Attaches the instance's nodes to the DOM at the specified target.
+- `unmount()`: Removes the instance's nodes from the DOM.
+- `render(data?)`: Forces a re-render of the instance, optionally with new data.
+- `send(event, data)` / `pub(event, data)`: Publishes an event upward through the component tree.
+- `emit(event, data)`: Alias for `pub(event, data)`.
+- `on(event, handler)` / `off(event, handler)`: Adds or removes runtime event listeners on the instance.
+- `provide(key, value)`: Provides a context value to be consumed by child instances.
+- `inject(key, defaultValue?)`: Consumes a context value provided by an ancestor instance.
+- `does(behavior)`: Binds additional behavior handlers to the instance.
 
-Sets component data and triggers a render.
+### Slot Attributes
 
-```javascript
-instance.set({ name: "Alice", count: 42 });
-```
+- `out`: Binds a slot's content to a data value (output).
+- `out:<attr>`: Binds a specific DOM attribute to a data value (e.g., `out:class`, `out:style`, `out:disabled`).
+- `in`: Binds a slot's input (e.g., value of an `<input>`) to instance data.
+- `inout`: Two-way binding between slot and instance data.
+- `on:<event>`: Binds a DOM event to an instance method or behavior handler.
+- `when`: Conditional rendering based on a data value or expression.
+- `ref`: Provides a reference to the DOM node in the instance's `self.ref`.
+- `slot`: Defines a named slot for content injection.
 
-#### `.update(data, force?)`
-
-Merges data with existing state and re-renders if changed.
-
-```javascript
-instance.update({ count: 43 }); // Only updates count, preserves name
-```
-
-#### `.mount(target, previous?)`
-
-Mounts the component to a DOM node.
-
-```javascript
-instance.mount("#app"); // Mount by selector
-instance.mount(document.body); // Mount to element
-```
-
-#### `.unmount()`
-
-Removes the component from the DOM.
-
-```javascript
-instance.unmount();
-```
-
-#### `.render(data?)`
-
-Manually trigger a render with optional new data.
-
-```javascript
-instance.render();
-```
-
-#### `.send(event, data)` / `.pub(event, data)`
-
-Publish an event that bubbles up to parent components.
-
-```javascript
-self.send("ItemRemoved", { id: 123 });
-```
-
-#### `.emit(event, data)`
-
-Alias for `.pub(event, data)`.
-
-#### `.on(event, handler)` / `.off(event, handler)`
-
-Register and remove runtime event subscribers on an instance.
-
-#### `.provide(key, value)` / `.inject(key, defaultValue?)`
-
-Provide and consume context values through the parent chain.
 
 ### Behavior Definition
 
@@ -227,6 +190,8 @@ const ColorPicker = ui("#ColorPicker").init(() => {
 | `nodes`  | Array of root DOM nodes                  |
 | `ref`    | Object containing `ref` attribute nodes  |
 | `parent` | Parent component instance                |
+| `id`     | Unique instance identifier               |
+| `state`  | Instance-specific internal state         |
 
 ## Slot Types
 

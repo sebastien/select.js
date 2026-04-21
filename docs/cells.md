@@ -1,54 +1,49 @@
 # Select Cells (`select.cells.js`)
-## Fine-grained reactive values and derivations
 
-```
-Version :  ${VERSION}
-URL     :  http://github.com/sebastien/select.js
-Updated :  2026-04-21
-```
+## Fine-grained reactive values and derivations
 
 Select Cells provides minimal reactive primitives used by `select.ui.js` and
 usable on their own. It focuses on explicit updates, path-based selection,
 and lightweight pub/sub.
 
-The functions currently implemented are available from the `cell` module.
+### Primitives:
 
-Primitives
-:
- - `cell(value?)`
- - `derived(template, processor?, initial?)`
- - `Cell` (class)
- - `Selected` (class)
+- `cell(value?)`: Creates a mutable reactive `Cell` instance.
+- `derived(template, processor?, initial?)`: Creates a reactive derivation from a template containing cells.
+- `Cell` (class): The base class for mutable reactive values.
+- `Selected` (class): A reactive value linked to a specific path within a parent reactive value.
+- `Reactive` (class): The abstract base class for all reactive types.
 
-Structure helpers
-:
- - `access(context, path, offset?)`
- - `assign(scope, path, value, merge?, offset?)`
- - `walk(value, path?)`
- - `expand(value)`
+### Structure helpers:
 
-Reactive instance API (Cell / Selected / Derivation)
-:
- - `value`, `revision`, `length`
- - `get(key?)`
- - `map(functor)`
- - `set(value, path?, force?)`
- - `select(path)`
- - `sub(handler)` / `unsub(handler)`
- - `pub(value, path?, origin?)`
- - `push(value)` (`Cell` only)
- - `refresh()` (`Selected` only)
+- `access(context, path, offset?)`: Safely reads a nested value from an object/array by path.
+- `assign(scope, path, value, merge?, offset?)`: Writes a nested value by path, creating intermediate objects/arrays as needed.
+- `walk(value, path?)`: Recursively iterates through a structure and yields `[reactive, path]` for every reactive value found.
+- `expand(value)`: Recursively resolves all reactive values within a structure to their plain values.
 
-Differences with larger state managers
---------------------------------------
+### Reactive instance API (Cell / Selected / Derivation):
+
+- `value`: The current plain value of the reactive instance.
+- `revision`: An integer that increments whenever the value changes.
+- `length`: Returns the length of the underlying value if it is a collection.
+- `get(key?)`: Returns a child value by key, or the full value if no key is provided.
+- `map(functor)`: Returns a new array by applying the functor to each element of the underlying value.
+- `set(value, path?, force?)`: Updates the value (optionally at a specific path) and notifies subscribers.
+- `select(path)`: Returns a `Selected` instance linked to the specified path.
+- `sub(handler)`: Subscribes a handler to receive updates `(value, path, origin)`.
+- `unsub(handler)`: Unsubscribes a previously registered handler.
+- `pub(value, path?, origin?)`: Manually publishes an update to all subscribers.
+- `push(value)`: Appends a value to the underlying array (`Cell` only).
+- `refresh()`: Re-evaluates the value from the source (`Selected` and `Derivation` only).
+
+### Differences with larger state managers
 
 - No scheduler or hidden batching layer by default
 - Path-oriented updates and subscriptions are first-class
 - Can be embedded in plain objects and arrays
 - Small API surface designed for composition with Select/UI
 
-Using
------
+### Using
 
 ```javascript
 import cell, { derived } from "@./select.cells.js"
@@ -74,8 +69,7 @@ name.sub((value) => console.log("name changed:", value))
 state.set("Grace", ["user", "profile", "name"])
 ```
 
-Extending
----------
+### Extending
 
 Cells are designed to stay small. Prefer extension by composition:
 wrap `cell()` and `derived()` in module-specific helpers for domain state.
@@ -90,67 +84,30 @@ export const counter = (initial = 0) => {
 }
 ```
 
-Contributing
-------------
+### API
 
-If you'd like to improve Select Cells, open an issue or pull request at
-<http://github.com/sebastien/select.js>. Performance and memory footprint
-improvements are especially welcome.
+### The `cell` module:
 
-API
----
+- `cell(value?)`: Creates a mutable reactive `Cell` instance.
+- `derived(template, processor?, initial?)`: Creates a reactive derivation from a template containing cells.
+- `walk(value, path?)`: Iterates through nested values and yields `[reactive, path]` entries.
+- `expand(value)`: Recursively expands reactive values to plain values.
+- `access(context, path, offset?)`: Reads a nested value from `context` by path.
+- `assign(scope, path, value, merge?, offset?)`: Writes a nested value by path, creating intermediate containers as needed.
+- `Cell`: Exported reactive class used for root mutable state.
+- `Selected`: Exported reactive class used for path-based selections.
+- `Reactive`: Base class for all reactive primitives.
 
-The `cell` module
------------------
+### Reactive behavior:
 
-`cell(value?)`
-
-: Creates a mutable reactive `Cell` instance.
-
-`derived(template, processor?, initial?)`
-
-: Creates a reactive derivation from a template containing cells. Derivations
-  recompute when source cells publish updates.
-
-`Cell` / `Selected`
-
-: Exported reactive classes used by `cell()` and path selections.
-
-`walk(value, path?)`
-
-: Iterates through nested values and yields `[reactive, path]` entries.
-
-`expand(value)`
-
-: Recursively expands reactive values to plain values.
-
-`access(context, path, offset?)`
-
-: Reads a nested value from `context` by path.
-
-`assign(scope, path, value, merge?, offset?)`
-
-: Writes a nested value by path, creating intermediate containers as needed.
-
-Reactive behavior
------------------
-
-`reactive.sub(handler)` / `reactive.unsub(handler)`
-
-: Subscribes/unsubscribes update handlers receiving `(value, path, origin)`.
-
-`reactive.select(path)`
-
-: Creates a `Selected` reactive value linked to a path in the parent value.
-
-`cell.set(value, path?, force?)`
-
-: Updates the cell value (optionally under a path) and publishes changes.
-
-`selected.refresh()`
-
-: Re-evaluates the selected path against parent state and publishes updates.
-
-`reactive.map(functor)` / `reactive.length`
-
-: Convenience collection-like helpers on reactive values.
+- `reactive.sub(handler)`: Subscribes an update handler receiving `(value, path, origin)`.
+- `reactive.unsub(handler)`: Unsubscribes a previously registered update handler.
+- `reactive.select(path)`: Creates a `Selected` reactive value linked to a path in the parent value.
+- `reactive.pub(value, path?, origin?)`: Manually triggers an update notification.
+- `reactive.map(functor)`: Convenience helper to map over collection values.
+- `reactive.get(key?)`: Retrieves a value or child value.
+- `cell.set(value, path?, force?)`: Updates the cell value (optionally under a path) and publishes changes.
+- `cell.push(value)`: Appends a value to an underlying array cell.
+- `selected.refresh()`: Re-evaluates the selected path against parent state and publishes updates.
+- `selected.set(value, path?, force?)`: Updates the parent cell through this selection.
+- `derivation.refresh()`: Forces re-computation of a derived value.
