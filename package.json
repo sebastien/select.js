@@ -20,6 +20,7 @@
     "url": "https://github.com/sebastien/select.js/issues"
   },
   "scripts": {
+    "build": "make dist",
     "bench:inspector": "node benchmarks/inspector/run-compare.mjs",
     "bench:inspector:chrome": "node benchmarks/inspector/run-node.js"
   },
