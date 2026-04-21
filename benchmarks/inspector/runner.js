@@ -39,7 +39,7 @@ export const createBenchmarkRunner = ({ framework, root, createApp }) => ({
 		};
 
 		const initialStartedAt = performance.now();
-		const app = await createApp(root, initialValue);
+		const app = await createApp(root, initialValue, options);
 		await settle();
 		const initialDuration = performance.now() - initialStartedAt;
 		const initialNodeCount = countDomNodes(root);

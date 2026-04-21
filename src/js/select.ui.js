@@ -27,6 +27,7 @@ export const len = (v) => {
 };
 
 const parser = new DOMParser();
+const SLOT_DEFAULT_KEY = "_";
 
 const _isPrunableWhitespaceText = (node) =>
 	node &&
@@ -908,10 +909,10 @@ class UISlot {
 	}
 
 	_clearMapped() {
-		for (const [k, v] of this.mapping.entries()) {
+		for (const v of this.mapping.values()) {
 			this._removeMappedValue(v);
-			this.mapping.delete(k);
 		}
+		this.mapping.clear();
 		this._listLength = 0;
 	}
 
@@ -1043,9 +1044,6 @@ class UISlot {
 				n.parentNode?.removeChild(n);
 			}
 		}
-		// We normalize the value... it's always going to be a list/map,
-		// the default item is `_`
-		const items = isList || isDict ? data : { _: data };
 		const kind = isList ? 1 : isDict ? 2 : 0;
 		if (this._kind !== undefined && this._kind !== kind) {
 			this._clearMapped();
@@ -1054,25 +1052,33 @@ class UISlot {
 		let previous = null;
 
 		if (isList) {
-			for (let i = 0; i < items.length; i++) {
-				previous = this._renderMapped(`${i}`, items[i], previous);
+			for (let i = 0; i < data.length; i++) {
+				previous = this._renderMapped(i, data[i], previous);
 			}
 			const previousLength = this._listLength || 0;
-			for (let i = items.length; i < previousLength; i++) {
-				const k = `${i}`;
-				const v = this.mapping.get(k);
+			for (let i = data.length; i < previousLength; i++) {
+				const v = this.mapping.get(i);
 				if (v !== undefined) {
+					this._removeMappedValue(v);
+					this.mapping.delete(i);
+				}
+			}
+			this._listLength = data.length;
+		} else if (isDict) {
+			for (const k in data) {
+				previous = this._renderMapped(k, data[k], previous);
+			}
+			for (const [k, v] of this.mapping.entries()) {
+				if (data[k] === undefined) {
 					this._removeMappedValue(v);
 					this.mapping.delete(k);
 				}
 			}
-			this._listLength = items.length;
+			this._listLength = 0;
 		} else {
-			for (const k in items) {
-				previous = this._renderMapped(k, items[k], previous);
-			}
+			previous = this._renderMapped(SLOT_DEFAULT_KEY, data, previous);
 			for (const [k, v] of this.mapping.entries()) {
-				if (items[k] === undefined) {
+				if (k !== SLOT_DEFAULT_KEY) {
 					this._removeMappedValue(v);
 					this.mapping.delete(k);
 				}
@@ -1520,7 +1526,7 @@ class UIInstance {
 			return this;
 		}
 		let same = !force;
-		const changedKeys = new Set();
+		let changedKeys = null;
 		if (!this.data) {
 			same = false;
 		} else if (same) {
@@ -1530,6 +1536,9 @@ class UIInstance {
 				if (!eq(existing, updated)) {
 					const renderer = this._getRenderer();
 					same = false;
+					if (!changedKeys) {
+						changedKeys = new Set();
+					}
 					changedKeys.add(k);
 					// We sub/unsub if there's a reactive cell in the update
 					if (existing?.isReactive) {
@@ -1545,7 +1554,7 @@ class UIInstance {
 			const merged = this.data && typeof this.data === "object"
 				? Object.assign(this.data, data)
 				: data;
-			this.render(merged, changedKeys.size > 0 ? changedKeys : null);
+			this.render(merged, changedKeys);
 		}
 		return this;
 	}

@@ -66,6 +66,92 @@ const Button = ui("#Button");
 ui(template) → .does(behavior) → .new() → .set(data) → .mount(target)
 ```
 
+### List Rendering
+
+Rendering collections of data is handled by returning an array of nested
+components (Applied Templates) from an `out` behavior.
+
+```javascript
+const Item = ui(`<li out="name"></li>`).does({
+  name: (self, { name }) => name,
+});
+
+const List = ui(`<ul out="items"></ul>`).does({
+  items: (self, { items }) => items.map(Item),
+});
+```
+
+When an array is returned to an `out` slot:
+1. Each item is matched to a DOM node (reusing existing nodes if keys/indices match).
+2. If the item is an `AppliedUITemplate`, a component instance is managed.
+3. If the item is a string/number, a text node is managed.
+4. If the item is a DOM Node, it is inserted directly.
+
+#### Efficient Mapping with `.map()`
+
+The `.map(data)` method on a component is a shorthand for `remap(data, v => Component(v))`.
+
+```javascript
+items: (self, { items }) => Item.map(items)
+```
+
+### Nested Templates
+
+Templates can be nested to create complex structures. You can define a child
+template and use it within a parent's behavior.
+
+#### DOM-Based Nesting
+
+When using `<template>` elements in your HTML, you can nest them to organize your UI components.
+
+```html
+<template id="TodoList">
+  <ul out="items"></ul>
+  <template id="TodoItem">
+    <li out="label"></li>
+  </template>
+</template>
+```
+
+To use the nested template, you simply select it by its ID. Select UI will find it even if it's inside another template's content.
+
+```javascript
+const TodoItem = ui("#TodoItem").does({
+  label: (self, { label }) => label,
+});
+
+const TodoList = ui("#TodoList").does({
+  items: (self, { items }) => items.map(TodoItem),
+});
+```
+
+#### Composition with Applied Templates
+
+You can also use standard `<slot>` elements for composition, allowing parents to
+inject content into children.
+
+```html
+<template id="Card">
+  <div class="card">
+    <div class="header"><slot name="header"></slot></div>
+    <div class="body"><slot></slot></div>
+  </div>
+</template>
+```
+
+```javascript
+const Card = ui("#Card");
+
+const Page = ui(`<div out="content"></div>`).does({
+  content: (self) => Card({
+    slots: {
+      header: ui(`<h3>Title</h3>`)(),
+      default: ui(`<p>Card content</p>`)()
+    }
+  })
+});
+```
+
 ## API Reference
 
 ### `ui(selection)`

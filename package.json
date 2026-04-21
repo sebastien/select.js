@@ -21,7 +21,8 @@
   },
   "scripts": {
     "build": "make dist",
-    "bench:inspector": "node benchmarks/inspector/run-compare.mjs",
+    "bench:inspector": "node scripts/bench-inspector.mjs",
+    "bench:inspector:happy": "node benchmarks/inspector/run-compare.mjs",
     "bench:inspector:chrome": "node benchmarks/inspector/run-node.js"
   },
   "devDependencies": {
@@ -29,5 +30,8 @@
     "happy-dom": "^20.9.0",
     "preact": "^10.29.1",
     "solid-js": "^1.9.12"
+  },
+  "dependencies": {
+    "playwright": "^1.59.1"
   }
 }

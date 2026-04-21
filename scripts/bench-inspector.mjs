@@ -18,7 +18,12 @@ const MIME_TYPES = {
 	".xml": "application/xml; charset=utf-8",
 };
 
-const FRAMEWORKS = ["preact", "solidjs", "ui"];
+const FRAMEWORKS = ["preact", "solidjs", "selectui"];
+const FRAMEWORK_LABELS = {
+	preact: "preact",
+	solidjs: "solidjs",
+	selectui: "select.ui",
+};
 
 const round = (value) => Number(value.toFixed(2));
 const roundNullable = (value) =>
@@ -254,7 +259,7 @@ const summarizeRuns = (framework, runs) => {
 		]),
 	);
 	return {
-		framework,
+		framework: FRAMEWORK_LABELS[framework] || framework,
 		runs: runs.length,
 		logs: runs[0]?.dataset.logCount || 0,
 		initialMs: round(average(runs.map((run) => run.initial.duration))),
@@ -453,7 +458,7 @@ const main = async () => {
 			(result) => result.framework === "preact",
 		);
 		const verificationSummary = verificationRuns.map((result) => ({
-			framework: result.framework,
+			framework: FRAMEWORK_LABELS[result.framework] || result.framework,
 			...compareSnapshots(baseline, result),
 		}));
 		const summaryVerification = summarizeVerification(verificationSummary);

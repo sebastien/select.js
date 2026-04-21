@@ -28,6 +28,19 @@ const doubled = derived([count], (val) => val * 2);
 console.log(doubled.value); // 20
 ```
 
+### Deferred Cells
+A `Deferred` cell is a mutable reactive value that delays its update by a specified amount of time. If multiple updates occur within that delay, only the last one is applied (debouncing).
+
+```javascript
+import { deferred } from "./select.cells.js";
+const query = deferred("", 300);
+query.sub((val) => console.log("Searching for:", val));
+
+query.set("h");
+query.set("he");
+query.set("hel"); // Only this will trigger the subscription after 300ms
+```
+
 ### Path-based Selection
 Cells support nested data structures. You can "select" a path within a cell to get a reactive view of that specific nested value.
 
@@ -80,6 +93,7 @@ state.set(2, "a.b");
 ### The `cell` module:
 
 - `cell(value?)`: Factory function to create a new `Cell` instance.
+- `deferred(value?, delay)`: Factory function to create a new `Deferred` cell instance for debounced updates.
 - `derived(template, processor?, initial?)`: Factory function to create a new `Derivation` instance. `template` can be a cell, an array of cells, or a function.
 - `access(context, path, offset?)`: Utility to read a nested value from a plain object/array by path.
 - `assign(scope, path, value, merge?, offset?)`: Utility to write a nested value by path into a plain object/array.
@@ -129,8 +143,12 @@ Select Cells is the primary state engine for `select.ui.js`.
 
 ```javascript
 const Counter = ui(`<div>Count: <span out="count"></span></div>`)
-    .init(() => ({ count: cell(0) }))
+    .init(() => {
+        const count = cell(0)
+        const doubled = derived([count], (value) => value * 2)
+        return { count, doubled }
+    })
     .does({
-        count: (self, { count }) => count.value
+        count: (self, { count, doubled }) => `${count.value} (x2: ${doubled.value})`
     });
 ```

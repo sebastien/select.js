@@ -1425,6 +1425,23 @@ class Cell extends Reactive {
   }
 }
 
+class Deferred extends Cell {
+  constructor(value = Nothing, delay = 0) {
+    super(value);
+    this.delay = delay;
+    this._timer = null;
+  }
+  set(value, path = Nothing, force = false) {
+    if (this._timer) {
+      clearTimeout(this._timer);
+    }
+    this._timer = setTimeout(() => {
+      this._timer = null;
+      this._update(value, path, force);
+    }, this.delay);
+  }
+}
+
 class Derivation extends Reactive {
   constructor(template, processor = undefined, initial = true) {
     super();
@@ -1466,10 +1483,13 @@ var expand = Reactive.Expand;
 function cell(value) {
   return new Cell(value);
 }
+function deferred(value, delay) {
+  return new Deferred(value, delay);
+}
 function derived(template, processor, initial) {
   return new Derivation(template, processor, initial);
 }
-var select_cells_default = cell;
+var select_cells_default = Object.assign(cell, { deferred, derived, walk, expand });
 // src/js/select.ui.js
 var len = (v) => {
   if (v === undefined || v === null) {
@@ -1486,6 +1506,21 @@ var len = (v) => {
   return 1;
 };
 var parser = new DOMParser;
+var SLOT_DEFAULT_KEY = "_";
+var _isPrunableWhitespaceText = (node) => node && node.nodeType === Node.TEXT_NODE && !/\S/.test(node.data) && /[\n\r\t]/.test(node.data);
+var _pruneTemplateWhitespace = (node) => {
+  if (!node || !node.childNodes || node.childNodes.length === 0) {
+    return;
+  }
+  for (let i = node.childNodes.length - 1;i >= 0; i--) {
+    const child = node.childNodes[i];
+    if (_isPrunableWhitespaceText(child)) {
+      node.removeChild(child);
+    } else {
+      _pruneTemplateWhitespace(child);
+    }
+  }
+};
 var type = Object.assign((value) => value === undefined || value === null ? type.Null : Array.isArray(value) ? type.List : Object.getPrototypeOf(value) === Object.prototype ? type.Dict : typeof value === "number" ? type.Number : typeof value === "string" ? type.String : typeof value === "boolean" ? type.Boolean : type.Object, {
   Null: 1,
   Number: 2,
@@ -1499,7 +1534,12 @@ var remap = (value, f) => {
   if (value === null || value === undefined || typeof value === "number" || typeof value === "string") {
     return value;
   } else if (Array.isArray(value)) {
-    return value.map(f);
+    const n = value.length;
+    const res = new Array(n);
+    for (let i = 0;i < n; i++) {
+      res[i] = f(value[i], i);
+    }
+    return res;
   } else if (value instanceof Map) {
     const res = new Map;
     for (const [k, v] of value.entries()) {
@@ -1520,7 +1560,52 @@ var remap = (value, f) => {
     return res;
   }
 };
-var eq = (a, b) => a === b;
+var isPlainObject = (v) => v !== null && v !== undefined && typeof v === "object" && Object.getPrototypeOf(v) === Object.prototype;
+var eq = (a, b) => {
+  if (a === b) {
+    return true;
+  }
+  if (isPlainObject(a) && isPlainObject(b)) {
+    return shallowEq(a, b);
+  }
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) {
+      return false;
+    }
+    for (let i = 0;i < a.length; i++) {
+      if (a[i] !== b[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+};
+var shallowEq = (a, b) => {
+  if (a === b) {
+    return true;
+  }
+  if (a === null || a === undefined || b === null || b === undefined || typeof a !== "object" || typeof b !== "object" || Array.isArray(a) || Array.isArray(b)) {
+    return false;
+  }
+  let count = 0;
+  for (const k in a) {
+    if (!Object.prototype.hasOwnProperty.call(a, k)) {
+      continue;
+    }
+    count++;
+    if (!Object.prototype.hasOwnProperty.call(b, k) || a[k] !== b[k]) {
+      return false;
+    }
+  }
+  let countB = 0;
+  for (const k in b) {
+    if (Object.prototype.hasOwnProperty.call(b, k)) {
+      countB++;
+    }
+  }
+  return count === countB;
+};
 var asText = (value) => {
   value = expand(value);
   return value === null || value === undefined ? "" : typeof value === "number" ? `${value}` : typeof value === "string" ? value : JSON.stringify(value);
@@ -1538,7 +1623,9 @@ var isInputNode = (node) => {
 var setNodeText = (node, text) => {
   switch (node.nodeType) {
     case Node.TEXT_NODE:
-      node.data = text;
+      if (node.data !== text) {
+        node.data = text;
+      }
       break;
     case Node.ELEMENT_NODE:
       if (isInputNode(node)) {
@@ -1546,7 +1633,9 @@ var setNodeText = (node, text) => {
           node.value = text;
         }
       } else {
-        node.textContent = text;
+        if (node.textContent !== text) {
+          node.textContent = text;
+        }
       }
       break;
   }
@@ -1627,18 +1716,22 @@ class UITemplateSlot {
     this.node = node;
     this.parent = parent;
     this.path = path;
+    this.rootIndex = path[0];
+    this.tailPath = path.length > 1 ? path.slice(1) : null;
     this.predicate = undefined;
     this.predicatePlaceholder = undefined;
   }
-  apply(nodes, parent, raw = false) {
-    let node = nodes;
-    for (const i of this.path) {
-      if (Array.isArray(node)) {
-        node = node[i];
-      } else {
-        node = node ? node.childNodes[i] : node;
+  _resolve(nodes) {
+    let node = nodes[this.rootIndex];
+    if (this.tailPath) {
+      for (let i = 0;i < this.tailPath.length; i++) {
+        node = node ? node.childNodes[this.tailPath[i]] : node;
       }
     }
+    return node;
+  }
+  apply(nodes, parent, raw = false) {
+    const node = this._resolve(nodes);
     return node ? raw ? node : new UISlot(node, this, parent) : null;
   }
   static FindAttr(prefix, nodes) {
@@ -1713,19 +1806,23 @@ class UIAttributeTemplateSlot {
     this.node = node;
     this.parent = parent;
     this.path = path;
+    this.rootIndex = path[0];
+    this.tailPath = path.length > 1 ? path.slice(1) : null;
     this.attrName = attrName;
     this.slotName = slotName;
     this.originalValue = originalValue;
   }
-  apply(nodes, parent) {
-    let node = nodes;
-    for (const i of this.path) {
-      if (Array.isArray(node)) {
-        node = node[i];
-      } else {
-        node = node ? node.childNodes[i] : node;
+  _resolve(nodes) {
+    let node = nodes[this.rootIndex];
+    if (this.tailPath) {
+      for (let i = 0;i < this.tailPath.length; i++) {
+        node = node ? node.childNodes[this.tailPath[i]] : node;
       }
     }
+    return node;
+  }
+  apply(nodes, parent) {
+    const node = this._resolve(nodes);
     return node ? new UIAttributeSlot(node, this, parent) : null;
   }
 }
@@ -1845,18 +1942,22 @@ class UIEventTemplateSlot {
     this.node = node;
     this.parent = parent;
     this.path = path;
+    this.rootIndex = path[0];
+    this.tailPath = path.length > 1 ? path.slice(1) : null;
     this.eventType = eventType;
     this.handlerName = handlerName;
   }
-  apply(nodes, parent) {
-    let node = nodes;
-    for (const i of this.path) {
-      if (Array.isArray(node)) {
-        node = node[i];
-      } else {
-        node = node ? node.childNodes[i] : node;
+  _resolve(nodes) {
+    let node = nodes[this.rootIndex];
+    if (this.tailPath) {
+      for (let i = 0;i < this.tailPath.length; i++) {
+        node = node ? node.childNodes[this.tailPath[i]] : node;
       }
     }
+    return node;
+  }
+  apply(nodes, parent) {
+    const node = this._resolve(nodes);
     return node ? new UIEventSlot(node, this, parent) : null;
   }
 }
@@ -1878,6 +1979,7 @@ class UITemplate {
     this.in = UITemplateSlot.Find("in", nodes);
     this.out = UITemplateSlot.Find("out", nodes);
     this.inout = UITemplateSlot.Find("inout", nodes);
+    this.hasBindings = !!(this.on || this.in || this.inout);
     this.ref = UITemplateSlot.Find("ref", nodes);
     this.when = UITemplateSlot.Find("when", nodes, (slot, expr) => {
       slot.predicate = new Function(`return ((self,data,event)=>(${expr}))`)();
@@ -1909,11 +2011,16 @@ class UITemplate {
         const placeholder = document.createComment(`slot:${name}`);
         if (slotNode === root) {
           nodes[i] = placeholder;
-          slots.push({ name, fallback, path: [i] });
+          slots.push({ name, fallback, rootIndex: i, tailPath: null });
         } else {
           slotNode.parentNode.replaceChild(placeholder, slotNode);
           const path = UITemplateSlot.Path(placeholder, root, [i]);
-          slots.push({ name, fallback, path });
+          slots.push({
+            name,
+            fallback,
+            rootIndex: path[0],
+            tailPath: path.length > 1 ? path.slice(1) : null
+          });
         }
       }
     }
@@ -1926,7 +2033,7 @@ class UITemplate {
     return new AppliedUITemplate(this, data);
   }
   map(data) {
-    return remap(data, (_) => new AppliedUITemplate(this, data));
+    return remap(data, (v) => new AppliedUITemplate(this, v));
   }
   init(init) {
     this.initializer = init;
@@ -1962,32 +2069,42 @@ class UISlot {
   constructor(node, template, parent) {
     this.parent = parent;
     this.node = node;
+    this.isInput = isInputNode(node);
     this.mapping = new Map;
-    this.placeholder = node.childNodes ? [...node.childNodes] : null;
+    this.placeholder = node.childNodes && node.childNodes.length > 0 ? [...node.childNodes] : null;
+    this._extractedSlots = undefined;
+    this._hasNamedSlotContent = undefined;
     this.predicatePlaceholder = template.predicate && template.predicatePlaceholder ? template.predicatePlaceholder.cloneNode(true) : null;
     this.template = template;
   }
   _mountInstance(instance, nextNode) {
+    const fragment = document.createDocumentFragment();
+    for (let i = 0;i < instance.nodes.length; i++) {
+      fragment.appendChild(instance.nodes[i]);
+    }
     if (nextNode && nextNode.parentNode === this.node) {
-      for (let i = instance.nodes.length - 1;i >= 0; i--) {
-        this.node.insertBefore(instance.nodes[i], nextNode);
-      }
+      this.node.insertBefore(fragment, nextNode);
     } else {
-      for (const n of instance.nodes) {
-        this.node.appendChild(n);
-      }
+      this.node.appendChild(fragment);
     }
   }
   _extractSlots() {
-    if (!this.placeholder)
-      return {};
+    if (this._extractedSlots !== undefined) {
+      return this._extractedSlots;
+    }
+    if (!this.placeholder) {
+      this._extractedSlots = null;
+      return null;
+    }
     const slots = {};
+    let hasSlots = false;
     const scan = (node) => {
       if (node.nodeType === Node.ELEMENT_NODE && node.hasAttribute("slot")) {
         const name = node.getAttribute("slot");
         const clone = node.cloneNode(true);
         clone.removeAttribute("slot");
         slots[name] = clone;
+        hasSlots = true;
       }
       if (node.querySelectorAll) {
         for (const child of node.querySelectorAll("[slot]")) {
@@ -1998,18 +2115,153 @@ class UISlot {
     for (const node of this.placeholder) {
       scan(node);
     }
-    return slots;
+    this._extractedSlots = hasSlots ? slots : null;
+    return this._extractedSlots;
   }
   _mergeSlots(item) {
+    const providedSlots = item.data?.slots;
+    if (!providedSlots && !this._hasSlotContent()) {
+      return item.data;
+    }
     const extracted = this._extractSlots();
-    if (item.data?.slots) {
-      return { ...item.data, slots: { ...extracted, ...item.data.slots } };
+    if (providedSlots && extracted) {
+      return { ...item.data, slots: { ...extracted, ...providedSlots } };
+    } else if (providedSlots) {
+      return item.data;
+    } else if (!extracted) {
+      return item.data;
     }
     return { ...item.data, slots: extracted };
   }
+  _hasSlotContent() {
+    if (this._hasNamedSlotContent !== undefined) {
+      return this._hasNamedSlotContent;
+    }
+    if (!this.placeholder || this.placeholder.length === 0) {
+      this._hasNamedSlotContent = false;
+      return false;
+    }
+    for (let i = 0;i < this.placeholder.length; i++) {
+      const node = this.placeholder[i];
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        continue;
+      }
+      if (node.hasAttribute("slot") || node.querySelector("[slot]")) {
+        this._hasNamedSlotContent = true;
+        return true;
+      }
+    }
+    this._hasNamedSlotContent = false;
+    return false;
+  }
+  _removeMappedValue(v) {
+    if (v instanceof UIInstance) {
+      v.unmount();
+    } else if (v !== this.node) {
+      v.parentNode?.removeChild(v);
+    }
+  }
+  _clearMapped() {
+    for (const v of this.mapping.values()) {
+      this._removeMappedValue(v);
+    }
+    this.mapping.clear();
+    this._listLength = 0;
+  }
+  _renderMapped(k, item, previous) {
+    const existing = this.mapping.get(k);
+    if (existing === undefined) {
+      let r;
+      if (item instanceof AppliedUITemplate) {
+        const data = this._mergeSlots(item);
+        r = item.template.new(this.parent);
+        r.set(data, k).mount(this.node, previous);
+        previous = r.nodes[r.nodes.length - 1];
+      } else if (this.isInput) {
+        setNodeText(this.node, asText(item));
+        r = this.node;
+      } else if (item instanceof Node) {
+        this.node.appendChild(item);
+        r = item;
+      } else {
+        r = document.createTextNode(asText(item));
+        this.node.appendChild(r);
+        previous = r;
+      }
+      this.mapping.set(k, r);
+    } else {
+      const r = existing;
+      if (r instanceof UIInstance) {
+        if (item instanceof AppliedUITemplate) {
+          if (item.template === r.template) {
+            r.update(item.data);
+          } else {
+            const data = this._mergeSlots(item);
+            const lastNode = r.nodes[r.nodes.length - 1];
+            const nextNode = lastNode ? lastNode.nextSibling : null;
+            r.unmount();
+            const newInstance = item.template.new(this.parent);
+            newInstance.set(data, k);
+            this._mountInstance(newInstance, nextNode);
+            this.mapping.set(k, newInstance);
+          }
+        } else {
+          r.update(item);
+        }
+      } else if (this.isInput) {
+        setNodeText(this.node, asText(item));
+      } else if (r?.nodeType === Node.ELEMENT_NODE) {
+        if (item instanceof AppliedUITemplate) {
+          const data = this._mergeSlots(item);
+          const nextNode = r.nextSibling;
+          r.parentNode.removeChild(r);
+          const newInstance = item.template.new(this.parent);
+          newInstance.set(data, k);
+          this._mountInstance(newInstance, nextNode);
+          this.mapping.set(k, newInstance);
+        } else if (item instanceof Node) {
+          r.parentNode.replaceChild(item, r);
+          this.mapping.set(k, item);
+        } else {
+          const t = document.createTextNode(asText(item));
+          r.parentNode.replaceChild(t, r);
+          this.mapping.set(k, t);
+        }
+      } else {
+        if (item instanceof AppliedUITemplate) {
+          const data = this._mergeSlots(item);
+          const nextNode = r.nextSibling;
+          r.parentNode.removeChild(r);
+          const newInstance = item.template.new(this.parent);
+          newInstance.set(data, k);
+          this._mountInstance(newInstance, nextNode);
+          this.mapping.set(k, newInstance);
+        } else if (item instanceof Node) {
+          r.parentNode.replaceChild(item, r);
+          this.mapping.set(k, item);
+        } else {
+          setNodeText(r, asText(item));
+        }
+      }
+    }
+    return previous;
+  }
   render(data) {
-    const t = type(data);
-    if (len(data) === 0) {
+    const isList = Array.isArray(data);
+    const isDict = !isList && data !== null && data !== undefined && Object.getPrototypeOf(data) === Object.prototype;
+    let isEmpty = data === null || data === undefined || data === "";
+    if (isList) {
+      isEmpty = data.length === 0;
+    } else if (isDict) {
+      isEmpty = true;
+      for (const k in data) {
+        if (Object.prototype.hasOwnProperty.call(data, k)) {
+          isEmpty = false;
+          break;
+        }
+      }
+    }
+    if (isEmpty) {
       if (this.placeholder && !this.placeholder[0]?.parentNode) {
         let previous2 = this.node.childNodes[0];
         for (const node of this.placeholder) {
@@ -2026,97 +2278,45 @@ class UISlot {
         n.parentNode?.removeChild(n);
       }
     }
-    const items = t === type.List || t === type.Dict ? data : { _: data };
+    const kind = isList ? 1 : isDict ? 2 : 0;
+    if (this._kind !== undefined && this._kind !== kind) {
+      this._clearMapped();
+    }
+    this._kind = kind;
     let previous = null;
-    for (const k in items) {
-      const item = items[k];
-      if (!this.mapping.has(k)) {
-        let r;
-        if (item instanceof AppliedUITemplate) {
-          const data2 = this._mergeSlots(item);
-          r = item.template.new(this.parent);
-          r.set(data2, k).mount(this.node, previous);
-          previous = r.nodes.at(-1);
-        } else if (isInputNode(this.node)) {
-          setNodeText(this.node, asText(item));
-          r = this.node;
-        } else if (item instanceof Node) {
-          this.node.appendChild(item);
-          r = item;
-        } else {
-          r = document.createTextNode(asText(item));
-          this.node.appendChild(r);
-          previous = r;
-        }
-        this.mapping.set(k, r);
-      } else {
-        const r = this.mapping.get(k);
-        if (r instanceof UIInstance) {
-          if (item instanceof AppliedUITemplate) {
-            if (item.template === r.template) {
-              r.set(item.data, k);
-            } else {
-              const data2 = this._mergeSlots(item);
-              const nextNode = r.nodes.at(-1)?.nextSibling;
-              r.unmount();
-              const newInstance = item.template.new(this.parent);
-              newInstance.set(data2, k);
-              this._mountInstance(newInstance, nextNode);
-              this.mapping.set(k, newInstance);
-            }
-          } else {
-            r.set(item, k);
-          }
-        } else if (isInputNode(this.node)) {
-          setNodeText(this.node, asText(item));
-        } else if (r?.nodeType === Node.ELEMENT_NODE) {
-          if (item instanceof AppliedUITemplate) {
-            const data2 = this._mergeSlots(item);
-            const nextNode = r.nextSibling;
-            r.parentNode.removeChild(r);
-            const newInstance = item.template.new(this.parent);
-            newInstance.set(data2, k);
-            this._mountInstance(newInstance, nextNode);
-            this.mapping.set(k, newInstance);
-          } else if (item instanceof Node) {
-            r.parentNode.replaceChild(item, r);
-            this.mapping.set(k, item);
-          } else {
-            const t2 = document.createTextNode(asText(item));
-            r.parentNode.replaceChild(t2, r);
-            this.mapping.set(k, t2);
-          }
-        } else {
-          if (item instanceof AppliedUITemplate) {
-            const data2 = this._mergeSlots(item);
-            const nextNode = r.nextSibling;
-            r.parentNode.removeChild(r);
-            const newInstance = item.template.new(this.parent);
-            newInstance.set(data2, k);
-            this._mountInstance(newInstance, nextNode);
-            this.mapping.set(k, newInstance);
-          } else if (item instanceof Node) {
-            r.parentNode.replaceChild(item, r);
-            this.mapping.set(k, item);
-          } else {
-            setNodeText(r, asText(item));
-          }
+    if (isList) {
+      for (let i = 0;i < data.length; i++) {
+        previous = this._renderMapped(i, data[i], previous);
+      }
+      const previousLength = this._listLength || 0;
+      for (let i = data.length;i < previousLength; i++) {
+        const v = this.mapping.get(i);
+        if (v !== undefined) {
+          this._removeMappedValue(v);
+          this.mapping.delete(i);
         }
       }
-    }
-    const to_clear = [];
-    for (const [k, v] of this.mapping.entries()) {
-      if (items[k] === undefined) {
-        if (v instanceof UIInstance) {
-          v.unmount();
-        } else if (v !== this.node) {
-          v.parentNode?.removeChild(v);
-        }
-        to_clear.push(k);
+      this._listLength = data.length;
+    } else if (isDict) {
+      for (const k in data) {
+        previous = this._renderMapped(k, data[k], previous);
       }
-    }
-    for (const k of to_clear) {
-      this.mapping.delete(k);
+      for (const [k, v] of this.mapping.entries()) {
+        if (data[k] === undefined) {
+          this._removeMappedValue(v);
+          this.mapping.delete(k);
+        }
+      }
+      this._listLength = 0;
+    } else {
+      previous = this._renderMapped(SLOT_DEFAULT_KEY, data, previous);
+      for (const [k, v] of this.mapping.entries()) {
+        if (k !== SLOT_DEFAULT_KEY) {
+          this._removeMappedValue(v);
+          this.mapping.delete(k);
+        }
+      }
+      this._listLength = 0;
     }
   }
   show() {
@@ -2141,14 +2341,50 @@ class UIContentSlot {
     this.name = name;
     this.content = null;
     this.fallbackActive = false;
+    this._lastWasFallback = false;
+    this._lastContent = undefined;
+    this._lastContentType = 0;
   }
   mount(content) {
-    this._clear();
-    if (content) {
-      this._mountContent(content);
-    } else if (this.fallback.length) {
-      this._mountFallback();
+    if (!content) {
+      if (this.fallback.length) {
+        if (!this._lastWasFallback) {
+          this._clear();
+          this._mountFallback();
+        }
+        this._lastWasFallback = true;
+        this._lastContent = undefined;
+        this._lastContentType = 0;
+        return;
+      }
+      if (this._lastWasFallback || this.content) {
+        this._clear();
+      }
+      this._lastWasFallback = false;
+      this._lastContent = undefined;
+      this._lastContentType = 0;
+      return;
     }
+    const contentType = content instanceof AppliedUITemplate ? 1 : content instanceof Node ? 2 : 3;
+    if (contentType === 1) {
+      if (this.content instanceof UIInstance && this.content.template === content.template && shallowEq(this._lastContent, content.data)) {
+        this._lastWasFallback = false;
+        this._lastContent = content.data;
+        this._lastContentType = contentType;
+        return;
+      }
+    } else if (contentType === 2) {
+      if (this.content === content && !this._lastWasFallback) {
+        return;
+      }
+    } else if (this._lastContentType === 3 && this._lastContent === content && !this._lastWasFallback) {
+      return;
+    }
+    this._clear();
+    this._mountContent(content);
+    this._lastWasFallback = false;
+    this._lastContent = contentType === 1 ? content.data : content;
+    this._lastContentType = contentType;
   }
   _mountContent(content) {
     const parent = this.placeholder.parentNode;
@@ -2194,59 +2430,107 @@ class UIContentSlot {
       }
       this.fallbackActive = false;
     }
+    this._lastWasFallback = false;
+    this._lastContent = undefined;
+    this._lastContentType = 0;
   }
 }
+
 class UIInstance {
+  static _compileSlotApplier(slots, rawSingle = false) {
+    if (!slots) {
+      return null;
+    }
+    const keys = [];
+    const groups = [];
+    for (const key in slots) {
+      keys.push(key);
+      groups.push(slots[key]);
+    }
+    if (keys.length === 0) {
+      return null;
+    }
+    return (nodes, parent) => {
+      const res = {};
+      for (let i = 0;i < keys.length; i++) {
+        const source = groups[i];
+        const mapped = new Array(source.length);
+        for (let j = 0;j < source.length; j++) {
+          mapped[j] = source[j].apply(nodes, parent, rawSingle);
+        }
+        res[keys[i]] = rawSingle && mapped.length === 1 ? mapped[0] : mapped;
+      }
+      return res;
+    };
+  }
+  static _ensureCompiled(template) {
+    if (template._compiledSlotAppliers) {
+      return template._compiledSlotAppliers;
+    }
+    template._compiledSlotAppliers = {
+      in: UIInstance._compileSlotApplier(template.in),
+      out: UIInstance._compileSlotApplier(template.out),
+      inout: UIInstance._compileSlotApplier(template.inout),
+      ref: UIInstance._compileSlotApplier(template.ref, true),
+      on: UIInstance._compileSlotApplier(template.on),
+      when: UIInstance._compileSlotApplier(template.when),
+      outAttr: UIInstance._compileSlotApplier(template.outAttr)
+    };
+    return template._compiledSlotAppliers;
+  }
   constructor(template, parent) {
     this.template = template;
-    this.nodes = template.nodes.map((_) => _.cloneNode(true));
-    this.in = remap(template.in, (_) => remap(_, (_2) => _2.apply(this.nodes, this)));
-    this.out = remap(template.out, (_) => remap(_, (_2) => _2.apply(this.nodes, this)));
-    this.inout = remap(template.inout, (_) => remap(_, (_2) => _2.apply(this.nodes, this)));
-    this.ref = remap(template.ref, (_) => {
-      const r = remap(_, (_2) => _2.apply(this.nodes, this, true));
-      return r.length === 1 ? r[0] : r;
-    });
-    this.on = remap(template.on, (_) => remap(_, (_2) => _2.apply(this.nodes, this)));
-    this.when = remap(template.when, (_) => remap(_, (_2) => _2.apply(this.nodes, this)));
-    this.outAttr = remap(template.outAttr, (_) => remap(_, (_2) => _2.apply(this.nodes, this)));
-    this.slots = [];
+    const compiled = UIInstance._ensureCompiled(template);
+    this.nodes = new Array(template.nodes.length);
+    for (let i = 0;i < template.nodes.length; i++) {
+      this.nodes[i] = template.nodes[i].cloneNode(true);
+    }
+    this.in = compiled.in ? compiled.in(this.nodes, this) : null;
+    this.out = compiled.out ? compiled.out(this.nodes, this) : null;
+    this.inout = compiled.inout ? compiled.inout(this.nodes, this) : null;
+    this.ref = compiled.ref ? compiled.ref(this.nodes, this) : null;
+    this.on = compiled.on ? compiled.on(this.nodes, this) : null;
+    this.when = compiled.when ? compiled.when(this.nodes, this) : null;
+    this.outAttr = compiled.outAttr ? compiled.outAttr(this.nodes, this) : null;
+    this.slots = null;
     if (template.slots) {
+      this.slots = [];
       for (const slotDef of template.slots) {
-        let node = this.nodes;
-        for (const idx of slotDef.path) {
-          if (Array.isArray(node)) {
-            node = node[idx];
-          } else {
-            node = node ? node.childNodes[idx] : node;
+        let node = this.nodes[slotDef.rootIndex];
+        const tailPath = slotDef.tailPath;
+        if (tailPath) {
+          for (let i = 0;i < tailPath.length; i++) {
+            node = node ? node.childNodes[tailPath[i]] : node;
           }
         }
         if (node) {
           this.slots.push(new UIContentSlot(node, slotDef.fallback, this, slotDef.name));
         }
       }
+      if (this.slots.length === 0) {
+        this.slots = null;
+      }
     }
     this.parent = parent;
-    this.children = new Set;
-    parent?.children.add(this);
-    this._context = undefined;
-    this._ctxSubs = undefined;
-    this.data = undefined;
-    this.key = undefined;
-    this.dataType = type.Null;
-    this.rendered = new Map;
-    this.behavior = new Map;
-    this.predicate = undefined;
-    this.bind();
-    this.initial = undefined;
-    this._renderer = () => this.render();
+    this.children = undefined;
+    if (parent) {
+      if (!parent.children) {
+        parent.children = new Set;
+      }
+      parent.children.add(this);
+    }
+    if (template.hasBindings) {
+      this.bind();
+    }
+    this._renderer = undefined;
     if (template.initializer) {
       const state = template.initializer();
       if (state) {
+        const renderer = this._getRenderer();
         for (const k in state) {
           const v = state[k];
           if (v?.isReactive) {
-            v.sub(this._renderer);
+            v.sub(renderer);
           }
         }
         this.initial = state;
@@ -2254,12 +2538,19 @@ class UIInstance {
       this.set(state);
     }
   }
+  _getRenderer() {
+    if (!this._renderer) {
+      this._renderer = () => this.render();
+    }
+    return this._renderer;
+  }
   dispose() {
     if (this.initial) {
+      const renderer = this._renderer;
       for (const k in this.initial) {
         const v = this.initial[k];
-        if (v?.isReactive) {
-          v.unsub(this._renderer);
+        if (v?.isReactive && renderer) {
+          v.unsub(renderer);
         }
       }
     }
@@ -2269,11 +2560,14 @@ class UIInstance {
       }
       this._ctxSubs = undefined;
     }
-    for (const child of this.children) {
-      child.dispose();
+    if (this.children) {
+      for (const child of this.children) {
+        child.dispose();
+      }
+      this.children.clear();
+      this.children = undefined;
     }
-    this.children.clear();
-    this.parent?.children.delete(this);
+    this.parent?.children?.delete(this);
   }
   provide(key, value) {
     if (this._context === undefined) {
@@ -2356,8 +2650,20 @@ class UIInstance {
     return this;
   }
   update(data, force = false) {
+    if (data === undefined || data === null) {
+      if (force || this.data !== data) {
+        this.render(data);
+      }
+      return this;
+    }
+    if (typeof data !== "object") {
+      if (force || !eq(this.data, data)) {
+        this.render(data);
+      }
+      return this;
+    }
     let same = !force;
-    const changedKeys = new Set;
+    let changedKeys = null;
     if (!this.data) {
       same = false;
     } else if (same) {
@@ -2365,20 +2671,24 @@ class UIInstance {
         const existing = this.data[k];
         const updated = data[k];
         if (!eq(existing, updated)) {
+          const renderer = this._getRenderer();
           same = false;
+          if (!changedKeys) {
+            changedKeys = new Set;
+          }
           changedKeys.add(k);
           if (existing?.isReactive) {
-            existing.unsub(this._renderer);
+            existing.unsub(renderer);
           }
           if (updated?.isReactive) {
-            updated.sub(this._renderer);
+            updated.sub(renderer);
           }
         }
       }
     }
     if (!same) {
-      const merged = this.data ? Object.assign(this.data, data) : data;
-      this.render(merged, changedKeys.size > 0 ? changedKeys : null);
+      const merged = this.data && typeof this.data === "object" ? Object.assign(this.data, data) : data;
+      this.render(merged, changedKeys);
     }
     return this;
   }
@@ -2507,7 +2817,6 @@ class UIInstance {
       console.error("UIInstance.render() called on instance with undefined template", { instance: this });
       return this;
     }
-    const data_type = type(data);
     const isGranular = changedKeys !== null && changedKeys.size > 0;
     if (!(this.template.out || this.template.inout || this.template.in || this.template.outAttr)) {
       const text = asText(data);
@@ -2518,49 +2827,52 @@ class UIInstance {
         }
       }
     } else {
-      for (const set of [this.out, this.inout, this.in]) {
-        if (set) {
-          for (const k in set) {
-            let v;
-            const hasBehavior = this.template.behavior?.[k];
-            if (isGranular && this._behaviorDeps && this._behaviorValues) {
-              const deps = this._behaviorDeps.get(k);
-              if (deps && !this._depsChanged(deps, changedKeys)) {
-                v = this._behaviorValues.get(k);
-                for (const slot of set[k]) {
-                  slot.render(v);
-                }
-                continue;
+      const behavior = this.template.behavior;
+      const renderSet = (set) => {
+        if (!set) {
+          return;
+        }
+        for (const k in set) {
+          let v;
+          const hasBehavior = behavior?.[k];
+          if (isGranular && this._behaviorDeps && this._behaviorValues) {
+            const deps = this._behaviorDeps.get(k);
+            if (deps && !this._depsChanged(deps, changedKeys)) {
+              v = this._behaviorValues.get(k);
+              for (const slot of set[k]) {
+                slot.render(v);
               }
-            }
-            if (hasBehavior) {
-              const b = this.template.behavior[k];
-              if (isGranular) {
-                const [trackedData, accessed] = _createTrackingProxy(data);
-                v = b(this, trackedData, null);
-                if (!this._behaviorDeps) {
-                  this._behaviorDeps = new Map;
-                }
-                this._behaviorDeps.set(k, accessed);
-              } else {
-                v = b(this, data, null);
-              }
-            } else if (data && k in data) {
-              v = expand(data[k]);
-            } else {
-              v = undefined;
-            }
-            if (!this._behaviorValues) {
-              this._behaviorValues = new Map;
-            }
-            this._behaviorValues.set(k, v);
-            for (const slot of set[k]) {
-              slot.render(v);
+              continue;
             }
           }
+          if (hasBehavior) {
+            if (isGranular) {
+              const [trackedData, accessed] = _createTrackingProxy(data);
+              v = hasBehavior(this, trackedData, null);
+              if (!this._behaviorDeps) {
+                this._behaviorDeps = new Map;
+              }
+              this._behaviorDeps.set(k, accessed);
+              if (!this._behaviorValues) {
+                this._behaviorValues = new Map;
+              }
+              this._behaviorValues.set(k, v);
+            } else {
+              v = hasBehavior(this, data, null);
+            }
+          } else if (data && k in data) {
+            v = expand(data[k]);
+          } else {
+            v = undefined;
+          }
+          for (const slot of set[k]) {
+            slot.render(v);
+          }
         }
-      }
-      this.behavior.clear();
+      };
+      renderSet(this.out);
+      renderSet(this.inout);
+      renderSet(this.in);
       for (const k in this.when) {
         for (const slot of this.when[k]) {
           if (slot.template.predicate(this, data)) {
@@ -2572,19 +2884,14 @@ class UIInstance {
       }
       for (const k in this.outAttr) {
         let v;
-        if (this.template.behavior?.[k]) {
-          if (this.behavior.has(k)) {
-            v = this.behavior.get(k);
-          } else {
-            const b = this.template.behavior[k];
-            for (const slot of this.outAttr[k]) {
-              const attrValue = slot.node.getAttribute(slot.attrName);
-              v = b(this, data, attrValue, slot.node);
-              slot.render(v);
-            }
-            this.behavior.set(k, v);
-            continue;
+        const b = behavior?.[k];
+        if (b) {
+          for (const slot of this.outAttr[k]) {
+            const attrValue = slot.node.getAttribute(slot.attrName);
+            v = b(this, data, attrValue, slot.node);
+            slot.render(v);
           }
+          continue;
         } else if (data && k in data) {
           v = expand(data[k]);
         }
@@ -2600,7 +2907,6 @@ class UIInstance {
       }
     }
     this.data = data;
-    this.dataType = data_type;
     return this;
   }
 }
@@ -2630,6 +2936,7 @@ var ui = (selection, scope = document) => {
     let nodes = [];
     if (/\s*</.test(selection)) {
       const doc = parser.parseFromString(selection, "text/html");
+      _pruneTemplateWhitespace(doc.body);
       nodes = [...doc.body.childNodes];
     } else {
       for (const node of document.querySelectorAll(selection)) {
@@ -2731,6 +3038,7 @@ export {
   filter,
   expand,
   derived,
+  deferred,
   select_cells_default as cell,
   assign,
   access,
@@ -2738,6 +3046,7 @@ export {
   Selected,
   S,
   Dynamic,
+  Deferred,
   Cell,
   $
 };

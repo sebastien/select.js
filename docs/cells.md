@@ -9,8 +9,10 @@ and lightweight pub/sub.
 ### Primitives:
 
 - `cell(value?)`: Creates a mutable reactive `Cell` instance.
+- `deferred(value?, delay)`: Creates a mutable reactive `Deferred` cell that debounces updates by the given delay.
 - `derived(template, processor?, initial?)`: Creates a reactive derivation from a template containing cells.
 - `Cell` (class): The base class for mutable reactive values.
+- `Deferred` (class): A cell that delays and debounces its updates.
 - `Selected` (class): A reactive value linked to a specific path within a parent reactive value.
 - `Reactive` (class): The abstract base class for all reactive types.
 
@@ -89,12 +91,14 @@ export const counter = (initial = 0) => {
 ### The `cell` module:
 
 - `cell(value?)`: Creates a mutable reactive `Cell` instance.
+- `deferred(value?, delay)`: Creates a mutable reactive `Deferred` cell that debounces updates.
 - `derived(template, processor?, initial?)`: Creates a reactive derivation from a template containing cells.
 - `walk(value, path?)`: Iterates through nested values and yields `[reactive, path]` entries.
 - `expand(value)`: Recursively expands reactive values to plain values.
 - `access(context, path, offset?)`: Reads a nested value from `context` by path.
 - `assign(scope, path, value, merge?, offset?)`: Writes a nested value by path, creating intermediate containers as needed.
 - `Cell`: Exported reactive class used for root mutable state.
+- `Deferred`: Exported reactive class used for debounced state.
 - `Selected`: Exported reactive class used for path-based selections.
 - `Reactive`: Base class for all reactive primitives.
 

@@ -69,10 +69,10 @@ function setupGlobals(window) {
 	};
 }
 
-const _sharedWindow = new Window({
-	url: "http://localhost:8001/benchmarks/inspector/",
-});
-setupGlobals(_sharedWindow);
+const createBenchWindow = () =>
+	new Window({
+		url: "http://localhost:8001/benchmarks/inspector/",
+	});
 
 function gc() {
 	if (global.gc) {
@@ -109,8 +109,10 @@ async function runFramework(name) {
 	let nodeCount = 0;
 
 	for (let i = 0; i < RUNS; i++) {
-		const root = _sharedWindow.document.createElement("div");
-		_sharedWindow.document.body.appendChild(root);
+		const window = createBenchWindow();
+		setupGlobals(window);
+		const root = window.document.createElement("div");
+		window.document.body.appendChild(root);
 
 		gc();
 		const heapBefore = heapMB();
@@ -130,7 +132,10 @@ async function runFramework(name) {
 		nodeCount = result.initial.nodeCount;
 
 		// Clean up
+		globalThis._benchmarkApp?.dispose?.();
+		globalThis._benchmarkApp = null;
 		root.remove();
+		window.close?.();
 		gc();
 	}
 

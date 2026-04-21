@@ -403,6 +403,30 @@ export class Cell extends Reactive {
 
 // ----------------------------------------------------------------------------
 //
+// DEFERRED (DEBOUNCED WRITE)
+//
+// ----------------------------------------------------------------------------
+
+export class Deferred extends Cell {
+	constructor(value = Nothing, delay = 0) {
+		super(value);
+		this.delay = delay;
+		this._timer = null;
+	}
+
+	set(value, path = Nothing, force = false) {
+		if (this._timer) {
+			clearTimeout(this._timer);
+		}
+		this._timer = setTimeout(() => {
+			this._timer = null;
+			this._update(value, path, force);
+		}, this.delay);
+	}
+}
+
+// ----------------------------------------------------------------------------
+//
 // DERIVATION
 //
 // ----------------------------------------------------------------------------
@@ -467,9 +491,12 @@ export const expand = Reactive.Expand;
 export function cell(value) {
 	return new Cell(value);
 }
+export function deferred(value, delay) {
+	return new Deferred(value, delay);
+}
 export function derived(template, processor, initial) {
 	return new Derivation(template, processor, initial);
 }
-export default cell;
+export default Object.assign(cell, { deferred, derived, walk, expand });
 
 // EOF

@@ -13,13 +13,6 @@ if (!supported.has(framework)) {
 	process.exit(1);
 }
 
-const framework = process.argv[2] || "selectui";
-const supported = new Set(["preact", "solidjs", "selectui"]);
-if (!supported.has(framework)) {
-	console.error(`Unsupported framework "${framework}". Supported: ${[...supported].join(", ")}`);
-	process.exit(1);
-}
-
 const mimeTypes = {
 	".html": "text/html",
 	".js": "application/javascript",

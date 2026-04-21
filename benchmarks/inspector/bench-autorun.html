@@ -16,6 +16,19 @@
 	<div id="BenchmarkRoot"></div>
 	<pre id="Output">Running...</pre>
 
+	<script type="importmap">
+	{
+		"imports": {
+			"preact": "../../node_modules/preact/dist/preact.module.js",
+			"solid-js": "../../node_modules/solid-js/dist/solid.js",
+			"solid-js/store": "../../node_modules/solid-js/store/dist/store.js",
+			"solid-js/web": "../../node_modules/solid-js/web/dist/web.js",
+			"solid-js/h": "../../node_modules/solid-js/h/dist/h.js",
+			"solid-js/": "../../node_modules/solid-js/"
+		}
+	}
+	</script>
+
 	<script type="module">
 		import { createBenchmarkRunner, formatBenchmarkResult } from "./runner.js";
 
