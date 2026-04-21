@@ -31,9 +31,9 @@ high-performance and advanced features for complete web applications.
 
 You can learn more about each component:
 
-- **Select.js**: (jQuery-like library_ [manual](docs/select.md)
-- **Select.ui.js**: (UI component library) [manual](docs/ui.md) and [reference](docs/ref-ui.md)
-- **Select.cells.js**: (Reactive state library) [manual](docs/cells.md) and [reference](docs/ref-cells.md)
+- **Select.js**: jQuery-like library ― [manual](docs/select.md)
+- **Select.ui.js**: UI component library  ― [manual](docs/ui.md) & [reference](docs/ref-ui.md)
+- **Select.cells.js**: Reactive state library ― [manual](docs/cells.md) & [reference](docs/ref-cells.md)
 
 ## In a nutshell
 
