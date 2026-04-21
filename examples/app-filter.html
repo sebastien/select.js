@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI ― Filtered List</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/" } }
+	</script>
+	<style>
+		body {
+			font-family: system-ui, sans-serif;
+			padding: 20px;
+			max-width: 800px;
+			margin: 0 auto;
+		}
+
+		#ui {
+			border: 1px solid #ddd;
+			border-radius: 8px;
+			padding: 16px;
+			background: #fff;
+		}
+
+		input[type="text"],
+		input[type="search"],
+		input:not([type]) {
+			width: 100%;
+			padding: 8px 10px;
+			border: 1px solid #ccc;
+			border-radius: 4px;
+			box-sizing: border-box;
+			margin-bottom: 12px;
+		}
+
+		ul {
+			margin: 0;
+			padding-left: 20px;
+		}
+
+		li {
+			margin: 6px 0;
+		}
+
+		code {
+			background: #f3f3f3;
+			padding: 2px 6px;
+			border-radius: 3px;
+			margin-right: 6px;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Filtered List</h1>
+	<p>This app example renders a filterable list of countries with a reactive <code>inout</code> field.</p>
+
+	<div id="ui"></div>
+
+	<template id="Country">
+		<li>
+			<!-- TODO: name|format -->
+			<code out="code"></code>
+			<span out="name"></span>
+		</li>
+	</template>
+
+	<template id="FilteredList">
+		<!-- TODO: Support for input -->
+		<input inout="filter" placeholder="Filter by country name" />
+		<!-- TODO: items=data.field|format -->
+		<ul out="items">
+			<li when="!data.items?.length">Empty</li>
+		</ul>
+	</template>
+
+	<script type="module">
+		import ui from "@./select.ui.js"
+
+		const Country = ui("#Country").does({
+			name: (self, {name}) => name,
+			code: (self, {code}) => code,
+		})
+
+		const FilteredList = ui("#FilteredList").does({
+			items: (self, {items, filter}) => {
+				if (!items) {
+					return []
+				}
+				const query = (filter || "").trim().toLowerCase()
+				const filtered = query ? items.filter(_ => _.name.toLowerCase().includes(query)) : items
+				return filtered.map(_ => Country(_))
+			},
+			filter: (self, data, event) => event ? self.update({filter: event.target.value}) : data.filter,
+		})
+
+		const countries = await fetch("./app-filter.json").then(_ => _.json())
+		FilteredList.new().mount("#ui").set({items: countries, filter: "an"})
+	</script>
+</body>
+
+</html>

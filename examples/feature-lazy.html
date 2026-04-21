@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI — Lazy Loading</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/" } }
+	</script>
+	<style>
+		body {
+			font-family: system-ui, sans-serif;
+			padding: 20px;
+			max-width: 800px;
+			margin: 0 auto;
+		}
+
+		.heavy-component {
+			padding: 24px;
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			color: white;
+			border-radius: 8px;
+			text-align: center;
+		}
+
+		.placeholder {
+			padding: 24px;
+			background: #f0f0f0;
+			border-radius: 8px;
+			text-align: center;
+			color: #666;
+		}
+
+		.controls {
+			margin-bottom: 16px;
+		}
+
+		.controls button {
+			padding: 6px 12px;
+			margin-right: 8px;
+			border: 1px solid #ccc;
+			border-radius: 4px;
+			background: white;
+			cursor: pointer;
+		}
+
+		.controls button:hover {
+			background: #f5f5f5;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Lazy Component Loading</h1>
+	<p>This example demonstrates lazy loading a component via <code>lazy()</code>. The "heavy" component is loaded asynchronously and the parent polls for completion.</p>
+
+	<div id="App"></div>
+
+	<template id="App">
+		<div>
+			<div class="controls">
+				<button on:click="load">Load Heavy Component</button>
+				<button on:click="reset">Reset</button>
+			</div>
+			<div out="content"></div>
+		</div>
+	</template>
+
+	<script type="module">
+		import { ui, lazy } from "@./select.ui.js"
+
+		// Simulate an async component load
+		const HeavyComponentLoader = () =>
+			new Promise((resolve) => {
+				setTimeout(() => {
+					const Heavy = ui(`<div class="heavy-component">
+						<h2>Heavy Component Loaded!</h2>
+						<p>This component was loaded asynchronously after 1.5 seconds.</p>
+					</div>`)
+					resolve(Heavy)
+				}, 1500)
+			})
+
+		const HeavyComponent = lazy(HeavyComponentLoader, ui(`<div class="placeholder">Loading heavy component...</div>`)())
+
+		const App = ui("#App").does({
+			content: (self, data) => {
+				if (!data.loaded) {
+					return "Click 'Load Heavy Component' to start"
+				}
+				return HeavyComponent(data)
+			},
+			load: (self, data) => {
+				self.update({ loaded: true })
+				// Poll for lazy load completion
+				const poll = () => {
+					// HeavyComponent will return null until loaded
+					// We force a re-render every 100ms to check
+					if (self.data._pollActive) {
+						self.render()
+						requestAnimationFrame(poll)
+					}
+				}
+				self.update({ _pollActive: true })
+				poll()
+			},
+			reset: (self, data) => {
+				self.update({ loaded: false, _pollActive: false })
+			}
+		})
+
+		App.new().mount("#App")
+	</script>
+</body>
+
+</html>

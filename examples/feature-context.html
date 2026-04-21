@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI — Context / Provider-Inject</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/" } }
+	</script>
+	<style>
+		body {
+			font-family: system-ui, sans-serif;
+			padding: 20px;
+			max-width: 800px;
+			margin: 0 auto;
+		}
+
+		.theme-light {
+			--bg: #ffffff;
+			--fg: #212529;
+			--border: #dee2e6;
+			--accent: #007bff;
+			--muted: #6c757d;
+		}
+
+		.theme-dark {
+			--bg: #212529;
+			--fg: #f8f9fa;
+			--border: #495057;
+			--accent: #0d6efd;
+			--muted: #adb5bd;
+		}
+
+		.theme-warm {
+			--bg: #fff8f0;
+			--fg: #5c4033;
+			--border: #d4a574;
+			--accent: #c17817;
+			--muted: #8b6f47;
+		}
+
+		.app {
+			background: var(--bg);
+			color: var(--fg);
+			border: 1px solid var(--border);
+			border-radius: 8px;
+			padding: 20px;
+			transition: all 0.3s ease;
+		}
+
+		.layout {
+			border: 1px dashed var(--border);
+			border-radius: 6px;
+			padding: 16px;
+			margin-top: 12px;
+		}
+
+		.panel {
+			border: 1px solid var(--border);
+			border-radius: 4px;
+			padding: 12px;
+			margin-top: 8px;
+		}
+
+		.button {
+			background: var(--accent);
+			color: white;
+			border: none;
+			padding: 8px 16px;
+			border-radius: 4px;
+			cursor: pointer;
+			font-size: 14px;
+		}
+
+		.button:hover {
+			opacity: 0.9;
+		}
+
+		.label {
+			font-size: 12px;
+			color: var(--muted);
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			margin-bottom: 4px;
+		}
+
+		.controls {
+			margin-bottom: 16px;
+		}
+
+		.controls button {
+			padding: 6px 12px;
+			margin-right: 8px;
+			border: 1px solid #ccc;
+			border-radius: 4px;
+			background: white;
+			cursor: pointer;
+		}
+
+		.controls button:hover {
+			background: #f5f5f5;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Context / Provider-Inject</h1>
+	<p>This example demonstrates a theme Cell provided at the root and injected 4 levels deep, with automatic re-rendering on change.</p>
+
+	<div id="App"></div>
+
+	<template id="App">
+		<div class="app theme-light" out:class="themeClass">
+			<div class="controls">
+				<button on:click="setLight">Light</button>
+				<button on:click="setDark">Dark</button>
+				<button on:click="setWarm">Warm</button>
+			</div>
+			<h2>Application Root</h2>
+			<div out="layout"></div>
+		</div>
+	</template>
+
+	<template id="Layout">
+		<div class="layout">
+			<div class="label">Layout</div>
+			<div out="panel"></div>
+		</div>
+	</template>
+
+	<template id="Panel">
+		<div class="panel">
+			<div class="label">Panel</div>
+			<div out="button"></div>
+		</div>
+	</template>
+
+	<template id="ThemedButton">
+		<button class="button" on:click>
+			<span out="label">Button</span>
+		</button>
+	</template>
+
+	<script type="module">
+		import { ui } from "@./select.ui.js"
+		import { cell } from "@./select.cells.js"
+
+		const theme = cell("light")
+
+		const ThemedButton = ui("#ThemedButton").does({
+			label: (self, { label }) => {
+				// Inject theme 4 levels up, no prop drilling
+				const t = self.inject("theme")
+				return `${label} (theme: ${t?.value ?? "unknown"})`
+			},
+			click: (self, data, event) => {
+				self.send("ButtonClick", data)
+			}
+		})
+
+		const Panel = ui("#Panel").does({
+			button: (self, data) => ThemedButton({ label: "Click Me" })
+		}).sub({
+			ButtonClick: (self, data, event) => {
+				console.log("Panel received click from deep child:", event.data)
+			}
+		})
+
+		const Layout = ui("#Layout").does({
+			panel: (self, data) => Panel(data)
+		})
+
+		const App = ui("#App").init(() => ({
+			theme
+		})).does({
+			themeClass: (self, { theme }) => `theme-${theme?.value || "light"}`,
+			layout: (self, data) => Layout(data),
+			setLight: (self) => theme.set("light"),
+			setDark: (self) => theme.set("dark"),
+			setWarm: (self) => theme.set("warm")
+		})
+
+		// Provide the theme cell at the root
+		const app = App.new()
+		app.provide("theme", theme)
+		app.mount("#App")
+	</script>
+</body>
+
+</html>

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI — Memoization / Granular Re-render</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/" } }
+	</script>
+	<style>
+		body {
+			font-family: system-ui, sans-serif;
+			padding: 20px;
+			max-width: 800px;
+			margin: 0 auto;
+		}
+
+		.item {
+			display: flex;
+			align-items: center;
+			padding: 8px 12px;
+			border: 1px solid #ddd;
+			border-radius: 4px;
+			margin: 4px 0;
+			gap: 12px;
+		}
+
+		.item .id {
+			font-size: 12px;
+			color: #666;
+			min-width: 40px;
+		}
+
+		.item .value {
+			flex: 1;
+			font-weight: 500;
+		}
+
+		.item .render-count {
+			font-size: 11px;
+			color: #999;
+			background: #f0f0f0;
+			padding: 2px 6px;
+			border-radius: 3px;
+		}
+
+		.controls {
+			margin-bottom: 16px;
+			padding-bottom: 16px;
+			border-bottom: 1px solid #eee;
+		}
+
+		.controls button {
+			padding: 6px 12px;
+			margin-right: 8px;
+			border: 1px solid #ccc;
+			border-radius: 4px;
+			background: white;
+			cursor: pointer;
+		}
+
+		.controls button:hover {
+			background: #f5f5f5;
+		}
+
+		.stats {
+			font-size: 13px;
+			color: #666;
+			margin-bottom: 12px;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Granular Re-rendering</h1>
+	<p>This example demonstrates that only behaviors whose data dependencies changed are re-evaluated. Check the render counts — updating one item should not affect others.</p>
+
+	<div id="App"></div>
+
+	<template id="ListItem">
+		<div class="item">
+			<span class="id" out="id">0</span>
+			<span class="value" out="label">Item</span>
+			<span class="render-count" out="renderCount">0</span>
+			<button on:click="increment">+</button>
+		</div>
+	</template>
+
+	<template id="App">
+		<div>
+			<div class="controls">
+				<button on:click="addItem">Add Item</button>
+				<button on:click="randomUpdate">Random Update</button>
+				<button on:click="reset">Reset</button>
+			</div>
+			<div class="stats" out="stats"></div>
+			<div out="items"></div>
+		</div>
+	</template>
+
+	<script type="module">
+		import { ui } from "@./select.ui.js"
+
+		// Track render counts per item for demonstration
+		const renderCounts = new Map()
+
+		const ListItem = ui("#ListItem").does({
+			id: (self, { id }) => id,
+			label: (self, { label }) => label,
+			renderCount: (self, { id }) => {
+				renderCounts.set(id, (renderCounts.get(id) || 0) + 1)
+				return renderCounts.get(id)
+			},
+			increment: (self, { id, label }) => {
+				self.send("Increment", { id, label: label + "!" })
+			}
+		})
+
+		const App = ui("#App").does({
+			items: (self, { items }) => items ? items.map((item) => ListItem(item)) : [],
+			stats: (self, { items }) => {
+				const total = items ? items.length : 0
+				const totalRenders = [...renderCounts.values()].reduce((a, b) => a + b, 0)
+				return `${total} items | ${totalRenders} total behavior re-evaluations`
+			},
+			addItem: (self, { items }) => {
+				const next = (items || []).length + 1
+				self.update({ items: [...(items || []), { id: next, label: `Item ${next}` }] })
+			},
+			randomUpdate: (self, { items }) => {
+				if (!items || items.length === 0) return
+				const idx = Math.floor(Math.random() * items.length)
+				const updated = [...items]
+				updated[idx] = { ...updated[idx], label: `${updated[idx].label}*` }
+				self.update({ items: updated })
+			},
+			reset: (self) => {
+				renderCounts.clear()
+				self.set({ items: [{ id: 1, label: "Item 1" }, { id: 2, label: "Item 2" }, { id: 3, label: "Item 3" }] })
+			}
+		}).sub({
+			Increment: (self, { items }, event) => {
+				self.update({
+					items: items.map((item) =>
+						item.id === event.data.id ? { ...item, label: event.data.label } : item
+					)
+				})
+			}
+		})
+
+		App.new().set({
+			items: [
+				{ id: 1, label: "Item 1" },
+				{ id: 2, label: "Item 2" },
+				{ id: 3, label: "Item 3" },
+				{ id: 4, label: "Item 4" },
+				{ id: 5, label: "Item 5" }
+			]
+		}).mount("#App")
+	</script>
+</body>
+
+</html>

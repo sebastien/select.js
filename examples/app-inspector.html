@@ -3,30 +3,83 @@
 
 <head>
 	<meta charset="utf-8" />
-	<title>Select UI ― Inspector</title>
+	<title>Select UI ― Data Inspector</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<script type="importmap">
 		{"imports": {"@./": "../src/js/" } }
 	</script>
+	<style>
+		body {
+			font-family: system-ui, sans-serif;
+			padding: 20px;
+			max-width: 900px;
+			margin: 0 auto;
+		}
+
+		#ui {
+			border: 1px solid #ddd;
+			border-radius: 8px;
+			padding: 16px;
+			background: #fff;
+		}
+
+		details {
+			margin: 6px 0;
+			padding: 6px 10px;
+			border: 1px solid #e5e5e5;
+			border-radius: 6px;
+			background: #fafafa;
+		}
+
+		summary {
+			cursor: pointer;
+			font-weight: 600;
+		}
+
+		ul {
+			margin: 8px 0 0;
+			padding-left: 20px;
+		}
+
+		li {
+			margin: 4px 0;
+		}
+
+		code {
+			background: #f3f3f3;
+			padding: 2px 6px;
+			border-radius: 3px;
+		}
+
+		em {
+			color: #666;
+			font-style: normal;
+			font-weight: 600;
+			margin-right: 6px;
+		}
+	</style>
 </head>
 
 <body>
+	<h1>Data Inspector</h1>
+	<p>This app example recursively renders structured JSON values with typed components for lists, dictionaries, strings, numbers, and symbols.</p>
+
 	<div id="ui"></div>
 
 	<template id="InspectObject">
-		<span><em>Object</em> <code out="value"></code></span>
+		<span><em>Object</em><code out="value"></code></span>
 	</template>
 
 	<template id="InspectSymbol">
-		<span><em>Symbol</em> <code out="value"></code></span>
+		<span><em>Symbol</em><code out="value"></code></span>
 	</template>
 
 	<template id="InspectNumber">
-		<span><em>Number</em> <code out="value"></code></span>
+		<span><em>Number</em><code out="value"></code></span>
 	</template>
 
 	<template id="InspectString">
-		<span><em>String<em><span out="value"></span></span>
+		<span><em>String</em><span out="value"></span></span>
 	</template>
 
 	<template id="InspectList">
@@ -41,7 +94,7 @@
 	<template id="Item">
 		<li>
 			<code out="key"></code>
-			<code out="value"></code>
+			<span out="value"></span>
 		</li>
 	</template>
 
@@ -63,7 +116,6 @@
 	<script type="module">
 		import {ui, type, remap, len} from "@./select.ui.js"
 
-		// Matches the rendering of an item to one of the different components.
 		const inspect = (value) => {
 			const t = type(value)
 			switch (t) {
@@ -83,7 +135,6 @@
 			}
 		}
 
-		// We define a common behavior for the component
 		const behavior = {
 			count: (self, {value}) => len(value),
 			value: (self, {value}) => value,
@@ -102,9 +153,8 @@
 		const InspectSymbol = ui("#InspectSymbol").does({...behavior})
 		const Inspector = ui("#Inspector").does({...behavior})
 
-		// Now we load the data
-		const data = await fetch("inspector.json").then(_ => _.json());
-		Inspector.new().set({value: data}).mount("#ui");
+		const data = await fetch("./app-inspector.json").then(_ => _.json())
+		Inspector.new().set({value: data}).mount("#ui")
 	</script>
 </body>
 

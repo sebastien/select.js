@@ -82,12 +82,14 @@ const Component = ui("#MyTemplate");
 
 Returns a component function with these methods:
 
+- `Component(data)` - Create an applied template for composition
 - `new(parent?)` - Create a new instance
 - `does(behavior)` - Define behavior handlers
 - `on(event, handler)` / `sub(event, handler)` - Subscribe to events
 - `init(initializer)` - Define initial state
 - `apply(data)` - Create an applied template (for nesting)
 - `map(data)` - Map data to applied templates
+- `ui.register(name, component)` / `ui.resolve(name)` - Dynamic component registry
 
 ### Component Instance Methods
 
@@ -139,6 +141,18 @@ Publish an event that bubbles up to parent components.
 ```javascript
 self.send("ItemRemoved", { id: 123 });
 ```
+
+#### `.emit(event, data)`
+
+Alias for `.pub(event, data)`.
+
+#### `.on(event, handler)` / `.off(event, handler)`
+
+Register and remove runtime event subscribers on an instance.
+
+#### `.provide(key, value)` / `.inject(key, defaultValue?)`
+
+Provide and consume context values through the parent chain.
 
 ### Behavior Definition
 

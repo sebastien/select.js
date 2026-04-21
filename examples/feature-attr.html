@@ -12,8 +12,15 @@
 		body {
 			font-family: system-ui, sans-serif;
 			padding: 20px;
-			max-width: 600px;
+			max-width: 800px;
 			margin: 0 auto;
+		}
+
+		#ui {
+			border: 1px solid #ddd;
+			border-radius: 8px;
+			padding: 16px;
+			background: #fff;
 		}
 
 		.btn {
@@ -94,6 +101,9 @@
 </head>
 
 <body>
+	<h1>Button Attributes</h1>
+	<p>This example demonstrates <code>out:attr</code> bindings for dynamic classes, disabled state, ARIA attributes, and inline styles.</p>
+
 	<div id="ui"></div>
 
 	<template id="ActionButton">

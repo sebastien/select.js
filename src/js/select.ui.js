@@ -160,6 +160,10 @@ class UIEvent {
 		this.origin = origin;
 		this.current = undefined;
 	}
+
+	stopPropagation() {
+		return null;
+	}
 }
 
 class AppliedUITemplate {
@@ -571,10 +575,42 @@ class UITemplate {
 		});
 		// Attribute slots (out:style, out:class, out:disabled, etc.)
 		this.outAttr = UITemplateSlot.FindAttr("out:", nodes);
+		// Named content slots (<slot name="x">)
+		this.slots = this._findSlots(nodes);
 		// Interaction/Behavior (accessed from UIInstance)
 		this.initializer = undefined;
 		this.behavior = undefined;
 		this.subs = undefined;
+	}
+
+	_findSlots(nodes) {
+		const slots = [];
+		for (let i = 0; i < nodes.length; i++) {
+			const root = nodes[i];
+			const candidates = [];
+			if (root.nodeName === "SLOT") {
+				candidates.push(root);
+			}
+			if (root.querySelectorAll) {
+				for (const n of root.querySelectorAll("slot")) {
+					candidates.push(n);
+				}
+			}
+			for (const slotNode of candidates) {
+				const name = slotNode.getAttribute("name") || "default";
+				const fallback = slotNode.childNodes ? [...slotNode.childNodes] : [];
+				const placeholder = document.createComment(`slot:${name}`);
+				if (slotNode === root) {
+					nodes[i] = placeholder;
+					slots.push({ name, fallback, path: [i] });
+				} else {
+					slotNode.parentNode.replaceChild(placeholder, slotNode);
+					const path = UITemplateSlot.Path(placeholder, root, [i]);
+					slots.push({ name, fallback, path });
+				}
+			}
+		}
+		return slots.length ? slots : null;
 	}
 
 	// TODO: There's a question whether we should have Instance instead
@@ -654,6 +690,61 @@ class UISlot {
 	}
 
 	// --
+	// Helper to mount a UIInstance at a specific position within this.node,
+	// using nextNode as the insertion reference. If nextNode is null or
+	// detached, appends to the end.
+	_mountInstance(instance, nextNode) {
+		if (nextNode && nextNode.parentNode === this.node) {
+			// Insert in reverse order before nextNode to maintain correct order
+			for (let i = instance.nodes.length - 1; i >= 0; i--) {
+				this.node.insertBefore(instance.nodes[i], nextNode);
+			}
+		} else {
+			for (const n of instance.nodes) {
+				this.node.appendChild(n);
+			}
+		}
+	}
+
+	// --
+	// Scans placeholder children for slot="name" attributes and extracts
+	// them into a slots map for passing to child components.
+	_extractSlots() {
+		if (!this.placeholder) return {};
+		const slots = {};
+		const scan = (node) => {
+			if (
+				node.nodeType === Node.ELEMENT_NODE &&
+				node.hasAttribute("slot")
+			) {
+				const name = node.getAttribute("slot");
+				const clone = node.cloneNode(true);
+				clone.removeAttribute("slot");
+				slots[name] = clone;
+			}
+			if (node.querySelectorAll) {
+				for (const child of node.querySelectorAll("[slot]")) {
+					scan(child);
+				}
+			}
+		};
+		for (const node of this.placeholder) {
+			scan(node);
+		}
+		return slots;
+	}
+
+	// --
+	// Merges template-extracted slots with explicitly provided slots.
+	_mergeSlots(item) {
+		const extracted = this._extractSlots();
+		if (item.data?.slots) {
+			return { ...item.data, slots: { ...extracted, ...item.data.slots } };
+		}
+		return { ...item.data, slots: extracted };
+	}
+
+	// --
 	// Renders a slot, which is either replacing the content of the node
 	// with an HTML/text value from the data, or creating one or more
 	// `UIInstance` in case the data returns an applied template or
@@ -695,8 +786,9 @@ class UISlot {
 				// Creation: we don't have mapping for the item
 				let r;
 				if (item instanceof AppliedUITemplate) {
+					const data = this._mergeSlots(item);
 					r = item.template.new(this.parent);
-					r.set(item.data, k).mount(this.node, previous);
+					r.set(data, k).mount(this.node, previous);
 					previous = r.nodes.at(-1);
 				} else if (isInputNode(this.node)) {
 					setNodeText(this.node, asText(item));
@@ -719,11 +811,16 @@ class UISlot {
 					if (item instanceof AppliedUITemplate) {
 						if (item.template === r.template) {
 							r.set(item.data, k);
-						} else {
-							// It's a different template. We need to unmount the
-							// current instance and replace it with the new one.
-							console.error("Not implemented: change in element");
-						}
+					} else {
+						// Different template: unmount old, mount new at same position
+						const data = this._mergeSlots(item);
+						const nextNode = r.nodes.at(-1)?.nextSibling;
+						r.unmount();
+						const newInstance = item.template.new(this.parent);
+						newInstance.set(data, k);
+						this._mountInstance(newInstance, nextNode);
+						this.mapping.set(k, newInstance);
+					}
 					} else {
 						r.set(item, k);
 					}
@@ -731,9 +828,13 @@ class UISlot {
 					setNodeText(this.node, asText(item));
 				} else if (r?.nodeType === Node.ELEMENT_NODE) {
 					if (item instanceof AppliedUITemplate) {
-						console.error(
-							"Not implemented: change from non UIInstance to UIInstance",
-						);
+						const data = this._mergeSlots(item);
+						const nextNode = r.nextSibling;
+						r.parentNode.removeChild(r);
+						const newInstance = item.template.new(this.parent);
+						newInstance.set(data, k);
+						this._mountInstance(newInstance, nextNode);
+						this.mapping.set(k, newInstance);
 					} else if (item instanceof Node) {
 						r.parentNode.replaceChild(item, r);
 						this.mapping.set(k, item);
@@ -744,9 +845,13 @@ class UISlot {
 					}
 				} else {
 					if (item instanceof AppliedUITemplate) {
-						console.error(
-							"Not implemented: change from non UIInstance to UIInstance",
-						);
+						const data = this._mergeSlots(item);
+						const nextNode = r.nextSibling;
+						r.parentNode.removeChild(r);
+						const newInstance = item.template.new(this.parent);
+						newInstance.set(data, k);
+						this._mountInstance(newInstance, nextNode);
+						this.mapping.set(k, newInstance);
 					} else if (item instanceof Node) {
 						r.parentNode.replaceChild(item, r);
 						this.mapping.set(k, item);
@@ -797,6 +902,78 @@ class UISlot {
 	}
 }
 
+// ----------------------------------------------------------------------------
+//
+// UI CONTENT SLOT (for <slot name="x">)
+//
+// ----------------------------------------------------------------------------
+
+class UIContentSlot {
+	constructor(placeholder, fallback, parent, name) {
+		this.placeholder = placeholder;
+		this.fallback = fallback ? fallback.map((n) => n.cloneNode(true)) : [];
+		this.parent = parent;
+		this.name = name;
+		this.content = null;
+		this.fallbackActive = false;
+	}
+
+	mount(content) {
+		this._clear();
+		if (content) {
+			this._mountContent(content);
+		} else if (this.fallback.length) {
+			this._mountFallback();
+		}
+	}
+
+	_mountContent(content) {
+		const parent = this.placeholder.parentNode;
+		if (!parent) return;
+		const ref = this.placeholder.nextSibling;
+		if (content instanceof AppliedUITemplate) {
+			const instance = content.template.new(this.parent);
+			instance.set(content.data);
+			for (const n of instance.nodes) {
+				parent.insertBefore(n, ref);
+			}
+			this.content = instance;
+		} else if (content instanceof Node) {
+			parent.insertBefore(content, ref);
+			this.content = content;
+		} else {
+			const text = document.createTextNode(asText(content));
+			parent.insertBefore(text, ref);
+			this.content = text;
+		}
+	}
+
+	_mountFallback() {
+		const parent = this.placeholder.parentNode;
+		if (!parent) return;
+		const ref = this.placeholder.nextSibling;
+		for (const n of this.fallback) {
+			parent.insertBefore(n, ref);
+		}
+		this.fallbackActive = true;
+	}
+
+	_clear() {
+		if (this.content instanceof UIInstance) {
+			this.content.unmount();
+		} else if (this.content?.parentNode) {
+			this.content.parentNode.removeChild(this.content);
+		}
+		this.content = null;
+		if (this.fallbackActive) {
+			for (const n of this.fallback) {
+				n.parentNode?.removeChild(n);
+			}
+			this.fallbackActive = false;
+		}
+	}
+}
+
 class _BehaviorState {
 	constructor() {
 		this.value = undefined;
@@ -841,7 +1018,36 @@ class UIInstance {
 		this.outAttr = remap(template.outAttr, (_) =>
 			remap(_, (_) => _.apply(this.nodes, this)),
 		);
+		// Content slots (<slot name="x">)
+		this.slots = [];
+		if (template.slots) {
+			for (const slotDef of template.slots) {
+				let node = this.nodes;
+				for (const idx of slotDef.path) {
+					if (Array.isArray(node)) {
+						node = node[idx];
+					} else {
+						node = node ? node.childNodes[idx] : node;
+					}
+				}
+				if (node) {
+					this.slots.push(
+						new UIContentSlot(
+							node,
+							slotDef.fallback,
+							this,
+							slotDef.name,
+						),
+					);
+				}
+			}
+		}
 		this.parent = parent;
+		this.children = new Set();
+		parent?.children.add(this);
+		// Context (provider/inject)
+		this._context = undefined;
+		this._ctxSubs = undefined;
 		// Data & State
 		this.data = undefined;
 		this.key = undefined;
@@ -884,6 +1090,56 @@ class UIInstance {
 				}
 			}
 		}
+		// Unsubscribe from context cells
+		if (this._ctxSubs) {
+			for (const [cell, handler] of this._ctxSubs) {
+				cell.unsub(handler);
+			}
+			this._ctxSubs = undefined;
+		}
+		// Recursively dispose children
+		for (const child of this.children) {
+			child.dispose();
+		}
+		this.children.clear();
+		// Remove from parent's children set
+		this.parent?.children.delete(this);
+	}
+
+	// ========================================================================
+	// CONTEXT (Provider/Inject)
+	// ========================================================================
+
+	provide(key, value) {
+		if (this._context === undefined) {
+			this._context = new Map();
+		}
+		this._context.set(key, value);
+		return this;
+	}
+
+	inject(key, defaultValue = undefined) {
+		let current = this.parent;
+		while (current) {
+			if (current._context?.has(key)) {
+				const value = current._context.get(key);
+				// Auto-subscribe to reactive cells for re-rendering
+				if (value?.isReactive) {
+					if (this._ctxSubs === undefined) {
+						this._ctxSubs = new Map();
+					}
+					// Avoid duplicate subscriptions
+					if (!this._ctxSubs.has(value)) {
+						const handler = () => this.render();
+						value.sub(handler);
+						this._ctxSubs.set(value, handler);
+					}
+				}
+				return value;
+			}
+			current = current.parent;
+		}
+		return defaultValue;
 	}
 
 	bind() {
@@ -957,6 +1213,7 @@ class UIInstance {
 
 	update(data, force = false) {
 		let same = !force;
+		const changedKeys = new Set();
 		if (!this.data) {
 			same = false;
 		} else if (same) {
@@ -965,6 +1222,7 @@ class UIInstance {
 				const updated = data[k];
 				if (!eq(existing, updated)) {
 					same = false;
+					changedKeys.add(k);
 					// We sub/unsub if there's a reactive cell in the update
 					if (existing?.isReactive) {
 						existing.unsub(this._renderer);
@@ -976,9 +1234,19 @@ class UIInstance {
 			}
 		}
 		if (!same) {
-			this.render(this.data ? Object.assign(this.data, data) : data);
+			const merged = this.data ? Object.assign(this.data, data) : data;
+			this.render(merged, changedKeys.size > 0 ? changedKeys : null);
 		}
 		return this;
+	}
+
+	_depsChanged(deps, changedKeys) {
+		for (const key of deps) {
+			if (changedKeys.has(key)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	// ========================================================================
@@ -989,16 +1257,62 @@ class UIInstance {
 		return this.pub(event, data);
 	}
 
+	emit(event, data) {
+		return this.pub(event, data);
+	}
+
 	pub(event, data) {
 		const res = new UIEvent(event, data, this);
 		this.parent?.onPub(res);
 		return res;
 	}
 
+	on(event, handler) {
+		if (this._runtimeSubs === undefined) {
+			this._runtimeSubs = new Map();
+		}
+		if (this._runtimeSubs.has(event)) {
+			this._runtimeSubs.get(event).push(handler);
+		} else {
+			this._runtimeSubs.set(event, [handler]);
+		}
+		return this;
+	}
+
+	off(event, handler) {
+		if (!this._runtimeSubs) return this;
+		const handlers = this._runtimeSubs.get(event);
+		if (handlers) {
+			const i = handlers.indexOf(handler);
+			if (i >= 0) {
+				handlers.splice(i, 1);
+			}
+			if (handlers.length === 0) {
+				this._runtimeSubs.delete(event);
+			}
+		}
+		return this;
+	}
+
 	onPub(event) {
 		event.current = this;
 		let propagate = true;
-		if (this.template.subs) {
+		// Check runtime subscriptions first
+		if (this._runtimeSubs) {
+			const rl = this._runtimeSubs.get(event.name);
+			if (rl) {
+				for (const h of rl) {
+					const c = h(this, this.data, event);
+					if (c === false) {
+						return event;
+					} else if (c === null) {
+						propagate = false;
+					}
+				}
+			}
+		}
+		// Then check template-defined subscriptions
+		if (propagate && this.template.subs) {
 			const hl = this.template.subs.get(event.name);
 			if (hl) {
 				for (const h of hl) {
@@ -1065,6 +1379,7 @@ class UIInstance {
 	unmount() {
 		// TODO: Speedup: if the first node is not mounted, the rest is not.
 		// FIXME: Some root slots would have their node replaced by a placeholder
+		this.dispose();
 		for (const node of this.nodes) {
 			node.parentNode?.removeChild(node);
 		}
@@ -1075,7 +1390,7 @@ class UIInstance {
 	// Renders the given data, using `create`, `update` and `remove`
 	// functions
 	// TODO: Should take a "changes" and know which behaviour should be updated
-	render(data = this.data) {
+	render(data = this.data, changedKeys = null) {
 		if (!this.template) {
 			console.error(
 				"UIInstance.render() called on instance with undefined template",
@@ -1085,6 +1400,7 @@ class UIInstance {
 		}
 
 		const data_type = type(data);
+		const isGranular = changedKeys !== null && changedKeys.size > 0;
 		// FIXME: I'm not sure this condition is good.
 		if (
 			!(
@@ -1112,17 +1428,32 @@ class UIInstance {
 				if (set) {
 					for (const k in set) {
 						let v;
-						if (this.template.behavior?.[k]) {
-							if (this.behavior.has(k)) {
-								v = this.behavior.get(k);
+						const hasBehavior = this.template.behavior?.[k];
+
+						// Granular skip: if no dependency changed, reuse cached value
+						if (isGranular && this._behaviorDeps && this._behaviorValues) {
+							const deps = this._behaviorDeps.get(k);
+							if (deps && !this._depsChanged(deps, changedKeys)) {
+								v = this._behaviorValues.get(k);
+								for (const slot of set[k]) {
+									slot.render(v);
+								}
+								continue;
+							}
+						}
+
+						if (hasBehavior) {
+							const b = this.template.behavior[k];
+							if (isGranular) {
+								const [trackedData, accessed] =
+									_createTrackingProxy(data);
+								v = b(this, trackedData, null);
+								if (!this._behaviorDeps) {
+									this._behaviorDeps = new Map();
+								}
+								this._behaviorDeps.set(k, accessed);
 							} else {
-								const b = this.template.behavior[k];
-								// const [tracked_data, accessed] =
-								// 	createTrackingProxy(data);
-								// v = b(this, tracked_data, null);
-								// console.log("TRACKED_DATA", accessed);
 								v = b(this, data, null);
-								this.behavior.set(k, v);
 							}
 						} else if (data && k in data) {
 							// Use corresponding property from data if no behavior defined
@@ -1130,6 +1461,12 @@ class UIInstance {
 						} else {
 							v = undefined;
 						}
+
+						if (!this._behaviorValues) {
+							this._behaviorValues = new Map();
+						}
+						this._behaviorValues.set(k, v);
+
 						for (const slot of set[k]) {
 							slot.render(v);
 						}
@@ -1173,6 +1510,13 @@ class UIInstance {
 					slot.render(v);
 				}
 			}
+			// Render named content slots (<slot name="x">)
+			if (this.slots?.length) {
+				for (const slot of this.slots) {
+					const content = data?.slots?.[slot.name];
+					slot.mount(content);
+				}
+			}
 		}
 		this.data = data;
 		this.dataType = data_type;
@@ -1185,6 +1529,29 @@ class UIInstance {
 // API
 //
 // ----------------------------------------------------------------------------
+
+// --
+// Component registry for Dynamic() resolution
+const _registry = new Map();
+
+export const Dynamic = (type, props = {}) => {
+	const component = typeof type === "string" ? _registry.get(type) : type;
+	return component ? component(props) : null;
+};
+
+export const lazy = (loader, placeholder = null) => {
+	let tmpl = null;
+	let loading = false;
+	return (data) => {
+		if (!tmpl && !loading) {
+			loading = true;
+			loader().then((m) => {
+				tmpl = m.default || m;
+			});
+		}
+		return tmpl ? tmpl(data) : placeholder;
+	};
+};
 
 export const ui = (selection, scope = document) => {
 	if (selection === null || selection === undefined) {
@@ -1294,6 +1661,13 @@ export const ui = (selection, scope = document) => {
 			`Received: ${selection}`,
 	);
 };
+
+ui.register = (name, component) => {
+	_registry.set(name, component);
+	return ui;
+};
+
+ui.resolve = (name) => _registry.get(name);
 
 export default ui;
 // EOF

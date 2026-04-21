@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Inspector Benchmark (Headless)</title>
+	<link rel="stylesheet" href="../../src/css/ui.css" type="text/css" media="all" />
+	<style>
+		body { padding: 1rem; }
+		pre { white-space: pre-wrap; }
+	</style>
+</head>
+<body>
+	<h1 class="h4">Inspector Benchmark</h1>
+	<p class="small dim">Framework: <span id="Framework">loading...</span></p>
+	<div id="BenchmarkRoot"></div>
+	<pre id="Output">Running...</pre>
+
+	<script type="module">
+		import { createBenchmarkRunner, formatBenchmarkResult } from "./runner.js";
+
+		const params = new URLSearchParams(window.location.search);
+		const framework = params.get("framework") || "selectui";
+		document.getElementById("Framework").textContent = framework;
+
+		const module = await import(`./frameworks/${framework}.js`);
+		const runner = createBenchmarkRunner({
+			framework,
+			root: document.getElementById("BenchmarkRoot"),
+			createApp: module.createApp,
+		});
+		const output = document.getElementById("Output");
+
+		try {
+			const result = await runner.run();
+			const text = formatBenchmarkResult(result);
+			output.textContent = text;
+			// Post result to result endpoint on same origin
+			fetch(`${window.location.origin}/result`, {
+				method: "POST",
+				body: text,
+			}).catch(() => {});
+		} catch (e) {
+			output.textContent = "Error: " + e.message + "\n" + e.stack;
+			fetch(`${window.location.origin}/result`, {
+				method: "POST",
+				body: "Error: " + e.message + "\n" + e.stack,
+			}).catch(() => {});
+		}
+	</script>
+</body>
+</html>

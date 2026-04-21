@@ -146,7 +146,7 @@ ESLint config: `eslint:recommended`, browser environment, ES2021.
 
 ## Testing
 
-**No automated testing framework configured.** 
+**No automated testing framework configured.**
 - Manual testing via HTML files in `examples/` and `src/html/`
 - Run `make run` to start server and test in browser
 - Open `examples/todo.html`, `examples/ui-javascript.html`, etc.
@@ -164,3 +164,9 @@ Built files go to `/dist/` as both regular and minified versions:
 - `select.js` / `select.min.js`
 - `select.cells.js` / `select.cells.min.js`
 - `select.ui.js` / `select.ui.min.js`
+
+## Important
+- DO NOT use version control, let the user manage commits
+- DO NOT start a web server, ask the user to run one for you
+- DO NOT remove FIXME, TODO, NOTE, SEE comments unless FIXME and TODO are resolved.
+- This is a high-performance library, ensure there's no regression (`bun run bench:inspector`) and minimise memory footprint.
