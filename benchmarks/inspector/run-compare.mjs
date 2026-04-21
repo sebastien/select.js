@@ -16,6 +16,7 @@ const RUNS = 5;
 
 function setupGlobals(window) {
 	const g = global;
+	const originalFetch = typeof g.fetch === "function" ? g.fetch.bind(g) : null;
 	g.window = window;
 	g.document = window.document;
 	g.Node = window.Node;
@@ -29,14 +30,42 @@ function setupGlobals(window) {
 	g.requestAnimationFrame = window.requestAnimationFrame.bind(window);
 	g.NodeFilter = window.NodeFilter;
 	g.SVGElement = window.SVGElement;
+
+	const asJsonFileResponse = (filePath) => {
+		const text = fs.readFileSync(filePath, "utf-8");
+		return Promise.resolve({
+			ok: true,
+			status: 200,
+			json: () => Promise.resolve(JSON.parse(text)),
+			text: () => Promise.resolve(text),
+		});
+	};
+
 	g.fetch = (url, ...args) => {
-		if (typeof url === "string" && url.startsWith("../../")) {
-			const filePath = path.join(ROOT, url.replace(/^\.\.\/\.\.\//, ""));
-			return Promise.resolve({
-				json: () => Promise.resolve(JSON.parse(fs.readFileSync(filePath, "utf-8"))),
-			});
+		if (typeof url === "string") {
+			if (url.startsWith("../../")) {
+				const filePath = path.join(ROOT, url.replace(/^\.\.\/\.\.\//, ""));
+				if (fs.existsSync(filePath)) {
+					return asJsonFileResponse(filePath);
+				}
+			}
+			if (url.startsWith("./")) {
+				const filePath = path.join(
+					ROOT,
+					"benchmarks/inspector",
+					url.replace(/^\.\//, ""),
+				);
+				if (fs.existsSync(filePath)) {
+					return asJsonFileResponse(filePath);
+				}
+			}
 		}
-		return globalThis.fetch(url, ...args);
+
+		if (originalFetch) {
+			return originalFetch(url, ...args);
+		}
+
+		return Promise.reject(new Error(`Unsupported fetch URL: ${String(url)}`));
 	};
 }
 

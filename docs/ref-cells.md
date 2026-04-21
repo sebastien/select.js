@@ -32,10 +32,47 @@ console.log(doubled.value); // 20
 Cells support nested data structures. You can "select" a path within a cell to get a reactive view of that specific nested value.
 
 ```javascript
-const state = cell({ user: { name: "Alice" } });
+const state = cell({ user: { name: "Ada" } });
 const name = state.select("user.name");
 name.sub((val) => console.log("Name is now:", val));
-state.set("Bob", "user.name");
+state.set("Grace", "user.name");
+```
+
+### Pub/Sub and Updates
+Select Cells uses an explicit pub/sub mechanism. Every reactive instance (`Cell`, `Selected`, `Derivation`) allows you to subscribe to changes.
+
+**Basic Subscription:**
+```javascript
+const count = cell(0);
+const handler = (value, path, origin) => {
+  console.log(`Value: ${value}, Path: ${path}, Origin: ${origin}`);
+};
+
+count.sub(handler);
+count.set(1);   // Logs: Value: 1, Path: null, Origin: [Cell]
+count.unsub(handler);
+```
+
+**Nested Updates:**
+When updating a nested path, the update notification propagates from the modified leaf up to the root, and down to any selections affected by that path.
+
+```javascript
+const state = cell({ a: { b: 1 } });
+
+// Subscribing to the root
+state.sub((value, path) => {
+  console.log("Root changed at path:", path);
+});
+
+// Subscribing to a specific branch
+state.select("a.b").sub((value) => {
+  console.log("Branch a.b is now:", value);
+});
+
+state.set(2, "a.b"); 
+// Logs: 
+// Branch a.b is now: 2
+// Root changed at path: ["a", "b"]
 ```
 
 ### API Reference

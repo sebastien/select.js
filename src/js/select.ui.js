@@ -27,6 +27,27 @@ export const len = (v) => {
 };
 
 const parser = new DOMParser();
+
+const _isPrunableWhitespaceText = (node) =>
+	node &&
+	node.nodeType === Node.TEXT_NODE &&
+	!/\S/.test(node.data) &&
+	/[\n\r\t]/.test(node.data);
+
+const _pruneTemplateWhitespace = (node) => {
+	if (!node || !node.childNodes || node.childNodes.length === 0) {
+		return;
+	}
+	for (let i = node.childNodes.length - 1; i >= 0; i--) {
+		const child = node.childNodes[i];
+		if (_isPrunableWhitespaceText(child)) {
+			node.removeChild(child);
+		} else {
+			_pruneTemplateWhitespace(child);
+		}
+	}
+};
+
 export const type = Object.assign(
 	(value) =>
 		value === undefined || value === null
@@ -111,7 +132,9 @@ const isInputNode = (node) => {
 const setNodeText = (node, text) => {
 	switch (node.nodeType) {
 		case Node.TEXT_NODE:
-			node.data = text;
+			if (node.data !== text) {
+				node.data = text;
+			}
 			break;
 		case Node.ELEMENT_NODE:
 			if (isInputNode(node)) {
@@ -119,7 +142,9 @@ const setNodeText = (node, text) => {
 					node.value = text;
 				}
 			} else {
-				node.textContent = text;
+				if (node.textContent !== text) {
+					node.textContent = text;
+				}
 			}
 			break;
 	}
@@ -240,12 +265,9 @@ class UITemplateSlot {
 
 	apply(nodes, parent, raw = false) {
 		let node = nodes;
-		for (const i of this.path) {
-			if (Array.isArray(node)) {
-				node = node[i];
-			} else {
-				node = node ? node.childNodes[i] : node;
-			}
+		for (let i = 0; i < this.path.length; i++) {
+			const idx = this.path[i];
+			node = i === 0 ? node[idx] : node ? node.childNodes[idx] : node;
 		}
 		return node ? (raw ? node : new UISlot(node, this, parent)) : null;
 	}
@@ -354,12 +376,9 @@ class UIAttributeTemplateSlot {
 
 	apply(nodes, parent) {
 		let node = nodes;
-		for (const i of this.path) {
-			if (Array.isArray(node)) {
-				node = node[i];
-			} else {
-				node = node ? node.childNodes[i] : node;
-			}
+		for (let i = 0; i < this.path.length; i++) {
+			const idx = this.path[i];
+			node = i === 0 ? node[idx] : node ? node.childNodes[idx] : node;
 		}
 		return node ? new UIAttributeSlot(node, this, parent) : null;
 	}
@@ -524,12 +543,9 @@ class UIEventTemplateSlot {
 
 	apply(nodes, parent) {
 		let node = nodes;
-		for (const i of this.path) {
-			if (Array.isArray(node)) {
-				node = node[i];
-			} else {
-				node = node ? node.childNodes[i] : node;
-			}
+		for (let i = 0; i < this.path.length; i++) {
+			const idx = this.path[i];
+			node = i === 0 ? node[idx] : node ? node.childNodes[idx] : node;
 		}
 		return node ? new UIEventSlot(node, this, parent) : null;
 	}
@@ -565,6 +581,7 @@ class UITemplate {
 		this.in = UITemplateSlot.Find("in", nodes);
 		this.out = UITemplateSlot.Find("out", nodes);
 		this.inout = UITemplateSlot.Find("inout", nodes);
+		this.hasBindings = !!(this.on || this.in || this.inout);
 		this.ref = UITemplateSlot.Find("ref", nodes);
 		this.when = UITemplateSlot.Find("when", nodes, (slot, expr) => {
 			slot.predicate = new Function(
@@ -680,8 +697,11 @@ class UISlot {
 	constructor(node, template, parent) {
 		this.parent = parent;
 		this.node = node;
+		this.isInput = isInputNode(node);
 		this.mapping = new Map();
 		this.placeholder = node.childNodes ? [...node.childNodes] : null;
+		this._extractedSlots = undefined;
+		this._hasNamedSlotContent = undefined;
 		this.predicatePlaceholder =
 			template.predicate && template.predicatePlaceholder
 				? template.predicatePlaceholder.cloneNode(true)
@@ -710,8 +730,15 @@ class UISlot {
 	// Scans placeholder children for slot="name" attributes and extracts
 	// them into a slots map for passing to child components.
 	_extractSlots() {
-		if (!this.placeholder) return {};
+		if (this._extractedSlots !== undefined) {
+			return this._extractedSlots;
+		}
+		if (!this.placeholder) {
+			this._extractedSlots = null;
+			return null;
+		}
 		const slots = {};
+		let hasSlots = false;
 		const scan = (node) => {
 			if (
 				node.nodeType === Node.ELEMENT_NODE &&
@@ -721,6 +748,7 @@ class UISlot {
 				const clone = node.cloneNode(true);
 				clone.removeAttribute("slot");
 				slots[name] = clone;
+				hasSlots = true;
 			}
 			if (node.querySelectorAll) {
 				for (const child of node.querySelectorAll("[slot]")) {
@@ -731,18 +759,50 @@ class UISlot {
 		for (const node of this.placeholder) {
 			scan(node);
 		}
-		return slots;
+		this._extractedSlots = hasSlots ? slots : null;
+		return this._extractedSlots;
 	}
 
 	// --
 	// Merges template-extracted slots with explicitly provided slots.
 	_mergeSlots(item) {
+		const providedSlots = item.data?.slots;
+		if (!providedSlots && !this._hasSlotContent()) {
+			return item.data;
+		}
 		const extracted = this._extractSlots();
-		if (item.data?.slots) {
-			return { ...item.data, slots: { ...extracted, ...item.data.slots } };
+		if (providedSlots && extracted) {
+			return { ...item.data, slots: { ...extracted, ...providedSlots } };
+		} else if (providedSlots) {
+			return item.data;
+		} else if (!extracted) {
+			return item.data;
 		}
 		return { ...item.data, slots: extracted };
 	}
+
+	_hasSlotContent() {
+		if (this._hasNamedSlotContent !== undefined) {
+			return this._hasNamedSlotContent;
+		}
+		if (!this.placeholder || this.placeholder.length === 0) {
+			this._hasNamedSlotContent = false;
+			return false;
+		}
+		for (let i = 0; i < this.placeholder.length; i++) {
+			const node = this.placeholder[i];
+			if (node.nodeType !== Node.ELEMENT_NODE) {
+				continue;
+			}
+			if (node.hasAttribute("slot") || node.querySelector("[slot]")) {
+				this._hasNamedSlotContent = true;
+				return true;
+			}
+		}
+		this._hasNamedSlotContent = false;
+		return false;
+	}
+
 
 	// --
 	// Renders a slot, which is either replacing the content of the node
@@ -782,15 +842,16 @@ class UISlot {
 		// - Anything else, which is then converted to text.
 		for (const k in items) {
 			const item = items[k];
-			if (!this.mapping.has(k)) {
+			const existing = this.mapping.get(k);
+			if (existing === undefined) {
 				// Creation: we don't have mapping for the item
 				let r;
 				if (item instanceof AppliedUITemplate) {
 					const data = this._mergeSlots(item);
 					r = item.template.new(this.parent);
 					r.set(data, k).mount(this.node, previous);
-					previous = r.nodes.at(-1);
-				} else if (isInputNode(this.node)) {
+					previous = r.nodes[r.nodes.length - 1];
+				} else if (this.isInput) {
 					setNodeText(this.node, asText(item));
 					r = this.node;
 				} else if (item instanceof Node) {
@@ -806,25 +867,26 @@ class UISlot {
 				this.mapping.set(k, r);
 			} else {
 				// Update: we do have a key like that
-				const r = this.mapping.get(k);
+				const r = existing;
 				if (r instanceof UIInstance) {
 					if (item instanceof AppliedUITemplate) {
 						if (item.template === r.template) {
 							r.set(item.data, k);
-					} else {
-						// Different template: unmount old, mount new at same position
-						const data = this._mergeSlots(item);
-						const nextNode = r.nodes.at(-1)?.nextSibling;
-						r.unmount();
-						const newInstance = item.template.new(this.parent);
-						newInstance.set(data, k);
-						this._mountInstance(newInstance, nextNode);
-						this.mapping.set(k, newInstance);
-					}
+						} else {
+							// Different template: unmount old, mount new at same position
+							const data = this._mergeSlots(item);
+							const lastNode = r.nodes[r.nodes.length - 1];
+							const nextNode = lastNode ? lastNode.nextSibling : null;
+							r.unmount();
+							const newInstance = item.template.new(this.parent);
+							newInstance.set(data, k);
+							this._mountInstance(newInstance, nextNode);
+							this.mapping.set(k, newInstance);
+						}
 					} else {
 						r.set(item, k);
 					}
-				} else if (isInputNode(this.node)) {
+				} else if (this.isInput) {
 					setNodeText(this.node, asText(item));
 				} else if (r?.nodeType === Node.ELEMENT_NODE) {
 					if (item instanceof AppliedUITemplate) {
@@ -980,6 +1042,22 @@ class _BehaviorState {
 		this.dependencies = new Set();
 	}
 }
+
+const _applyTemplateSlots = (slots, nodes, parent, rawSingle = false) => {
+	if (!slots) {
+		return null;
+	}
+	const res = {};
+	for (const key in slots) {
+		const source = slots[key];
+		const mapped = [];
+		for (let i = 0; i < source.length; i++) {
+			mapped.push(source[i].apply(nodes, parent, rawSingle));
+		}
+		res[key] = rawSingle && mapped.length === 1 ? mapped[0] : mapped;
+	}
+	return res;
+};
 // ----------------------------------------------------------------------------
 //
 // UI INSTANCE
@@ -994,41 +1072,41 @@ class UIInstance {
 		// Parent
 		this.template = template;
 		// FIXME: This is on the hotpath
-		this.nodes = template.nodes.map((_) => _.cloneNode(true));
-		this.in = remap(template.in, (_) =>
-			remap(_, (_) => _.apply(this.nodes, this)),
-		);
-		this.out = remap(template.out, (_) =>
-			remap(_, (_) => _.apply(this.nodes, this)),
-		);
-		this.inout = remap(template.inout, (_) =>
-			remap(_, (_) => _.apply(this.nodes, this)),
-		);
-		this.ref = remap(template.ref, (_) => {
-			const r = remap(_, (_) => _.apply(this.nodes, this, true));
-			return r.length === 1 ? r[0] : r;
-		});
-		this.on = remap(template.on, (_) =>
-			remap(_, (_) => _.apply(this.nodes, this)),
-		);
-		this.when = remap(template.when, (_) =>
-			remap(_, (_) => _.apply(this.nodes, this)),
-		);
+		this.nodes = new Array(template.nodes.length);
+		for (let i = 0; i < template.nodes.length; i++) {
+			this.nodes[i] = template.nodes[i].cloneNode(true);
+		}
+		this.in = template.in
+			? _applyTemplateSlots(template.in, this.nodes, this)
+			: null;
+		this.out = template.out
+			? _applyTemplateSlots(template.out, this.nodes, this)
+			: null;
+		this.inout = template.inout
+			? _applyTemplateSlots(template.inout, this.nodes, this)
+			: null;
+		this.ref = template.ref
+			? _applyTemplateSlots(template.ref, this.nodes, this, true)
+			: null;
+		this.on = template.on
+			? _applyTemplateSlots(template.on, this.nodes, this)
+			: null;
+		this.when = template.when
+			? _applyTemplateSlots(template.when, this.nodes, this)
+			: null;
 		// Attribute slots (out:style, out:class, etc.)
-		this.outAttr = remap(template.outAttr, (_) =>
-			remap(_, (_) => _.apply(this.nodes, this)),
-		);
+		this.outAttr = template.outAttr
+			? _applyTemplateSlots(template.outAttr, this.nodes, this)
+			: null;
 		// Content slots (<slot name="x">)
-		this.slots = [];
+		this.slots = null;
 		if (template.slots) {
+			this.slots = [];
 			for (const slotDef of template.slots) {
 				let node = this.nodes;
-				for (const idx of slotDef.path) {
-					if (Array.isArray(node)) {
-						node = node[idx];
-					} else {
-						node = node ? node.childNodes[idx] : node;
-					}
+				for (let i = 0; i < slotDef.path.length; i++) {
+					const idx = slotDef.path[i];
+					node = i === 0 ? node[idx] : node ? node.childNodes[idx] : node;
 				}
 				if (node) {
 					this.slots.push(
@@ -1043,8 +1121,13 @@ class UIInstance {
 			}
 		}
 		this.parent = parent;
-		this.children = new Set();
-		parent?.children.add(this);
+		this.children = undefined;
+		if (parent) {
+			if (!parent.children) {
+				parent.children = new Set();
+			}
+			parent.children.add(this);
+		}
 		// Context (provider/inject)
 		this._context = undefined;
 		this._ctxSubs = undefined;
@@ -1052,10 +1135,10 @@ class UIInstance {
 		this.data = undefined;
 		this.key = undefined;
 		this.dataType = type.Null;
-		this.rendered = new Map();
-		this.behavior = new Map();
 		this.predicate = undefined;
-		this.bind();
+		if (template.hasBindings) {
+			this.bind();
+		}
 		this.initial = undefined;
 		this._renderer = () => this.render();
 		if (template.initializer) {
@@ -1098,12 +1181,15 @@ class UIInstance {
 			this._ctxSubs = undefined;
 		}
 		// Recursively dispose children
-		for (const child of this.children) {
-			child.dispose();
+		if (this.children) {
+			for (const child of this.children) {
+				child.dispose();
+			}
+			this.children.clear();
+			this.children = undefined;
 		}
-		this.children.clear();
 		// Remove from parent's children set
-		this.parent?.children.delete(this);
+		this.parent?.children?.delete(this);
 	}
 
 	// ========================================================================
@@ -1473,7 +1559,6 @@ class UIInstance {
 					}
 				}
 			}
-			this.behavior.clear();
 			for (const k in this.when) {
 				for (const slot of this.when[k]) {
 					if (slot.template.predicate(this, data)) {
@@ -1486,22 +1571,15 @@ class UIInstance {
 			// Render attribute slots (out:style, out:class, etc.)
 			for (const k in this.outAttr) {
 				let v;
-				if (this.template.behavior?.[k]) {
-					if (this.behavior.has(k)) {
-						v = this.behavior.get(k);
-					} else {
-						const b = this.template.behavior[k];
-						for (const slot of this.outAttr[k]) {
-							const attrValue = slot.node.getAttribute(
-								slot.attrName,
-							);
-							// Handler signature: (self, data, attrValue, node)
-							v = b(this, data, attrValue, slot.node);
-							slot.render(v);
-						}
-						this.behavior.set(k, v);
-						continue; // Already rendered in the loop above
+				const b = this.template.behavior?.[k];
+				if (b) {
+					for (const slot of this.outAttr[k]) {
+						const attrValue = slot.node.getAttribute(slot.attrName);
+						// Handler signature: (self, data, attrValue, node)
+						v = b(this, data, attrValue, slot.node);
+						slot.render(v);
 					}
+					continue; // Already rendered in the loop above
 				} else if (data && k in data) {
 					// Use corresponding property from data if no behavior defined
 					v = expand(data[k]);
@@ -1568,6 +1646,7 @@ export const ui = (selection, scope = document) => {
 		if (/\s*</.test(selection)) {
 			// We support parsing HTML
 			const doc = parser.parseFromString(selection, "text/html");
+			_pruneTemplateWhitespace(doc.body);
 			nodes = [...doc.body.childNodes];
 		} else {
 			for (const node of document.querySelectorAll(selection)) {
