@@ -175,6 +175,72 @@ const _createComponent = (tmpl) => {
 const logSelectUI = (level, scope, message, details = {}) => {
 	console[level](`[select.ui] ${scope}: ${message}, details`, details);
 };
+
+const WHEN_MODE_TRUTHY = 1;
+const WHEN_MODE_FALSY = 2;
+const WHEN_MODE_DEFINED = 3;
+const WHEN_MODE_UNDEFINED = 4;
+
+const _parseWhenShorthand = (expr) => {
+	const source = typeof expr === "string" ? expr.trim() : "";
+	let i = 0;
+	let negate = false;
+	let queryDefined = false;
+	if (source[i] === "!") {
+		negate = true;
+		i++;
+	}
+	if (source[i] === "?") {
+		queryDefined = true;
+		i++;
+	}
+	const key = source.slice(i).trim();
+	if (key && !/^[A-Za-z0-9_$-]+$/.test(key)) {
+		return null;
+	}
+	if (!key && source.length > 0 && i === 0) {
+		return null;
+	}
+	const mode = queryDefined
+		? negate
+			? WHEN_MODE_UNDEFINED
+			: WHEN_MODE_DEFINED
+		: negate
+			? WHEN_MODE_FALSY
+			: WHEN_MODE_TRUTHY;
+	return { key: key || undefined, mode };
+};
+
+const _evaluateWhen = (mode, value) => {
+	switch (mode) {
+		case WHEN_MODE_TRUTHY:
+			return !!value;
+		case WHEN_MODE_FALSY:
+			return !value;
+		case WHEN_MODE_DEFINED:
+			return value !== undefined;
+		case WHEN_MODE_UNDEFINED:
+			return value === undefined;
+		default:
+			return false;
+	}
+};
+
+const _resolveWhenValue = (self, data, key) => {
+	const behavior = self?.template?.behavior;
+	const b = behavior?.[key];
+	if (b) {
+		return b(self, data, null);
+	}
+	if (data && key in data) {
+		return expand(data[key]);
+	}
+	return undefined;
+};
+
+const _createWhenPredicate = (mode, key) => (self, data) =>
+	_evaluateWhen(mode, _resolveWhenValue(self, data, key));
+
 const SLOT_DEFAULT_KEY = "_";
 
 const _isPrunableWhitespaceText = (node) =>
@@ -524,6 +590,84 @@ class UITemplateSlot {
 			}
 			if (parent.querySelectorAll) {
 				for (const node of parent.querySelectorAll(`[${name}]`)) {
+					add(node, parent, i);
+				}
+			}
+		}
+		return count ? res : null;
+	}
+
+	// Finds and compiles `when` attributes in `nodes`.
+	// Supports shorthand predicates and key inference from sibling `out`.
+	static FindWhen(nodes) {
+		const res = {};
+		let count = 0;
+		const selector = `[when]`;
+		const add = (node, parent, i) => {
+			const expr = node.getAttribute("when") || "";
+			const parsed = _parseWhenShorthand(expr);
+			const slot = new UITemplateSlot(
+				node,
+				parent,
+				UITemplateSlot.Path(node, parent, [i]),
+			);
+
+			if (parsed) {
+				let whenKey = parsed.key;
+				if (!whenKey) {
+					const outKey = node.getAttribute("out")?.trim();
+					if (!outKey) {
+						logSelectUI(
+							"error",
+							"UITemplate",
+							"unable to infer [when] key from [out]",
+							{
+								expression: expr,
+								node,
+								supported: [
+									'when out="slot"',
+									'when="?" out="slot"',
+									'when="!" out="slot"',
+									'when="!?" out="slot"',
+								],
+							},
+						);
+						return;
+					}
+					whenKey = outKey;
+				}
+
+				node.removeAttribute("when");
+				slot.predicate = _createWhenPredicate(parsed.mode, whenKey);
+				slot.predicatePlaceholder = document.createComment(expr || "when");
+				const groupKey = `${parsed.mode}:${whenKey}`;
+				if (res[groupKey] === undefined) {
+					res[groupKey] = [slot];
+				} else {
+					res[groupKey].push(slot);
+				}
+				count++;
+				return;
+			}
+
+			node.removeAttribute("when");
+			slot.predicate = new Function(`return ((self,data,event)=>(${expr}))`)();
+			slot.predicatePlaceholder = document.createComment(expr);
+			if (res[expr] === undefined) {
+				res[expr] = [slot];
+			} else {
+				res[expr].push(slot);
+			}
+			count++;
+		};
+
+		for (let i = 0; i < nodes.length; i++) {
+			const parent = nodes[i];
+			if (parent.matches?.(selector)) {
+				add(parent, parent, i);
+			}
+			if (parent.querySelectorAll) {
+				for (const node of parent.querySelectorAll(selector)) {
 					add(node, parent, i);
 				}
 			}
@@ -908,15 +1052,11 @@ class UITemplate {
 		this.nodes = nodes;
 		this.on = UITemplateSlot.FindEvent("on:", nodes);
 		this.in = UITemplateSlot.Find("in", nodes);
+		this.when = UITemplateSlot.FindWhen(nodes);
 		this.out = UITemplateSlot.Find("out", nodes);
 		this.inout = UITemplateSlot.Find("inout", nodes);
 		this.hasBindings = !!(this.on || this.in || this.inout);
 		this.ref = UITemplateSlot.Find("ref", nodes);
-		this.when = UITemplateSlot.Find("when", nodes, (slot, expr) => {
-			slot.predicate = new Function(`return ((self,data,event)=>(${expr}))`)();
-			slot.predicatePlaceholder = document.createComment(expr);
-			return slot;
-		});
 		this.outAttr = UITemplateSlot.FindAttr("out:", nodes);
 		this.slots = this._findSlots(nodes);
 		this.initializer = undefined;

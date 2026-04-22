@@ -198,7 +198,7 @@ Returns a component function with these methods:
 - `in`: Binds a slot's input (e.g., value of an `<input>`) to instance data.
 - `inout`: Two-way binding between slot and instance data.
 - `on:<event>`: Binds a DOM event to an instance method or behavior handler.
-- `when`: Conditional rendering based on a data value or expression.
+- `when`: Conditional rendering with expression or shorthand predicates.
 - `ref`: Provides a reference to the DOM node in the instance's `self.ref`.
 - `slot`: Defines a named slot for content injection.
 
@@ -364,7 +364,26 @@ Bind event handlers with explicit event types using `on:<event>="handlerName"`.
 
 ### Conditional Slots (`when`)
 
-Show/hide elements based on expressions. The expression has access to `self`,
+Show/hide elements with either slot shorthand predicates or full expressions.
+
+Shorthand forms:
+
+- `slot` (truthy)
+- `!slot` (falsy)
+- `?slot` (defined, including `null`)
+- `!?slot` (undefined)
+
+Key inference from `out` on the same element:
+
+- `when` or `when=""` + `out="slot"` => `when="slot"`
+- `when="?"` + `out="slot"` => `when="?slot"`
+- `when="!"` + `out="slot"` => `when="!slot"`
+- `when="!?"` + `out="slot"` => `when="!?slot"`
+
+If key inference is requested but no `out` slot exists, `when` stays as a
+regular HTML attribute and an error is logged.
+
+For full expressions, `when` still evaluates JavaScript with access to `self`,
 `data`, and `event`.
 
 ```html
@@ -375,6 +394,14 @@ Show/hide elements based on expressions. The expression has access to `self`,
 <div when="!data.editing">
   <span out="value"></span>
   <button on:click="edit">Edit</button>
+</div>
+
+<div when out="open">
+  Visible when `open` is truthy
+</div>
+
+<div when="?" out="value">
+  Visible when `value` is defined
 </div>
 ```
 

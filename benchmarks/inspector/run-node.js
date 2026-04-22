@@ -101,9 +101,14 @@ server.listen(PORT, () => {
 			logBenchmark("log", "run-node.waitForResult", "benchmark result header", {
 				framework,
 			});
-			logBenchmark("log", "run-node.waitForResult", "benchmark result payload", {
-				resultData,
-			});
+			logBenchmark(
+				"log",
+				"run-node.waitForResult",
+				"benchmark result payload",
+				{
+					resultData,
+				},
+			);
 			logBenchmark("log", "run-node.waitForResult", "benchmark result footer", {
 				framework,
 			});

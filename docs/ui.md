@@ -135,7 +135,26 @@ Dynamic("Badge", { label: "Ready" })
 - `in`: Binds a slot's input (e.g., value of an `<input>`) to instance data.
 - `inout`: Two-way binding between slot and instance data.
 - `on:<event>`: Binds a DOM event to an instance method or behavior handler.
-- `when`: Conditional rendering based on a data value.
+- `when`: Conditional rendering with expression or shorthand predicate syntax.
 - `ref`: Provides a reference to the DOM node in the instance's `self.refs`.
 - `out:<attr>`: Binds a specific DOM attribute to a data value.
 - `slot`: Defines a named slot for content injection.
+
+### `when` shorthand and inference
+
+`when` accepts shorthand slot predicates:
+
+- `when="slot"`: show when `slot` is truthy
+- `when="!slot"`: show when `slot` is falsy
+- `when="?slot"`: show when `slot !== undefined`
+- `when="!?slot"`: show when `slot === undefined`
+
+If the key is omitted, it is inferred from `out` on the same element:
+
+- `when` or `when=""` + `out="slot"` => `when="slot"`
+- `when="?"` + `out="slot"` => `when="?slot"`
+- `when="!"` + `out="slot"` => `when="!slot"`
+- `when="!?"` + `out="slot"` => `when="!?slot"`
+
+If key inference is requested but no `out` slot is available, `when` is left as a
+regular HTML attribute and an error is logged.
