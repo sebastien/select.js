@@ -64,6 +64,11 @@ const len = (v) => {
 
 const parser = new DOMParser();
 
+const queueMicro =
+	typeof globalThis.queueMicrotask === "function"
+		? globalThis.queueMicrotask.bind(globalThis)
+		: (fn) => Promise.resolve().then(fn);
+
 const _templateRegistries = new WeakMap();
 
 const _templateKey = (value) => {
@@ -276,6 +281,8 @@ const _resolveWhenValue = (self, data, key) => {
 	return undefined;
 };
 
+const _isPascalCaseName = (name) => /^[A-Z][A-Za-z0-9_]*$/.test(name);
+
 const _resolveNamedProcessor = (self, name) => {
 	if (!self?.template || !name) {
 		return null;
@@ -284,36 +291,42 @@ const _resolveNamedProcessor = (self, name) => {
 	if (!template._processorCache) {
 		template._processorCache = new Map();
 	}
-	if (template._processorCache.has(name)) {
-		return template._processorCache.get(name);
+	const cached = template._processorCache.get(name);
+	if (cached && cached.version === _formatsVersion) {
+		return cached.value;
 	}
-
-	let resolved = null;
-	const behaviorProcessor = template.behavior?.[name];
-	if (behaviorProcessor) {
-		resolved = { type: "behavior", value: behaviorProcessor };
-	} else {
-		const registeredProcessor = ui.resolve(name);
-		if (registeredProcessor) {
-			resolved = { type: "component", value: registeredProcessor };
-		} else {
-			const scope = template.scope || document;
-			const registry = _templateRegistryFor(scope);
-			const templateNode = registry.get(_templateKey(name));
-			if (templateNode) {
-				const nodes = [];
-				for (const child of templateNode.content.childNodes) {
-					nodes.push(child.cloneNode(true));
-				}
-				resolved = {
-					type: "component",
-					value: _createComponent(new UITemplate(nodes, scope)),
-				};
-			}
-		}
+	const registered = ui.formats?.[name];
+	if (!registered) {
+		template._processorCache.set(name, {
+			version: _formatsVersion,
+			value: null,
+		});
+		return null;
 	}
-
-	template._processorCache.set(name, resolved);
+	const isPascal = _isPascalCaseName(name);
+	const isComponent =
+		typeof registered === "function" &&
+		(registered?.isTemplate || typeof registered?.new === "function");
+	if (isPascal && !isComponent) {
+		logSelectUI("warn", "ui.formats", "PascalCase formatter is not a component", {
+			name,
+			formatter: registered,
+		});
+	}
+	if (!isPascal && isComponent) {
+		logSelectUI("warn", "ui.formats", "component formatter should use PascalCase", {
+			name,
+			formatter: registered,
+		});
+	}
+	const resolved = {
+		type: isComponent ? "component" : "function",
+		value: registered,
+	};
+	template._processorCache.set(name, {
+		version: _formatsVersion,
+		value: resolved,
+	});
 	return resolved;
 };
 
@@ -334,15 +347,15 @@ const _applyNamedProcessors = (self, data, value, processors, sourceKey) => {
 			);
 			continue;
 		}
-		if (processor.type === "behavior") {
-			current = processor.value(self, data, current, sourceKey, name);
-		} else {
+		if (processor.type === "component") {
 			const component = processor.value;
 			if (typeof component?.apply === "function" && component?.isTemplate) {
 				current = component(current);
 			} else if (typeof component === "function") {
 				current = component(current, self, data);
 			}
+		} else {
+			current = processor.value(current, self, data, sourceKey, name);
 		}
 	}
 	return current;
@@ -1901,6 +1914,7 @@ class UIInstance {
 			}
 		}
 		this.parent = parent;
+		this._isDisposed = false;
 		this.children = undefined;
 		if (parent) {
 			if (!parent.children) {
@@ -1912,6 +1926,7 @@ class UIInstance {
 			this.bind();
 		}
 		this._renderer = undefined;
+		this._renderQueued = false;
 		this._reactiveDataSubs = undefined;
 		this._domListeners = undefined;
 		if (template.initializer) {
@@ -1925,9 +1940,22 @@ class UIInstance {
 
 	_getRenderer() {
 		if (!this._renderer) {
-			this._renderer = () => this.render();
+			this._renderer = () => this._scheduleRender();
 		}
 		return this._renderer;
+	}
+
+	_scheduleRender() {
+		if (this._renderQueued || this._isDisposed) {
+			return;
+		}
+		this._renderQueued = true;
+		queueMicro(() => {
+			this._renderQueued = false;
+			if (!this._isDisposed) {
+				this.render();
+			}
+		});
 	}
 
 	_collectReactiveDataRefs(data) {
@@ -1975,6 +2003,11 @@ class UIInstance {
 
 	// Cleans up subscriptions, recursively disposes children, removes from parent.
 	dispose() {
+		if (this._isDisposed) {
+			return;
+		}
+		this._isDisposed = true;
+		this._renderQueued = false;
 		if (this._domListeners) {
 			for (const listener of this._domListeners) {
 				listener.node.removeEventListener(listener.type, listener.handler);
@@ -2024,7 +2057,7 @@ class UIInstance {
 						this._ctxSubs = new Map();
 					}
 					if (!this._ctxSubs.has(value)) {
-						const handler = () => this.render();
+						const handler = this._getRenderer();
 						value.sub(handler);
 						this._ctxSubs.set(value, handler);
 					}
@@ -2485,6 +2518,22 @@ class UIInstance {
 // ----------------------------------------------------------------------------
 
 const _registry = new Map();
+let _formatsVersion = 0;
+const _formatsStore = Object.create(null);
+const _formatsProxy = new Proxy(_formatsStore, {
+	set(target, property, value) {
+		target[property] = value;
+		_formatsVersion++;
+		return true;
+	},
+	deleteProperty(target, property) {
+		if (property in target) {
+			delete target[property];
+			_formatsVersion++;
+		}
+		return true;
+	},
+});
 
 // Function: Dynamic
 // Creates a component by type from the registry.
@@ -2909,6 +2958,34 @@ const ui = (selection, scope = document) => {
 			`Expected a string (CSS selector or HTML), a DOM Node, or an array of DOM Nodes. ` +
 			`Received: ${selection}`,
 	);
+};
+
+ui.formats = _formatsProxy;
+
+ui.format = (name, formatter) => {
+	if (typeof name !== "string" || !name.trim()) {
+		logSelectUI("error", "ui.formats", "invalid formatter name", {
+			name,
+			formatter,
+		});
+		return ui;
+	}
+	ui.formats[name.trim()] = formatter;
+	return ui;
+};
+
+ui.unformat = (name) => {
+	if (typeof name === "string" && name.trim()) {
+		delete ui.formats[name.trim()];
+	}
+	return ui;
+};
+
+ui.resolveFormat = (name) => {
+	if (typeof name !== "string") {
+		return undefined;
+	}
+	return ui.formats[name.trim()];
 };
 
 // Registers `component` as `name` for Dynamic() resolution.

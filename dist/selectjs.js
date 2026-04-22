@@ -1797,6 +1797,7 @@ var len = (v) => {
   return 1;
 };
 var parser = new DOMParser;
+var queueMicro = typeof globalThis.queueMicrotask === "function" ? globalThis.queueMicrotask.bind(globalThis) : (fn) => Promise.resolve().then(fn);
 var _templateRegistries = new WeakMap;
 var _templateKey = (value) => {
   if (typeof value !== "string") {
@@ -1980,6 +1981,7 @@ var _resolveWhenValue = (self, data, key) => {
   }
   return;
 };
+var _isPascalCaseName = (name) => /^[A-Z][A-Za-z0-9_]*$/.test(name);
 var _resolveNamedProcessor = (self, name) => {
   if (!self?.template || !name) {
     return null;
@@ -1988,34 +1990,40 @@ var _resolveNamedProcessor = (self, name) => {
   if (!template._processorCache) {
     template._processorCache = new Map;
   }
-  if (template._processorCache.has(name)) {
-    return template._processorCache.get(name);
+  const cached = template._processorCache.get(name);
+  if (cached && cached.version === _formatsVersion) {
+    return cached.value;
   }
-  let resolved = null;
-  const behaviorProcessor = template.behavior?.[name];
-  if (behaviorProcessor) {
-    resolved = { type: "behavior", value: behaviorProcessor };
-  } else {
-    const registeredProcessor = ui.resolve(name);
-    if (registeredProcessor) {
-      resolved = { type: "component", value: registeredProcessor };
-    } else {
-      const scope = template.scope || document;
-      const registry = _templateRegistryFor(scope);
-      const templateNode = registry.get(_templateKey(name));
-      if (templateNode) {
-        const nodes = [];
-        for (const child of templateNode.content.childNodes) {
-          nodes.push(child.cloneNode(true));
-        }
-        resolved = {
-          type: "component",
-          value: _createComponent(new UITemplate(nodes, scope))
-        };
-      }
-    }
+  const registered = ui.formats?.[name];
+  if (!registered) {
+    template._processorCache.set(name, {
+      version: _formatsVersion,
+      value: null
+    });
+    return null;
   }
-  template._processorCache.set(name, resolved);
+  const isPascal = _isPascalCaseName(name);
+  const isComponent = typeof registered === "function" && (registered?.isTemplate || typeof registered?.new === "function");
+  if (isPascal && !isComponent) {
+    logSelectUI("warn", "ui.formats", "PascalCase formatter is not a component", {
+      name,
+      formatter: registered
+    });
+  }
+  if (!isPascal && isComponent) {
+    logSelectUI("warn", "ui.formats", "component formatter should use PascalCase", {
+      name,
+      formatter: registered
+    });
+  }
+  const resolved = {
+    type: isComponent ? "component" : "function",
+    value: registered
+  };
+  template._processorCache.set(name, {
+    version: _formatsVersion,
+    value: resolved
+  });
   return resolved;
 };
 var _applyNamedProcessors = (self, data, value, processors, sourceKey) => {
@@ -2030,15 +2038,15 @@ var _applyNamedProcessors = (self, data, value, processors, sourceKey) => {
       logSelectUI("warn", "UIInstance.render", "processor not found", { processor: name, sourceKey, instance: self });
       continue;
     }
-    if (processor.type === "behavior") {
-      current = processor.value(self, data, current, sourceKey, name);
-    } else {
+    if (processor.type === "component") {
       const component = processor.value;
       if (typeof component?.apply === "function" && component?.isTemplate) {
         current = component(current);
       } else if (typeof component === "function") {
         current = component(current, self, data);
       }
+    } else {
+      current = processor.value(current, self, data, sourceKey, name);
     }
   }
   return current;
@@ -3144,6 +3152,7 @@ class UIInstance {
       }
     }
     this.parent = parent;
+    this._isDisposed = false;
     this.children = undefined;
     if (parent) {
       if (!parent.children) {
@@ -3155,6 +3164,7 @@ class UIInstance {
       this.bind();
     }
     this._renderer = undefined;
+    this._renderQueued = false;
     this._reactiveDataSubs = undefined;
     this._domListeners = undefined;
     if (template.initializer) {
@@ -3167,9 +3177,21 @@ class UIInstance {
   }
   _getRenderer() {
     if (!this._renderer) {
-      this._renderer = () => this.render();
+      this._renderer = () => this._scheduleRender();
     }
     return this._renderer;
+  }
+  _scheduleRender() {
+    if (this._renderQueued || this._isDisposed) {
+      return;
+    }
+    this._renderQueued = true;
+    queueMicro(() => {
+      this._renderQueued = false;
+      if (!this._isDisposed) {
+        this.render();
+      }
+    });
   }
   _collectReactiveDataRefs(data) {
     const refs = new Set;
@@ -3212,6 +3234,11 @@ class UIInstance {
     this._reactiveDataSubs.clear();
   }
   dispose() {
+    if (this._isDisposed) {
+      return;
+    }
+    this._isDisposed = true;
+    this._renderQueued = false;
     if (this._domListeners) {
       for (const listener of this._domListeners) {
         listener.node.removeEventListener(listener.type, listener.handler);
@@ -3252,7 +3279,7 @@ class UIInstance {
             this._ctxSubs = new Map;
           }
           if (!this._ctxSubs.has(value)) {
-            const handler = () => this.render();
+            const handler = this._getRenderer();
             value.sub(handler);
             this._ctxSubs.set(value, handler);
           }
@@ -3618,6 +3645,22 @@ class UIInstance {
   }
 }
 var _registry = new Map;
+var _formatsVersion = 0;
+var _formatsStore = Object.create(null);
+var _formatsProxy = new Proxy(_formatsStore, {
+  set(target2, property, value) {
+    target2[property] = value;
+    _formatsVersion++;
+    return true;
+  },
+  deleteProperty(target2, property) {
+    if (property in target2) {
+      delete target2[property];
+      _formatsVersion++;
+    }
+    return true;
+  }
+});
 var Dynamic = (type2, props = {}) => {
   const component = typeof type2 === "string" ? _registry.get(type2) : type2;
   return component ? component(props) : null;
@@ -3914,6 +3957,30 @@ var ui = (selection, scope = document) => {
     return _createComponent(new UITemplate([...nodes], scope));
   }
   throw new Error(`ui() received an invalid selection type: ${typeof selection}. ` + `Expected a string (CSS selector or HTML), a DOM Node, or an array of DOM Nodes. ` + `Received: ${selection}`);
+};
+ui.formats = _formatsProxy;
+ui.format = (name, formatter) => {
+  if (typeof name !== "string" || !name.trim()) {
+    logSelectUI("error", "ui.formats", "invalid formatter name", {
+      name,
+      formatter
+    });
+    return ui;
+  }
+  ui.formats[name.trim()] = formatter;
+  return ui;
+};
+ui.unformat = (name) => {
+  if (typeof name === "string" && name.trim()) {
+    delete ui.formats[name.trim()];
+  }
+  return ui;
+};
+ui.resolveFormat = (name) => {
+  if (typeof name !== "string") {
+    return;
+  }
+  return ui.formats[name.trim()];
 };
 ui.register = (name, component) => {
   _registry.set(name, component);

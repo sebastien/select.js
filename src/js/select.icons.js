@@ -344,20 +344,29 @@ function loadIcon(
 		container.appendChild(symbol);
 
 		const iconRes = fetch(url)
-			.then((response) => response.text())
+			.then((response) => {
+				if (!response.ok) {
+					throw new Error(`HTTP ${response.status}`);
+				}
+				return response.text();
+			})
 			.then((text) => {
-				const svgStart = Math.max(0, text.indexOf("<svg"));
+				const svgStart = text.indexOf("<svg");
+				if (svgStart < 0) {
+					throw new Error("SVG tag not found");
+				}
 				symbol.innerHTML = text.substring(svgStart);
 				const icon = symbol.firstChild;
+				if (!icon || `${icon.nodeName}`.toLowerCase() !== "svg") {
+					throw new Error("Invalid SVG payload");
+				}
 
-				if (icon?.attributes) {
+				if (icon.attributes) {
 					["stroke-width", "fill", "stroke"].forEach((attr) => {
 						if (icon.hasAttribute(attr)) {
 							icon.removeAttribute(attr);
 						}
 					});
-				} else {
-					console.error(`Icon "${name}" should have content, got:`, text);
 				}
 
 				if (resolvedSource?.style) {
@@ -374,6 +383,7 @@ function loadIcon(
 				return symbol;
 			})
 			.catch((reason) => {
+				symbol.parentNode?.removeChild(symbol);
 				console.warn(
 					"icons",
 					`Could not load icon "${name}" from <${url}>: ${reason}`,

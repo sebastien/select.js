@@ -64,6 +64,11 @@ const len = (v) => {
 
 const parser = new DOMParser();
 
+const queueMicro =
+	typeof globalThis.queueMicrotask === "function"
+		? globalThis.queueMicrotask.bind(globalThis)
+		: (fn) => Promise.resolve().then(fn);
+
 const _templateRegistries = new WeakMap();
 
 const _templateKey = (value) => {
@@ -1909,6 +1914,7 @@ class UIInstance {
 			}
 		}
 		this.parent = parent;
+		this._isDisposed = false;
 		this.children = undefined;
 		if (parent) {
 			if (!parent.children) {
@@ -1920,6 +1926,7 @@ class UIInstance {
 			this.bind();
 		}
 		this._renderer = undefined;
+		this._renderQueued = false;
 		this._reactiveDataSubs = undefined;
 		this._domListeners = undefined;
 		if (template.initializer) {
@@ -1933,9 +1940,22 @@ class UIInstance {
 
 	_getRenderer() {
 		if (!this._renderer) {
-			this._renderer = () => this.render();
+			this._renderer = () => this._scheduleRender();
 		}
 		return this._renderer;
+	}
+
+	_scheduleRender() {
+		if (this._renderQueued || this._isDisposed) {
+			return;
+		}
+		this._renderQueued = true;
+		queueMicro(() => {
+			this._renderQueued = false;
+			if (!this._isDisposed) {
+				this.render();
+			}
+		});
 	}
 
 	_collectReactiveDataRefs(data) {
@@ -1983,6 +2003,11 @@ class UIInstance {
 
 	// Cleans up subscriptions, recursively disposes children, removes from parent.
 	dispose() {
+		if (this._isDisposed) {
+			return;
+		}
+		this._isDisposed = true;
+		this._renderQueued = false;
 		if (this._domListeners) {
 			for (const listener of this._domListeners) {
 				listener.node.removeEventListener(listener.type, listener.handler);
@@ -2032,7 +2057,7 @@ class UIInstance {
 						this._ctxSubs = new Map();
 					}
 					if (!this._ctxSubs.has(value)) {
-						const handler = () => this.render();
+						const handler = this._getRenderer();
 						value.sub(handler);
 						this._ctxSubs.set(value, handler);
 					}
