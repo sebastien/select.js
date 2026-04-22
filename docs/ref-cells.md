@@ -111,6 +111,7 @@ state.set(2, "a.b");
 - `.map(functor)`: Creates a new array by mapping over the cell's current value (if it's an array).
 - `.push(value)`: Appends an item to the cell's value (only if it's an array).
 - `.refresh()`: Forces the reactive value to re-evaluate its state.
+- `.dispose()`: Releases subscriptions/resources for reactive helpers that support lifecycle (`Selected`, `Deferred`, `Derivation`).
 
 ### Reactive Instance Properties:
 

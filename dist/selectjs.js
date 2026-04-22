@@ -222,7 +222,7 @@ class Reactive {
       return this.value.map(functor);
     } else if (Object.getPrototypeOf(this.value) === Object.prototype) {
       const res = [];
-      for (const k of this.value) {
+      for (const k in this.value) {
         res[k] = functor(this.value[k]);
       }
       return res;
@@ -234,6 +234,7 @@ class Reactive {
     if (key === Nothing) {
       return this.value;
     }
+    return access(this.value, normpath(key));
   }
 }
 
@@ -242,6 +243,13 @@ class Selected extends Reactive {
     super(access(parent, path));
     this.parent = parent;
     this.path = path;
+  }
+  dispose() {
+    this.parent?.selections?.remove(this.path, this);
+    this.parent = undefined;
+    this.path = undefined;
+    this.subs.length = 0;
+    return this;
   }
   refresh() {
     const value = access(this.parent.value, this.path);
@@ -253,7 +261,7 @@ class Selected extends Reactive {
   }
   set(value, path = Nothing, force = false) {
     path = normpath(path);
-    return this.parent.set(value, path ? [...this.path, path] : this.path, force);
+    return this.parent.set(value, path ? [...this.path, ...path] : this.path, force);
   }
 }
 
@@ -277,16 +285,11 @@ class Cell extends Reactive {
   }
   set(value, path = Nothing, force = false) {
     this._update(value, path, force);
+    return this;
   }
   push(value) {
-    if (this.revision === -1) {
-      this.value = [value];
-    } else if (Array.isArray(this.value)) {
-      this.value.push(value);
-    } else {
-      this.value = [this.value, value];
-    }
-    this.revision++;
+    const updated = this.revision === -1 ? [value] : Array.isArray(this.value) ? [...this.value, value] : [this.value, value];
+    this._update(updated, Nothing);
     return this;
   }
 }
@@ -306,6 +309,13 @@ class Deferred extends Cell {
       this._update(value, path, force);
     }, this.delay);
   }
+  dispose() {
+    if (this._timer) {
+      clearTimeout(this._timer);
+      this._timer = null;
+    }
+    return this;
+  }
 }
 
 class Derivation extends Reactive {
@@ -314,6 +324,8 @@ class Derivation extends Reactive {
     this.template = template;
     this.processor = processor;
     this.reactors = [];
+    this.sources = [];
+    this.isBound = false;
     this.expanded = Reactive.Expand(template);
     this._promiseToken = 0;
     this.revision = initial ? 0 : -1;
@@ -356,25 +368,47 @@ class Derivation extends Reactive {
     }
   }
   bind() {
+    if (this.isBound) {
+      return this;
+    }
+    this.isBound = true;
     for (const [cell, path] of Reactive.Walk(this.template)) {
-      const reactor = (value) => {
-        this.expanded = assign(this.expanded, path, value);
+      const reactor = (value, sourcePath) => {
+        const fullPath = sourcePath === undefined || sourcePath === null ? path : Array.isArray(sourcePath) ? [...path, ...sourcePath] : [...path, sourcePath];
+        this.expanded = assign(this.expanded, fullPath, value);
         this._apply(this._compute());
       };
       cell.sub(reactor);
+      this.sources.push(cell);
       this.reactors.push(reactor);
     }
     return this;
   }
   unbind() {
-    let i = 0;
-    for (const [cell] of Reactive.Walk(this.template)) {
-      cell.unsub(this.reactors[i]);
-      i++;
+    if (!this.isBound) {
+      return this;
     }
-    while (this.reactors) {
+    for (let i = 0;i < this.sources.length; i++) {
+      this.sources[i].unsub(this.reactors[i]);
+    }
+    while (this.reactors.length) {
       this.reactors.pop();
     }
+    while (this.sources.length) {
+      this.sources.pop();
+    }
+    this.isBound = false;
+    return this;
+  }
+  dispose() {
+    this.unbind();
+    this._promiseToken++;
+    this.subs.length = 0;
+    this.template = undefined;
+    return this;
+  }
+  refresh() {
+    this._apply(this._compute());
     return this;
   }
 }
@@ -1639,12 +1673,10 @@ var _createComponent = (tmpl) => {
       return component;
     },
     map: (...args) => {
-      tmpl.map(...args);
-      return component;
+      return tmpl.map(...args);
     },
     apply: (...args) => {
-      tmpl.apply(...args);
-      return component;
+      return tmpl.apply(...args);
     },
     does: (...args) => {
       tmpl.does(...args);
@@ -2615,7 +2647,7 @@ class UIContentSlot {
     this._lastContentType = 0;
   }
   mount(content) {
-    if (!content) {
+    if (content === undefined || content === null) {
       if (this.fallback.length) {
         if (!this._lastWasFallback) {
           this._clear();
@@ -2793,6 +2825,7 @@ class UIInstance {
     }
     this._renderer = undefined;
     this._reactiveDataSubs = undefined;
+    this._domListeners = undefined;
     if (template.initializer) {
       const state = template.initializer();
       if (state) {
@@ -2848,6 +2881,13 @@ class UIInstance {
     this._reactiveDataSubs.clear();
   }
   dispose() {
+    if (this._domListeners) {
+      for (const listener of this._domListeners) {
+        listener.node.removeEventListener(listener.type, listener.handler);
+      }
+      this._domListeners.length = 0;
+      this._domListeners = undefined;
+    }
     this._clearReactiveDataSubs();
     if (this._ctxSubs) {
       for (const [cell2, handler] of this._ctxSubs) {
@@ -2893,6 +2933,12 @@ class UIInstance {
     return defaultValue;
   }
   bind() {
+    if (this._domListeners && this._domListeners.length) {
+      return;
+    }
+    if (!this._domListeners) {
+      this._domListeners = [];
+    }
     for (const k in this.on) {
       for (const slot of this.on[k]) {
         this._bindEvent(k, slot);
@@ -2908,7 +2954,7 @@ class UIInstance {
   }
   _bindEvent(name, target, handler = this.template.behavior?.[name]) {
     if (handler) {
-      target.node.addEventListener(target.eventType, (event) => {
+      const listener = (event) => {
         const result = handler(this, this.data || {}, event);
         if (result && typeof result === "object" && !Array.isArray(result)) {
           for (const key in result) {
@@ -2918,6 +2964,12 @@ class UIInstance {
             }
           }
         }
+      };
+      target.node.addEventListener(target.eventType, listener);
+      this._domListeners.push({
+        node: target.node,
+        type: target.eventType,
+        handler: listener
       });
     }
   }
@@ -2935,7 +2987,7 @@ class UIInstance {
       default:
         event = "click";
     }
-    target.node.addEventListener(event, (event2) => {
+    const listener = (event2) => {
       const data = this.data || {};
       const slotValue = data[name];
       if (handler) {
@@ -2953,6 +3005,12 @@ class UIInstance {
       } else if (slotValue?.isReactive) {
         slotValue.set(event2?.target?.value);
       }
+    };
+    target.node.addEventListener(event, listener);
+    this._domListeners.push({
+      node: target.node,
+      type: event,
+      handler: listener
     });
   }
   set(data, key = this.key) {
@@ -2998,7 +3056,7 @@ class UIInstance {
       }
     }
     if (!same) {
-      const merged = this.data && typeof this.data === "object" ? Object.assign(this.data, data) : data;
+      const merged = this.data && typeof this.data === "object" ? Object.assign({}, this.data, data) : data;
       this.render(merged, changedKeys);
     }
     return this;
@@ -3246,7 +3304,7 @@ var ui = (selection, scope = document) => {
   if (typeof selection === "string") {
     let nodes = [];
     const templateRegistry = _templateRegistryFor(scope);
-    if (/\s*</.test(selection)) {
+    if (/^\s*</.test(selection)) {
       const doc = parser.parseFromString(selection, "text/html");
       _pruneTemplateWhitespace(doc.body);
       nodes = [...doc.body.childNodes];

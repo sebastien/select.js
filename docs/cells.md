@@ -37,6 +37,7 @@ and lightweight pub/sub.
 - `pub(value, path?, origin?)`: Manually publishes an update to all subscribers.
 - `push(value)`: Appends a value to the underlying array (`Cell` only).
 - `refresh()`: Re-evaluates the value from the source (`Selected` and `Derivation` only).
+- `dispose()`: Releases resources for lifecycle-aware reactive instances (`Selected`, `Deferred`, `Derivation`).
 
 ### Differences with larger state managers
 
@@ -114,4 +115,8 @@ export const counter = (initial = 0) => {
 - `cell.push(value)`: Appends a value to an underlying array cell.
 - `selected.refresh()`: Re-evaluates the selected path against parent state and publishes updates.
 - `selected.set(value, path?, force?)`: Updates the parent cell through this selection.
+- `selected.dispose()`: Unregisters this selection from its parent cell.
 - `derivation.refresh()`: Forces re-computation of a derived value.
+- `derivation.unbind()`: Unsubscribes from all source cells.
+- `derivation.dispose()`: Unsubscribes from sources and clears derivation subscriptions/references.
+- `deferred.dispose()`: Cancels a pending debounced update.

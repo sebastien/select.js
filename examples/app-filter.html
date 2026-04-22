@@ -71,7 +71,7 @@
 		<input inout="filter" placeholder="Filter by country name" />
 		<!-- TODO: items=data.field|format -->
 		<ul out="items">
-			<li when="!data.items?.length">Empty</li>
+			<li when="empty">Empty</li>
 		</ul>
 	</template>
 
@@ -91,6 +91,11 @@
 				const query = (filter || "").trim().toLowerCase()
 				const filtered = query ? items.filter(_ => _.name.toLowerCase().includes(query)) : items
 				return filtered.map(_ => Country(_))
+			},
+			empty: (_self, {items, filter}) => {
+				if (!items) return true
+				const query = (filter || "").trim().toLowerCase()
+				return query ? !items.some(_ => _.name.toLowerCase().includes(query)) : false
 			},
 			filter: (self, data, event) => event ? self.update({filter: event.target.value}) : data.filter,
 		})

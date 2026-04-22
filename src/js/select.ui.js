@@ -154,12 +154,10 @@ const _createComponent = (tmpl) => {
 			return component;
 		},
 		map: (...args) => {
-			tmpl.map(...args);
-			return component;
+			return tmpl.map(...args);
 		},
 		apply: (...args) => {
-			tmpl.apply(...args);
-			return component;
+			return tmpl.apply(...args);
 		},
 		does: (...args) => {
 			tmpl.does(...args);
@@ -1518,7 +1516,7 @@ class UIContentSlot {
 	// Mounts `content` (AppliedUITemplate, Node, or scalar). Shows fallback
 	// if content is null/undefined.
 	mount(content) {
-		if (!content) {
+		if (content === undefined || content === null) {
 			if (this.fallback.length) {
 				if (!this._lastWasFallback) {
 					this._clear();
@@ -1752,6 +1750,7 @@ class UIInstance {
 		}
 		this._renderer = undefined;
 		this._reactiveDataSubs = undefined;
+		this._domListeners = undefined;
 		if (template.initializer) {
 			const state = template.initializer();
 			if (state) {
@@ -1813,6 +1812,13 @@ class UIInstance {
 
 	// Cleans up subscriptions, recursively disposes children, removes from parent.
 	dispose() {
+		if (this._domListeners) {
+			for (const listener of this._domListeners) {
+				listener.node.removeEventListener(listener.type, listener.handler);
+			}
+			this._domListeners.length = 0;
+			this._domListeners = undefined;
+		}
 		this._clearReactiveDataSubs();
 		if (this._ctxSubs) {
 			for (const [cell, handler] of this._ctxSubs) {
@@ -1873,6 +1879,12 @@ class UIInstance {
 
 	// Binds all event handlers for on:, in, and inout slots.
 	bind() {
+		if (this._domListeners && this._domListeners.length) {
+			return;
+		}
+		if (!this._domListeners) {
+			this._domListeners = [];
+		}
 		for (const k in this.on) {
 			for (const slot of this.on[k]) {
 				this._bindEvent(k, slot);
@@ -1890,7 +1902,7 @@ class UIInstance {
 	// Binds event slot with explicit event type.
 	_bindEvent(name, target, handler = this.template.behavior?.[name]) {
 		if (handler) {
-			target.node.addEventListener(target.eventType, (event) => {
+			const listener = (event) => {
 				const result = handler(this, this.data || {}, event);
 				if (result && typeof result === "object" && !Array.isArray(result)) {
 					for (const key in result) {
@@ -1900,6 +1912,12 @@ class UIInstance {
 						}
 					}
 				}
+			};
+			target.node.addEventListener(target.eventType, listener);
+			this._domListeners.push({
+				node: target.node,
+				type: target.eventType,
+				handler: listener,
 			});
 		}
 	}
@@ -1919,7 +1937,7 @@ class UIInstance {
 			default:
 				event = "click";
 		}
-		target.node.addEventListener(event, (event) => {
+		const listener = (event) => {
 			const data = this.data || {};
 			const slotValue = data[name];
 			if (handler) {
@@ -1937,6 +1955,12 @@ class UIInstance {
 			} else if (slotValue?.isReactive) {
 				slotValue.set(event?.target?.value);
 			}
+		};
+		target.node.addEventListener(event, listener);
+		this._domListeners.push({
+			node: target.node,
+			type: event,
+			handler: listener,
 		});
 	}
 
@@ -1993,7 +2017,7 @@ class UIInstance {
 		if (!same) {
 			const merged =
 				this.data && typeof this.data === "object"
-					? Object.assign(this.data, data)
+					? Object.assign({}, this.data, data)
 					: data;
 			this.render(merged, changedKeys);
 		}
@@ -2367,7 +2391,7 @@ const ui = (selection, scope = document) => {
 	if (typeof selection === "string") {
 		let nodes = [];
 		const templateRegistry = _templateRegistryFor(scope);
-		if (/\s*</.test(selection)) {
+		if (/^\s*</.test(selection)) {
 			const doc = parser.parseFromString(selection, "text/html");
 			_pruneTemplateWhitespace(doc.body);
 			nodes = [...doc.body.childNodes];

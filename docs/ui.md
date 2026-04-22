@@ -28,8 +28,8 @@ without a build step.
 - `does(behavior)`: Behavior definition.
 - `on(event, handler)` / `sub(event, handler)`: Event subscription.
 - `init(initializer)`: State initialization.
-- `map(mapper)`: Collection mapping.
-- `apply(data)`: Data application.
+- `map(data)`: Collection mapping to applied templates.
+- `apply(data)`: Applied template creation (same result as `Component(data)`).
 
 ### Component instance API:
 
@@ -37,6 +37,7 @@ without a build step.
 - `update(data, force?)`: Reactive partial updates.
 - `mount(target, previous?)`: DOM attachment.
 - `unmount()`: DOM detachment.
+- `dispose()`: Releases instance listeners/subscriptions and child instances.
 - `render(data?)`: Rendering engine access.
 - `send(event, data)` / `pub(event, data)`: Message passing.
 - `emit(event, data)`: Event emission.
@@ -112,8 +113,8 @@ Dynamic("Badge", { label: "Ready" })
 - `template.does(behavior)`: Binds slot handlers (behavior) to the template. Handler signature is `(self, data, event?) => value`.
 - `template.init(initializer)`: Defines an initializer that provides initial state for each new instance.
 - `template.on(event, handler)` / `template.sub(event, handler)`: Subscribes to events bubbled by child instances of this template.
-- `template.apply(data)`: Returns an applied template object for composition or nested rendering.
-- `template.map(data)`: Returns a list of applied template objects, one for each item in the data collection.
+- `template.apply(data)`: Returns an applied template object for composition or nested rendering (same as `template(data)`).
+- `template.map(data)`: Returns a list (or mapped container) of applied template objects, one per entry in the input collection.
 - `template(data)`: Shorthand for `template.apply(data)`.
 
 ### Component instance methods:
@@ -122,6 +123,7 @@ Dynamic("Badge", { label: "Ready" })
 - `instance.update(data, force?)`: Merges partial data updates and re-renders only if tracked dependencies changed.
 - `instance.mount(target, previous?)`: Attaches the instance's nodes to the DOM at the specified target.
 - `instance.unmount()`: Removes the instance's nodes from the DOM.
+- `instance.dispose()`: Releases runtime listeners/subscriptions and child instances.
 - `instance.render(data?)`: Forces a re-render of the instance, optionally with new data.
 - `instance.send(event, data)` / `instance.pub(event, data)`: Publishes an event upward through the component tree.
 - `instance.emit(event, data)`: Alias for `pub(event, data)`.
@@ -136,7 +138,7 @@ Dynamic("Badge", { label: "Ready" })
 - `inout`: Two-way binding between slot and instance data.
 - `on:<event>`: Binds a DOM event to an instance method or behavior handler.
 - `when`: Conditional rendering with expression or shorthand predicate syntax.
-- `ref`: Provides a reference to the DOM node in the instance's `self.refs`.
+- `ref`: Provides a reference to the DOM node in the instance's `self.ref`.
 - `out:<attr>`: Binds a specific DOM attribute to a data value.
 - `slot`: Defines a named slot for content injection.
 

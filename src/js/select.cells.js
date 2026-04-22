@@ -373,7 +373,7 @@ class Reactive {
 			return this.value.map(functor);
 		} else if (Object.getPrototypeOf(this.value) === Object.prototype) {
 			const res = [];
-			for (const k of this.value) {
+			for (const k in this.value) {
 				res[k] = functor(this.value[k]);
 			}
 			return res;
@@ -387,6 +387,7 @@ class Reactive {
 		if (key === Nothing) {
 			return this.value;
 		}
+		return access(this.value, normpath(key));
 	}
 }
 
@@ -410,6 +411,15 @@ class Selected extends Reactive {
 		this.path = path;
 	}
 
+	// Disposes this selection and removes it from parent registry.
+	dispose() {
+		this.parent?.selections?.remove(this.path, this);
+		this.parent = undefined;
+		this.path = undefined;
+		this.subs.length = 0;
+		return this;
+	}
+
 	// Refreshes value from parent and notifies subscribers.
 	refresh() {
 		// TODO: We could get a revision number from the parent and
@@ -427,7 +437,7 @@ class Selected extends Reactive {
 		path = normpath(path);
 		return this.parent.set(
 			value,
-			path ? [...this.path, path] : this.path,
+			path ? [...this.path, ...path] : this.path,
 			force,
 		);
 	}
@@ -478,19 +488,18 @@ class Cell extends Reactive {
 	set(value, path = Nothing, force = false) {
 		// TODO: Should detect a change
 		this._update(value, path, force);
+		return this;
 	}
 
 	// Appends value to array. Converts non-array to array first.
 	push(value) {
-		if (this.revision === -1) {
-			this.value = [value];
-		} else if (Array.isArray(this.value)) {
-			this.value.push(value);
-		} else {
-			this.value = [this.value, value];
-		}
-		this.revision++;
-		// TODO: Publish
+		const updated =
+			this.revision === -1
+				? [value]
+				: Array.isArray(this.value)
+					? [...this.value, value]
+					: [this.value, value];
+		this._update(updated, Nothing);
 		return this;
 	}
 }
@@ -524,6 +533,15 @@ class Deferred extends Cell {
 			this._update(value, path, force);
 		}, this.delay);
 	}
+
+	// Clears pending update timer.
+	dispose() {
+		if (this._timer) {
+			clearTimeout(this._timer);
+			this._timer = null;
+		}
+		return this;
+	}
 }
 
 // ----------------------------------------------------------------------------
@@ -547,6 +565,8 @@ class Derivation extends Reactive {
 		this.template = template;
 		this.processor = processor;
 		this.reactors = [];
+		this.sources = [];
+		this.isBound = false;
 		this.expanded = Reactive.Expand(template);
 		this._promiseToken = 0;
 		this.revision = initial ? 0 : -1;
@@ -605,13 +625,24 @@ class Derivation extends Reactive {
 
 	// Subscribes to all reactive cells in template.
 	bind() {
+		if (this.isBound) {
+			return this;
+		}
+		this.isBound = true;
 		for (const [cell, path] of Reactive.Walk(this.template)) {
-			const reactor = (value) => {
+			const reactor = (value, sourcePath) => {
 				// NOTE: We way want to debounce the updates
-				this.expanded = assign(this.expanded, path, value);
+				const fullPath =
+					sourcePath === undefined || sourcePath === null
+						? path
+						: Array.isArray(sourcePath)
+							? [...path, ...sourcePath]
+							: [...path, sourcePath];
+				this.expanded = assign(this.expanded, fullPath, value);
 				this._apply(this._compute());
 			};
 			cell.sub(reactor);
+			this.sources.push(cell);
 			this.reactors.push(reactor);
 		}
 		return this;
@@ -619,14 +650,34 @@ class Derivation extends Reactive {
 
 	// Unsubscribes from all source cells.
 	unbind() {
-		let i = 0;
-		for (const [cell] of Reactive.Walk(this.template)) {
-			cell.unsub(this.reactors[i]);
-			i++;
+		if (!this.isBound) {
+			return this;
 		}
-		while (this.reactors) {
+		for (let i = 0; i < this.sources.length; i++) {
+			this.sources[i].unsub(this.reactors[i]);
+		}
+		while (this.reactors.length) {
 			this.reactors.pop();
 		}
+		while (this.sources.length) {
+			this.sources.pop();
+		}
+		this.isBound = false;
+		return this;
+	}
+
+	// Unsubscribes and clears references.
+	dispose() {
+		this.unbind();
+		this._promiseToken++;
+		this.subs.length = 0;
+		this.template = undefined;
+		return this;
+	}
+
+	// Refreshes derived value and publishes updates.
+	refresh() {
+		this._apply(this._compute());
 		return this;
 	}
 }

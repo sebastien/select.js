@@ -173,7 +173,7 @@ Returns a component function with these methods:
 - `init(initializer)`: Define initial state (often used with cells). Returns the component for chaining.
 - `on(event, handler)` / `sub(event, handler)`: Subscribe to events bubbled by child instances. Returns the component for chaining.
 - `map(data)`: Map a collection of data to a list of applied templates.
-- `apply(data)`: Create an applied template for composition (alias to calling the component as a function).
+- `apply(data)`: Create an applied template for composition (same result as calling the component as a function).
 - `ui.register(name, component)`: Register a component in the global registry.
 - `ui.resolve(name)`: Resolve a component from the global registry.
 
@@ -183,6 +183,7 @@ Returns a component function with these methods:
 - `update(data, force?)`: Merges partial data updates and re-renders only if tracked dependencies changed.
 - `mount(target, previous?)`: Attaches the instance's nodes to the DOM at the specified target.
 - `unmount()`: Removes the instance's nodes from the DOM.
+- `dispose()`: Releases instance resources (runtime listeners, reactive/context subscriptions, child instances) without removing nodes directly.
 - `render(data?)`: Forces a re-render of the instance, optionally with new data.
 - `send(event, data)` / `pub(event, data)`: Publishes an event upward through the component tree.
 - `emit(event, data)`: Alias for `pub(event, data)`.
