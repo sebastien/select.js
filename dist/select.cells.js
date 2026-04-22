@@ -35,6 +35,10 @@ const Nothing = Object.freeze(new Object());
 // Sentinel value representing "any value" for selection matching.
 const Something = Object.freeze(new Object());
 
+const logSelectCells = (level, scope, message, details = {}) => {
+	console[level](`[select.cells] ${scope}: ${message}, details`, details);
+};
+
 // ----------------------------------------------------------------------------
 //
 // SECTION: Path Utilities
@@ -588,7 +592,12 @@ class Derivation extends Reactive {
 						return;
 					}
 					this.isPending = false;
-					console.error("Derived promise rejected", error);
+					logSelectCells(
+						"error",
+						"Derivation._apply",
+						"derived promise rejected",
+						{ error },
+					);
 				},
 			);
 		}

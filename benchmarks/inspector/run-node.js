@@ -8,10 +8,16 @@ const ROOT = path.resolve(__dirname, "../..");
 
 const framework = process.argv[2] || "selectui";
 const supported = new Set(["preact", "solidjs", "selectui"]);
+
+const logBenchmark = (level, scope, message, details = {}) => {
+	console[level](`[bench.inspector] ${scope}: ${message}, details`, details);
+};
+
 if (!supported.has(framework)) {
-	console.error(
-		`Unsupported framework "${framework}". Supported: ${[...supported].join(", ")}`,
-	);
+	logBenchmark("error", "run-node.main", "unsupported framework", {
+		framework,
+		supported: [...supported],
+	});
 	process.exit(1);
 }
 
@@ -58,7 +64,11 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, () => {
 	const benchmarkUrl = `http://localhost:${PORT}/benchmarks/inspector/bench-autorun.html?framework=${framework}`;
-	console.log(`Starting benchmark: ${benchmarkUrl}`);
+	logBenchmark("log", "run-node.main", "starting benchmark", {
+		benchmarkUrl,
+		framework,
+		port: PORT,
+	});
 
 	const chromeCmd =
 		process.platform === "darwin"
@@ -77,16 +87,26 @@ server.listen(PORT, () => {
 	const child = spawn(chromeCmd, args, { detached: false });
 
 	child.on("error", (err) => {
-		console.error("Failed to start Chrome:", err.message);
+		logBenchmark("error", "run-node.main", "failed to start chrome", {
+			error: err.message,
+			chromeCmd,
+			args,
+		});
 		server.close();
 		process.exit(1);
 	});
 
 	const waitForResult = () => {
 		if (resultReceived) {
-			console.log("\n=== Benchmark Result ===\n");
-			console.log(resultData);
-			console.log("\n========================\n");
+			logBenchmark("log", "run-node.waitForResult", "benchmark result header", {
+				framework,
+			});
+			logBenchmark("log", "run-node.waitForResult", "benchmark result payload", {
+				resultData,
+			});
+			logBenchmark("log", "run-node.waitForResult", "benchmark result footer", {
+				framework,
+			});
 			child.kill("SIGKILL");
 			server.close();
 			process.exit(0);
@@ -98,6 +118,9 @@ server.listen(PORT, () => {
 });
 
 setTimeout(() => {
-	console.error("Benchmark timed out after 90 seconds");
+	logBenchmark("error", "run-node.main", "benchmark timed out", {
+		timeoutMs: 90000,
+		framework,
+	});
 	process.exit(1);
 }, 90000);

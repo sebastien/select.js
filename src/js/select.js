@@ -48,6 +48,10 @@ const _match = Element.prototype.matches
 			? 3
 			: null;
 
+const logSelect = (level, scope, message, details = {}) => {
+	console[level](`[select] ${scope}: ${message}, details`, details);
+};
+
 // Function: match
 // Tests if `node` matches the given CSS `selector`. Uses native browser
 // methods when available with fallback to manual parent query.
@@ -76,20 +80,21 @@ const match = _match
 						case 3:
 							return node?.webkitMatchesSelector?.(selector);
 						default:
-							console.error("select.match: browser not supported");
+							logSelect("error", "match", "browser not supported", {
+								selector,
+								node,
+								match: _match,
+							});
 							select.STATUS = "FAILED";
 							return node.matches(selector);
 					}
 				} catch (e) {
 					// NOTE: When entering a bad selector, we might get an error that we propagate here.
-					console.error(
-						"select.match: exception occurred with selector",
+					logSelect("error", "match", "exception occurred with selector", {
 						selector,
-						"and node",
 						node,
-						":",
-						e,
-					);
+						error: e,
+					});
 					return null;
 				}
 			} else {
@@ -250,11 +255,11 @@ class Selection extends Array {
 			scope = selector.scope;
 			selector = selector.selector;
 			if (selector.scope && scope !== selector.scope) {
-				console.error(
-					"Selection.new: given scope differs from first argument's",
-					scope,
-					"!=",
-					selector.scope,
+				logSelect(
+					"error",
+					"Selection.new",
+					"given scope differs from first argument's",
+					{ scope, selectorScope: selector.scope },
 				);
 			}
 		} else if (selector) {
@@ -390,9 +395,11 @@ class Selection extends Array {
 		} else if (typeof selector === "function") {
 			return new Selection(Array.prototype.filter.apply(this, [selector]));
 		} else {
-			console.error(
-				"Selection.filter(): selector string or predicate expected, got",
-				selector,
+			logSelect(
+				"error",
+				"Selection.filter",
+				"selector string or predicate expected",
+				{ selector },
 			);
 			return None;
 		}
@@ -645,9 +652,11 @@ class Selection extends Array {
 				this[i].appendChild(document.createTextNode(value));
 			}
 		} else if (value) {
-			console.error(
-				"Selection.append: value is expected to be Number, String, Node, [Node] or Selection, got",
-				value,
+			logSelect(
+				"error",
+				"Selection.append",
+				"value is expected to be Number, String, Node, [Node] or Selection",
+				{ value },
 			);
 		}
 		return this;
@@ -682,9 +691,11 @@ class Selection extends Array {
 				this[i].insertBefore(document.createTextNode(value), child);
 			}
 		} else if (value) {
-			console.error(
-				"Selection.prepend: value is expected to be Number, String, Node, [Node] or Selection, got",
-				value,
+			logSelect(
+				"error",
+				"Selection.prepend",
+				"value is expected to be Number, String, Node, [Node] or Selection",
+				{ value },
 			);
 		}
 		return this;
@@ -710,9 +721,11 @@ class Selection extends Array {
 				this.extend(value[i]);
 			}
 		} else {
-			console.error(
-				"Selection.extend: value must be a node, selection or list, got",
-				value,
+			logSelect(
+				"error",
+				"Selection.extend",
+				"value must be a node, selection or list",
+				{ value },
 			);
 		}
 		return this;
@@ -745,9 +758,11 @@ class Selection extends Array {
 			} else if (typeof value.nodeType !== "undefined") {
 				scope.parentNode.insertBefore(value, scope);
 			} else {
-				console.error(
-					"Selection.after: value is expected to be Node, [Node] or Selection, got",
-					value,
+				logSelect(
+					"error",
+					"Selection.after",
+					"value is expected to be Node, [Node] or Selection",
+					{ value },
 				);
 			}
 		} else {
@@ -764,9 +779,11 @@ class Selection extends Array {
 			} else if (typeof value.nodeType !== "undefined") {
 				scope.appendChild(value);
 			} else {
-				console.error(
-					"Selection.after: value is expected to be Node, [Node] or Selection, got",
-					value,
+				logSelect(
+					"error",
+					"Selection.after",
+					"value is expected to be Node, [Node] or Selection",
+					{ value },
 				);
 			}
 		}
@@ -792,9 +809,11 @@ class Selection extends Array {
 		} else if (typeof value.nodeType !== "undefined") {
 			parent.insertBefore(value, scope);
 		} else {
-			console.error(
-				"Selection.before: value is expected to be Node, [Node] or Selection, got",
-				value,
+			logSelect(
+				"error",
+				"Selection.before",
+				"value is expected to be Node, [Node] or Selection",
+				{ value },
 			);
 		}
 		return this;
@@ -804,8 +823,11 @@ class Selection extends Array {
 	// removes the value nodes instead.
 	replaceWith(value) {
 		if (this.length === 0) {
-			console.warn(
-				"Selection.replaceWith: current selection is empty, so given nodes will be removed",
+			logSelect(
+				"warn",
+				"Selection.replaceWith",
+				"current selection is empty, so given nodes will be removed",
+				{ value },
 			);
 			if (Selection.IsNode(value)) {
 				if (value.parentNode) {
@@ -840,9 +862,11 @@ class Selection extends Array {
 					added.push(n);
 				}
 			} else {
-				console.error(
-					"Selection.replaceWith: value is expected to be Node, [Node] or Selection, got",
-					value,
+				logSelect(
+					"error",
+					"Selection.replaceWith",
+					"value is expected to be Node, [Node] or Selection",
+					{ value },
 				);
 			}
 			while (this.length > 0) {
@@ -1394,7 +1418,10 @@ class Selection extends Array {
 				}
 			} else {
 				// FIXME: Implement me
-				console.error("Selection.scrollTop: Not implemented for SVG");
+				logSelect("error", "Selection.scrollTop", "not implemented for SVG", {
+					node,
+					value,
+				});
 			}
 		}
 		return undefined;
@@ -1414,7 +1441,10 @@ class Selection extends Array {
 				}
 			} else {
 				// FIXME: Implement me
-				console.error("Selection.scrollLeft: Not implemented for SVG");
+				logSelect("error", "Selection.scrollLeft", "not implemented for SVG", {
+					node,
+					value,
+				});
 			}
 		}
 		return undefined;
@@ -1562,7 +1592,9 @@ class Selection extends Array {
 				this.expand(element[i]);
 			}
 		} else {
-			console.error("Selection.expand: Unsupported argument", element);
+			logSelect("error", "Selection.expand", "unsupported argument", {
+				element,
+			});
 		}
 		return this;
 	}

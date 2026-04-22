@@ -1,6 +1,9 @@
 // src/js/select.cells.js
 var Nothing = Object.freeze(new Object);
 var Something = Object.freeze(new Object);
+var logSelectCells = (level, scope, message, details = {}) => {
+  console[level](`[select.cells] ${scope}: ${message}, details`, details);
+};
 var access = (context, path, offset = 0) => {
   if (path?.length && context !== undefined) {
     const n = path.length;
@@ -348,7 +351,7 @@ class Derivation extends Reactive {
           return;
         }
         this.isPending = false;
-        console.error("Derived promise rejected", error);
+        logSelectCells("error", "Derivation._apply", "derived promise rejected", { error });
       });
     }
   }
@@ -389,6 +392,9 @@ var expand = Reactive.Expand;
 var select_cells_default = Object.assign(cell, { deferred, derived, walk, expand });
 // src/js/select.js
 var _match = Element.prototype.matches ? 1 : Element.prototype.mozMatchesSelector ? 2 : Element.prototype.webkitMatchesSelector ? 3 : null;
+var logSelect = (level, scope, message, details = {}) => {
+  console[level](`[select] ${scope}: ${message}, details`, details);
+};
 var match = _match ? (selector, node) => {
   let index;
   if (selector.startsWith(":first")) {
@@ -405,12 +411,20 @@ var match = _match ? (selector, node) => {
         case 3:
           return node?.webkitMatchesSelector?.(selector);
         default:
-          console.error("select.match: browser not supported");
+          logSelect("error", "match", "browser not supported", {
+            selector,
+            node,
+            match: _match
+          });
           select.STATUS = "FAILED";
           return node.matches(selector);
       }
     } catch (e) {
-      console.error("select.match: exception occurred with selector", selector, "and node", node, ":", e);
+      logSelect("error", "match", "exception occurred with selector", {
+        selector,
+        node,
+        error: e
+      });
       return null;
     }
   } else {
@@ -513,7 +527,7 @@ class Selection extends Array {
       scope = selector.scope;
       selector = selector.selector;
       if (selector.scope && scope !== selector.scope) {
-        console.error("Selection.new: given scope differs from first argument's", scope, "!=", selector.scope);
+        logSelect("error", "Selection.new", "given scope differs from first argument's", { scope, selectorScope: selector.scope });
       }
     } else if (selector) {
       nodes = Selection.AsElementList(selector);
@@ -595,7 +609,7 @@ class Selection extends Array {
     } else if (typeof selector === "function") {
       return new Selection(Array.prototype.filter.apply(this, [selector]));
     } else {
-      console.error("Selection.filter(): selector string or predicate expected, got", selector);
+      logSelect("error", "Selection.filter", "selector string or predicate expected", { selector });
       return None;
     }
   }
@@ -790,7 +804,7 @@ class Selection extends Array {
         this[i].appendChild(document.createTextNode(value));
       }
     } else if (value) {
-      console.error("Selection.append: value is expected to be Number, String, Node, [Node] or Selection, got", value);
+      logSelect("error", "Selection.append", "value is expected to be Number, String, Node, [Node] or Selection", { value });
     }
     return this;
   }
@@ -822,7 +836,7 @@ class Selection extends Array {
         this[i].insertBefore(document.createTextNode(value), child);
       }
     } else if (value) {
-      console.error("Selection.prepend: value is expected to be Number, String, Node, [Node] or Selection, got", value);
+      logSelect("error", "Selection.prepend", "value is expected to be Number, String, Node, [Node] or Selection", { value });
     }
     return this;
   }
@@ -843,7 +857,7 @@ class Selection extends Array {
         this.extend(value[i]);
       }
     } else {
-      console.error("Selection.extend: value must be a node, selection or list, got", value);
+      logSelect("error", "Selection.extend", "value must be a node, selection or list", { value });
     }
     return this;
   }
@@ -868,7 +882,7 @@ class Selection extends Array {
       } else if (typeof value.nodeType !== "undefined") {
         scope.parentNode.insertBefore(value, scope);
       } else {
-        console.error("Selection.after: value is expected to be Node, [Node] or Selection, got", value);
+        logSelect("error", "Selection.after", "value is expected to be Node, [Node] or Selection", { value });
       }
     } else {
       scope = node.parentNode;
@@ -883,7 +897,7 @@ class Selection extends Array {
       } else if (typeof value.nodeType !== "undefined") {
         scope.appendChild(value);
       } else {
-        console.error("Selection.after: value is expected to be Node, [Node] or Selection, got", value);
+        logSelect("error", "Selection.after", "value is expected to be Node, [Node] or Selection", { value });
       }
     }
     return this;
@@ -906,13 +920,13 @@ class Selection extends Array {
     } else if (typeof value.nodeType !== "undefined") {
       parent.insertBefore(value, scope);
     } else {
-      console.error("Selection.before: value is expected to be Node, [Node] or Selection, got", value);
+      logSelect("error", "Selection.before", "value is expected to be Node, [Node] or Selection", { value });
     }
     return this;
   }
   replaceWith(value) {
     if (this.length === 0) {
-      console.warn("Selection.replaceWith: current selection is empty, so given nodes will be removed");
+      logSelect("warn", "Selection.replaceWith", "current selection is empty, so given nodes will be removed", { value });
       if (Selection.IsNode(value)) {
         if (value.parentNode) {
           value.parentNode.removeChild(value);
@@ -945,7 +959,7 @@ class Selection extends Array {
           added2.push(n);
         }
       } else {
-        console.error("Selection.replaceWith: value is expected to be Node, [Node] or Selection, got", value);
+        logSelect("error", "Selection.replaceWith", "value is expected to be Node, [Node] or Selection", { value });
       }
       while (this.length > 0) {
         const n = this.pop();
@@ -1381,7 +1395,10 @@ class Selection extends Array {
           return node.scrollTop;
         }
       } else {
-        console.error("Selection.scrollTop: Not implemented for SVG");
+        logSelect("error", "Selection.scrollTop", "not implemented for SVG", {
+          node,
+          value
+        });
       }
     }
     return;
@@ -1397,7 +1414,10 @@ class Selection extends Array {
           return node.scrollLeft;
         }
       } else {
-        console.error("Selection.scrollLeft: Not implemented for SVG");
+        logSelect("error", "Selection.scrollLeft", "not implemented for SVG", {
+          node,
+          value
+        });
       }
     }
     return;
@@ -1504,7 +1524,9 @@ class Selection extends Array {
         this.expand(element[i]);
       }
     } else {
-      console.error("Selection.expand: Unsupported argument", element);
+      logSelect("error", "Selection.expand", "unsupported argument", {
+        element
+      });
     }
     return this;
   }
@@ -1543,6 +1565,105 @@ var len = (v) => {
   return 1;
 };
 var parser = new DOMParser;
+var _templateRegistries = new WeakMap;
+var _templateKey = (value) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim();
+  const key = normalized.startsWith("#") ? normalized.slice(1) : normalized;
+  return key.length ? key : null;
+};
+var _registerTemplateKey = (registry, key, template, scope) => {
+  if (!key) {
+    return;
+  }
+  const existing = registry.get(key);
+  if (existing && existing !== template) {
+    logSelectUI("warn", "ui", "duplicate template key, keeping first registration", { key, scope, existing, ignored: template });
+    return;
+  }
+  registry.set(key, template);
+};
+var _registerTemplateNode = (template, registry, scope) => {
+  if (!template || template.nodeName !== "TEMPLATE") {
+    return;
+  }
+  _registerTemplateKey(registry, template.id, template, scope);
+  _registerTemplateKey(registry, template.getAttribute("name"), template, scope);
+  if (!template.content?.querySelectorAll) {
+    return;
+  }
+  for (const nested of template.content.querySelectorAll("template")) {
+    _registerTemplateNode(nested, registry, scope);
+  }
+};
+var _templateRegistryFor = (scope = document) => {
+  let registry = _templateRegistries.get(scope);
+  if (registry) {
+    return registry;
+  }
+  registry = new Map;
+  _templateRegistries.set(scope, registry);
+  const isTemplate = scope?.nodeName === "TEMPLATE";
+  if (isTemplate) {
+    _registerTemplateNode(scope, registry, scope);
+  } else if (scope?.querySelectorAll) {
+    for (const template of scope.querySelectorAll("template")) {
+      _registerTemplateNode(template, registry, scope);
+    }
+  }
+  return registry;
+};
+var _registerTemplatesInNodes = (nodes, registry, scope) => {
+  for (let i = 0;i < nodes.length; i++) {
+    const node = nodes[i];
+    if (node?.nodeName === "TEMPLATE") {
+      _registerTemplateNode(node, registry, scope);
+    }
+    if (node?.querySelectorAll) {
+      for (const template of node.querySelectorAll("template")) {
+        _registerTemplateNode(template, registry, scope);
+      }
+    }
+  }
+};
+var _createComponent = (tmpl) => {
+  const component = (...args) => tmpl.apply(...args);
+  Object.assign(component, {
+    isTemplate: true,
+    template: tmpl,
+    new: (...args) => tmpl.new(...args),
+    init: (...args) => {
+      tmpl.init(...args);
+      return component;
+    },
+    map: (...args) => {
+      tmpl.map(...args);
+      return component;
+    },
+    apply: (...args) => {
+      tmpl.apply(...args);
+      return component;
+    },
+    does: (...args) => {
+      tmpl.does(...args);
+      return component;
+    },
+    on: (...args) => {
+      tmpl.sub(...args);
+      return component;
+    },
+    sub: (...args) => {
+      tmpl.sub(...args);
+      return component;
+    }
+  });
+  return component;
+};
+var logSelectUI = (level, scope, message, details = {}) => {
+  console[level](`[select.ui] ${scope}: ${message}, details`, details);
+};
 var SLOT_DEFAULT_KEY = "_";
 var _isPrunableWhitespaceText = (node) => node && node.nodeType === Node.TEXT_NODE && !/\S/.test(node.data) && /[\n\r\t]/.test(node.data);
 var _pruneTemplateWhitespace = (node) => {
@@ -2810,9 +2931,7 @@ class UIInstance {
     if (typeof node === "string") {
       const n = document.querySelector(node);
       if (!n) {
-        console.error("Selector is empty, cannot mounted component", node, {
-          component: this.template
-        });
+        logSelectUI("error", "UIInstance.mount", "selector did not match, cannot mount component", { selector: node, component: this.template });
         return this;
       } else {
         node = n;
@@ -2831,13 +2950,12 @@ class UIInstance {
           }
         }
       } else {
-        console.warn("Already mounted", this.nodes);
+        logSelectUI("warn", "UIInstance.mount", "already mounted", {
+          nodes: this.nodes
+        });
       }
     } else {
-      console.warn("Unable to mount as node is undefined", {
-        node,
-        self: this
-      });
+      logSelectUI("warn", "UIInstance.mount", "unable to mount as node is undefined", { node, self: this });
       for (const node2 of this.nodes) {
         node2.parentNode?.removeChild(node2);
       }
@@ -2853,7 +2971,7 @@ class UIInstance {
   }
   render(data = this.data, changedKeys = null) {
     if (!this.template) {
-      console.error("UIInstance.render() called on instance with undefined template", { instance: this });
+      logSelectUI("error", "UIInstance.render", "called on instance with undefined template", { instance: this });
       return this;
     }
     const isGranular = changedKeys !== null && changedKeys.size > 0;
@@ -2973,91 +3091,41 @@ var ui = (selection, scope = document) => {
   }
   if (typeof selection === "string") {
     let nodes = [];
+    const templateRegistry = _templateRegistryFor(scope);
     if (/\s*</.test(selection)) {
       const doc = parser.parseFromString(selection, "text/html");
       _pruneTemplateWhitespace(doc.body);
       nodes = [...doc.body.childNodes];
+      _registerTemplatesInNodes(nodes, templateRegistry, scope);
     } else {
-      for (const node of document.querySelectorAll(selection)) {
-        if (node.nodeName === "TEMPLATE") {
-          nodes = [...nodes, ...node.content.childNodes];
-        } else {
-          nodes.push(node);
+      const template = templateRegistry.get(_templateKey(selection));
+      if (template) {
+        nodes = [...template.content.childNodes];
+      } else {
+        const parent = scope?.querySelectorAll ? scope : document;
+        for (const node of parent.querySelectorAll(selection)) {
+          if (node.nodeName === "TEMPLATE") {
+            _registerTemplateNode(node, templateRegistry, scope);
+            nodes = [...nodes, ...node.content.childNodes];
+          } else {
+            nodes.push(node);
+          }
         }
+        _registerTemplatesInNodes(nodes, templateRegistry, scope);
       }
     }
     if (nodes.length === 0) {
-      console.warn(`ui() selector "${selection}" did not match any elements`, {
+      logSelectUI("warn", "ui", "selector did not match any elements", {
+        selector: selection,
         scope
       });
     }
-    const tmpl = new UITemplate(nodes);
-    const component = (...args) => tmpl.apply(...args);
-    Object.assign(component, {
-      isTemplate: true,
-      template: tmpl,
-      new: (...args) => tmpl.new(...args),
-      init: (...args) => {
-        tmpl.init(...args);
-        return component;
-      },
-      map: (...args) => {
-        tmpl.map(...args);
-        return component;
-      },
-      apply: (...args) => {
-        tmpl.apply(...args);
-        return component;
-      },
-      does: (...args) => {
-        tmpl.does(...args);
-        return component;
-      },
-      on: (...args) => {
-        tmpl.sub(...args);
-        return component;
-      },
-      sub: (...args) => {
-        tmpl.sub(...args);
-        return component;
-      }
-    });
-    return component;
+    return _createComponent(new UITemplate(nodes));
   }
   if (selection instanceof Node || Array.isArray(selection)) {
     const nodes = selection instanceof Node ? [selection] : selection;
-    const tmpl = new UITemplate([...nodes]);
-    const component = (...args) => tmpl.apply(...args);
-    Object.assign(component, {
-      isTemplate: true,
-      template: tmpl,
-      new: (...args) => tmpl.new(...args),
-      init: (...args) => {
-        tmpl.init(...args);
-        return component;
-      },
-      map: (...args) => {
-        tmpl.map(...args);
-        return component;
-      },
-      apply: (...args) => {
-        tmpl.apply(...args);
-        return component;
-      },
-      does: (...args) => {
-        tmpl.does(...args);
-        return component;
-      },
-      on: (...args) => {
-        tmpl.sub(...args);
-        return component;
-      },
-      sub: (...args) => {
-        tmpl.sub(...args);
-        return component;
-      }
-    });
-    return component;
+    _registerTemplatesInNodes(nodes, _templateRegistryFor(scope), scope);
+    return _createComponent(new UITemplate([...nodes]));
   }
   throw new Error(`ui() received an invalid selection type: ${typeof selection}. ` + `Expected a string (CSS selector or HTML), a DOM Node, or an array of DOM Nodes. ` + `Received: ${selection}`);
 };

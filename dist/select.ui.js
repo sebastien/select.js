@@ -63,6 +63,118 @@ const len = (v) => {
 };
 
 const parser = new DOMParser();
+
+const _templateRegistries = new WeakMap();
+
+const _templateKey = (value) => {
+	if (typeof value !== "string") {
+		return null;
+	}
+	const normalized = value.trim();
+	const key = normalized.startsWith("#") ? normalized.slice(1) : normalized;
+	return key.length ? key : null;
+};
+
+const _registerTemplateKey = (registry, key, template, scope) => {
+	if (!key) {
+		return;
+	}
+	const existing = registry.get(key);
+	if (existing && existing !== template) {
+		logSelectUI(
+			"warn",
+			"ui",
+			"duplicate template key, keeping first registration",
+			{ key, scope, existing, ignored: template },
+		);
+		return;
+	}
+	registry.set(key, template);
+};
+
+const _registerTemplateNode = (template, registry, scope) => {
+	if (!template || template.nodeName !== "TEMPLATE") {
+		return;
+	}
+	_registerTemplateKey(registry, template.id, template, scope);
+	_registerTemplateKey(registry, template.getAttribute("name"), template, scope);
+	if (!template.content?.querySelectorAll) {
+		return;
+	}
+	for (const nested of template.content.querySelectorAll("template")) {
+		_registerTemplateNode(nested, registry, scope);
+	}
+};
+
+const _templateRegistryFor = (scope = document) => {
+	let registry = _templateRegistries.get(scope);
+	if (registry) {
+		return registry;
+	}
+	registry = new Map();
+	_templateRegistries.set(scope, registry);
+	const isTemplate = scope?.nodeName === "TEMPLATE";
+	if (isTemplate) {
+		_registerTemplateNode(scope, registry, scope);
+	} else if (scope?.querySelectorAll) {
+		for (const template of scope.querySelectorAll("template")) {
+			_registerTemplateNode(template, registry, scope);
+		}
+	}
+	return registry;
+};
+
+const _registerTemplatesInNodes = (nodes, registry, scope) => {
+	for (let i = 0; i < nodes.length; i++) {
+		const node = nodes[i];
+		if (node?.nodeName === "TEMPLATE") {
+			_registerTemplateNode(node, registry, scope);
+		}
+		if (node?.querySelectorAll) {
+			for (const template of node.querySelectorAll("template")) {
+				_registerTemplateNode(template, registry, scope);
+			}
+		}
+	}
+};
+
+const _createComponent = (tmpl) => {
+	const component = (...args) => tmpl.apply(...args);
+	Object.assign(component, {
+		isTemplate: true,
+		template: tmpl,
+		new: (...args) => tmpl.new(...args),
+		init: (...args) => {
+			tmpl.init(...args);
+			return component;
+		},
+		map: (...args) => {
+			tmpl.map(...args);
+			return component;
+		},
+		apply: (...args) => {
+			tmpl.apply(...args);
+			return component;
+		},
+		does: (...args) => {
+			tmpl.does(...args);
+			return component;
+		},
+		on: (...args) => {
+			tmpl.sub(...args);
+			return component;
+		},
+		sub: (...args) => {
+			tmpl.sub(...args);
+			return component;
+		},
+	});
+	return component;
+};
+
+const logSelectUI = (level, scope, message, details = {}) => {
+	console[level](`[select.ui] ${scope}: ${message}, details`, details);
+};
 const SLOT_DEFAULT_KEY = "_";
 
 const _isPrunableWhitespaceText = (node) =>
@@ -1809,9 +1921,12 @@ class UIInstance {
 		if (typeof node === "string") {
 			const n = document.querySelector(node);
 			if (!n) {
-				console.error("Selector is empty, cannot mounted component", node, {
-					component: this.template,
-				});
+				logSelectUI(
+					"error",
+					"UIInstance.mount",
+					"selector did not match, cannot mount component",
+					{ selector: node, component: this.template },
+				);
 				return this;
 			} else {
 				node = n;
@@ -1830,13 +1945,17 @@ class UIInstance {
 					}
 				}
 			} else {
-				console.warn("Already mounted", this.nodes);
+				logSelectUI("warn", "UIInstance.mount", "already mounted", {
+					nodes: this.nodes,
+				});
 			}
 		} else {
-			console.warn("Unable to mount as node is undefined", {
-				node,
-				self: this,
-			});
+			logSelectUI(
+				"warn",
+				"UIInstance.mount",
+				"unable to mount as node is undefined",
+				{ node, self: this },
+			);
 			for (const node of this.nodes) {
 				node.parentNode?.removeChild(node);
 			}
@@ -1861,8 +1980,10 @@ class UIInstance {
 	// TODO: Should take a "changes" and know which behaviour should be updated
 	render(data = this.data, changedKeys = null) {
 		if (!this.template) {
-			console.error(
-				"UIInstance.render() called on instance with undefined template",
+			logSelectUI(
+				"error",
+				"UIInstance.render",
+				"called on instance with undefined template",
 				{ instance: this },
 			);
 			return this;
@@ -2060,93 +2181,43 @@ const ui = (selection, scope = document) => {
 
 	if (typeof selection === "string") {
 		let nodes = [];
+		const templateRegistry = _templateRegistryFor(scope);
 		if (/\s*</.test(selection)) {
 			const doc = parser.parseFromString(selection, "text/html");
 			_pruneTemplateWhitespace(doc.body);
 			nodes = [...doc.body.childNodes];
+			_registerTemplatesInNodes(nodes, templateRegistry, scope);
 		} else {
-			for (const node of document.querySelectorAll(selection)) {
-				if (node.nodeName === "TEMPLATE") {
-					nodes = [...nodes, ...node.content.childNodes];
-				} else {
-					nodes.push(node);
+			const template = templateRegistry.get(_templateKey(selection));
+			if (template) {
+				nodes = [...template.content.childNodes];
+			} else {
+				const parent = scope?.querySelectorAll ? scope : document;
+				for (const node of parent.querySelectorAll(selection)) {
+					if (node.nodeName === "TEMPLATE") {
+						_registerTemplateNode(node, templateRegistry, scope);
+						nodes = [...nodes, ...node.content.childNodes];
+					} else {
+						nodes.push(node);
+					}
 				}
+				_registerTemplatesInNodes(nodes, templateRegistry, scope);
 			}
 		}
 		if (nodes.length === 0) {
-			console.warn(`ui() selector "${selection}" did not match any elements`, {
+			logSelectUI("warn", "ui", "selector did not match any elements", {
+				selector: selection,
 				scope,
 			});
 		}
 		// TODO: Should retrieve id and assign a name.
-		const tmpl = new UITemplate(nodes);
-		const component = (...args) => tmpl.apply(...args);
-		Object.assign(component, {
-			isTemplate: true,
-			template: tmpl,
-			new: (...args) => tmpl.new(...args),
-			init: (...args) => {
-				tmpl.init(...args);
-				return component;
-			},
-			map: (...args) => {
-				tmpl.map(...args);
-				return component;
-			},
-			apply: (...args) => {
-				tmpl.apply(...args);
-				return component;
-			},
-			does: (...args) => {
-				tmpl.does(...args);
-				return component;
-			},
-			on: (...args) => {
-				tmpl.sub(...args);
-				return component;
-			},
-			sub: (...args) => {
-				tmpl.sub(...args);
-				return component;
-			},
-		});
-		return component;
+		return _createComponent(new UITemplate(nodes));
 	}
 
 	if (selection instanceof Node || Array.isArray(selection)) {
 		const nodes = selection instanceof Node ? [selection] : selection;
-		const tmpl = new UITemplate([...nodes]);
-		const component = (...args) => tmpl.apply(...args);
-		Object.assign(component, {
-			isTemplate: true,
-			template: tmpl,
-			new: (...args) => tmpl.new(...args),
-			init: (...args) => {
-				tmpl.init(...args);
-				return component;
-			},
-			map: (...args) => {
-				tmpl.map(...args);
-				return component;
-			},
-			apply: (...args) => {
-				tmpl.apply(...args);
-				return component;
-			},
-			does: (...args) => {
-				tmpl.does(...args);
-				return component;
-			},
-			on: (...args) => {
-				tmpl.sub(...args);
-				return component;
-			},
-			sub: (...args) => {
-				tmpl.sub(...args);
-				return component;
-			},
-		});
-		return component;
+		_registerTemplatesInNodes(nodes, _templateRegistryFor(scope), scope);
+		return _createComponent(new UITemplate([...nodes]));
 	}
 
 	throw new Error(
