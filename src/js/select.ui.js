@@ -72,7 +72,7 @@ const _isPrunableWhitespaceText = (node) =>
 	/[\n\r\t]/.test(node.data);
 
 const _pruneTemplateWhitespace = (node) => {
-	if (!node || !node.childNodes || node.childNodes.length === 0) {
+	if (!node?.childNodes || node.childNodes.length === 0) {
 		return;
 	}
 	for (let i = node.childNodes.length - 1; i >= 0; i--) {
@@ -226,17 +226,17 @@ const shallowEq = (a, b) => {
 	}
 	let count = 0;
 	for (const k in a) {
-		if (!Object.prototype.hasOwnProperty.call(a, k)) {
+		if (!Object.hasOwn(a, k)) {
 			continue;
 		}
 		count++;
-		if (!Object.prototype.hasOwnProperty.call(b, k) || a[k] !== b[k]) {
+		if (!Object.hasOwn(b, k) || a[k] !== b[k]) {
 			return false;
 		}
 	}
 	let countB = 0;
 	for (const k in b) {
-		if (Object.prototype.hasOwnProperty.call(b, k)) {
+		if (Object.hasOwn(b, k)) {
 			countB++;
 		}
 	}
@@ -481,8 +481,7 @@ class UITemplateSlot {
 			};
 			processNode(parent);
 			if (parent.querySelectorAll) {
-				for (const node of parent.querySelectorAll("*"))
-					processNode(node);
+				for (const node of parent.querySelectorAll("*")) processNode(node);
 			}
 		}
 		return count ? res : null;
@@ -522,8 +521,7 @@ class UITemplateSlot {
 			};
 			processNode(parent);
 			if (parent.querySelectorAll) {
-				for (const node of parent.querySelectorAll("*"))
-					processNode(node);
+				for (const node of parent.querySelectorAll("*")) processNode(node);
 			}
 		}
 		return count ? res : null;
@@ -597,11 +595,7 @@ class UIAttributeSlot {
 		this.attrName = template.attrName;
 		this.originalClasses =
 			template.attrName === "class"
-				? new Set(
-						(template.originalValue || "")
-							.split(/\s+/)
-							.filter(Boolean),
-					)
+				? new Set((template.originalValue || "").split(/\s+/).filter(Boolean))
 				: null;
 		this.originalStyle =
 			template.attrName === "style" ? template.originalValue || "" : null;
@@ -683,9 +677,7 @@ class UIAttributeSlot {
 		if (typeof value === "object") {
 			for (const [prop, val] of Object.entries(value)) {
 				if (val != null) {
-					const kebabProp = prop
-						.replace(/([A-Z])/g, "-$1")
-						.toLowerCase();
+					const kebabProp = prop.replace(/([A-Z])/g, "-$1").toLowerCase();
 					this.node.style.setProperty(kebabProp, val);
 					this.appliedStyles.set(kebabProp, val);
 				}
@@ -809,9 +801,7 @@ class UITemplate {
 		this.hasBindings = !!(this.on || this.in || this.inout);
 		this.ref = UITemplateSlot.Find("ref", nodes);
 		this.when = UITemplateSlot.Find("when", nodes, (slot, expr) => {
-			slot.predicate = new Function(
-				`return ((self,data,event)=>(${expr}))`,
-			)();
+			slot.predicate = new Function(`return ((self,data,event)=>(${expr}))`)();
 			slot.predicatePlaceholder = document.createComment(expr);
 			return slot;
 		});
@@ -975,10 +965,7 @@ class UISlot {
 		const slots = {};
 		let hasSlots = false;
 		const scan = (node) => {
-			if (
-				node.nodeType === Node.ELEMENT_NODE &&
-				node.hasAttribute("slot")
-			) {
+			if (node.nodeType === Node.ELEMENT_NODE && node.hasAttribute("slot")) {
 				const name = node.getAttribute("slot");
 				const clone = node.cloneNode(true);
 				clone.removeAttribute("slot");
@@ -1149,7 +1136,7 @@ class UISlot {
 		} else if (isDict) {
 			isEmpty = true;
 			for (const k in data) {
-				if (Object.prototype.hasOwnProperty.call(data, k)) {
+				if (Object.hasOwn(data, k)) {
 					isEmpty = false;
 					break;
 				}
@@ -1160,7 +1147,7 @@ class UISlot {
 			if (this.placeholder && !this.placeholder[0]?.parentNode) {
 				let previous = this.node.childNodes[0];
 				for (const node of this.placeholder) {
-					if (!previous || !previous.nextSibling) {
+					if (!previous?.nextSibling) {
 						this.node.appendChild(node);
 					} else {
 						this.node.insertBefore(node, previous.nextSibling);
@@ -1232,10 +1219,7 @@ class UISlot {
 	hide() {
 		// TODO: Edge case when the slot is a direct node in the instance `.nodes`.
 		if (this.predicatePlaceholder && this.node.parentNode) {
-			this.node.parentNode.replaceChild(
-				this.predicatePlaceholder,
-				this.node,
-			);
+			this.node.parentNode.replaceChild(this.predicatePlaceholder, this.node);
 		}
 		return this;
 	}
@@ -1490,12 +1474,7 @@ class UIInstance {
 				}
 				if (node) {
 					this.slots.push(
-						new UIContentSlot(
-							node,
-							slotDef.fallback,
-							this,
-							slotDef.name,
-						),
+						new UIContentSlot(node, slotDef.fallback, this, slotDef.name),
 					);
 				}
 			}
@@ -1541,7 +1520,7 @@ class UIInstance {
 	}
 
 	// Cleans up subscriptions, recursively disposes children, removes from parent.
-		dispose() {
+	dispose() {
 		if (this.initial) {
 			const renderer = this._renderer;
 			for (const k in this.initial) {
@@ -1716,9 +1695,10 @@ class UIInstance {
 			}
 		}
 		if (!same) {
-			const merged = this.data && typeof this.data === "object"
-				? Object.assign(this.data, data)
-				: data;
+			const merged =
+				this.data && typeof this.data === "object"
+					? Object.assign(this.data, data)
+					: data;
 			this.render(merged, changedKeys);
 		}
 		return this;
@@ -1829,11 +1809,9 @@ class UIInstance {
 		if (typeof node === "string") {
 			const n = document.querySelector(node);
 			if (!n) {
-				console.error(
-					"Selector is empty, cannot mounted component",
-					node,
-					{ component: this.template },
-				);
+				console.error("Selector is empty, cannot mounted component", node, {
+					component: this.template,
+				});
 				return this;
 			} else {
 				node = n;
@@ -2096,10 +2074,9 @@ const ui = (selection, scope = document) => {
 			}
 		}
 		if (nodes.length === 0) {
-			console.warn(
-				`ui() selector "${selection}" did not match any elements`,
-				{ scope },
-			);
+			console.warn(`ui() selector "${selection}" did not match any elements`, {
+				scope,
+			});
 		}
 		// TODO: Should retrieve id and assign a name.
 		const tmpl = new UITemplate(nodes);
@@ -2194,7 +2171,25 @@ ui.resolve = (name) => _registry.get(name);
 //
 // ----------------------------------------------------------------------------
 
-export { len, type, remap, UIEvent, AppliedUITemplate, UITemplateSlot, UIAttributeTemplateSlot, UIAttributeSlot, UIEventTemplateSlot, UIEventSlot, UITemplate, UISlot, UIContentSlot, UIInstance, Dynamic, lazy, ui }
-export default ui
+export {
+	AppliedUITemplate,
+	Dynamic,
+	lazy,
+	len,
+	remap,
+	type,
+	UIAttributeSlot,
+	UIAttributeTemplateSlot,
+	UIContentSlot,
+	UIEvent,
+	UIEventSlot,
+	UIEventTemplateSlot,
+	UIInstance,
+	UISlot,
+	UITemplate,
+	UITemplateSlot,
+	ui,
+};
+export default ui;
 
 // EOF

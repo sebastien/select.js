@@ -86,12 +86,12 @@
 	</template>
 
 	<script type="module">
-		import ui from "@./select.ui.js"
 		import cell, {derived} from "@./select.cells.js"
+		import ui from "@./select.ui.js"
 
 		const ColorComponent = ui("#ColorComponent").does({
-			label: (self, {label}) => label,
-			value: (self, {value}, event) => Math.min(255, Math.max(0, event ? value.set(event.target.value) : (value.value ?? 0))),
+			label: (_self, {label}) => label,
+			value: (_self, {value}, event) => Math.min(255, Math.max(0, event ? value.set(event.target.value) : (value.value ?? 0))),
 		})
 
 		const ColorPicker = ui("#ColorPicker").init(() => {
@@ -105,9 +105,9 @@
 		}).does({
 			// TODO: If we were able to keep track of what is used, we could only
 			// re-trigger the behaviors that have changed.
-			red: (self, data) => ColorComponent({value: data.red, label: "Red"}),
-			green: (self, {green}) => ColorComponent({value: green, label: "Green"}),
-			blue: (self, {blue}) => ColorComponent({value: blue, label: "Blue"}),
+			red: (_self, data) => ColorComponent({value: data.red, label: "Red"}),
+			green: (_self, {green}) => ColorComponent({value: green, label: "Green"}),
+			blue: (_self, {blue}) => ColorComponent({value: blue, label: "Blue"}),
 			color: (self, {color}) => {
 				self.ref.swatch.style.backgroundColor = color.value;
 			}

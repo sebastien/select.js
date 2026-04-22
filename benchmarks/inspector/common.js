@@ -136,9 +136,7 @@ const makeSyntheticLog = (seed) => ({
 	type: seed % 2 ? "warning" : "log",
 	message: `Synthetic benchmark log ${seed}`,
 	data:
-		seed % 3 === 0
-			? [seed, { nested: true }, null]
-			: { changed: true, seed },
+		seed % 3 === 0 ? [seed, { nested: true }, null] : { changed: true, seed },
 	context: {
 		origin: `Benchmark.synthetic.${seed}`,
 		trace: 900000 + seed,
@@ -290,11 +288,7 @@ export const createPatchPhases = (base) => {
 						typeof previous === "object" &&
 						!Array.isArray(previous)
 					) {
-						setAt(
-							next,
-							objectRetypeTarget.path,
-							"[entry replaced by string]",
-						);
+						setAt(next, objectRetypeTarget.path, "[entry replaced by string]");
 					}
 				},
 			});
@@ -354,11 +348,7 @@ export const createPatchPhases = (base) => {
 				name: `add ${describePath(nestedObjectTarget.path)}.benchmark`,
 				apply(next) {
 					const object = getAt(next, nestedObjectTarget.path);
-					if (
-						object &&
-						typeof object === "object" &&
-						!Array.isArray(object)
-					) {
+					if (object && typeof object === "object" && !Array.isArray(object)) {
 						object.benchmark = "added";
 					}
 				},
@@ -367,15 +357,8 @@ export const createPatchPhases = (base) => {
 				name: `remove ${describePath(nestedObjectTarget.path)}.benchmark`,
 				apply(next) {
 					const object = getAt(next, nestedObjectTarget.path);
-					if (
-						object &&
-						typeof object === "object" &&
-						!Array.isArray(object)
-					) {
-						deleteAt(next, [
-							...nestedObjectTarget.path,
-							"benchmark",
-						]);
+					if (object && typeof object === "object" && !Array.isArray(object)) {
+						deleteAt(next, [...nestedObjectTarget.path, "benchmark"]);
 					}
 				},
 			});

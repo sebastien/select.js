@@ -79,12 +79,12 @@
 		import ui from "@./select.ui.js"
 
 		const Country = ui("#Country").does({
-			name: (self, {name}) => name,
-			code: (self, {code}) => code,
+			name: (_self, {name}) => name,
+			code: (_self, {code}) => code,
 		})
 
 		const FilteredList = ui("#FilteredList").does({
-			items: (self, {items, filter}) => {
+			items: (_self, {items, filter}) => {
 				if (!items) {
 					return []
 				}

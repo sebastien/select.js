@@ -1,6 +1,6 @@
 import { createSignal } from "https://esm.sh/solid-js";
-import { render } from "https://esm.sh/solid-js/web";
 import h from "https://esm.sh/solid-js/h";
+import { render } from "https://esm.sh/solid-js/web";
 
 const renderDocumentNode = (node) => {
 	if (!node || typeof node !== "object") {

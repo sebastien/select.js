@@ -16,13 +16,19 @@ all: $(BUILD_ALL)
 run:
 	@mise x -- python3 -m http.server $(PORT)
 
+check:
+	@mise x -- bunx @biomejs/biome check .
+
+fmt:
+	@mise x -- bunx @biomejs/biome format --write .
+
 clean:
 	@for FILE in $(BUILD_ALL); do
 		if [ -e "$$FILE" ]; then unlink "$$FILE"; fi
 	done
 	echo "[clean] $(BUILD_ALL)"
 
-.PHONY: dist
+.PHONY: dist check fmt
 dist: $(DIST_ALL)
 	@
 

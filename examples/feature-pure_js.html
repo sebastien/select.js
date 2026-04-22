@@ -79,9 +79,9 @@
 			<p>Current index: <code out="index">0</code></p>
 			<button on:click="next">Next Message</button>
 		</section>`).does({
-			title: (self, {title}) => title,
-			message: (self, {index}) => messages[index % messages.length],
-			index: (self, {index}) => index,
+			title: (_self, {title}) => title,
+			message: (_self, {index}) => messages[index % messages.length],
+			index: (_self, {index}) => index,
 			next: (self, {index}) => self.update({index: (index + 1) % messages.length}),
 		})
 

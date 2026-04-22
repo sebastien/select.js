@@ -1,7 +1,7 @@
-const http = require("http");
-const fs = require("fs");
-const path = require("path");
-const { spawn } = require("child_process");
+const http = require("node:http");
+const fs = require("node:fs");
+const path = require("node:path");
+const { spawn } = require("node:child_process");
 
 const PORT = 8765;
 const ROOT = path.resolve(__dirname, "../..");
@@ -9,7 +9,9 @@ const ROOT = path.resolve(__dirname, "../..");
 const framework = process.argv[2] || "selectui";
 const supported = new Set(["preact", "solidjs", "selectui"]);
 if (!supported.has(framework)) {
-	console.error(`Unsupported framework "${framework}". Supported: ${[...supported].join(", ")}`);
+	console.error(
+		`Unsupported framework "${framework}". Supported: ${[...supported].join(", ")}`,
+	);
 	process.exit(1);
 }
 
@@ -39,7 +41,7 @@ const server = http.createServer((req, res) => {
 		return;
 	}
 
-	let filePath = path.join(ROOT, url.pathname);
+	const filePath = path.join(ROOT, url.pathname);
 	fs.stat(filePath, (err, stats) => {
 		if (err || !stats.isFile()) {
 			res.writeHead(404);
@@ -47,7 +49,9 @@ const server = http.createServer((req, res) => {
 			return;
 		}
 		const ext = path.extname(filePath);
-		res.writeHead(200, { "Content-Type": mimeTypes[ext] || "application/octet-stream" });
+		res.writeHead(200, {
+			"Content-Type": mimeTypes[ext] || "application/octet-stream",
+		});
 		fs.createReadStream(filePath).pipe(res);
 	});
 });
@@ -56,9 +60,10 @@ server.listen(PORT, () => {
 	const benchmarkUrl = `http://localhost:${PORT}/benchmarks/inspector/bench-autorun.html?framework=${framework}`;
 	console.log(`Starting benchmark: ${benchmarkUrl}`);
 
-	const chromeCmd = process.platform === "darwin"
-		? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-		: "google-chrome";
+	const chromeCmd =
+		process.platform === "darwin"
+			? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+			: "google-chrome";
 
 	const args = [
 		"--headless=new",

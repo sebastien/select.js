@@ -150,29 +150,29 @@
 		// - out:aria-busy for accessibility
 		// - out:style for inline styles (object format)
 		const ActionButton = ui("#ActionButton").does({
-			label: (self, { label }) => label || "Click me",
+			label: (_self, { label }) => label || "Click me",
 
 			// Class binding: object format where keys are class names
 			// and values determine if the class should be applied
-			btnClass: (self, { variant, loading, disabled }) => ({
+			btnClass: (_self, { variant, loading, _disabled }) => ({
 				[`btn-${variant || 'primary'}`]: true,
 				'btn-loading': loading,
 			}),
 
 			// Boolean attribute: truthy adds it, falsy removes it
-			isDisabled: (self, { disabled, loading }) => disabled || loading,
+			isDisabled: (_self, { disabled, loading }) => disabled || loading,
 
 			// Aria attribute for accessibility
-			loading: (self, { loading }) => loading ? "true" : null,
+			loading: (_self, { loading }) => loading ? "true" : null,
 
 			// Style binding: object format with camelCase properties
 			// Returns null to not apply any custom styles
-			customStyle: (self, { highlight }) => highlight
+			customStyle: (_self, { highlight }) => highlight
 				? { boxShadow: '0 0 10px gold', transform: 'scale(1.05)' }
 				: null,
 
 			// Event handler
-			click: (self, data, event) => {
+			click: (self, data, _event) => {
 				if (!data.disabled && !data.loading) {
 					self.send("Click", data);
 				}
@@ -189,7 +189,7 @@
 			}))
 			.does({
 				// Nested components with dynamic props
-				buttons: (self, { loading, disabled, variantIndex }) => [
+				buttons: (_self, { loading, disabled, variantIndex }) => [
 					ActionButton({
 						label: "Submit",
 						variant: variants[variantIndex],
@@ -209,9 +209,9 @@
 				],
 
 				// State display
-				loadingState: (self, { loading }) => String(loading),
-				disabledState: (self, { disabled }) => String(disabled),
-				variantState: (self, { variantIndex }) => variants[variantIndex],
+				loadingState: (_self, { loading }) => String(loading),
+				disabledState: (_self, { disabled }) => String(disabled),
+				variantState: (_self, { variantIndex }) => variants[variantIndex],
 
 				// Control handlers
 				toggleLoading: (self, { loading }) => self.update({ loading: !loading }),
@@ -220,7 +220,7 @@
 					self.update({ variantIndex: (variantIndex + 1) % variants.length }),
 			})
 			.on({
-				Click: (self, data, event) => console.log("Button clicked:", event.data),
+				Click: (_self, _data, event) => console.log("Button clicked:", event.data),
 			});
 
 		ButtonDemo.new().mount("#ui");

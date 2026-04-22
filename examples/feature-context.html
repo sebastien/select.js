@@ -143,8 +143,8 @@
 	</template>
 
 	<script type="module">
-		import { ui } from "@./select.ui.js"
 		import { cell } from "@./select.cells.js"
+		import { ui } from "@./select.ui.js"
 
 		const theme = cell("light")
 
@@ -154,31 +154,31 @@
 				const t = self.inject("theme")
 				return `${label} (theme: ${t?.value ?? "unknown"})`
 			},
-			click: (self, data, event) => {
+			click: (self, data, _event) => {
 				self.send("ButtonClick", data)
 			}
 		})
 
 		const Panel = ui("#Panel").does({
-			button: (self, data) => ThemedButton({ label: "Click Me" })
+			button: (_self, _data) => ThemedButton({ label: "Click Me" })
 		}).sub({
-			ButtonClick: (self, data, event) => {
+			ButtonClick: (_self, _data, event) => {
 				console.log("Panel received click from deep child:", event.data)
 			}
 		})
 
 		const Layout = ui("#Layout").does({
-			panel: (self, data) => Panel(data)
+			panel: (_self, data) => Panel(data)
 		})
 
 		const App = ui("#App").init(() => ({
 			theme
 		})).does({
-			themeClass: (self, { theme }) => `theme-${theme?.value || "light"}`,
-			layout: (self, data) => Layout(data),
-			setLight: (self) => theme.set("light"),
-			setDark: (self) => theme.set("dark"),
-			setWarm: (self) => theme.set("warm")
+			themeClass: (_self, { theme }) => `theme-${theme?.value || "light"}`,
+			layout: (_self, data) => Layout(data),
+			setLight: (_self) => theme.set("light"),
+			setDark: (_self) => theme.set("dark"),
+			setWarm: (_self) => theme.set("warm")
 		})
 
 		// Provide the theme cell at the root

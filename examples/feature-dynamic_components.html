@@ -166,10 +166,10 @@
 	</template>
 
 	<script type="module">
-		import { ui, Dynamic } from "@./select.ui.js"
+		import { Dynamic, ui } from "@./select.ui.js"
 
 		const HeadingBlock = ui("#HeadingBlock").does({
-			text: (self, { text }) => text,
+			text: (_self, { text }) => text,
 			makeHeading: (self, data) => self.send("ChangeType", { ...data, blockType: "heading" }),
 			makeParagraph: (self, data) => self.send("ChangeType", { ...data, blockType: "paragraph" }),
 			makeCode: (self, data) => self.send("ChangeType", { ...data, blockType: "code" }),
@@ -177,7 +177,7 @@
 		})
 
 		const ParagraphBlock = ui("#ParagraphBlock").does({
-			text: (self, { text }) => text,
+			text: (_self, { text }) => text,
 			makeHeading: (self, data) => self.send("ChangeType", { ...data, blockType: "heading" }),
 			makeParagraph: (self, data) => self.send("ChangeType", { ...data, blockType: "paragraph" }),
 			makeCode: (self, data) => self.send("ChangeType", { ...data, blockType: "code" }),
@@ -185,7 +185,7 @@
 		})
 
 		const CodeBlock = ui("#CodeBlock").does({
-			text: (self, { text }) => text,
+			text: (_self, { text }) => text,
 			makeHeading: (self, data) => self.send("ChangeType", { ...data, blockType: "heading" }),
 			makeParagraph: (self, data) => self.send("ChangeType", { ...data, blockType: "paragraph" }),
 			makeCode: (self, data) => self.send("ChangeType", { ...data, blockType: "code" }),
@@ -199,7 +199,7 @@
 		const blockFor = (data) => Dynamic(data.blockType, data)
 
 		const Editor = ui("#Editor").does({
-			blocks: (self, { blocks }) => blocks ? blocks.map(blockFor) : [],
+			blocks: (_self, { blocks }) => blocks ? blocks.map(blockFor) : [],
 			addHeading: (self, { blocks }) => {
 				const b = blocks || []
 				self.update({ blocks: [...b, { id: Date.now(), blockType: "heading", text: `Heading ${b.length + 1}` }] })

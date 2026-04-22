@@ -1,4 +1,4 @@
-import { ui, remap } from "../../../src/js/select.ui.js";
+import { remap, ui } from "../../../src/js/select.ui.js";
 
 const getType = (value) =>
 	value === undefined || value === null
@@ -17,19 +17,29 @@ const createKeyNode = (key) => {
 };
 
 const Item = ui(`<li class="pl-2" out="content"></li>`).does({
-	content: (self, { key, value }) => [createKeyNode(key), " ", InspectValue(value)],
+	content: (_self, { key, value }) => [
+		createKeyNode(key),
+		" ",
+		InspectValue(value),
+	],
 });
 
-const InspectList = ui(`<ul class="comma brackets dim-ab" out="items"></ul>`).does({
-	items: (self, { value }) => remap(value, (v, i) => Item({ key: `#${i}`, value: v })),
+const InspectList = ui(
+	`<ul class="comma brackets dim-ab" out="items"></ul>`,
+).does({
+	items: (_self, { value }) =>
+		remap(value, (v, i) => Item({ key: `#${i}`, value: v })),
 });
 
-const InspectDict = ui(`<ul class="comma curlies dim-ab" out="items"></ul>`).does({
-	items: (self, { value }) => remap(value, (v, k) => Item({ key: k, value: v })),
+const InspectDict = ui(
+	`<ul class="comma curlies dim-ab" out="items"></ul>`,
+).does({
+	items: (_self, { value }) =>
+		remap(value, (v, k) => Item({ key: k, value: v })),
 });
 
 const InspectScalar = ui(`<span out="text"></span>`).does({
-	text: (self, { value }) => `${value}`,
+	text: (_self, { value }) => `${value}`,
 });
 
 const InspectValue = (value) => {
@@ -44,8 +54,8 @@ const InspectValue = (value) => {
 	}
 };
 
-const Inspector = ui(`<div out="content"></div>`).does({
-	content: (self, { value }) => InspectValue(value),
+const _Inspector = ui(`<div out="content"></div>`).does({
+	content: (_self, { value }) => InspectValue(value),
 });
 
 const asMountedInstance = (root, applied) => {

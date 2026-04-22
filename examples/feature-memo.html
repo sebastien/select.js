@@ -106,20 +106,20 @@
 		const renderCounts = new Map()
 
 		const ListItem = ui("#ListItem").does({
-			id: (self, { id }) => id,
-			label: (self, { label }) => label,
-			renderCount: (self, { id }) => {
+			id: (_self, { id }) => id,
+			label: (_self, { label }) => label,
+			renderCount: (_self, { id }) => {
 				renderCounts.set(id, (renderCounts.get(id) || 0) + 1)
 				return renderCounts.get(id)
 			},
 			increment: (self, { id, label }) => {
-				self.send("Increment", { id, label: label + "!" })
+				self.send("Increment", { id, label: `${label}!` })
 			}
 		})
 
 		const App = ui("#App").does({
-			items: (self, { items }) => items ? items.map((item) => ListItem(item)) : [],
-			stats: (self, { items }) => {
+			items: (_self, { items }) => items ? items.map((item) => ListItem(item)) : [],
+			stats: (_self, { items }) => {
 				const total = items ? items.length : 0
 				const totalRenders = [...renderCounts.values()].reduce((a, b) => a + b, 0)
 				return `${total} items | ${totalRenders} total behavior re-evaluations`

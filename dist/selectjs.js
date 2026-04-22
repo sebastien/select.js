@@ -1,1145 +1,3 @@
-// src/js/select.js
-var _match = Element.prototype.matches ? 1 : Element.prototype.mozMatchesSelector ? 2 : Element.prototype.webkitMatchesSelector ? 3 : null;
-var match = _match ? (selector, node) => {
-  let index = undefined;
-  if (selector.startsWith(":first")) {
-    selector = selector.substring(0, selector.length - 6);
-    index = 0;
-  }
-  if (index == undefined) {
-    try {
-      switch (_match) {
-        case 1:
-          return node && node.matches && node.matches(selector);
-        case 2:
-          return node && node.mozMatchesSelector && node.mozMatchesSelector(selector);
-        case 3:
-          return node && node.webkitMatchesSelector && node.webkitMatchesSelector(selector);
-        default:
-          console.error("select.match: browser not supported");
-          select.STATUS = "FAILED";
-          return node.matches(selector);
-      }
-    } catch (e) {
-      console.error("select.match: exception occurred with selector", selector, "and node", node, ":", e);
-      return null;
-    }
-  } else {
-    const matches = query(selector, undefined, index);
-    return matches[index] == node;
-  }
-} : (selector, node) => {
-  if (selector.endsWith(":first")) {
-    return query(selector, node) == node;
-  } else {
-    const parent = node.parentNode;
-    if (parent) {
-      const matching = parent.querySelectorAll(selector);
-      for (let i = 0;i < matching.length; i++) {
-        if (matching[i] === node) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-};
-var query = (selector, scope, limit) => {
-  selector = selector.trim();
-  if (!selector || selector.length == 0) {
-    return [scope];
-  } else if (selector[0] == ">") {
-    selector = selector.substr(1).trim();
-    const i = Math.min(Math.max(selector.indexOf(">"), 0), Math.max(selector.indexOf(" "), 0));
-    const selector_node = i > 0 ? selector.substring(0, i) : selector;
-    const selector_child = i > 0 ? selector.substring(i, selector.length) : null;
-    const matching = [];
-    const nodes = (scope || document).childNodes;
-    let result = null;
-    for (let j = 0;j < nodes.length; j++) {
-      const n = nodes[j];
-      if (match(selector_node, n) && n.nodeType == Node.ELEMENT_NODE) {
-        matching.push(n);
-      }
-    }
-    if (selector_child) {
-      result = [];
-      for (let j = 0;j < matching.length; j++) {
-        result = result.concat(select.query(selector_child, matching[j]));
-      }
-    } else {
-      result = matching;
-    }
-    return result;
-  } else {
-    let index = undefined;
-    if (selector.endsWith(":first")) {
-      selector = selector.substring(0, selector.length - 6);
-      index = 0;
-    }
-    let result = [];
-    const nodes = (scope || document).querySelectorAll(selector);
-    let count = 0;
-    for (let i = 0;i < nodes.length; i++) {
-      const node = nodes[i];
-      if (node.nodeType == Node.ELEMENT_NODE) {
-        if (index === undefined) {
-          result.push(node);
-          count += 1;
-        } else if (index == count) {
-          result.push(node);
-          break;
-        } else {
-          count += 1;
-        }
-      }
-    }
-    return result;
-  }
-};
-var filter = (selector, nodes) => {
-  const result = [];
-  for (let i = 0;i < nodes.length; i++) {
-    const node = nodes[i];
-    if (match(selector, node)) {
-      result.push(node);
-    }
-  }
-  return result;
-};
-
-class Selection extends Array {
-  constructor(selector, scope) {
-    super();
-    let nodes = null;
-    if (typeof selector == "string") {
-      if (!scope) {
-        nodes = query(selector);
-      } else {
-        scope = select(scope);
-        nodes = scope.find(selector);
-      }
-    } else if (Selection.Is(selector)) {
-      nodes = selector;
-      scope = selector.scope;
-      selector = selector.selector;
-      if (selector.scope && scope != selector.scope) {
-        console.error("Selection.new: given scope differs from first argument's", scope, "!=", selector.scope);
-      }
-    } else if (selector) {
-      nodes = Selection.AsElementList(selector);
-    }
-    this.selector = selector;
-    this.scope = scope;
-    this.isSelection = true;
-    this.expand(nodes);
-    return this;
-  }
-  static Is(s) {
-    return s && s.__class__ === Selection;
-  }
-  static IsList(s) {
-    return s instanceof Selection || s instanceof Array || s instanceof NodeList;
-  }
-  static IsElement(node) {
-    return node && typeof node.nodeType != "undefined" && node.nodeType == Node.ELEMENT_NODE;
-  }
-  static IsText(node) {
-    return node && typeof node.nodeType != "undefined" && node.nodeType == Node.TEXT_NODE;
-  }
-  static IsNode(node) {
-    return node && typeof node.nodeType != "undefined";
-  }
-  static IsDOM(node) {
-    return node && typeof node.getBBox === "undefined";
-  }
-  static IsSVG(node) {
-    return typeof node.getBBox != "undefined";
-  }
-  static IsSelection(value) {
-    return value instanceof Selection;
-  }
-  static AsElementList(value) {
-    if (!value) {
-      return value;
-    } else if (value.nodeType == Node.ELEMENT_NODE) {
-      return [value];
-    } else if (value.nodeType == Node.DOCUMENT_FRAGMENT_NODE || value.nodeType == Node.DOCUMENT_NODE) {
-      const res = [];
-      let child = value.firstElementChild;
-      while (child) {
-        res.push(child);
-        child = child.nextSibling;
-      }
-      return res;
-    } else if (value === window) {
-      return Selection.AsElementList(window.document);
-    } else if (Selection.IsList(value)) {
-      let res = [];
-      for (let i = 0;i < value.length; i++) {
-        res = res.concat(Selection.AsElementList(value[i]));
-      }
-      return res;
-    } else {
-      return [];
-    }
-  }
-  static Ensure(node) {
-    return Selection.Is(node) ? node : new Selection(node);
-  }
-  find(selector) {
-    if (this.length == 0) {
-      return new Selection;
-    }
-    const nodes = [];
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      const q = query(selector, node);
-      for (let j = 0;j < q.length; j++) {
-        nodes.push(q[j]);
-      }
-    }
-    return new Selection(nodes, this);
-  }
-  filter(selector) {
-    if (typeof selector === "string") {
-      return new Selection(filter(selector, this), this.length > 0 ? this : undefined);
-    } else if (typeof selector === "function") {
-      return new Selection(Array.prototype.filter.apply(this, [selector]));
-    } else {
-      console.error("Selection.filter(): selector string or predicate expected, got", selector);
-      return None;
-    }
-  }
-  iterate(callback) {
-    const nodes = this;
-    for (let i = 0;i < nodes.length; i++) {
-      if (callback(new Selection(nodes[i]), i) === false) {
-        break;
-      }
-    }
-    return this;
-  }
-  like(selector) {
-    return this.is(selector);
-  }
-  is(selector) {
-    if (typeof selector === "string") {
-      let result = this.length > 0;
-      for (let i = 0;i < this.length; i++) {
-        if (!match(selector, this[i])) {
-          result = false;
-          break;
-        }
-      }
-      return result;
-    } else {
-      return this.equals(selector);
-    }
-  }
-  list() {
-    return this.map(Selection.Ensure);
-  }
-  first() {
-    return this.length <= 1 ? this : select([this[0]], this);
-  }
-  last() {
-    return this.length <= 1 ? this : select([this[this.length - 1]], this);
-  }
-  eq(index) {
-    return this.get(index);
-  }
-  get(index) {
-    index = index < 0 ? this.length + index : index;
-    if (this.length == 1 && index == 0) {
-      return this;
-    } else {
-      return 0 <= index && index < this.length ? select([this[index]], this) : new Selection;
-    }
-  }
-  next(selector) {
-    const nodes = [];
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      const sibling = node.nextElementSibling;
-      if (sibling && (!selector || match(selector, sibling))) {
-        nodes.push(sibling);
-      }
-    }
-    return nodes.length > 0 ? select(nodes, this) : new Selection;
-  }
-  prev(selector) {
-    return this.previous(selector);
-  }
-  previous(selector) {
-    const nodes = [];
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      const sibling = node.previousElementSibling;
-      if (sibling && (!selector || match(selector, sibling))) {
-        nodes.push(sibling);
-      }
-    }
-    return nodes.length > 0 ? select(nodes, this) : new Selection;
-  }
-  parent(selector) {
-    const nodes = [];
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i].parentNode;
-      if (node && (!selector || match(selector, node))) {
-        nodes.push(node);
-      }
-    }
-    return nodes.length > 0 ? select(nodes, this) : new Selection;
-  }
-  ancestors(selector, limit) {
-    return this.parents(selector, limit);
-  }
-  parents(selector, limit) {
-    const nodes = [];
-    const depth_limit = typeof limit === "number" ? limit : -1;
-    const node_limit = limit && typeof limit !== "number" ? select(limit) : null;
-    const is_function = typeof selector === "function";
-    const is_string = typeof selector === "string";
-    if (is_string && selector.endsWith(":first")) {
-      selector = selector.substring(0, selector.length - 6);
-      let index = 0;
-    }
-    for (let i = 0;i < this.length; i++) {
-      let node = this[i].parentNode;
-      while (node) {
-        let matches = true;
-        if (selector) {
-          if (is_function) {
-            matches = selector(node, i);
-          } else if (is_string) {
-            matches = match(selector, node);
-          }
-        }
-        if (matches) {
-          nodes.push(node);
-          if (depth_limit >= 0 && nodes.length >= depth_limit) {
-            return select(nodes, this);
-          }
-        }
-        node = node.parentNode;
-        if (node_limit && node_limit.contains(node)) {
-          node = null;
-        }
-      }
-    }
-    return nodes.length > 0 ? select(nodes, this) : new Selection;
-  }
-  children(selector) {
-    const nodes = [];
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      for (let j = 0;j < node.childNodes.length; j++) {
-        const child = node.childNodes[j];
-        if (Selection.IsElement(child) && (!selector || match(selector, child))) {
-          nodes.push(child);
-        }
-      }
-    }
-    return nodes.length > 0 ? select(nodes, this) : new Selection;
-  }
-  nodes(callback) {
-    const nodes = [];
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      for (let j = 0;j < node.childNodes.length; j++) {
-        const child = node.childNodes[j];
-        if (!callback || callback(child, i, node) !== false) {
-          nodes.push(child);
-        } else {
-          return nodes;
-        }
-      }
-    }
-    return nodes;
-  }
-  walk(callback) {
-    if (!callback) {
-      return this;
-    }
-    const to_walk = [];
-    let count = 0;
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      to_walk.push(node);
-      while (to_walk.length > 0) {
-        const node2 = to_walk.pop();
-        if (callback && callback(node2, count++) === false) {
-          return this;
-        }
-        for (let j = 0;j < node2.childNodes.length; j++) {
-          to_walk.push(node2.childNodes[j]);
-        }
-      }
-    }
-    return this;
-  }
-  append(value) {
-    if (this.length == 0) {
-      return this;
-    }
-    const node = this[0];
-    if (Selection.Is(value)) {
-      for (let i = 0;i < value.length; i++) {
-        node.appendChild(value[i]);
-      }
-    } else if (value && typeof value.nodeType != "undefined") {
-      node.appendChild(value);
-    } else if (Selection.IsList(value)) {
-      for (let i = 0;i < value.length; i++) {
-        this.append(value[i]);
-      }
-    } else if (typeof value == "string") {
-      for (let i = 0;i < this.length; i++) {
-        this[i].appendChild(document.createTextNode(value));
-      }
-    } else if (typeof value == "number") {
-      for (let i = 0;i < this.length; i++) {
-        this[i].appendChild(document.createTextNode(value));
-      }
-    } else if (value) {
-      console.error("Selection.append: value is expected to be Number, String, Node, [Node] or Selection, got", value);
-    }
-    return this;
-  }
-  prepend(value) {
-    if (this.length == 0) {
-      return this;
-    }
-    const node = this[0];
-    const child = node.firstChild;
-    if (!child) {
-      return this.append(value);
-    }
-    if (Selection.Is(value)) {
-      for (let i = 0;i < value.length; i++) {
-        node.insertBefore(value[i], child);
-      }
-    } else if (value && typeof value.nodeType != "undefined") {
-      node.insertBefore(value, child);
-    } else if (Selection.IsList(value)) {
-      for (let i = 0;i < value.length; i++) {
-        this.prepend(value[i]);
-      }
-    } else if (typeof value == "string") {
-      for (let i = 0;i < this.length; i++) {
-        this[i].insertBefore(document.createTextNode(value), child);
-      }
-    } else if (typeof value == "number") {
-      for (let i = 0;i < this.length; i++) {
-        this[i].insertBefore(document.createTextNode(value), child);
-      }
-    } else if (value) {
-      console.error("Selection.prepend: value is expected to be Number, String, Node, [Node] or Selection, got", value);
-    }
-    return this;
-  }
-  remove() {
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      if (node.parentNode) {
-        node.parentNode.removeChild(node);
-      }
-    }
-    return this;
-  }
-  extend(value) {
-    if (Selection.IsNode(value)) {
-      this.push(value);
-    } else if (Selection.IsList(value)) {
-      for (let i = 0;i < value.length; i++) {
-        this.extend(value[i]);
-      }
-    } else {
-      console.error("Selection.extend: value must be a node, selection or list, got", value);
-    }
-    return this;
-  }
-  after(value) {
-    if (this.length == 0) {
-      return this;
-    }
-    const node = this[0];
-    let scope = node;
-    while (scope && !Selection.IsElement(scope.nextSibling)) {
-      scope = scope.nextSibling;
-    }
-    if (scope) {
-      if (Selection.Is(value)) {
-        for (let i = 0;i < value.length; i++) {
-          scope.parentNode.insertBefore(value[i], scope);
-        }
-      } else if (typeof value.length != "undefined") {
-        for (let i = 0;i < value.length; i++) {
-          scope.parentNode.insertBefore(value[i], scope);
-        }
-      } else if (typeof value.nodeType != "undefined") {
-        scope.parentNode.insertBefore(value, scope);
-      } else {
-        console.error("Selection.after: value is expected to be Node, [Node] or Selection, got", value);
-      }
-    } else {
-      scope = node.parentNode;
-      if (Selection.Is(value)) {
-        for (let i = 0;i < value.length; i++) {
-          scope.appendChild(value[i]);
-        }
-      } else if (typeof value.length != "undefined") {
-        for (let i = 0;i < value.length; i++) {
-          scope.appendChild(value[i]);
-        }
-      } else if (typeof value.nodeType != "undefined") {
-        scope.appendChild(value);
-      } else {
-        console.error("Selection.after: value is expected to be Node, [Node] or Selection, got", value);
-      }
-    }
-    return this;
-  }
-  before(value) {
-    if (this.length == 0) {
-      return this;
-    }
-    const node = this[0];
-    const scope = node;
-    const parent = scope.parentNode;
-    if (Selection.Is(value)) {
-      for (let i = 0;i < value.length; i++) {
-        parent.insertBefore(value[i], scope);
-      }
-    } else if (typeof value.length != "undefined") {
-      for (let i = 0;i < value.length; i++) {
-        parent.insertBefore(value[i], scope);
-      }
-    } else if (typeof value.nodeType != "undefined") {
-      parent.insertBefore(value, scope);
-    } else {
-      console.error("Selection.before: value is expected to be Node, [Node] or Selection, got", value);
-    }
-    return this;
-  }
-  replaceWith(value) {
-    if (this.length == 0) {
-      console.warn("Selection.replaceWith: current selection is empty, so given nodes will be removed");
-      if (Selection.IsNode(value)) {
-        if (value.parentNode) {
-          value.parentNode.removeChild(value);
-        }
-      } else if (Selection.IsSelection(value) || Selection.IsList(value)) {
-        for (let i = 0;i < value.length; i++) {
-          const node = value[i];
-          if (node.parentNode) {
-            node.parentNode.removeChild(node);
-          }
-        }
-      }
-      return this;
-    } else {
-      const scope = this[0];
-      const parent = scope.parentNode;
-      const added = [];
-      if (Selection.IsNode(value)) {
-        if (parent) {
-          parent.insertBefore(value, scope);
-        }
-        added.push(value);
-      } else if (Selection.IsSelection(value) || Selection.IsList(value)) {
-        const added2 = [];
-        for (let i = 0;i < value.length; i++) {
-          const n = value[i];
-          if (parent) {
-            parent.insertBefore(n, scope);
-          }
-          added2.push(n);
-        }
-      } else {
-        console.error("Selection.replaceWith: value is expected to be Node, [Node] or Selection, got", value);
-      }
-      while (this.length > 0) {
-        const n = this.pop();
-        if (n.parentNode) {
-          n.parentNode.removeChild(n);
-        }
-      }
-      while (added.length > 0) {
-        this.push(added.pop());
-      }
-    }
-    return this;
-  }
-  equals(node) {
-    if (typeof node === "string") {
-      return this.equals(query(node));
-    } else if (node instanceof Array) {
-      if (node.length != this.length) {
-        return false;
-      }
-      for (let i = 0;i < this.length; i++) {
-        if (node[i] != this[i]) {
-          return false;
-        }
-      }
-      return true;
-    } else if (Selection.IsElement(node)) {
-      return this.length == 1 && this[0] === node;
-    } else {
-      return false;
-    }
-  }
-  contains(node) {
-    if (node instanceof Array || Selection.IsElement(node)) {
-      let found = true;
-      for (let i = 0;found && i < this.length; i++) {
-        found = this.indexOf(node[i]) >= 0;
-      }
-      return found;
-    } else {
-      return this.indexOf(node) >= 0;
-    }
-  }
-  wrap(node) {
-    node = $(node);
-    node.add(this);
-    return node;
-  }
-  clone() {
-    if (this.length === 0) {
-      return new (Object.getPrototypeOf(this)).constructor;
-    }
-    let res = undefined;
-    for (const child of this) {
-      if (res === undefined) {
-        res = new (Object.getPrototypeOf(this)).constructor(child.cloneNode(true));
-      } else {
-        res.push(child.cloneNode(true));
-      }
-    }
-    return res;
-  }
-  empty() {
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      while (node.firstChild) {
-        node.removeChild(node.firstChild);
-      }
-    }
-    return this;
-  }
-  isEmpty() {
-    return this.length == 0;
-  }
-  val() {
-    return this.value();
-  }
-  value(value) {
-    if (typeof value == "undefined") {
-      for (let i = 0;i < this.length; i++) {
-        const node = this[i];
-        if (typeof node.value != "undefined") {
-          return node.value;
-        } else if (node.hasAttribute("contenteditable")) {
-          return node.textContent;
-        }
-      }
-      return;
-    } else {
-      value = "" + value;
-      for (let i = 0;i < this.length; i++) {
-        const node = this[i];
-        if (typeof node.value != "undefined") {
-          node.value = value;
-        } else if (node.hasAttribute("contenteditable")) {
-          node.textContent = value;
-        }
-      }
-      return this;
-    }
-  }
-  text(value) {
-    let result = undefined;
-    if (typeof value == "undefined") {
-      for (let i = 0;i < this.length; i++) {
-        const node = this[i];
-        result = node.textContent;
-        if (result) {
-          return result;
-        }
-      }
-      return result;
-    } else {
-      value = value === null || value === undefined ? "" : typeof value === "number" ? `${value}` : typeof value === "string" ? value : JSON.stringify(value);
-      for (let i = 0;i < this.length; i++) {
-        const node = this[i];
-        switch (node.nodeName) {
-          case "INPUT":
-          case "TEXTAREA":
-          case "SELECT":
-            if (node.value !== value) {
-              node.value = value;
-            }
-            break;
-          default:
-            node.textContent = value;
-        }
-      }
-      return this;
-    }
-  }
-  html(value) {
-    return this.contents(value);
-  }
-  contents(value) {
-    let result = undefined;
-    if (typeof value == "undefined") {
-      for (let i = 0;i < this.length; i++) {
-        const node = this[i];
-        result = node.innerHTML;
-        if (result) {
-          return result;
-        }
-      }
-      return result;
-    } else {
-      if (!value || typeof value === "string" || typeof value === "number") {
-        value = value || "";
-        for (let i = 0;i < this.length; i++) {
-          const node = this[i];
-          node.innerHTML = value;
-        }
-        return this;
-      } else {
-        return this.empty().append(value);
-      }
-    }
-  }
-  attr(name, value) {
-    if (typeof name === "string") {
-      if (arguments.length == 1) {
-        for (let i = 0;i < this.length; i++) {
-          const node = this[i];
-          if (node.hasAttribute(name)) {
-            return node.getAttribute(name);
-          }
-        }
-        return;
-      } else {
-        value = typeof value === "string" ? value : value === null ? value : JSON.stringify(value);
-        for (let i = 0;i < this.length; i++) {
-          const node = this[i];
-          if (value === null) {
-            if (node.hasAttribute(name)) {
-              node.removeAttribute(name);
-            }
-          } else {
-            node.setAttribute(name, value);
-          }
-        }
-        return this;
-      }
-    } else if (name) {
-      for (const k in name) {
-        this.attr(k, name[k]);
-      }
-      return this;
-    }
-    return this;
-  }
-  data(name, value, serialize) {
-    if (!name) {
-      for (let i = 0;i < this.length; i++) {
-        const node = this[i];
-        if (node.dataset) {
-          const r = {};
-          for (const k in node.dataset) {
-            let v = node.dataset[k];
-            try {
-              v = JSON.parse(v);
-            } catch (e) {}
-            r[k] = v;
-          }
-          return r;
-        } else {
-          const a = node.attributes;
-          let r = undefined;
-          for (let j = 0;j < a.length; j++) {
-            const _ = a[j];
-            const n = _.name;
-            if (n.startsWith("data-")) {
-              let v = _.value;
-              try {
-                v = JSON.parse(v);
-              } catch (e) {}
-              r = r || {};
-              r[n.substring(5, n.length)] = v;
-            }
-          }
-          return r;
-        }
-      }
-      return;
-    } else if (typeof name === "string") {
-      const data_name = `data-${name}`;
-      let serialized = undefined;
-      if (typeof value == "undefined") {
-        for (let i = 0;i < this.length; i++) {
-          const node = this[i];
-          let attr_value = undefined;
-          if (node.hasAttribute(data_name)) {
-            attr_value = node.getAttribute(data_name);
-          }
-          let value2 = typeof node.dataset != "undefined" ? node.dataset[name] : attr_value;
-          try {
-            value2 = JSON.parse(value2);
-          } catch (e) {}
-          if (typeof value2 != "undefined") {
-            return value2;
-          }
-        }
-        return;
-      } else {
-        serialized = typeof value === "string" ? value : JSON.stringify(value);
-        for (let i = 0;i < this.length; i++) {
-          const node = this[i];
-          if (typeof node.dataset != "undefined") {
-            node.dataset[name] = serialized;
-          } else {
-            node.setAttribute(data_name, serialized);
-          }
-        }
-        return this;
-      }
-    } else {
-      for (const k in name) {
-        this.data(k, name[k]);
-      }
-      return this;
-    }
-  }
-  addClass(className) {
-    if (className instanceof Array) {
-      for (let i = 0;i < className.length; i++) {
-        this.addClass(className[i]);
-      }
-      return this;
-    }
-    if (arguments.length > 1) {
-      for (let i = 0;i < arguments.length; i++) {
-        this.addClass(arguments[i]);
-      }
-      return this;
-    }
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      if (node.classList) {
-        node.classList.add(className);
-      } else {
-        const c = node.getAttribute("class");
-        if (c && c.length > 0) {
-          const m = c.indexOf(className);
-          const la = c.length || 0;
-          const lc = className.length;
-          const n = m + lc;
-          const p = m - 1;
-          if (!((m == 0 || c[p] == " ") && (n == la || c[n] == " "))) {
-            node.setAttribute(c + " " + className);
-          }
-        } else {
-          node.setAttribute(className);
-        }
-      }
-    }
-    return this;
-  }
-  removeClass(className) {
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      if (node.classList) {
-        node.classList.remove(className);
-      } else {
-        let c = node.getAttribute("class");
-        if (c && c.length > 0) {
-          const m = c.indexOf(className);
-          if (m >= 0) {
-            const la = c.length || 0;
-            const lc = className.length;
-            let nc = "";
-            while (m >= 0) {
-              const n = m + lc;
-              const p = m - 1;
-              if ((m == 0 || c[p] == " ") && (n == la || c[n] == " ")) {
-                nc += c.substr(0, m);
-              } else {
-                nc += c.substr(0, m + lc);
-              }
-              c = c.substr(m + lc);
-            }
-            nc += c;
-            node.setAttribute("class", nc);
-          }
-        }
-      }
-    }
-    return this;
-  }
-  hasClass(name) {
-    const lc = (name || "").length;
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      if (typeof node.classList != "undefined") {
-        return node.classList.contains(name);
-      } else {
-        const c = node.className || "";
-        if (c && c.length > 0) {
-          const m = c.indexOf(name);
-          if (m >= 0) {
-            const la = c.length || 0;
-            const p = m - 1;
-            const n = m + lc + 1;
-            if ((m == 0 || c[p] == " ") && (m == la || c[n] == " ")) {
-              return true;
-            }
-          }
-        }
-      }
-    }
-    return false;
-  }
-  toggleClass(name, value) {
-    const sel = select();
-    const is_function = value instanceof Function;
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      const v = is_function ? value(node, i) : value;
-      sel.set(this[i]);
-      if (typeof value == "undefined") {
-        if (sel.hasClass(name)) {
-          sel.removeClass(name);
-        } else {
-          sel.addClass(name);
-        }
-      } else if (v && !sel.hasClass(name)) {
-        sel.addClass(name);
-      } else if (!v && sel.hasClass(name)) {
-        sel.removeClass(name);
-      }
-    }
-    return this;
-  }
-  css(name, value) {
-    if (typeof name === "string") {
-      if (typeof value === "undefined") {
-        for (let i = 0;i < this.length; i++) {
-          const style = document.defaultView.getComputedStyle(this[i], null)[name];
-          if (typeof style != "undefined") {
-            return style;
-          }
-        }
-        return;
-      } else {
-        value = typeof value === "string" ? value : value + "px";
-        for (let i = 0;i < this.length; i++) {
-          this[i].style[name] = value;
-        }
-        return this;
-      }
-    } else {
-      for (const k in name) {
-        this.css(k, name[k]);
-      }
-      return this;
-    }
-  }
-  width() {
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      const nb = node.getBoundingClientRect();
-      return nb.right - nb.left;
-    }
-    return 0;
-  }
-  height() {
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      const nb = node.getBoundingClientRect();
-      return nb.bottom - nb.top;
-    }
-    return 0;
-  }
-  offset() {
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      if (Selection.IsDOM(node)) {
-        return { left: node.offsetLeft, top: node.offsetTop };
-      } else {
-        const nb = node.getBoundingClientRect();
-        const pb = node.parentNode.getBoundingClientRect();
-        return { left: nb.left - pb.left, top: nb.top - pb.top };
-      }
-    }
-    return;
-  }
-  scrollTop(value) {
-    const has_value = value !== undefined && value !== null;
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      if (Selection.IsDOM(node)) {
-        if (has_value) {
-          node.scrollTop = value;
-        } else {
-          return node.scrollTop;
-        }
-      } else {
-        console.error("Selection.scrollTop: Not implemented for SVG");
-      }
-    }
-    return;
-  }
-  scrollLeft(value) {
-    const has_value = value !== undefined && value !== null;
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      if (Selection.IsDOM(node)) {
-        if (has_value) {
-          node.scrollLeft = value;
-        } else {
-          return node.scrollLeft;
-        }
-      } else {
-        console.error("Selection.scrollLeft: Not implemented for SVG");
-      }
-    }
-    return;
-  }
-  focus(callback) {
-    if (typeof callback == "undefined") {
-      for (let i = 0;i < this.length; i++) {
-        const node = this[i];
-        if (node.focus) {
-          node.focus();
-          if (document.activeElement == node) {
-            return this;
-          }
-        }
-      }
-      return this;
-    } else {
-      return this.bind("focus", callback);
-    }
-  }
-  select(callback) {
-    if (typeof callback == "undefined") {
-      const s = window.getSelection();
-      s.removeAllRanges();
-      for (let i = 0;i < this.length; i++) {
-        const node = this[i];
-        if (node.select) {
-          node.select();
-        } else {
-          const r = new Range;
-          if (node.nodeType == node.TEXT_NODE) {
-            r.selectNode(node);
-          } else {
-            r.selectNodeContents(node);
-          }
-          s.removeAllRanges();
-          s.addRange(r);
-        }
-      }
-      return this;
-    } else {
-      return this.bind("select", callback);
-    }
-  }
-  bind(event, callback, capture) {
-    capture = capture && true;
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      node.addEventListener(event, callback, capture);
-    }
-    return this;
-  }
-  unbind(event, callback) {
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      node.removeEventListener(event, callback);
-    }
-    return this;
-  }
-  trigger(event) {
-    if (typeof event === "string") {
-      event = new CustomEvent(event, { bubbles: true, cancelable: true });
-    }
-    for (let i = 0;i < this.length; i++) {
-      const node = this[i];
-      node.dispatchEvent(event);
-    }
-    return this;
-  }
-  node(index) {
-    index = index === undefined ? 0 : index;
-    index = index < 0 ? this.length - index : index;
-    if (index >= 0 && index < this.length) {
-      return this[index];
-    } else {
-      return;
-    }
-  }
-  set(value) {
-    return this.clear().expand(value);
-  }
-  copy(value) {
-    return new Selection().expand(value);
-  }
-  clear(length) {
-    length = length || 0;
-    super.splice(length, this.length - length);
-    return this;
-  }
-  expand(element) {
-    if (element == window || element == document) {
-      element = document.firstElementChild;
-    }
-    if (!element || element.length == 0) {
-      return this;
-    } else if (typeof element === "string") {
-      return this.expand(query(element));
-    } else if (Selection.IsElement(element)) {
-      this.push(element);
-    } else if (element.nodeType == Node.DOCUMENT_NODE) {
-      this.expand(element.firstElementChild);
-    } else if (element instanceof NodeList || Selection.IsList(element)) {
-      for (let i = 0;i < element.length; i++) {
-        this.expand(element[i]);
-      }
-    } else {
-      console.error("Selection.expand: Unsupported argument", element);
-    }
-    return this;
-  }
-}
-var select = (selector, scope) => {
-  return Selection.Is(selector) && !scope ? selector : new Selection(selector, scope);
-};
-Object.assign(select, {
-  Selection,
-  VERSION: "1.0.0b0",
-  NAME: "select",
-  STATUS: "LOADED",
-  isNode: Selection.IsNode,
-  isText: Selection.IsText,
-  filter,
-  match,
-  query,
-  select
-});
-var S = select;
-var $ = select;
-var select_default = select;
 // src/js/select.cells.js
 var Nothing = Object.freeze(new Object);
 var Something = Object.freeze(new Object);
@@ -1306,6 +164,8 @@ class Reactive {
   constructor(value = Nothing) {
     this.isReactive = true;
     this.value = value === Nothing ? undefined : value;
+    this.previous = undefined;
+    this.isPending = false;
     this.revision = value === Nothing ? -1 : 0;
     this.subs = [];
     this.selections = undefined;
@@ -1382,7 +242,9 @@ class Selected extends Reactive {
   }
   refresh() {
     const value = access(this.parent.value, this.path);
+    this.previous = this.value;
     this.value = value;
+    this.isPending = !!(value && typeof value.then === "function");
     this.revision++;
     this.pub(value, this.path, this.parent);
   }
@@ -1399,11 +261,12 @@ class Cell extends Reactive {
   _update(value, path, _force = false) {
     path = normpath(path);
     const updated = path ? assign(this.value, path, value) : value;
+    this.previous = this.value;
     this.value = updated;
+    this.isPending = !!(updated && typeof updated.then === "function");
     this.revision++;
     if (this.selections) {
       for (const r of this.selections.iter(path)) {
-        console.log(" Refreshing selected", r.path);
         r.refresh();
       }
     }
@@ -1449,17 +312,51 @@ class Derivation extends Reactive {
     this.processor = processor;
     this.reactors = [];
     this.expanded = Reactive.Expand(template);
-    this.value = initial ? this.processor ? Array.isArray(this.expanded) ? this.processor(...this.expanded) : this.processor(this.expanded) : this.expanded : undefined;
+    this._promiseToken = 0;
     this.revision = initial ? 0 : -1;
+    if (initial) {
+      this._apply(this._compute(), false);
+    } else {
+      this.value = undefined;
+    }
     this.bind();
+  }
+  _compute() {
+    return this.processor ? Array.isArray(this.expanded) ? this.processor(...this.expanded) : this.processor(this.expanded) : this.expanded;
+  }
+  _apply(value, publish = true) {
+    const token = ++this._promiseToken;
+    this.previous = this.value;
+    this.value = value;
+    this.isPending = !!(value && typeof value.then === "function");
+    if (publish) {
+      this.revision++;
+      this.pub();
+    }
+    if (value && typeof value.then === "function") {
+      value.then((resolved) => {
+        if (token !== this._promiseToken) {
+          return;
+        }
+        this.previous = this.value;
+        this.value = resolved;
+        this.isPending = false;
+        this.revision++;
+        this.pub();
+      }, (error) => {
+        if (token !== this._promiseToken) {
+          return;
+        }
+        this.isPending = false;
+        console.error("Derived promise rejected", error);
+      });
+    }
   }
   bind() {
     for (const [cell, path] of Reactive.Walk(this.template)) {
       const reactor = (value) => {
         this.expanded = assign(this.expanded, path, value);
-        this.value = this.processor ? Array.isArray(this.expanded) ? this.processor(...this.expanded) : this.processor(this.expanded) : this.expanded;
-        this.revision++;
-        this.pub();
+        this._apply(this._compute());
       };
       cell.sub(reactor);
       this.reactors.push(reactor);
@@ -1478,8 +375,6 @@ class Derivation extends Reactive {
     return this;
   }
 }
-var walk = Reactive.Walk;
-var expand = Reactive.Expand;
 function cell(value) {
   return new Cell(value);
 }
@@ -1489,7 +384,1149 @@ function deferred(value, delay) {
 function derived(template, processor, initial) {
   return new Derivation(template, processor, initial);
 }
+var walk = Reactive.Walk;
+var expand = Reactive.Expand;
 var select_cells_default = Object.assign(cell, { deferred, derived, walk, expand });
+// src/js/select.js
+var _match = Element.prototype.matches ? 1 : Element.prototype.mozMatchesSelector ? 2 : Element.prototype.webkitMatchesSelector ? 3 : null;
+var match = _match ? (selector, node) => {
+  let index;
+  if (selector.startsWith(":first")) {
+    selector = selector.substring(0, selector.length - 6);
+    index = 0;
+  }
+  if (index === undefined) {
+    try {
+      switch (_match) {
+        case 1:
+          return node?.matches?.(selector);
+        case 2:
+          return node?.mozMatchesSelector?.(selector);
+        case 3:
+          return node?.webkitMatchesSelector?.(selector);
+        default:
+          console.error("select.match: browser not supported");
+          select.STATUS = "FAILED";
+          return node.matches(selector);
+      }
+    } catch (e) {
+      console.error("select.match: exception occurred with selector", selector, "and node", node, ":", e);
+      return null;
+    }
+  } else {
+    const matches = query(selector, undefined, index);
+    return matches[index] === node;
+  }
+} : (selector, node) => {
+  if (selector.endsWith(":first")) {
+    return query(selector, node) === node;
+  } else {
+    const parent = node.parentNode;
+    if (parent) {
+      const matching = parent.querySelectorAll(selector);
+      for (let i = 0;i < matching.length; i++) {
+        if (matching[i] === node) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+};
+var query = (selector, scope, _limit) => {
+  selector = selector.trim();
+  if (!selector || selector.length === 0) {
+    return [scope];
+  } else if (selector[0] === ">") {
+    selector = selector.substr(1).trim();
+    const i = Math.min(Math.max(selector.indexOf(">"), 0), Math.max(selector.indexOf(" "), 0));
+    const selector_node = i > 0 ? selector.substring(0, i) : selector;
+    const selector_child = i > 0 ? selector.substring(i, selector.length) : null;
+    const matching = [];
+    const nodes = (scope || document).childNodes;
+    let result = null;
+    for (let j = 0;j < nodes.length; j++) {
+      const n = nodes[j];
+      if (match(selector_node, n) && n.nodeType === Node.ELEMENT_NODE) {
+        matching.push(n);
+      }
+    }
+    if (selector_child) {
+      result = [];
+      for (let j = 0;j < matching.length; j++) {
+        result = result.concat(select.query(selector_child, matching[j]));
+      }
+    } else {
+      result = matching;
+    }
+    return result;
+  } else {
+    let index;
+    if (selector.endsWith(":first")) {
+      selector = selector.substring(0, selector.length - 6);
+      index = 0;
+    }
+    const result = [];
+    const nodes = (scope || document).querySelectorAll(selector);
+    let count = 0;
+    for (let i = 0;i < nodes.length; i++) {
+      const node = nodes[i];
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        if (index === undefined) {
+          result.push(node);
+          count += 1;
+        } else if (index === count) {
+          result.push(node);
+          break;
+        } else {
+          count += 1;
+        }
+      }
+    }
+    return result;
+  }
+};
+var filter = (selector, nodes) => {
+  const result = [];
+  for (let i = 0;i < nodes.length; i++) {
+    const node = nodes[i];
+    if (match(selector, node)) {
+      result.push(node);
+    }
+  }
+  return result;
+};
+
+class Selection extends Array {
+  constructor(selector, scope) {
+    super();
+    let nodes = null;
+    if (typeof selector === "string") {
+      if (!scope) {
+        nodes = query(selector);
+      } else {
+        scope = select(scope);
+        nodes = scope.find(selector);
+      }
+    } else if (Selection.Is(selector)) {
+      nodes = selector;
+      scope = selector.scope;
+      selector = selector.selector;
+      if (selector.scope && scope !== selector.scope) {
+        console.error("Selection.new: given scope differs from first argument's", scope, "!=", selector.scope);
+      }
+    } else if (selector) {
+      nodes = Selection.AsElementList(selector);
+    }
+    this.selector = selector;
+    this.scope = scope;
+    this.isSelection = true;
+    this.expand(nodes);
+  }
+  static Is(s) {
+    return s && s.__class__ === Selection;
+  }
+  static IsList(s) {
+    return s instanceof Selection || Array.isArray(s) || s instanceof NodeList;
+  }
+  static IsElement(node) {
+    return node && typeof node.nodeType !== "undefined" && node.nodeType === Node.ELEMENT_NODE;
+  }
+  static IsText(node) {
+    return node && typeof node.nodeType !== "undefined" && node.nodeType === Node.TEXT_NODE;
+  }
+  static IsNode(node) {
+    return node && typeof node.nodeType !== "undefined";
+  }
+  static IsDOM(node) {
+    return node && typeof node.getBBox === "undefined";
+  }
+  static IsSVG(node) {
+    return typeof node.getBBox !== "undefined";
+  }
+  static IsSelection(value) {
+    return value instanceof Selection;
+  }
+  static AsElementList(value) {
+    if (!value) {
+      return value;
+    } else if (value.nodeType === Node.ELEMENT_NODE) {
+      return [value];
+    } else if (value.nodeType === Node.DOCUMENT_FRAGMENT_NODE || value.nodeType === Node.DOCUMENT_NODE) {
+      const res = [];
+      let child = value.firstElementChild;
+      while (child) {
+        res.push(child);
+        child = child.nextSibling;
+      }
+      return res;
+    } else if (value === window) {
+      return Selection.AsElementList(window.document);
+    } else if (Selection.IsList(value)) {
+      let res = [];
+      for (let i = 0;i < value.length; i++) {
+        res = res.concat(Selection.AsElementList(value[i]));
+      }
+      return res;
+    } else {
+      return [];
+    }
+  }
+  static Ensure(node) {
+    return Selection.Is(node) ? node : new Selection(node);
+  }
+  find(selector) {
+    if (this.length === 0) {
+      return new Selection;
+    }
+    const nodes = [];
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i];
+      const q = query(selector, node);
+      for (let j = 0;j < q.length; j++) {
+        nodes.push(q[j]);
+      }
+    }
+    return new Selection(nodes, this);
+  }
+  filter(selector) {
+    if (typeof selector === "string") {
+      return new Selection(filter(selector, this), this.length > 0 ? this : undefined);
+    } else if (typeof selector === "function") {
+      return new Selection(Array.prototype.filter.apply(this, [selector]));
+    } else {
+      console.error("Selection.filter(): selector string or predicate expected, got", selector);
+      return None;
+    }
+  }
+  iterate(callback) {
+    for (let i = 0;i < this.length; i++) {
+      if (callback(new Selection(this[i]), i) === false) {
+        break;
+      }
+    }
+    return this;
+  }
+  like(selector) {
+    return this.is(selector);
+  }
+  is(selector) {
+    if (typeof selector === "string") {
+      let result = this.length > 0;
+      for (let i = 0;i < this.length; i++) {
+        if (!match(selector, this[i])) {
+          result = false;
+          break;
+        }
+      }
+      return result;
+    } else {
+      return this.equals(selector);
+    }
+  }
+  list() {
+    return this.map(Selection.Ensure);
+  }
+  first() {
+    return this.length <= 1 ? this : select([this[0]], this);
+  }
+  last() {
+    return this.length <= 1 ? this : select([this[this.length - 1]], this);
+  }
+  get(index) {
+    index = index < 0 ? this.length + index : index;
+    if (this.length === 1 && index === 0) {
+      return this;
+    } else {
+      return 0 <= index && index < this.length ? select([this[index]], this) : new Selection;
+    }
+  }
+  eq(index) {
+    return this.get(index);
+  }
+  next(selector) {
+    const nodes = [];
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i];
+      const sibling = node.nextElementSibling;
+      if (sibling && (!selector || match(selector, sibling))) {
+        nodes.push(sibling);
+      }
+    }
+    return nodes.length > 0 ? select(nodes, this) : new Selection;
+  }
+  prev(selector) {
+    return this.previous(selector);
+  }
+  previous(selector) {
+    const nodes = [];
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i];
+      const sibling = node.previousElementSibling;
+      if (sibling && (!selector || match(selector, sibling))) {
+        nodes.push(sibling);
+      }
+    }
+    return nodes.length > 0 ? select(nodes, this) : new Selection;
+  }
+  parent(selector) {
+    const nodes = [];
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i].parentNode;
+      if (node && (!selector || match(selector, node))) {
+        nodes.push(node);
+      }
+    }
+    return nodes.length > 0 ? select(nodes, this) : new Selection;
+  }
+  ancestors(selector, limit) {
+    return this.parents(selector, limit);
+  }
+  parents(selector, limit) {
+    const nodes = [];
+    const depth_limit = typeof limit === "number" ? limit : -1;
+    const node_limit = limit && typeof limit !== "number" ? select(limit) : null;
+    const is_function = typeof selector === "function";
+    const is_string = typeof selector === "string";
+    if (is_string && selector.endsWith(":first")) {
+      selector = selector.substring(0, selector.length - 6);
+      const _index = 0;
+    }
+    for (let i = 0;i < this.length; i++) {
+      let node = this[i].parentNode;
+      while (node) {
+        let matches = true;
+        if (selector) {
+          if (is_function) {
+            matches = selector(node, i);
+          } else if (is_string) {
+            matches = match(selector, node);
+          }
+        }
+        if (matches) {
+          nodes.push(node);
+          if (depth_limit >= 0 && nodes.length >= depth_limit) {
+            return select(nodes, this);
+          }
+        }
+        node = node.parentNode;
+        if (node_limit?.contains(node)) {
+          node = null;
+        }
+      }
+    }
+    return nodes.length > 0 ? select(nodes, this) : new Selection;
+  }
+  children(selector) {
+    const nodes = [];
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i];
+      for (let j = 0;j < node.childNodes.length; j++) {
+        const child = node.childNodes[j];
+        if (Selection.IsElement(child) && (!selector || match(selector, child))) {
+          nodes.push(child);
+        }
+      }
+    }
+    return nodes.length > 0 ? select(nodes, this) : new Selection;
+  }
+  nodes(callback) {
+    const nodes = [];
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i];
+      for (let j = 0;j < node.childNodes.length; j++) {
+        const child = node.childNodes[j];
+        if (!callback || callback(child, i, node) !== false) {
+          nodes.push(child);
+        } else {
+          return nodes;
+        }
+      }
+    }
+    return nodes;
+  }
+  walk(callback) {
+    if (!callback) {
+      return this;
+    }
+    const to_walk = [];
+    let count = 0;
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i];
+      to_walk.push(node);
+      while (to_walk.length > 0) {
+        const node2 = to_walk.pop();
+        if (callback && callback(node2, count++) === false) {
+          return this;
+        }
+        for (let j = 0;j < node2.childNodes.length; j++) {
+          to_walk.push(node2.childNodes[j]);
+        }
+      }
+    }
+    return this;
+  }
+  append(value) {
+    if (this.length === 0) {
+      return this;
+    }
+    const node = this[0];
+    if (Selection.Is(value)) {
+      for (let i = 0;i < value.length; i++) {
+        node.appendChild(value[i]);
+      }
+    } else if (value && typeof value.nodeType !== "undefined") {
+      node.appendChild(value);
+    } else if (Selection.IsList(value)) {
+      for (let i = 0;i < value.length; i++) {
+        this.append(value[i]);
+      }
+    } else if (typeof value === "string") {
+      for (let i = 0;i < this.length; i++) {
+        this[i].appendChild(document.createTextNode(value));
+      }
+    } else if (typeof value === "number") {
+      for (let i = 0;i < this.length; i++) {
+        this[i].appendChild(document.createTextNode(value));
+      }
+    } else if (value) {
+      console.error("Selection.append: value is expected to be Number, String, Node, [Node] or Selection, got", value);
+    }
+    return this;
+  }
+  prepend(value) {
+    if (this.length === 0) {
+      return this;
+    }
+    const node = this[0];
+    const child = node.firstChild;
+    if (!child) {
+      return this.append(value);
+    }
+    if (Selection.Is(value)) {
+      for (let i = 0;i < value.length; i++) {
+        node.insertBefore(value[i], child);
+      }
+    } else if (value && typeof value.nodeType !== "undefined") {
+      node.insertBefore(value, child);
+    } else if (Selection.IsList(value)) {
+      for (let i = 0;i < value.length; i++) {
+        this.prepend(value[i]);
+      }
+    } else if (typeof value === "string") {
+      for (let i = 0;i < this.length; i++) {
+        this[i].insertBefore(document.createTextNode(value), child);
+      }
+    } else if (typeof value === "number") {
+      for (let i = 0;i < this.length; i++) {
+        this[i].insertBefore(document.createTextNode(value), child);
+      }
+    } else if (value) {
+      console.error("Selection.prepend: value is expected to be Number, String, Node, [Node] or Selection, got", value);
+    }
+    return this;
+  }
+  remove() {
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i];
+      if (node.parentNode) {
+        node.parentNode.removeChild(node);
+      }
+    }
+    return this;
+  }
+  extend(value) {
+    if (Selection.IsNode(value)) {
+      this.push(value);
+    } else if (Selection.IsList(value)) {
+      for (let i = 0;i < value.length; i++) {
+        this.extend(value[i]);
+      }
+    } else {
+      console.error("Selection.extend: value must be a node, selection or list, got", value);
+    }
+    return this;
+  }
+  after(value) {
+    if (this.length === 0) {
+      return this;
+    }
+    const node = this[0];
+    let scope = node;
+    while (scope && !Selection.IsElement(scope.nextSibling)) {
+      scope = scope.nextSibling;
+    }
+    if (scope) {
+      if (Selection.Is(value)) {
+        for (let i = 0;i < value.length; i++) {
+          scope.parentNode.insertBefore(value[i], scope);
+        }
+      } else if (typeof value.length !== "undefined") {
+        for (let i = 0;i < value.length; i++) {
+          scope.parentNode.insertBefore(value[i], scope);
+        }
+      } else if (typeof value.nodeType !== "undefined") {
+        scope.parentNode.insertBefore(value, scope);
+      } else {
+        console.error("Selection.after: value is expected to be Node, [Node] or Selection, got", value);
+      }
+    } else {
+      scope = node.parentNode;
+      if (Selection.Is(value)) {
+        for (let i = 0;i < value.length; i++) {
+          scope.appendChild(value[i]);
+        }
+      } else if (typeof value.length !== "undefined") {
+        for (let i = 0;i < value.length; i++) {
+          scope.appendChild(value[i]);
+        }
+      } else if (typeof value.nodeType !== "undefined") {
+        scope.appendChild(value);
+      } else {
+        console.error("Selection.after: value is expected to be Node, [Node] or Selection, got", value);
+      }
+    }
+    return this;
+  }
+  before(value) {
+    if (this.length === 0) {
+      return this;
+    }
+    const node = this[0];
+    const scope = node;
+    const parent = scope.parentNode;
+    if (Selection.Is(value)) {
+      for (let i = 0;i < value.length; i++) {
+        parent.insertBefore(value[i], scope);
+      }
+    } else if (typeof value.length !== "undefined") {
+      for (let i = 0;i < value.length; i++) {
+        parent.insertBefore(value[i], scope);
+      }
+    } else if (typeof value.nodeType !== "undefined") {
+      parent.insertBefore(value, scope);
+    } else {
+      console.error("Selection.before: value is expected to be Node, [Node] or Selection, got", value);
+    }
+    return this;
+  }
+  replaceWith(value) {
+    if (this.length === 0) {
+      console.warn("Selection.replaceWith: current selection is empty, so given nodes will be removed");
+      if (Selection.IsNode(value)) {
+        if (value.parentNode) {
+          value.parentNode.removeChild(value);
+        }
+      } else if (Selection.IsSelection(value) || Selection.IsList(value)) {
+        for (let i = 0;i < value.length; i++) {
+          const node = value[i];
+          if (node.parentNode) {
+            node.parentNode.removeChild(node);
+          }
+        }
+      }
+      return this;
+    } else {
+      const scope = this[0];
+      const parent = scope.parentNode;
+      const added = [];
+      if (Selection.IsNode(value)) {
+        if (parent) {
+          parent.insertBefore(value, scope);
+        }
+        added.push(value);
+      } else if (Selection.IsSelection(value) || Selection.IsList(value)) {
+        const added2 = [];
+        for (let i = 0;i < value.length; i++) {
+          const n = value[i];
+          if (parent) {
+            parent.insertBefore(n, scope);
+          }
+          added2.push(n);
+        }
+      } else {
+        console.error("Selection.replaceWith: value is expected to be Node, [Node] or Selection, got", value);
+      }
+      while (this.length > 0) {
+        const n = this.pop();
+        if (n.parentNode) {
+          n.parentNode.removeChild(n);
+        }
+      }
+      while (added.length > 0) {
+        this.push(added.pop());
+      }
+    }
+    return this;
+  }
+  equals(node) {
+    if (typeof node === "string") {
+      return this.equals(query(node));
+    } else if (Array.isArray(node)) {
+      if (node.length !== this.length) {
+        return false;
+      }
+      for (let i = 0;i < this.length; i++) {
+        if (node[i] !== this[i]) {
+          return false;
+        }
+      }
+      return true;
+    } else if (Selection.IsElement(node)) {
+      return this.length === 1 && this[0] === node;
+    } else {
+      return false;
+    }
+  }
+  contains(node) {
+    if (Array.isArray(node) || Selection.IsElement(node)) {
+      let found = true;
+      for (let i = 0;found && i < this.length; i++) {
+        found = this.indexOf(node[i]) >= 0;
+      }
+      return found;
+    } else {
+      return this.indexOf(node) >= 0;
+    }
+  }
+  wrap(node) {
+    node = $(node);
+    node.add(this);
+    return node;
+  }
+  clone() {
+    if (this.length === 0) {
+      return new (Object.getPrototypeOf(this)).constructor;
+    }
+    let res;
+    for (const child of this) {
+      if (res === undefined) {
+        res = new (Object.getPrototypeOf(this)).constructor(child.cloneNode(true));
+      } else {
+        res.push(child.cloneNode(true));
+      }
+    }
+    return res;
+  }
+  empty() {
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i];
+      while (node.firstChild) {
+        node.removeChild(node.firstChild);
+      }
+    }
+    return this;
+  }
+  isEmpty() {
+    return this.length === 0;
+  }
+  val(value) {
+    return this.value(value);
+  }
+  value(value) {
+    if (typeof value === "undefined") {
+      for (let i = 0;i < this.length; i++) {
+        const node = this[i];
+        if (typeof node.value !== "undefined") {
+          return node.value;
+        } else if (node.hasAttribute("contenteditable")) {
+          return node.textContent;
+        }
+      }
+      return;
+    } else {
+      value = `${value}`;
+      for (let i = 0;i < this.length; i++) {
+        const node = this[i];
+        if (typeof node.value !== "undefined") {
+          node.value = value;
+        } else if (node.hasAttribute("contenteditable")) {
+          node.textContent = value;
+        }
+      }
+      return this;
+    }
+  }
+  text(value) {
+    let result;
+    if (typeof value === "undefined") {
+      for (let i = 0;i < this.length; i++) {
+        const node = this[i];
+        result = node.textContent;
+        if (result) {
+          return result;
+        }
+      }
+      return result;
+    } else {
+      value = value === null || value === undefined ? "" : typeof value === "number" ? `${value}` : typeof value === "string" ? value : JSON.stringify(value);
+      for (let i = 0;i < this.length; i++) {
+        const node = this[i];
+        switch (node.nodeName) {
+          case "INPUT":
+          case "TEXTAREA":
+          case "SELECT":
+            if (node.value !== value) {
+              node.value = value;
+            }
+            break;
+          default:
+            node.textContent = value;
+        }
+      }
+      return this;
+    }
+  }
+  html(value) {
+    return this.contents(value);
+  }
+  contents(value) {
+    let result;
+    if (typeof value === "undefined") {
+      for (let i = 0;i < this.length; i++) {
+        const node = this[i];
+        result = node.innerHTML;
+        if (result) {
+          return result;
+        }
+      }
+      return result;
+    } else {
+      if (!value || typeof value === "string" || typeof value === "number") {
+        value = value || "";
+        for (let i = 0;i < this.length; i++) {
+          const node = this[i];
+          node.innerHTML = value;
+        }
+        return this;
+      } else {
+        return this.empty().append(value);
+      }
+    }
+  }
+  attr(name, ...rest) {
+    if (typeof name === "string") {
+      if (rest.length === 0) {
+        for (let i = 0;i < this.length; i++) {
+          const node = this[i];
+          if (node.hasAttribute(name)) {
+            return node.getAttribute(name);
+          }
+        }
+        return;
+      } else {
+        let value = rest[0];
+        value = typeof value === "string" ? value : value === null ? value : JSON.stringify(value);
+        for (let i = 0;i < this.length; i++) {
+          const node = this[i];
+          if (value === null) {
+            if (node.hasAttribute(name)) {
+              node.removeAttribute(name);
+            }
+          } else {
+            node.setAttribute(name, value);
+          }
+        }
+        return this;
+      }
+    } else if (name) {
+      for (const k in name) {
+        this.attr(k, name[k]);
+      }
+      return this;
+    }
+    return this;
+  }
+  data(name, value, _serialize) {
+    if (!name) {
+      const node = this[0];
+      if (!node) {
+        return;
+      }
+      if (node.dataset) {
+        const r2 = {};
+        for (const k in node.dataset) {
+          let v = node.dataset[k];
+          try {
+            v = JSON.parse(v);
+          } catch (_e) {}
+          r2[k] = v;
+        }
+        return r2;
+      }
+      const a = node.attributes;
+      let r;
+      for (let j = 0;j < a.length; j++) {
+        const _ = a[j];
+        const n = _.name;
+        if (n.startsWith("data-")) {
+          let v = _.value;
+          try {
+            v = JSON.parse(v);
+          } catch (_e) {}
+          r = r || {};
+          r[n.substring(5, n.length)] = v;
+        }
+      }
+      return r;
+    } else if (typeof name === "string") {
+      const data_name = `data-${name}`;
+      let serialized;
+      if (typeof value === "undefined") {
+        for (let i = 0;i < this.length; i++) {
+          const node = this[i];
+          let attr_value;
+          if (node.hasAttribute(data_name)) {
+            attr_value = node.getAttribute(data_name);
+          }
+          let value2 = typeof node.dataset !== "undefined" ? node.dataset[name] : attr_value;
+          try {
+            value2 = JSON.parse(value2);
+          } catch (_e) {}
+          if (typeof value2 !== "undefined") {
+            return value2;
+          }
+        }
+        return;
+      } else {
+        serialized = typeof value === "string" ? value : JSON.stringify(value);
+        for (let i = 0;i < this.length; i++) {
+          const node = this[i];
+          if (typeof node.dataset !== "undefined") {
+            node.dataset[name] = serialized;
+          } else {
+            node.setAttribute(data_name, serialized);
+          }
+        }
+        return this;
+      }
+    } else {
+      for (const k in name) {
+        this.data(k, name[k]);
+      }
+      return this;
+    }
+  }
+  addClass(...classNames) {
+    if (classNames.length > 1) {
+      for (let i = 0;i < classNames.length; i++) {
+        this.addClass(classNames[i]);
+      }
+      return this;
+    }
+    const className = classNames[0];
+    if (Array.isArray(className)) {
+      for (let i = 0;i < className.length; i++) {
+        this.addClass(className[i]);
+      }
+      return this;
+    }
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i];
+      if (node.classList) {
+        node.classList.add(className);
+      } else {
+        const c = node.getAttribute("class");
+        if (c && c.length > 0) {
+          const m = c.indexOf(className);
+          const la = c.length || 0;
+          const lc = className.length;
+          const n = m + lc;
+          const p = m - 1;
+          if (!((m === 0 || c[p] === " ") && (n === la || c[n] === " "))) {
+            node.setAttribute(`${c} ${className}`);
+          }
+        } else {
+          node.setAttribute(className);
+        }
+      }
+    }
+    return this;
+  }
+  removeClass(className) {
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i];
+      if (node.classList) {
+        node.classList.remove(className);
+      } else {
+        let c = node.getAttribute("class");
+        if (c && c.length > 0) {
+          const m = c.indexOf(className);
+          if (m >= 0) {
+            const la = c.length || 0;
+            const lc = className.length;
+            let nc = "";
+            while (m >= 0) {
+              const n = m + lc;
+              const p = m - 1;
+              if ((m === 0 || c[p] === " ") && (n === la || c[n] === " ")) {
+                nc += c.substr(0, m);
+              } else {
+                nc += c.substr(0, m + lc);
+              }
+              c = c.substr(m + lc);
+            }
+            nc += c;
+            node.setAttribute("class", nc);
+          }
+        }
+      }
+    }
+    return this;
+  }
+  hasClass(name) {
+    const lc = (name || "").length;
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i];
+      if (typeof node.classList !== "undefined") {
+        return node.classList.contains(name);
+      } else {
+        const c = node.className || "";
+        if (c && c.length > 0) {
+          const m = c.indexOf(name);
+          if (m >= 0) {
+            const la = c.length || 0;
+            const p = m - 1;
+            const n = m + lc + 1;
+            if ((m === 0 || c[p] === " ") && (m === la || c[n] === " ")) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+    return false;
+  }
+  toggleClass(name, value) {
+    const sel = select();
+    const is_function = value instanceof Function;
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i];
+      const v = is_function ? value(node, i) : value;
+      sel.set(this[i]);
+      if (typeof value === "undefined") {
+        if (sel.hasClass(name)) {
+          sel.removeClass(name);
+        } else {
+          sel.addClass(name);
+        }
+      } else if (v && !sel.hasClass(name)) {
+        sel.addClass(name);
+      } else if (!v && sel.hasClass(name)) {
+        sel.removeClass(name);
+      }
+    }
+    return this;
+  }
+  css(name, value) {
+    if (typeof name === "string") {
+      if (typeof value === "undefined") {
+        for (let i = 0;i < this.length; i++) {
+          const style = document.defaultView.getComputedStyle(this[i], null)[name];
+          if (typeof style !== "undefined") {
+            return style;
+          }
+        }
+        return;
+      } else {
+        value = typeof value === "string" ? value : `${value}px`;
+        for (let i = 0;i < this.length; i++) {
+          this[i].style[name] = value;
+        }
+        return this;
+      }
+    } else {
+      for (const k in name) {
+        this.css(k, name[k]);
+      }
+      return this;
+    }
+  }
+  width() {
+    const node = this[0];
+    if (!node) {
+      return 0;
+    }
+    const nb = node.getBoundingClientRect();
+    return nb.right - nb.left;
+  }
+  height() {
+    const node = this[0];
+    if (!node) {
+      return 0;
+    }
+    const nb = node.getBoundingClientRect();
+    return nb.bottom - nb.top;
+  }
+  offset() {
+    const node = this[0];
+    if (!node) {
+      return;
+    }
+    if (Selection.IsDOM(node)) {
+      return { left: node.offsetLeft, top: node.offsetTop };
+    }
+    const nb = node.getBoundingClientRect();
+    const pb = node.parentNode.getBoundingClientRect();
+    return { left: nb.left - pb.left, top: nb.top - pb.top };
+  }
+  scrollTop(value) {
+    const has_value = value !== undefined && value !== null;
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i];
+      if (Selection.IsDOM(node)) {
+        if (has_value) {
+          node.scrollTop = value;
+        } else {
+          return node.scrollTop;
+        }
+      } else {
+        console.error("Selection.scrollTop: Not implemented for SVG");
+      }
+    }
+    return;
+  }
+  scrollLeft(value) {
+    const has_value = value !== undefined && value !== null;
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i];
+      if (Selection.IsDOM(node)) {
+        if (has_value) {
+          node.scrollLeft = value;
+        } else {
+          return node.scrollLeft;
+        }
+      } else {
+        console.error("Selection.scrollLeft: Not implemented for SVG");
+      }
+    }
+    return;
+  }
+  focus(callback) {
+    if (typeof callback === "undefined") {
+      for (let i = 0;i < this.length; i++) {
+        const node = this[i];
+        if (node.focus) {
+          node.focus();
+          if (document.activeElement === node) {
+            return this;
+          }
+        }
+      }
+      return this;
+    } else {
+      return this.bind("focus", callback);
+    }
+  }
+  select(callback) {
+    if (typeof callback === "undefined") {
+      const s = window.getSelection();
+      s.removeAllRanges();
+      for (let i = 0;i < this.length; i++) {
+        const node = this[i];
+        if (node.select) {
+          node.select();
+        } else {
+          const r = new Range;
+          if (node.nodeType === node.TEXT_NODE) {
+            r.selectNode(node);
+          } else {
+            r.selectNodeContents(node);
+          }
+          s.removeAllRanges();
+          s.addRange(r);
+        }
+      }
+      return this;
+    } else {
+      return this.bind("select", callback);
+    }
+  }
+  bind(event, callback, capture) {
+    capture = capture && true;
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i];
+      node.addEventListener(event, callback, capture);
+    }
+    return this;
+  }
+  unbind(event, callback) {
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i];
+      node.removeEventListener(event, callback);
+    }
+    return this;
+  }
+  trigger(event) {
+    if (typeof event === "string") {
+      event = new CustomEvent(event, { bubbles: true, cancelable: true });
+    }
+    for (let i = 0;i < this.length; i++) {
+      const node = this[i];
+      node.dispatchEvent(event);
+    }
+    return this;
+  }
+  node(index) {
+    index = index === undefined ? 0 : index;
+    index = index < 0 ? this.length - index : index;
+    if (index >= 0 && index < this.length) {
+      return this[index];
+    } else {
+      return;
+    }
+  }
+  set(value) {
+    return this.clear().expand(value);
+  }
+  copy(value) {
+    return new Selection().expand(value);
+  }
+  clear(length) {
+    length = length || 0;
+    super.splice(length, this.length - length);
+    return this;
+  }
+  expand(element) {
+    if (element === window || element === document) {
+      element = document.firstElementChild;
+    }
+    if (!element || element.length === 0) {
+      return this;
+    } else if (typeof element === "string") {
+      return this.expand(query(element));
+    } else if (Selection.IsElement(element)) {
+      this.push(element);
+    } else if (element.nodeType === Node.DOCUMENT_NODE) {
+      this.expand(element.firstElementChild);
+    } else if (element instanceof NodeList || Selection.IsList(element)) {
+      for (let i = 0;i < element.length; i++) {
+        this.expand(element[i]);
+      }
+    } else {
+      console.error("Selection.expand: Unsupported argument", element);
+    }
+    return this;
+  }
+}
+var select = (selector, scope) => {
+  return Selection.Is(selector) && !scope ? selector : new Selection(selector, scope);
+};
+Object.assign(select, {
+  Selection,
+  VERSION: "1.0.0b0",
+  NAME: "select",
+  STATUS: "LOADED",
+  isNode: Selection.IsNode,
+  isText: Selection.IsText,
+  filter,
+  match,
+  query,
+  select
+});
+var S = select;
+var $ = select;
+var select_default = select;
 // src/js/select.ui.js
 var len = (v) => {
   if (v === undefined || v === null) {
@@ -1509,7 +1546,7 @@ var parser = new DOMParser;
 var SLOT_DEFAULT_KEY = "_";
 var _isPrunableWhitespaceText = (node) => node && node.nodeType === Node.TEXT_NODE && !/\S/.test(node.data) && /[\n\r\t]/.test(node.data);
 var _pruneTemplateWhitespace = (node) => {
-  if (!node || !node.childNodes || node.childNodes.length === 0) {
+  if (!node?.childNodes || node.childNodes.length === 0) {
     return;
   }
   for (let i = node.childNodes.length - 1;i >= 0; i--) {
@@ -1590,17 +1627,17 @@ var shallowEq = (a, b) => {
   }
   let count = 0;
   for (const k in a) {
-    if (!Object.prototype.hasOwnProperty.call(a, k)) {
+    if (!Object.hasOwn(a, k)) {
       continue;
     }
     count++;
-    if (!Object.prototype.hasOwnProperty.call(b, k) || a[k] !== b[k]) {
+    if (!Object.hasOwn(b, k) || a[k] !== b[k]) {
       return false;
     }
   }
   let countB = 0;
   for (const k in b) {
-    if (Object.prototype.hasOwnProperty.call(b, k)) {
+    if (Object.hasOwn(b, k)) {
       countB++;
     }
   }
@@ -2255,7 +2292,7 @@ class UISlot {
     } else if (isDict) {
       isEmpty = true;
       for (const k in data) {
-        if (Object.prototype.hasOwnProperty.call(data, k)) {
+        if (Object.hasOwn(data, k)) {
           isEmpty = false;
           break;
         }
@@ -2265,7 +2302,7 @@ class UISlot {
       if (this.placeholder && !this.placeholder[0]?.parentNode) {
         let previous2 = this.node.childNodes[0];
         for (const node of this.placeholder) {
-          if (!previous2 || !previous2.nextSibling) {
+          if (!previous2?.nextSibling) {
             this.node.appendChild(node);
           } else {
             this.node.insertBefore(node, previous2.nextSibling);
@@ -2773,7 +2810,9 @@ class UIInstance {
     if (typeof node === "string") {
       const n = document.querySelector(node);
       if (!n) {
-        console.error("Selector is empty, cannot mounted component", node, { component: this.template });
+        console.error("Selector is empty, cannot mounted component", node, {
+          component: this.template
+        });
         return this;
       } else {
         node = n;
@@ -2948,7 +2987,9 @@ var ui = (selection, scope = document) => {
       }
     }
     if (nodes.length === 0) {
-      console.warn(`ui() selector "${selection}" did not match any elements`, { scope });
+      console.warn(`ui() selector "${selection}" did not match any elements`, {
+        scope
+      });
     }
     const tmpl = new UITemplate(nodes);
     const component = (...args) => tmpl.apply(...args);
@@ -3033,6 +3074,7 @@ export {
   select_default as select,
   remap,
   query,
+  match,
   len,
   lazy,
   filter,
@@ -3042,11 +3084,24 @@ export {
   select_cells_default as cell,
   assign,
   access,
+  UITemplateSlot,
+  UITemplate,
+  UISlot,
+  UIInstance,
+  UIEventTemplateSlot,
+  UIEventSlot,
+  UIEvent,
+  UIContentSlot,
+  UIAttributeTemplateSlot,
+  UIAttributeSlot,
   Selection,
   Selected,
   S,
+  Reactive,
   Dynamic,
+  Derivation,
   Deferred,
   Cell,
+  AppliedUITemplate,
   $
 };

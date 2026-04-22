@@ -72,7 +72,7 @@
 				<button on:click="remove">Remove</button>
 			</div>
 			<div when="data.edited">
-				<input in="editedLabel"></input>
+				<input in="editedLabel" />
 				<button on:click="save">Save</button>
 				<a href="#" on:click="cancel">cancel</a>
 			</div>
@@ -90,17 +90,17 @@
 		import {ui} from "@./select.ui.js"
 
 		const TodoItem = ui("#TodoItem").does({
-			label: (self, {label}) => label,
+			label: (_self, {label}) => label,
 			editedLabel: (self, data, event) => event ? self.update({editedLabel: event.target.value}) : data.editedLabel || data.label,
-			save: (self, {editedLabel}, event) => self.update({edited: false, label: editedLabel}),
-			cancel: (self, data, event) => self.update({edited: false}),
-			edit: (self, {edited, label}, event) => self.update({edited: true, editedLabel: label}),
-			remove: (self, data, event) => self.send("Remove", data)
+			save: (self, {editedLabel}, _event) => self.update({edited: false, label: editedLabel}),
+			cancel: (self, _data, _event) => self.update({edited: false}),
+			edit: (self, {_edited, label}, _event) => self.update({edited: true, editedLabel: label}),
+			remove: (self, data, _event) => self.send("Remove", data)
 		})
 
 		const TodoList = ui("#TodoList").does({
-			items: (self, {items}) => items ? items.map(TodoItem) : [],
-			add: (self, {items}, event) => {
+			items: (_self, {items}) => items ? items.map(TodoItem) : [],
+			add: (self, {items}, _event) => {
 				self.update({items: [...(items || []), {label: `Todo ${items?.length}`}]})
 			}
 		}).sub({

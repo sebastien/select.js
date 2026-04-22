@@ -54,10 +54,10 @@
 				body: text,
 			}).catch(() => {});
 		} catch (e) {
-			output.textContent = "Error: " + e.message + "\n" + e.stack;
+			output.textContent = `Error: ${e.message}\n${e.stack}`;
 			fetch(`${window.location.origin}/result`, {
 				method: "POST",
-				body: "Error: " + e.message + "\n" + e.stack,
+				body: `Error: ${e.message}\n${e.stack}`,
 			}).catch(() => {});
 		}
 	</script>

@@ -22,9 +22,9 @@ const Inspector = ({ value }) => {
 						{ className: "pl-2" },
 						h("span", { className: "mono dim small" }, `${key}:`),
 						" ",
-						h(Inspector, { value: entryValue })
-					)
-				)
+						h(Inspector, { value: entryValue }),
+					),
+				),
 			);
 		case "array":
 			return h(
@@ -36,9 +36,9 @@ const Inspector = ({ value }) => {
 						{ className: "pl-2" },
 						h("span", { className: "mono dim small" }, `#${index}:`),
 						" ",
-						h(Inspector, { value: entryValue })
-					)
-				)
+						h(Inspector, { value: entryValue }),
+					),
+				),
 			);
 		default:
 			return h("span", null, `${value}`);

@@ -1,5 +1,5 @@
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import http from "node:http";
-import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 

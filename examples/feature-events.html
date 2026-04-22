@@ -114,7 +114,7 @@
 		import { ui } from "@./select.ui.js"
 
 		const Counter = ui("#Counter").does({
-			count: (self, { count }) => count,
+			count: (_self, { count }) => count,
 			increment: (self, { count, id }) => {
 				self.emit("CountChanged", { id, count: count + 1, action: "increment" })
 			},
@@ -124,12 +124,12 @@
 		})
 
 		const App = ui("#App").does({
-			counters: (self, { counters }) => counters ? counters.map((c) => Counter(c)) : [],
+			counters: (_self, { counters }) => counters ? counters.map((c) => Counter(c)) : [],
 			addCounter: (self, { counters }) => {
 				const next = (counters || []).length + 1
 				self.update({ counters: [...(counters || []), { id: next, count: 0 }] })
 			},
-			clearLog: (self, data) => {
+			clearLog: (self, _data) => {
 				self.update({ log: [] })
 			}
 		}).sub({
@@ -154,7 +154,7 @@
 		}).mount("#App")
 
 		// Runtime subscription example
-		app.on("CountChanged", (self, data, event) => {
+		app.on("CountChanged", (_self, _data, event) => {
 			console.log("Runtime handler:", event.data)
 		})
 	</script>

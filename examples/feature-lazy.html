@@ -68,7 +68,7 @@
 	</template>
 
 	<script type="module">
-		import { ui, lazy } from "@./select.ui.js"
+		import { lazy, ui } from "@./select.ui.js"
 
 		// Simulate an async component load
 		const HeavyComponentLoader = () =>
@@ -85,13 +85,13 @@
 		const HeavyComponent = lazy(HeavyComponentLoader, ui(`<div class="placeholder">Loading heavy component...</div>`)())
 
 		const App = ui("#App").does({
-			content: (self, data) => {
+			content: (_self, data) => {
 				if (!data.loaded) {
 					return "Click 'Load Heavy Component' to start"
 				}
 				return HeavyComponent(data)
 			},
-			load: (self, data) => {
+			load: (self, _data) => {
 				self.update({ loaded: true })
 				// Poll for lazy load completion
 				const poll = () => {
@@ -105,7 +105,7 @@
 				self.update({ _pollActive: true })
 				poll()
 			},
-			reset: (self, data) => {
+			reset: (self, _data) => {
 				self.update({ loaded: false, _pollActive: false })
 			}
 		})

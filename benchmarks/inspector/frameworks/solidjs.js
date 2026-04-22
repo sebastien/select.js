@@ -1,6 +1,6 @@
-import { render } from "solid-js/web/dist/web.js";
-import { createStore, reconcile } from "solid-js/store/dist/store.js";
 import h from "solid-js/h/dist/h.js";
+import { createStore, reconcile } from "solid-js/store/dist/store.js";
+import { render } from "solid-js/web/dist/web.js";
 
 const getType = (value) =>
 	value === undefined || value === null
@@ -26,9 +26,9 @@ const Inspector = (props) => {
 						{ className: "pl-2" },
 						h("span", { className: "mono dim small" }, `${key}:`),
 						" ",
-						h(Inspector, { value: () => value[key] })
-					)
-				)
+						h(Inspector, { value: () => value[key] }),
+					),
+				),
 			);
 		case "array":
 			return h(
@@ -40,9 +40,9 @@ const Inspector = (props) => {
 						{ className: "pl-2" },
 						h("span", { className: "mono dim small" }, `#${index}:`),
 						" ",
-						h(Inspector, { value: () => value[index] })
-					)
-				)
+						h(Inspector, { value: () => value[index] }),
+					),
+				),
 			);
 		default:
 			return h("span", null, `${value}`);

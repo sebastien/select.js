@@ -1,6 +1,6 @@
-import { render } from "solid-js/web";
-import { createStore, reconcile } from "solid-js/store";
 import h from "solid-js/h";
+import { createStore, reconcile } from "solid-js/store";
+import { render } from "solid-js/web";
 
 const getType = (value) =>
 	value === undefined || value === null

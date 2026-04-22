@@ -1,7 +1,7 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Window } from "happy-dom";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -85,11 +85,11 @@ function heapMB() {
 	return usage.heapUsed / 1024 / 1024;
 }
 
-function countNodes(node) {
+function _countNodes(node) {
 	let count = 1; // count the node itself
 	if (node.childNodes) {
 		for (const child of node.childNodes) {
-			count += countNodes(child);
+			count += _countNodes(child);
 		}
 	}
 	return count;
@@ -100,7 +100,7 @@ async function runFramework(name) {
 	const importPath =
 		name === "solidjs"
 			? "./frameworks/solidjs.bundle.js"
-			: "./frameworks/" + name + ".js";
+			: `./frameworks/${name}.js`;
 	const { createApp } = await import(importPath);
 
 	const results = [];
@@ -142,8 +142,7 @@ async function runFramework(name) {
 	const get = (obj, path) =>
 		path.split(".").reduce((o, k) => (o ? o[k] : undefined), obj);
 	const avg = (path) =>
-		results.reduce((sum, r) => sum + (get(r, path) || 0), 0) /
-		results.length;
+		results.reduce((sum, r) => sum + (get(r, path) || 0), 0) / results.length;
 	const avgInitial = avg("initial.duration");
 	const avgPatch = avg("patches.totalDuration");
 
@@ -161,21 +160,21 @@ async function runFramework(name) {
 	gc();
 	const heapFinal = heapMB();
 
-			return {
-				framework: FRAMEWORK_LABELS[name],
-				runs: RUNS,
-				logs: results[0].dataset.logCount,
-				initialMs: Number(avgInitial.toFixed(2)),
-				patchTotalMs: Number(avgPatch.toFixed(2)),
-				heapBeforeMB: Number(heapBeforeAll.toFixed(2)),
-				heapPeakMB: Number(heapPeak.toFixed(2)),
-				heapAfterMB: Number(heapFinal.toFixed(2)),
-				heapDeltaMB: Number((heapPeak - heapBeforeAll).toFixed(2)),
-				nodeCount,
-				phases: Object.fromEntries(
-					Object.entries(phases).map(([k, v]) => [k, Number(v.toFixed(2))]),
-				),
-			};
+	return {
+		framework: FRAMEWORK_LABELS[name],
+		runs: RUNS,
+		logs: results[0].dataset.logCount,
+		initialMs: Number(avgInitial.toFixed(2)),
+		patchTotalMs: Number(avgPatch.toFixed(2)),
+		heapBeforeMB: Number(heapBeforeAll.toFixed(2)),
+		heapPeakMB: Number(heapPeak.toFixed(2)),
+		heapAfterMB: Number(heapFinal.toFixed(2)),
+		heapDeltaMB: Number((heapPeak - heapBeforeAll).toFixed(2)),
+		nodeCount,
+		phases: Object.fromEntries(
+			Object.entries(phases).map(([k, v]) => [k, Number(v.toFixed(2))]),
+		),
+	};
 }
 
 async function main() {
@@ -199,11 +198,17 @@ async function main() {
 	console.log(JSON.stringify(summary, null, 2));
 
 	// Also print a markdown table
-	console.log("\n| Framework | Initial | Patch Total | Heap Peak | Heap Delta | Node Count |");
-	console.log("|-----------|---------|-------------|-----------|------------|------------|");
+	console.log(
+		"\n| Framework | Initial | Patch Total | Heap Peak | Heap Delta | Node Count |",
+	);
+	console.log(
+		"|-----------|---------|-------------|-----------|------------|------------|",
+	);
 	for (const r of summary) {
 		if (r.error) {
-			console.log(`| ${r.framework.padEnd(9)} | ${"ERROR".padEnd(7)} | ${r.error.slice(0, 30).padEnd(11)} |`);
+			console.log(
+				`| ${r.framework.padEnd(9)} | ${"ERROR".padEnd(7)} | ${r.error.slice(0, 30).padEnd(11)} |`,
+			);
 		} else {
 			console.log(
 				`| ${r.framework.padEnd(9)} | ${String(r.initialMs).padEnd(7)}ms | ${String(r.patchTotalMs).padEnd(11)}ms | ${String(r.heapPeakMB).padEnd(9)}MB | ${String(r.heapDeltaMB).padEnd(10)}MB | ${String(r.nodeCount).padEnd(10)} |`,

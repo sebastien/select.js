@@ -174,7 +174,7 @@ export const settle = async (frames = 2) => {
 export const getSizeConfig = (name) => {
 	const config = DOC_SIZES.find((_) => _.name === name);
 	if (!config) {
-		throw new Error(`Unsupported size \"${name}\"`);
+		throw new Error(`Unsupported size "${name}"`);
 	}
 	return config;
 };
@@ -321,7 +321,7 @@ const findNodeById = (node, id, parent = null, index = -1) => {
 
 const detachNodeById = (root, id) => {
 	const hit = findNodeById(root, id);
-	if (!hit || !hit.parent || !Array.isArray(hit.parent.children)) {
+	if (!hit?.parent || !Array.isArray(hit.parent.children)) {
 		return null;
 	}
 	return hit.parent.children.splice(hit.index, 1)[0] || null;

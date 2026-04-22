@@ -60,35 +60,23 @@ const _match = Element.prototype.matches
 
 const match = _match
 	? (selector, node) => {
-			let index = undefined;
+			let index;
 			// NOTE: This is where we support the jQuery-like suffixes
 			if (selector.startsWith(":first")) {
 				selector = selector.substring(0, selector.length - 6);
 				index = 0;
 			}
-			if (index == undefined) {
+			if (index === undefined) {
 				try {
 					switch (_match) {
 						case 1:
-							return (
-								node && node.matches && node.matches(selector)
-							);
+							return node?.matches?.(selector);
 						case 2:
-							return (
-								node &&
-								node.mozMatchesSelector &&
-								node.mozMatchesSelector(selector)
-							);
+							return node?.mozMatchesSelector?.(selector);
 						case 3:
-							return (
-								node &&
-								node.webkitMatchesSelector &&
-								node.webkitMatchesSelector(selector)
-							);
+							return node?.webkitMatchesSelector?.(selector);
 						default:
-							console.error(
-								"select.match: browser not supported",
-							);
+							console.error("select.match: browser not supported");
 							select.STATUS = "FAILED";
 							return node.matches(selector);
 					}
@@ -106,12 +94,12 @@ const match = _match
 				}
 			} else {
 				const matches = query(selector, undefined, index);
-				return matches[index] == node;
+				return matches[index] === node;
 			}
 		}
 	: (selector, node) => {
 			if (selector.endsWith(":first")) {
-				return query(selector, node) == node;
+				return query(selector, node) === node;
 			} else {
 				// NOTE: This is an implementation of `matchSelector` replacing one that
 				// would not be already available.
@@ -141,11 +129,11 @@ const match = _match
 // Returns: Array<Element> - matching element nodes
 
 // TODO: Implement the `limit` to optimize
-const query = (selector, scope, limit) => {
+const query = (selector, scope, _limit) => {
 	selector = selector.trim();
-	if (!selector || selector.length == 0) {
+	if (!selector || selector.length === 0) {
 		return [scope];
-	} else if (selector[0] == ">") {
+	} else if (selector[0] === ">") {
 		selector = selector.substr(1).trim();
 		const i = Math.min(
 			Math.max(selector.indexOf(">"), 0),
@@ -159,16 +147,14 @@ const query = (selector, scope, limit) => {
 		let result = null;
 		for (let j = 0; j < nodes.length; j++) {
 			const n = nodes[j];
-			if (match(selector_node, n) && n.nodeType == Node.ELEMENT_NODE) {
+			if (match(selector_node, n) && n.nodeType === Node.ELEMENT_NODE) {
 				matching.push(n);
 			}
 		}
 		if (selector_child) {
 			result = [];
 			for (let j = 0; j < matching.length; j++) {
-				result = result.concat(
-					select.query(selector_child, matching[j]),
-				);
+				result = result.concat(select.query(selector_child, matching[j]));
 			}
 		} else {
 			result = matching;
@@ -176,22 +162,22 @@ const query = (selector, scope, limit) => {
 		return result;
 	} else {
 		// NOTE: This is where we support the jQuery-like suffixes
-		let index = undefined;
+		let index;
 		if (selector.endsWith(":first")) {
 			selector = selector.substring(0, selector.length - 6);
 			index = 0;
 		}
-		let result = [];
+		const result = [];
 		// TODO: Intercept exception?
 		const nodes = (scope || document).querySelectorAll(selector);
 		let count = 0;
 		for (let i = 0; i < nodes.length; i++) {
 			const node = nodes[i];
-			if (node.nodeType == Node.ELEMENT_NODE) {
+			if (node.nodeType === Node.ELEMENT_NODE) {
 				if (index === undefined) {
 					result.push(node);
 					count += 1;
-				} else if (index == count) {
+				} else if (index === count) {
 					result.push(node);
 					break;
 				} else {
@@ -252,7 +238,7 @@ class Selection extends Array {
 	constructor(selector, scope) {
 		super();
 		let nodes = null;
-		if (typeof selector == "string") {
+		if (typeof selector === "string") {
 			if (!scope) {
 				nodes = query(selector);
 			} else {
@@ -263,7 +249,7 @@ class Selection extends Array {
 			nodes = selector;
 			scope = selector.scope;
 			selector = selector.selector;
-			if (selector.scope && scope != selector.scope) {
+			if (selector.scope && scope !== selector.scope) {
 				console.error(
 					"Selection.new: given scope differs from first argument's",
 					scope,
@@ -279,76 +265,71 @@ class Selection extends Array {
 		this.scope = scope;
 		this.isSelection = true;
 		this.expand(nodes);
-		return this;
 	}
 
-// ============================================================================
-// SUBSECTION: Static Predicates
-// ============================================================================
+	// ============================================================================
+	// SUBSECTION: Static Predicates
+	// ============================================================================
 
-// Tests if `s` is a Selection instance by checking for class marker.
+	// Tests if `s` is a Selection instance by checking for class marker.
 	static Is(s) {
 		return s && s.__class__ === Selection;
 	}
 
-// Tests if `s` is a list-like object (Selection, Array, or NodeList).
+	// Tests if `s` is a list-like object (Selection, Array, or NodeList).
 	static IsList(s) {
-		return (
-			s instanceof Selection ||
-			s instanceof Array ||
-			s instanceof NodeList
-		);
+		return s instanceof Selection || Array.isArray(s) || s instanceof NodeList;
 	}
 
-// Tests if `node` is an element node (DOM or SVG).
+	// Tests if `node` is an element node (DOM or SVG).
 	static IsElement(node) {
 		return (
 			node &&
-			typeof node.nodeType != "undefined" &&
-			node.nodeType == Node.ELEMENT_NODE
+			typeof node.nodeType !== "undefined" &&
+			node.nodeType === Node.ELEMENT_NODE
 		);
 	}
 
-// Tests if `node` is a text node.
+	// Tests if `node` is a text node.
 	static IsText(node) {
 		return (
 			node &&
-			typeof node.nodeType != "undefined" &&
-			node.nodeType == Node.TEXT_NODE
+			typeof node.nodeType !== "undefined" &&
+			node.nodeType === Node.TEXT_NODE
 		);
 	}
 
-// Tests if `node` is any DOM/SVG node (including document, window).
+	// Tests if `node` is any DOM/SVG node (including document, window).
 	static IsNode(node) {
-		return node && typeof node.nodeType != "undefined";
+		return node && typeof node.nodeType !== "undefined";
 	}
 
-// Tests if `node` is a DOM element (not SVG).
+	// Tests if `node` is a DOM element (not SVG).
 	static IsDOM(node) {
 		return node && typeof node.getBBox === "undefined";
 	}
 
-// Tests if `node` is an SVG element.
+	// Tests if `node` is an SVG element.
 	// SEE: http://www.w3.org/TR/SVG11/types.html#__svg__SVGLocatable__getBBox
 	static IsSVG(node) {
-		return typeof node.getBBox != "undefined";
+		return typeof node.getBBox !== "undefined";
 	}
 
-// Tests if `value` is a Selection instance.
+	// Tests if `value` is a Selection instance.
 	static IsSelection(value) {
 		return value instanceof Selection;
 	}
 
-// Converts `value` to an array of element nodes. Handles single nodes,
-// NodeLists, Arrays, and DocumentFragments.
+	// Converts `value` to an array of element nodes. Handles single nodes,
+	// NodeLists, Arrays, and DocumentFragments.
 	static AsElementList(value) {
 		if (!value) {
 			return value;
-		} else if (value.nodeType == Node.ELEMENT_NODE) {
+		} else if (value.nodeType === Node.ELEMENT_NODE) {
 			return [value];
 		} else if (
-			value.nodeType == Node.DOCUMENT_FRAGMENT_NODE ||
-			value.nodeType == Node.DOCUMENT_NODE
+			value.nodeType === Node.DOCUMENT_FRAGMENT_NODE ||
+			value.nodeType === Node.DOCUMENT_NODE
 		) {
 			const res = [];
 			let child = value.firstElementChild;
@@ -371,19 +352,19 @@ class Selection extends Array {
 		}
 	}
 
-// Returns `node` if it's a Selection, otherwise creates a new Selection.
+	// Returns `node` if it's a Selection, otherwise creates a new Selection.
 	static Ensure(node) {
 		return Selection.Is(node) ? node : new Selection(node);
 	}
 
-// ============================================================================
-// SUBSECTION: Selection & Filtering
-// ============================================================================
+	// ============================================================================
+	// SUBSECTION: Selection & Filtering
+	// ============================================================================
 
-// Finds all descendants matching `selector` within the current selection.
-// Returns a new Selection with the current selection as scope.
+	// Finds all descendants matching `selector` within the current selection.
+	// Returns a new Selection with the current selection as scope.
 	find(selector) {
-		if (this.length == 0) {
+		if (this.length === 0) {
 			return new Selection();
 		}
 		const nodes = [];
@@ -398,8 +379,8 @@ class Selection extends Array {
 		return new Selection(nodes, this);
 	}
 
-// Filters current selection to only include nodes matching `selector`.
-// Accepts CSS selector strings or predicate functions.
+	// Filters current selection to only include nodes matching `selector`.
+	// Accepts CSS selector strings or predicate functions.
 	filter(selector) {
 		if (typeof selector === "string") {
 			return new Selection(
@@ -407,9 +388,7 @@ class Selection extends Array {
 				this.length > 0 ? this : undefined,
 			);
 		} else if (typeof selector === "function") {
-			return new Selection(
-				Array.prototype.filter.apply(this, [selector]),
-			);
+			return new Selection(Array.prototype.filter.apply(this, [selector]));
 		} else {
 			console.error(
 				"Selection.filter(): selector string or predicate expected, got",
@@ -419,25 +398,24 @@ class Selection extends Array {
 		}
 	}
 
-// Iterates over elements, invoking `callback` with each element wrapped in
-// a Selection. Breaks if callback returns `false`.
+	// Iterates over elements, invoking `callback` with each element wrapped in
+	// a Selection. Breaks if callback returns `false`.
 	iterate(callback) {
-		const nodes = this;
-		for (let i = 0; i < nodes.length; i++) {
-			if (callback(new Selection(nodes[i]), i) === false) {
+		for (let i = 0; i < this.length; i++) {
+			if (callback(new Selection(this[i]), i) === false) {
 				break;
 			}
 		}
 		return this;
 	}
 
-// Alias for `is()`. Tests if all nodes match selector or equals given
-// node/selection.
+	// Alias for `is()`. Tests if all nodes match selector or equals given
+	// node/selection.
 	like(selector) {
 		return this.is(selector);
 	}
 
-// Tests if all nodes match `selector` (string) or equals given node/selection.
+	// Tests if all nodes match `selector` (string) or equals given node/selection.
 	is(selector) {
 		if (typeof selector === "string") {
 			let result = this.length > 0;
@@ -453,29 +431,29 @@ class Selection extends Array {
 		}
 	}
 
-// Returns array of Selection instances, one for each node.
+	// Returns array of Selection instances, one for each node.
 	list() {
 		return this.map(Selection.Ensure);
 	}
 
-// ============================================================================
-// SUBSECTION: Traversal
-// ============================================================================
+	// ============================================================================
+	// SUBSECTION: Traversal
+	// ============================================================================
 
-// Returns new Selection with only the first node.
+	// Returns new Selection with only the first node.
 	first() {
 		return this.length <= 1 ? this : select([this[0]], this);
 	}
 
-// Returns new Selection with only the last node.
+	// Returns new Selection with only the last node.
 	last() {
 		return this.length <= 1 ? this : select([this[this.length - 1]], this);
 	}
 
-// Returns new Selection with node at `index`. Supports negative indices.
+	// Returns new Selection with node at `index`. Supports negative indices.
 	get(index) {
 		index = index < 0 ? this.length + index : index;
-		if (this.length == 1 && index == 0) {
+		if (this.length === 1 && index === 0) {
 			return this;
 		} else {
 			return 0 <= index && index < this.length
@@ -484,12 +462,12 @@ class Selection extends Array {
 		}
 	}
 
-// Alias for `get()`.
+	// Alias for `get()`.
 	eq(index) {
 		return this.get(index);
 	}
 
-// Returns next sibling elements. If `selector` provided, only matching siblings.
+	// Returns next sibling elements. If `selector` provided, only matching siblings.
 	next(selector) {
 		const nodes = [];
 		for (let i = 0; i < this.length; i++) {
@@ -502,12 +480,12 @@ class Selection extends Array {
 		return nodes.length > 0 ? select(nodes, this) : new Selection();
 	}
 
-// Returns previous sibling elements. If `selector` provided, only matching.
+	// Returns previous sibling elements. If `selector` provided, only matching.
 	prev(selector) {
 		return this.previous(selector);
 	}
 
-// Alias for `prev()`.
+	// Alias for `prev()`.
 	previous(selector) {
 		const nodes = [];
 		for (let i = 0; i < this.length; i++) {
@@ -520,7 +498,7 @@ class Selection extends Array {
 		return nodes.length > 0 ? select(nodes, this) : new Selection();
 	}
 
-// Returns direct parent elements. If `selector` provided, only matching parents.
+	// Returns direct parent elements. If `selector` provided, only matching parents.
 	parent(selector) {
 		const nodes = [];
 		for (let i = 0; i < this.length; i++) {
@@ -532,13 +510,13 @@ class Selection extends Array {
 		return nodes.length > 0 ? select(nodes, this) : new Selection();
 	}
 
-// Returns ancestor elements up to optional `limit` (number or node/selection).
-// If `selector` provided, only matching ancestors.
+	// Returns ancestor elements up to optional `limit` (number or node/selection).
+	// If `selector` provided, only matching ancestors.
 	ancestors(selector, limit) {
 		return this.parents(selector, limit);
 	}
 
-// Alias for `ancestors()`.
+	// Alias for `ancestors()`.
 	parents(selector, limit) {
 		const nodes = [];
 		const depth_limit = typeof limit === "number" ? limit : -1;
@@ -548,7 +526,7 @@ class Selection extends Array {
 		const is_string = typeof selector === "string";
 		if (is_string && selector.endsWith(":first")) {
 			selector = selector.substring(0, selector.length - 6);
-			let index = 0;
+			const _index = 0;
 		}
 		for (let i = 0; i < this.length; i++) {
 			let node = this[i].parentNode;
@@ -561,15 +539,15 @@ class Selection extends Array {
 						matches = match(selector, node);
 					}
 				}
-			if (matches) {
-				nodes.push(node);
-				if (depth_limit >= 0 && nodes.length >= depth_limit) {
-					// NOTE: We exit early on
-					return select(nodes, this);
+				if (matches) {
+					nodes.push(node);
+					if (depth_limit >= 0 && nodes.length >= depth_limit) {
+						// NOTE: We exit early on
+						return select(nodes, this);
+					}
 				}
-			}
 				node = node.parentNode;
-				if (node_limit && node_limit.contains(node)) {
+				if (node_limit?.contains(node)) {
 					node = null;
 				}
 			}
@@ -577,7 +555,7 @@ class Selection extends Array {
 		return nodes.length > 0 ? select(nodes, this) : new Selection();
 	}
 
-// Returns child elements. If `selector` provided, only matching children.
+	// Returns child elements. If `selector` provided, only matching children.
 	children(selector) {
 		const nodes = [];
 		for (let i = 0; i < this.length; i++) {
@@ -595,8 +573,8 @@ class Selection extends Array {
 		return nodes.length > 0 ? select(nodes, this) : new Selection();
 	}
 
-// Returns array of all child nodes (not just elements), optionally filtered
-// by `callback` which receives (child, index, parent).
+	// Returns array of all child nodes (not just elements), optionally filtered
+	// by `callback` which receives (child, index, parent).
 	nodes(callback) {
 		const nodes = [];
 		for (let i = 0; i < this.length; i++) {
@@ -613,8 +591,8 @@ class Selection extends Array {
 		return nodes;
 	}
 
-// Depth-first traversal invoking `callback` for each node (any node type).
-// Receives (node, count). Returns `this`. Breaks if callback returns `false`.
+	// Depth-first traversal invoking `callback` for each node (any node type).
+	// Receives (node, count). Returns `this`. Breaks if callback returns `false`.
 	walk(callback) {
 		if (!callback) {
 			return this;
@@ -637,14 +615,14 @@ class Selection extends Array {
 		return this;
 	}
 
-// ============================================================================
-// SUBSECTION: Content Manipulation
-// ============================================================================
+	// ============================================================================
+	// SUBSECTION: Content Manipulation
+	// ============================================================================
 
-// Appends `value` to the first node. Handles Selections, Nodes, arrays,
-// strings (as text nodes), and numbers.
+	// Appends `value` to the first node. Handles Selections, Nodes, arrays,
+	// strings (as text nodes), and numbers.
 	append(value) {
-		if (this.length == 0) {
+		if (this.length === 0) {
 			return this;
 		}
 		const node = this[0];
@@ -652,17 +630,17 @@ class Selection extends Array {
 			for (let i = 0; i < value.length; i++) {
 				node.appendChild(value[i]);
 			}
-		} else if (value && typeof value.nodeType != "undefined") {
+		} else if (value && typeof value.nodeType !== "undefined") {
 			node.appendChild(value);
 		} else if (Selection.IsList(value)) {
 			for (let i = 0; i < value.length; i++) {
 				this.append(value[i]);
 			}
-		} else if (typeof value == "string") {
+		} else if (typeof value === "string") {
 			for (let i = 0; i < this.length; i++) {
 				this[i].appendChild(document.createTextNode(value));
 			}
-		} else if (typeof value == "number") {
+		} else if (typeof value === "number") {
 			for (let i = 0; i < this.length; i++) {
 				this[i].appendChild(document.createTextNode(value));
 			}
@@ -675,9 +653,9 @@ class Selection extends Array {
 		return this;
 	}
 
-// Prepends `value` to the first node. Same value handling as `append()`.
+	// Prepends `value` to the first node. Same value handling as `append()`.
 	prepend(value) {
-		if (this.length == 0) {
+		if (this.length === 0) {
 			return this;
 		}
 		const node = this[0];
@@ -689,17 +667,17 @@ class Selection extends Array {
 			for (let i = 0; i < value.length; i++) {
 				node.insertBefore(value[i], child);
 			}
-		} else if (value && typeof value.nodeType != "undefined") {
+		} else if (value && typeof value.nodeType !== "undefined") {
 			node.insertBefore(value, child);
 		} else if (Selection.IsList(value)) {
 			for (let i = 0; i < value.length; i++) {
 				this.prepend(value[i]);
 			}
-		} else if (typeof value == "string") {
+		} else if (typeof value === "string") {
 			for (let i = 0; i < this.length; i++) {
 				this[i].insertBefore(document.createTextNode(value), child);
 			}
-		} else if (typeof value == "number") {
+		} else if (typeof value === "number") {
 			for (let i = 0; i < this.length; i++) {
 				this[i].insertBefore(document.createTextNode(value), child);
 			}
@@ -712,7 +690,7 @@ class Selection extends Array {
 		return this;
 	}
 
-// Removes all nodes from their parents.
+	// Removes all nodes from their parents.
 	remove() {
 		for (let i = 0; i < this.length; i++) {
 			const node = this[i];
@@ -723,7 +701,7 @@ class Selection extends Array {
 		return this;
 	}
 
-// Adds elements to this selection. Handles single nodes, NodeLists, arrays.
+	// Adds elements to this selection. Handles single nodes, NodeLists, arrays.
 	extend(value) {
 		if (Selection.IsNode(value)) {
 			this.push(value);
@@ -740,9 +718,9 @@ class Selection extends Array {
 		return this;
 	}
 
-// Inserts `value` after the first node in selection.
+	// Inserts `value` after the first node in selection.
 	after(value) {
-		if (this.length == 0) {
+		if (this.length === 0) {
 			return this;
 		}
 		const node = this[0];
@@ -760,11 +738,11 @@ class Selection extends Array {
 				for (let i = 0; i < value.length; i++) {
 					scope.parentNode.insertBefore(value[i], scope);
 				}
-			} else if (typeof value.length != "undefined") {
+			} else if (typeof value.length !== "undefined") {
 				for (let i = 0; i < value.length; i++) {
 					scope.parentNode.insertBefore(value[i], scope);
 				}
-			} else if (typeof value.nodeType != "undefined") {
+			} else if (typeof value.nodeType !== "undefined") {
 				scope.parentNode.insertBefore(value, scope);
 			} else {
 				console.error(
@@ -779,11 +757,11 @@ class Selection extends Array {
 				for (let i = 0; i < value.length; i++) {
 					scope.appendChild(value[i]);
 				}
-			} else if (typeof value.length != "undefined") {
+			} else if (typeof value.length !== "undefined") {
 				for (let i = 0; i < value.length; i++) {
 					scope.appendChild(value[i]);
 				}
-			} else if (typeof value.nodeType != "undefined") {
+			} else if (typeof value.nodeType !== "undefined") {
 				scope.appendChild(value);
 			} else {
 				console.error(
@@ -795,9 +773,9 @@ class Selection extends Array {
 		return this;
 	}
 
-// Inserts `value` before the first node in selection.
+	// Inserts `value` before the first node in selection.
 	before(value) {
-		if (this.length == 0) {
+		if (this.length === 0) {
 			return this;
 		}
 		const node = this[0];
@@ -807,11 +785,11 @@ class Selection extends Array {
 			for (let i = 0; i < value.length; i++) {
 				parent.insertBefore(value[i], scope);
 			}
-		} else if (typeof value.length != "undefined") {
+		} else if (typeof value.length !== "undefined") {
 			for (let i = 0; i < value.length; i++) {
 				parent.insertBefore(value[i], scope);
 			}
-		} else if (typeof value.nodeType != "undefined") {
+		} else if (typeof value.nodeType !== "undefined") {
 			parent.insertBefore(value, scope);
 		} else {
 			console.error(
@@ -822,10 +800,10 @@ class Selection extends Array {
 		return this;
 	}
 
-// Replaces nodes in current selection with `value`. If selection is empty,
-// removes the value nodes instead.
+	// Replaces nodes in current selection with `value`. If selection is empty,
+	// removes the value nodes instead.
 	replaceWith(value) {
-		if (this.length == 0) {
+		if (this.length === 0) {
 			console.warn(
 				"Selection.replaceWith: current selection is empty, so given nodes will be removed",
 			);
@@ -833,10 +811,7 @@ class Selection extends Array {
 				if (value.parentNode) {
 					value.parentNode.removeChild(value);
 				}
-			} else if (
-				Selection.IsSelection(value) ||
-				Selection.IsList(value)
-			) {
+			} else if (Selection.IsSelection(value) || Selection.IsList(value)) {
 				for (let i = 0; i < value.length; i++) {
 					const node = value[i];
 					if (node.parentNode) {
@@ -854,10 +829,7 @@ class Selection extends Array {
 					parent.insertBefore(value, scope);
 				}
 				added.push(value);
-			} else if (
-				Selection.IsSelection(value) ||
-				Selection.IsList(value)
-			) {
+			} else if (Selection.IsSelection(value) || Selection.IsList(value)) {
 				// FIXME: Make sure the order is preserved
 				const added = [];
 				for (let i = 0; i < value.length; i++) {
@@ -886,32 +858,32 @@ class Selection extends Array {
 		return this;
 	}
 
-// Tests if this selection equals `node` (element) or contains same nodes
-// as `node` (array/selection).
+	// Tests if this selection equals `node` (element) or contains same nodes
+	// as `node` (array/selection).
 	equals(node) {
 		if (typeof node === "string") {
 			return this.equals(query(node));
-		} else if (node instanceof Array) {
-			if (node.length != this.length) {
+		} else if (Array.isArray(node)) {
+			if (node.length !== this.length) {
 				return false;
 			}
 			for (let i = 0; i < this.length; i++) {
-				if (node[i] != this[i]) {
+				if (node[i] !== this[i]) {
 					return false;
 				}
 			}
 			return true;
 		} else if (Selection.IsElement(node)) {
-			return this.length == 1 && this[0] === node;
+			return this.length === 1 && this[0] === node;
 		} else {
 			return false;
 		}
 	}
 
-// Tests if selection contains all nodes in `node` (array) or contains `node`
-// (single element).
+	// Tests if selection contains all nodes in `node` (array) or contains `node`
+	// (single element).
 	contains(node) {
-		if (node instanceof Array || Selection.IsElement(node)) {
+		if (Array.isArray(node) || Selection.IsElement(node)) {
 			let found = true;
 			for (let i = 0; found && i < this.length; i++) {
 				found = this.indexOf(node[i]) >= 0;
@@ -929,19 +901,19 @@ class Selection extends Array {
 	// 	return Selection(this.selector[0], node)
 	// }
 
-// Wraps all nodes in `node` and returns Selection with the wrapper.
+	// Wraps all nodes in `node` and returns Selection with the wrapper.
 	wrap(node) {
 		node = $(node);
 		node.add(this);
 		return node;
 	}
 
-// Clones all nodes in selection with deep copy.
+	// Clones all nodes in selection with deep copy.
 	clone() {
 		if (this.length === 0) {
 			return new (Object.getPrototypeOf(this).constructor)();
 		}
-		let res = undefined;
+		let res;
 		for (const child of this) {
 			if (res === undefined) {
 				res = new (Object.getPrototypeOf(this).constructor)(
@@ -954,7 +926,7 @@ class Selection extends Array {
 		return res;
 	}
 
-// Removes all children from all nodes.
+	// Removes all children from all nodes.
 	empty() {
 		for (let i = 0; i < this.length; i++) {
 			const node = this[i];
@@ -965,29 +937,29 @@ class Selection extends Array {
 		return this;
 	}
 
-// Tests if selection has no elements.
+	// Tests if selection has no elements.
 	isEmpty() {
-		return this.length == 0;
+		return this.length === 0;
 	}
 
-// TODO: Implement better rules for value extraction
+	// TODO: Implement better rules for value extraction
 
-// ============================================================================
-// SUBSECTION: Value Accessors
-// ============================================================================
+	// ============================================================================
+	// SUBSECTION: Value Accessors
+	// ============================================================================
 
-// Alias for `value()`.
+	// Alias for `value()`.
 	val(value) {
 		return this.value(value);
 	}
 
-// Gets or sets form values. When getting, returns first non-null value from
-// inputs or contenteditable elements. When setting, updates all elements.
+	// Gets or sets form values. When getting, returns first non-null value from
+	// inputs or contenteditable elements. When setting, updates all elements.
 	value(value) {
-		if (typeof value == "undefined") {
+		if (typeof value === "undefined") {
 			for (let i = 0; i < this.length; i++) {
 				const node = this[i];
-				if (typeof node.value != "undefined") {
+				if (typeof node.value !== "undefined") {
 					return node.value;
 				} else if (node.hasAttribute("contenteditable")) {
 					return node.textContent;
@@ -995,10 +967,10 @@ class Selection extends Array {
 			}
 			return undefined;
 		} else {
-			value = "" + value;
+			value = `${value}`;
 			for (let i = 0; i < this.length; i++) {
 				const node = this[i];
-				if (typeof node.value != "undefined") {
+				if (typeof node.value !== "undefined") {
 					node.value = value;
 				} else if (node.hasAttribute("contenteditable")) {
 					node.textContent = value;
@@ -1008,11 +980,11 @@ class Selection extends Array {
 		}
 	}
 
-// Gets or sets text content. Uses `textContent` property. Non-string values
-// are JSONified.
+	// Gets or sets text content. Uses `textContent` property. Non-string values
+	// are JSONified.
 	text(value) {
-		let result = undefined;
-		if (typeof value == "undefined") {
+		let result;
+		if (typeof value === "undefined") {
 			for (let i = 0; i < this.length; i++) {
 				const node = this[i];
 				result = node.textContent;
@@ -1048,19 +1020,19 @@ class Selection extends Array {
 		}
 	}
 
-// Alias for `contents()`.
+	// Alias for `contents()`.
 	html(value) {
 		return this.contents(value);
 	}
 
-// Gets or sets HTML content via `innerHTML`. When setting with nodes/selection,
-// empties first then appends.
-//
-// FIXME: Not sure if that's the best behaviour... should we clone the
-// other nodes, or warn?
+	// Gets or sets HTML content via `innerHTML`. When setting with nodes/selection,
+	// empties first then appends.
+	//
+	// FIXME: Not sure if that's the best behaviour... should we clone the
+	// other nodes, or warn?
 	contents(value) {
-		let result = undefined;
-		if (typeof value == "undefined") {
+		let result;
+		if (typeof value === "undefined") {
 			for (let i = 0; i < this.length; i++) {
 				const node = this[i];
 				result = node.innerHTML;
@@ -1070,11 +1042,7 @@ class Selection extends Array {
 			}
 			return result;
 		} else {
-			if (
-				!value ||
-				typeof value === "string" ||
-				typeof value === "number"
-			) {
+			if (!value || typeof value === "string" || typeof value === "number") {
 				value = value || "";
 				for (let i = 0; i < this.length; i++) {
 					const node = this[i];
@@ -1088,15 +1056,15 @@ class Selection extends Array {
 		}
 	}
 
-// ============================================================================
-// SUBSECTION: Attributes & Data
-// ============================================================================
+	// ============================================================================
+	// SUBSECTION: Attributes & Data
+	// ============================================================================
 
-// Gets or sets attributes. Single name returns value. Name/value pair sets.
-// Object sets multiple. Non-string values JSONified. `null` removes attribute.
-	attr(name, value) {
+	// Gets or sets attributes. Single name returns value. Name/value pair sets.
+	// Object sets multiple. Non-string values JSONified. `null` removes attribute.
+	attr(name, ...rest) {
 		if (typeof name === "string") {
-			if (arguments.length == 1) {
+			if (rest.length === 0) {
 				for (let i = 0; i < this.length; i++) {
 					const node = this[i];
 					if (node.hasAttribute(name)) {
@@ -1105,6 +1073,7 @@ class Selection extends Array {
 				}
 				return undefined;
 			} else {
+				let value = rest[0];
 				value =
 					typeof value === "string"
 						? value
@@ -1132,76 +1101,74 @@ class Selection extends Array {
 		return this;
 	}
 
-// Gets or sets data attributes (data-*). No args returns all data as object.
-// Name arg returns single value. Name/value sets. Object sets multiple.
-// Values are JSON-parsed when getting, JSON-stringified when setting.
-	data(name, value, serialize) {
+	// Gets or sets data attributes (data-*). No args returns all data as object.
+	// Name arg returns single value. Name/value sets. Object sets multiple.
+	// Values are JSON-parsed when getting, JSON-stringified when setting.
+	data(name, value, _serialize) {
 		if (!name) {
 			// There's no name, so we return the dataset
-			for (let i = 0; i < this.length; i++) {
-				const node = this[i];
-				if (node.dataset) {
-					const r = {};
-					// NOTE: We do need to expand the dataset, and not
-					// return the dataset as is.
-					for (const k in node.dataset) {
-						let v = node.dataset[k];
-						try {
-							v = JSON.parse(v);
-						} catch (e) {}
-						r[k] = v;
-					}
-					return r;
-				} else {
-					const a = node.attributes;
-					let r = undefined;
-					for (let j = 0; j < a.length; j++) {
-						const _ = a[j];
-						const n = _.name;
-	if (n.startsWith("data-")) {
-						let v = _.value;
-						// NOTE: We don't call `data` again for performance.
-						try {
-							v = JSON.parse(v);
-						} catch (e) {}
-						// FIXME: Hopefully this won't produce a weird
-						// reference issue.
-						r = r || {};
-						r[n.substring(5, n.length)] = v;
-					}
-					}
-					return r;
+			const node = this[0];
+			if (!node) {
+				return undefined;
+			}
+			if (node.dataset) {
+				const r = {};
+				// NOTE: We do need to expand the dataset, and not
+				// return the dataset as is.
+				for (const k in node.dataset) {
+					let v = node.dataset[k];
+					try {
+						v = JSON.parse(v);
+					} catch (_e) {}
+					r[k] = v;
+				}
+				return r;
+			}
+			const a = node.attributes;
+			let r;
+			for (let j = 0; j < a.length; j++) {
+				const _ = a[j];
+				const n = _.name;
+				if (n.startsWith("data-")) {
+					let v = _.value;
+					// NOTE: We don't call `data` again for performance.
+					try {
+						v = JSON.parse(v);
+					} catch (_e) {}
+					// FIXME: Hopefully this won't produce a weird
+					// reference issue.
+					r = r || {};
+					r[n.substring(5, n.length)] = v;
 				}
 			}
-			return undefined;
+			return r;
 		} else if (typeof name === "string") {
 			const data_name = `data-${name}`;
-			let serialized = undefined;
-			if (typeof value == "undefined") {
+			let serialized;
+			if (typeof value === "undefined") {
 				for (let i = 0; i < this.length; i++) {
 					const node = this[i];
-					let attr_value = undefined;
+					let attr_value;
 					if (node.hasAttribute(data_name)) {
 						attr_value = node.getAttribute(data_name);
 					}
 					let value =
-						typeof node.dataset != "undefined"
+						typeof node.dataset !== "undefined"
 							? node.dataset[name]
 							: attr_value;
 					try {
 						value = JSON.parse(value);
-					} catch (e) {}
-					if (typeof value != "undefined") {
+					} catch (_e) {}
+					if (typeof value !== "undefined") {
 						return value;
 					}
 				}
 				return undefined;
 			} else {
-				serialized =
-					typeof value === "string" ? value : JSON.stringify(value);
+				serialized = typeof value === "string" ? value : JSON.stringify(value);
 				for (let i = 0; i < this.length; i++) {
 					const node = this[i];
-					if (typeof node.dataset != "undefined") {
+					if (typeof node.dataset !== "undefined") {
 						node.dataset[name] = serialized;
 					} else {
 						node.setAttribute(data_name, serialized);
@@ -1217,18 +1184,19 @@ class Selection extends Array {
 		}
 	}
 
-// Adds class(es) to all nodes. Accepts single class, array, or multiple args.
-// Handles both classList API and fallback for SVG.
-	addClass(className) {
-		if (className instanceof Array) {
-			for (let i = 0; i < className.length; i++) {
-				this.addClass(className[i]);
+	// Adds class(es) to all nodes. Accepts single class, array, or multiple args.
+	// Handles both classList API and fallback for SVG.
+	addClass(...classNames) {
+		if (classNames.length > 1) {
+			for (let i = 0; i < classNames.length; i++) {
+				this.addClass(classNames[i]);
 			}
 			return this;
 		}
-		if (arguments.length > 1) {
-			for (let i = 0; i < arguments.length; i++) {
-				this.addClass(arguments[i]);
+		const className = classNames[0];
+		if (Array.isArray(className)) {
+			for (let i = 0; i < className.length; i++) {
+				this.addClass(className[i]);
 			}
 			return this;
 		}
@@ -1244,10 +1212,8 @@ class Selection extends Array {
 					const lc = className.length;
 					const n = m + lc;
 					const p = m - 1;
-					if (
-						!((m == 0 || c[p] == " ") && (n == la || c[n] == " "))
-					) {
-						node.setAttribute(c + " " + className);
+					if (!((m === 0 || c[p] === " ") && (n === la || c[n] === " "))) {
+						node.setAttribute(`${c} ${className}`);
 					}
 				} else {
 					node.setAttribute(className);
@@ -1257,7 +1223,7 @@ class Selection extends Array {
 		return this;
 	}
 
-// Removes class from all nodes.
+	// Removes class from all nodes.
 	removeClass(className) {
 		for (let i = 0; i < this.length; i++) {
 			const node = this[i];
@@ -1277,10 +1243,7 @@ class Selection extends Array {
 						while (m >= 0) {
 							const n = m + lc;
 							const p = m - 1;
-							if (
-								(m == 0 || c[p] == " ") &&
-								(n == la || c[n] == " ")
-							) {
+							if ((m === 0 || c[p] === " ") && (n === la || c[n] === " ")) {
 								nc += c.substr(0, m);
 							} else {
 								nc += c.substr(0, m + lc);
@@ -1296,12 +1259,12 @@ class Selection extends Array {
 		return this;
 	}
 
-// Tests if any node has the given class.
+	// Tests if any node has the given class.
 	hasClass(name) {
 		const lc = (name || "").length;
 		for (let i = 0; i < this.length; i++) {
 			const node = this[i];
-			if (typeof node.classList != "undefined") {
+			if (typeof node.classList !== "undefined") {
 				return node.classList.contains(name);
 			} else {
 				const c = node.className || "";
@@ -1311,10 +1274,7 @@ class Selection extends Array {
 						const la = c.length || 0;
 						const p = m - 1;
 						const n = m + lc + 1;
-						if (
-							(m == 0 || c[p] == " ") &&
-							(m == la || c[n] == " ")
-						) {
+						if ((m === 0 || c[p] === " ") && (m === la || c[n] === " ")) {
 							return true;
 						}
 					}
@@ -1324,8 +1284,8 @@ class Selection extends Array {
 		return false;
 	}
 
-// Toggles class based on `value`. If `value` is function, called with
-// (node, index) and return value used. If no value, simply toggles.
+	// Toggles class based on `value`. If `value` is function, called with
+	// (node, index) and return value used. If no value, simply toggles.
 	toggleClass(name, value) {
 		const sel = select();
 		const is_function = value instanceof Function;
@@ -1333,7 +1293,7 @@ class Selection extends Array {
 			const node = this[i];
 			const v = is_function ? value(node, i) : value;
 			sel.set(this[i]);
-			if (typeof value == "undefined") {
+			if (typeof value === "undefined") {
 				if (sel.hasClass(name)) {
 					sel.removeClass(name);
 				} else {
@@ -1348,28 +1308,27 @@ class Selection extends Array {
 		return this;
 	}
 
-// ============================================================================
-// SUBSECTION: Style
-// ============================================================================
+	// ============================================================================
+	// SUBSECTION: Style
+	// ============================================================================
 
-// Gets or sets CSS properties. Single name returns value. Name/value pair sets.
-// Object sets multiple. Numeric values (except 0) get "px" suffix.
+	// Gets or sets CSS properties. Single name returns value. Name/value pair sets.
+	// Object sets multiple. Numeric values (except 0) get "px" suffix.
 	css(name, value) {
 		if (typeof name === "string") {
 			if (typeof value === "undefined") {
 				for (let i = 0; i < this.length; i++) {
 					// SEE: http://devdocs.io/dom/window/getcomputedstyle
-					const style = document.defaultView.getComputedStyle(
-						this[i],
-						null,
-					)[name];
-					if (typeof style != "undefined") {
+					const style = document.defaultView.getComputedStyle(this[i], null)[
+						name
+					];
+					if (typeof style !== "undefined") {
 						return style;
 					}
 				}
 				return undefined;
 			} else {
-				value = typeof value === "string" ? value : value + "px";
+				value = typeof value === "string" ? value : `${value}px`;
 				for (let i = 0; i < this.length; i++) {
 					this[i].style[name] = value;
 				}
@@ -1383,46 +1342,45 @@ class Selection extends Array {
 		}
 	}
 
-// ============================================================================
-// SUBSECTION: Layout
-// ============================================================================
+	// ============================================================================
+	// SUBSECTION: Layout
+	// ============================================================================
 
-// Returns width in pixels of first node using `getBoundingClientRect()`.
+	// Returns width in pixels of first node using `getBoundingClientRect()`.
 	width() {
-		for (let i = 0; i < this.length; i++) {
-			const node = this[i];
-			const nb = node.getBoundingClientRect();
-			return nb.right - nb.left;
+		const node = this[0];
+		if (!node) {
+			return 0;
 		}
-		return 0;
+		const nb = node.getBoundingClientRect();
+		return nb.right - nb.left;
 	}
 
-// Returns height in pixels of first node using `getBoundingClientRect()`.
+	// Returns height in pixels of first node using `getBoundingClientRect()`.
 	height() {
-		for (let i = 0; i < this.length; i++) {
-			const node = this[i];
-			const nb = node.getBoundingClientRect();
-			return nb.bottom - nb.top;
+		const node = this[0];
+		if (!node) {
+			return 0;
 		}
-		return 0;
+		const nb = node.getBoundingClientRect();
+		return nb.bottom - nb.top;
 	}
 
-// Returns `{left, top}` offset of first node relative to offset parent.
+	// Returns `{left, top}` offset of first node relative to offset parent.
 	offset() {
-		for (let i = 0; i < this.length; i++) {
-			const node = this[i];
-			if (Selection.IsDOM(node)) {
-				return { left: node.offsetLeft, top: node.offsetTop };
-			} else {
-				const nb = node.getBoundingClientRect();
-				const pb = node.parentNode.getBoundingClientRect();
-				return { left: nb.left - pb.left, top: nb.top - pb.top };
-			}
+		const node = this[0];
+		if (!node) {
+			return undefined;
 		}
-		return undefined;
+		if (Selection.IsDOM(node)) {
+			return { left: node.offsetLeft, top: node.offsetTop };
+		}
+		const nb = node.getBoundingClientRect();
+		const pb = node.parentNode.getBoundingClientRect();
+		return { left: nb.left - pb.left, top: nb.top - pb.top };
 	}
 
-// Gets or sets `scrollTop`. Only works for DOM nodes.
+	// Gets or sets `scrollTop`. Only works for DOM nodes.
 	scrollTop(value) {
 		// TODO
 		const has_value = value !== undefined && value !== null;
@@ -1442,7 +1400,7 @@ class Selection extends Array {
 		return undefined;
 	}
 
-// Gets or sets `scrollLeft`. Only works for DOM nodes.
+	// Gets or sets `scrollLeft`. Only works for DOM nodes.
 	scrollLeft(value) {
 		// TODO
 		const has_value = value !== undefined && value !== null;
@@ -1462,18 +1420,18 @@ class Selection extends Array {
 		return undefined;
 	}
 
-// ============================================================================
-// SUBSECTION: Focus & Selection
-// ============================================================================
+	// ============================================================================
+	// SUBSECTION: Focus & Selection
+	// ============================================================================
 
-// Sets focus on first node, or binds focus event handler if callback provided.
+	// Sets focus on first node, or binds focus event handler if callback provided.
 	focus(callback) {
-		if (typeof callback == "undefined") {
+		if (typeof callback === "undefined") {
 			for (let i = 0; i < this.length; i++) {
 				const node = this[i];
 				if (node.focus) {
 					node.focus();
-					if (document.activeElement == node) {
+					if (document.activeElement === node) {
 						return this;
 					}
 				}
@@ -1484,10 +1442,10 @@ class Selection extends Array {
 		}
 	}
 
-// Selects contents of nodes, or binds select event handler if callback
-// provided.
+	// Selects contents of nodes, or binds select event handler if callback
+	// provided.
 	select(callback) {
-		if (typeof callback == "undefined") {
+		if (typeof callback === "undefined") {
 			const s = window.getSelection();
 			s.removeAllRanges();
 			for (let i = 0; i < this.length; i++) {
@@ -1496,7 +1454,7 @@ class Selection extends Array {
 					node.select();
 				} else {
 					const r = new Range();
-					if (node.nodeType == node.TEXT_NODE) {
+					if (node.nodeType === node.TEXT_NODE) {
 						r.selectNode(node);
 					} else {
 						r.selectNodeContents(node);
@@ -1511,14 +1469,14 @@ class Selection extends Array {
 		}
 	}
 
-// ============================================================================
-// SUBSECTION: Events
-// ============================================================================
+	// ============================================================================
+	// SUBSECTION: Events
+	// ============================================================================
 
-// SEE: https://en.wikipedia.org/wiki/DOM_events
-// NOTE: We do not redefine/override existing functions.
+	// SEE: https://en.wikipedia.org/wiki/DOM_events
+	// NOTE: We do not redefine/override existing functions.
 
-// Binds `callback` to `event` on all nodes. Optional `capture` for capture phase.
+	// Binds `callback` to `event` on all nodes. Optional `capture` for capture phase.
 	bind(event, callback, capture) {
 		capture = capture && true;
 		for (let i = 0; i < this.length; i++) {
@@ -1528,7 +1486,7 @@ class Selection extends Array {
 		return this;
 	}
 
-// Unbinds `callback` from `event` on all nodes.
+	// Unbinds `callback` from `event` on all nodes.
 	unbind(event, callback) {
 		for (let i = 0; i < this.length; i++) {
 			const node = this[i];
@@ -1537,8 +1495,8 @@ class Selection extends Array {
 		return this;
 	}
 
-// Triggers `event` (string name or Event object) on all nodes using
-// `dispatchEvent`.
+	// Triggers `event` (string name or Event object) on all nodes using
+	// `dispatchEvent`.
 	trigger(event) {
 		// NOTE: We're doing custom event here, but we might want to be a little
 		// bit smarter than that.
@@ -1553,11 +1511,11 @@ class Selection extends Array {
 		return this;
 	}
 
-// ============================================================================
-// SUBSECTION: Utility
-// ============================================================================
+	// ============================================================================
+	// SUBSECTION: Utility
+	// ============================================================================
 
-// Returns node at `index` (default 0) directly, not wrapped in Selection.
+	// Returns node at `index` (default 0) directly, not wrapped in Selection.
 	node(index) {
 		index = index === undefined ? 0 : index;
 		index = index < 0 ? this.length - index : index;
@@ -1568,35 +1526,35 @@ class Selection extends Array {
 		}
 	}
 
-// Clears selection and adds `value`.
+	// Clears selection and adds `value`.
 	set(value) {
 		return this.clear().expand(value);
 	}
 
-// Creates new Selection with `value`, does not clone nodes.
+	// Creates new Selection with `value`, does not clone nodes.
 	copy(value) {
 		return new Selection().expand(value);
 	}
 
-// Reduces selection length to `length` by removing excess elements.
+	// Reduces selection length to `length` by removing excess elements.
 	clear(length) {
 		length = length || 0;
 		super.splice(length, this.length - length);
 		return this;
 	}
 
-// Expands selection with `element` (node, array, NodeList, or Selection).
-	extend(element) {
-		if (element == window || element == document) {
+	// Expands selection with `element` (node, array, NodeList, or Selection).
+	expand(element) {
+		if (element === window || element === document) {
 			element = document.firstElementChild;
 		}
-		if (!element || element.length == 0) {
+		if (!element || element.length === 0) {
 			return this;
 		} else if (typeof element === "string") {
 			return this.expand(query(element));
 		} else if (Selection.IsElement(element)) {
 			this.push(element);
-		} else if (element.nodeType == Node.DOCUMENT_NODE) {
+		} else if (element.nodeType === Node.DOCUMENT_NODE) {
 			// NOTE: This does not work on some mobile browsers.
 			this.expand(element.firstElementChild);
 		} else if (element instanceof NodeList || Selection.IsList(element)) {
@@ -1666,7 +1624,7 @@ const $ = select;
 //
 // ----------------------------------------------------------------------------
 
-export { query, filter, match, Selection, select, S, $ }
-export default select
+export { $, filter, match, query, S, Selection, select };
+export default select;
 
 // EOF

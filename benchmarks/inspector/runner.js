@@ -64,7 +64,7 @@ export const createBenchmarkRunner = ({ framework, root, createApp }) => ({
 				name: phase.name,
 				totalDuration: operationResults.reduce(
 					(total, operation) => total + operation.duration,
-					0
+					0,
 				),
 				meanDuration: mean(operationResults.map((_) => _.duration)),
 				operations: operationResults,
@@ -88,7 +88,7 @@ export const createBenchmarkRunner = ({ framework, root, createApp }) => ({
 			patches: {
 				totalDuration: phaseResults.reduce(
 					(total, phase) => total + phase.totalDuration,
-					0
+					0,
 				),
 				phases: phaseResults,
 			},
@@ -115,5 +115,5 @@ export const formatBenchmarkResult = (result) =>
 			})),
 		},
 		null,
-		2
+		2,
 	);

@@ -1,7 +1,7 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Window } from "happy-dom";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -31,14 +31,17 @@ global.fetch = (url, ...args) => {
 	if (typeof url === "string" && url.startsWith("../../")) {
 		const filePath = path.join(ROOT, url.replace(/^\.\.\/\.\.\//, ""));
 		return Promise.resolve({
-			json: () => Promise.resolve(JSON.parse(fs.readFileSync(filePath, "utf-8"))),
+			json: () =>
+				Promise.resolve(JSON.parse(fs.readFileSync(filePath, "utf-8"))),
 		});
 	}
 	return originalFetch(url, ...args);
 };
 
 // Now import modules that depend on DOM globals
-const { createBenchmarkRunner, formatBenchmarkResult } = await import("./runner.js");
+const { createBenchmarkRunner, formatBenchmarkResult } = await import(
+	"./runner.js"
+);
 const { createApp } = await import("./frameworks/selectui.js");
 
 const framework = process.argv[2] || "selectui";

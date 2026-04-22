@@ -114,7 +114,7 @@
 	</template>
 
 	<script type="module">
-		import {ui, type, remap, len} from "@./select.ui.js"
+		import {len, remap, type, ui } from "@./select.ui.js"
 
 		const inspect = (value) => {
 			const t = type(value)
@@ -136,14 +136,14 @@
 		}
 
 		const behavior = {
-			count: (self, {value}) => len(value),
-			value: (self, {value}) => value,
-			items: (self, {value}) => remap(value, (value, key) => Item({key, value})),
+			count: (_self, {value}) => len(value),
+			value: (_self, {value}) => value,
+			items: (_self, {value}) => remap(value, (value, key) => Item({key, value})),
 		}
 
 		const Item = ui("#Item").does({
-			key: (self, {key}) => key,
-			value: (self, {value}) => inspect(value),
+			key: (_self, {key}) => key,
+			value: (_self, {value}) => inspect(value),
 		})
 
 		const InspectDict = ui("#InspectDict").does({...behavior})

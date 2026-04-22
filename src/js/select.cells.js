@@ -242,6 +242,8 @@ class Selections {
 // Attributes:
 // - `isReactive`: boolean - always true
 // - `value`: any - current value
+// - `previous`: any - previous value before last update
+// - `isPending`: boolean - true when current value is a pending promise
 // - `revision`: number - monotonically increasing change counter (-1 if empty)
 // - `subs`: Array<function> - subscriber callbacks
 // - `selections`: Selections? - registry for nested property selections
@@ -249,11 +251,7 @@ class Reactive {
 	// Generator that yields `[reactive, path]` tuples for all reactive values
 	// nested within `value` at `path`.
 	static *Walk(value, path = []) {
-		if (
-			value === null ||
-			value === undefined ||
-			typeof value !== "object"
-		) {
+		if (value === null || value === undefined || typeof value !== "object") {
 			// pass
 		} else if (value instanceof Reactive) {
 			yield [value, path];
@@ -274,11 +272,7 @@ class Reactive {
 
 	// Recursively expands `value` by replacing reactive cells with their values.
 	static Expand(value) {
-		if (
-			value === undefined ||
-			value === null ||
-			typeof value !== "object"
-		) {
+		if (value === undefined || value === null || typeof value !== "object") {
 			return value;
 		} else if (value instanceof Reactive) {
 			return value.value;
@@ -298,6 +292,8 @@ class Reactive {
 	constructor(value = Nothing) {
 		this.isReactive = true;
 		this.value = value === Nothing ? undefined : value;
+		this.previous = undefined;
+		this.isPending = false;
 		this.revision = value === Nothing ? -1 : 0;
 		this.subs = [];
 		this.selections = undefined;
@@ -415,7 +411,9 @@ class Selected extends Reactive {
 		// TODO: We could get a revision number from the parent and
 		// detect if it's dirty.
 		const value = access(this.parent.value, this.path);
+		this.previous = this.value;
 		this.value = value;
+		this.isPending = !!(value && typeof value.then === "function");
 		this.revision++;
 		this.pub(value, this.path, this.parent);
 	}
@@ -460,7 +458,9 @@ class Cell extends Reactive {
 		path = normpath(path);
 		// TODO: Check existing
 		const updated = path ? assign(this.value, path, value) : value;
+		this.previous = this.value;
 		this.value = updated;
+		this.isPending = !!(updated && typeof updated.then === "function");
 		this.revision++;
 		if (this.selections) {
 			for (const r of this.selections.iter(path)) {
@@ -544,15 +544,54 @@ class Derivation extends Reactive {
 		this.processor = processor;
 		this.reactors = [];
 		this.expanded = Reactive.Expand(template);
-		this.value = initial
-			? this.processor
-				? Array.isArray(this.expanded)
-					? this.processor(...this.expanded)
-					: this.processor(this.expanded)
-				: this.expanded
-			: undefined;
+		this._promiseToken = 0;
 		this.revision = initial ? 0 : -1;
+		if (initial) {
+			this._apply(this._compute(), false);
+		} else {
+			this.value = undefined;
+		}
 		this.bind();
+	}
+
+	_compute() {
+		return this.processor
+			? Array.isArray(this.expanded)
+				? this.processor(...this.expanded)
+				: this.processor(this.expanded)
+			: this.expanded;
+	}
+
+	_apply(value, publish = true) {
+		const token = ++this._promiseToken;
+		this.previous = this.value;
+		this.value = value;
+		this.isPending = !!(value && typeof value.then === "function");
+		if (publish) {
+			this.revision++;
+			this.pub();
+		}
+		if (value && typeof value.then === "function") {
+			value.then(
+				(resolved) => {
+					if (token !== this._promiseToken) {
+						return;
+					}
+					this.previous = this.value;
+					this.value = resolved;
+					this.isPending = false;
+					this.revision++;
+					this.pub();
+				},
+				(error) => {
+					if (token !== this._promiseToken) {
+						return;
+					}
+					this.isPending = false;
+					console.error("Derived promise rejected", error);
+				},
+			);
+		}
 	}
 
 	// Subscribes to all reactive cells in template.
@@ -561,13 +600,7 @@ class Derivation extends Reactive {
 			const reactor = (value) => {
 				// NOTE: We way want to debounce the updates
 				this.expanded = assign(this.expanded, path, value);
-				this.value = this.processor
-					? Array.isArray(this.expanded)
-						? this.processor(...this.expanded)
-						: this.processor(this.expanded)
-					: this.expanded;
-				this.revision++;
-				this.pub();
+				this._apply(this._compute());
 			};
 			cell.sub(reactor);
 			this.reactors.push(reactor);
@@ -659,7 +692,20 @@ function derived(template, processor, initial) {
 const walk = Reactive.Walk;
 const expand = Reactive.Expand;
 
-export { access, assign, Reactive, Selected, Cell, Deferred, Derivation, cell, deferred, derived, walk, expand }
-export default Object.assign(cell, { deferred, derived, walk, expand })
+export {
+	access,
+	assign,
+	Cell,
+	cell,
+	Deferred,
+	Derivation,
+	deferred,
+	derived,
+	expand,
+	Reactive,
+	Selected,
+	walk,
+};
+export default Object.assign(cell, { deferred, derived, walk, expand });
 
 // EOF

@@ -1,11 +1,11 @@
 import {
-	SIZE_NAMES,
 	buildDocumentForSize,
 	cloneDocument,
 	countDocumentNodes,
 	countDomNodes,
 	countTextCharacters,
 	createPatchPhases,
+	SIZE_NAMES,
 	settle,
 } from "./common.js";
 

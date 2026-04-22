@@ -1,0 +1,21 @@
+{
+	"files": {
+		"includes": ["**", "!dist", "!benchmarks/**/frameworks/*.bundle.js"]
+	},
+	"linter": {
+		"rules": {
+			"a11y": {
+				"useHtmlLang": "off",
+				"useButtonType": "off"
+			},
+			"suspicious": {
+				"noExplicitAny": "off",
+				"noAssignInExpressions": "off"
+			},
+			"complexity": {
+				"noStaticOnlyClass": "off",
+				"noCommaOperator": "off"
+			}
+		}
+	}
+}
