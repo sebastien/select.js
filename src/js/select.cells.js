@@ -1,9 +1,59 @@
+// Project: Select.js
+// Author:  Sebastien Pierre
+// License: MIT
+// Created: 2024-01-01
+
+// Module: select.cells
+// Reactive state management with cells and derivations. Provides observable
+// data containers that notify subscribers on changes, enabling reactive UI
+// updates.
+//
+// A `Cell` holds a value and notifies subscribers when it changes. A `Derived`
+// cell automatically updates when its source cells change. `Selected` provides
+// focused access to nested properties within cells.
+//
+// Example:
+// ```javascript
+// import { cell, derived } from "./select.cells.js"
+//
+// const count = cell(0)
+// const doubled = derived([count], c => c * 2)
+//
+// doubled.sub((value) => console.log("Doubled:", value))
+// count.set(5)  // Logs: "Doubled: 10"
+// ```
+
+// ----------------------------------------------------------------------------
+//
+// SECTION: Sentinel Values
+//
+// ----------------------------------------------------------------------------
+
+// Sentinel value representing "no value" state for cells.
 const Nothing = Object.freeze(new Object());
+
+// Sentinel value representing "any value" for selection matching.
 const Something = Object.freeze(new Object());
-export const access = (context, path, offset = 0) => {
+
+// ----------------------------------------------------------------------------
+//
+// SECTION: Path Utilities
+//
+// ----------------------------------------------------------------------------
+
+// Function: access
+// Safely retrieves a nested value from `context` following `path`.
+//
+// Parameters:
+// - `context`: object - root object to traverse
+// - `path`: Array<string|number> - property path as array of keys
+// - `offset`: number? - starting index in path (default 0)
+//
+// Returns: any - value at path, or undefined if path invalid
+
+const access = (context, path, offset = 0) => {
 	if (path?.length && context !== undefined) {
 		const n = path.length;
-		// Note that it's a feature here to allow an offset greater than the path
 		for (
 			let i = offset;
 			i < n && context !== undefined && context !== null;
@@ -16,27 +66,33 @@ export const access = (context, path, offset = 0) => {
 	return context;
 };
 
-export const assign = (scope, path, value, merge = undefined, offset = 0) => {
+// Function: assign
+// Sets a value at a nested path, creating intermediate objects/arrays as needed.
+//
+// Parameters:
+// - `scope`: object - root object to modify
+// - `path`: Array<string|number> - property path
+// - `value`: any - value to set
+// - `merge`: function? - optional merge function: (old, new) => merged
+// - `offset`: number? - starting index in path (default 0)
+//
+// Returns: object - modified root object
+
+const assign = (scope, path, value, merge = undefined, offset = 0) => {
 	const n = path.length;
 	if (n === 0) {
 		return merge ? merge(scope, value) : value;
 	}
-	// We make sure the root is an object if we need it
 	let root =
 		n > offset && !(scope && scope instanceof Object)
 			? typeof path[offset] === "number"
 				? new Array(path[offset])
 				: {}
 			: scope;
-	// Now this to make sure that path exists
 	let s = root;
 	let sp = null;
-	// We iterate on the path except the last item
 	for (let i = offset; i < n - 1; i++) {
 		const k = path[i];
-		// We must ensure the current scope is an object or
-		// an array. If not, we replace the previous entry
-		// with the corresponding structure;
 		if (!(s && s instanceof Object)) {
 			s = typeof k === "number" ? new Array(k) : {};
 			if (i === 0) {
@@ -45,14 +101,11 @@ export const assign = (scope, path, value, merge = undefined, offset = 0) => {
 				sp[path[i - 1]] = s;
 			}
 		}
-		// If it's an array and the key is a number, we expand it so that
-		// we can set the key;
 		if (typeof k === "number" && Array.isArray(s)) {
 			while (s.length <= k) {
 				s.push(undefined);
 			}
 		}
-		// We save the current scope as the previous scope
 		sp = s;
 		s = s[k];
 	}
@@ -61,6 +114,8 @@ export const assign = (scope, path, value, merge = undefined, offset = 0) => {
 	return root;
 };
 
+// Normalizes path to array form. Nothing becomes null, single values become
+// single-element arrays.
 const normpath = (path) => {
 	if (path === Nothing) {
 		return null;
@@ -74,10 +129,13 @@ const normpath = (path) => {
 
 // ----------------------------------------------------------------------------
 //
-// REACTIVE BASE
+// SECTION: Selections Registry
 //
 // ----------------------------------------------------------------------------
 
+// Class: Selections
+// Internal registry for tracking reactive selections at specific paths.
+// Used by cells to notify nested property observers.
 class Selections {
 	constructor() {
 		// NOTE: The drawback is that we're creating multiple nested maps,
@@ -86,12 +144,9 @@ class Selections {
 		this.selections = new Map();
 	}
 
-	// --
-	// Iterates through all the added/registered entries under the given
-	// path (inclusively)
+	// Yields all registered entries under `path` (depth-first iteration).
 	*iter(path) {
 		if (path instanceof Map) {
-			// We do depth first
 			for (const [k, v] of path.entries()) {
 				if (k !== Something) {
 					for (const _ of this.iter(v)) {
@@ -115,6 +170,7 @@ class Selections {
 		}
 	}
 
+	// Returns the scope map at `path`. Creates if `create` is true.
 	scope(path, create = false) {
 		path = Array.isArray(path)
 			? path
@@ -136,11 +192,13 @@ class Selections {
 		return scope;
 	}
 
+	// Returns selection array at `path`.
 	get(path) {
 		const scope = this.scope(path);
 		return scope ? scope.get(Something) : undefined;
 	}
 
+	// Adds `value` to selections at `path`.
 	add(path, value) {
 		const scope = this.scope(path, true);
 		if (scope.has(Something)) {
@@ -151,6 +209,7 @@ class Selections {
 		return this;
 	}
 
+	// Removes `value` from selections at `path`.
 	remove(path, value) {
 		const scope = this.scope(path);
 		if (!scope) {
@@ -170,10 +229,25 @@ class Selections {
 	}
 }
 
+// ----------------------------------------------------------------------------
+//
+// SECTION: Reactive Base
+//
+// ----------------------------------------------------------------------------
+
+// Class: Reactive
+// Base class for reactive values. Manages subscriptions, selections (nested
+// property observers), and provides generic collection API.
+//
+// Attributes:
+// - `isReactive`: boolean - always true
+// - `value`: any - current value
+// - `revision`: number - monotonically increasing change counter (-1 if empty)
+// - `subs`: Array<function> - subscriber callbacks
+// - `selections`: Selections? - registry for nested property selections
 class Reactive {
-	// --
-	// Walks a structure with reactive elements, and yields `[reactive,path]`
-	// tuples for the reactive cell and its path within the structure.
+	// Generator that yields `[reactive, path]` tuples for all reactive values
+	// nested within `value` at `path`.
 	static *Walk(value, path = []) {
 		if (
 			value === null ||
@@ -198,9 +272,7 @@ class Reactive {
 		}
 	}
 
-	// --
-	// Expands the given structure, recursively finding reactive values
-	// and expanding them to their value.
+	// Recursively expands `value` by replacing reactive cells with their values.
 	static Expand(value) {
 		if (
 			value === undefined ||
@@ -231,8 +303,9 @@ class Reactive {
 		this.selections = undefined;
 	}
 
-	// TODO: A selection should be a path
+	// Creates a `Selected` view at `path` within this cell's value.
 	select(path) {
+		// TODO: A selection should be a path
 		path = Array.isArray(path) ? path : [path];
 		this.selections = this.selections ?? new Selections();
 		const sel = new Selected(this.value, path);
@@ -242,15 +315,13 @@ class Reactive {
 		return sel;
 	}
 
-	// ========================================================================
-	// PUB/SUB
-	// ========================================================================
-
+	// Subscribes `handler` to value changes. Handler receives (value, path, origin).
 	sub(handler) {
 		this.subs.push(handler);
 		return this;
 	}
 
+	// Unsubscribes `handler` from changes.
 	unsub(handler) {
 		const i = this.subs.indexOf(handler);
 		if (i >= 0) {
@@ -259,23 +330,23 @@ class Reactive {
 		return this;
 	}
 
-	// TODO: Revisit pub and how it works. It should probably
-	// trigger the selections when it's a set, but not when
-	// propagating up.
+	// Notifies all subscribers of change. Called with (value, path, origin).
 	pub(value, path, origin) {
+		// TODO: Revisit pub and how it works. It should probably
+		// trigger the selections when it's a set, but not when
+		// propagating up.
 		for (const handler of this.subs) {
 			handler(value, path, origin);
 		}
 		return this;
 	}
 
+	// Must be implemented by subclasses to refresh derived values.
 	refresh() {
 		throw new Error(`${this.constructor.name}.refresh()} not implemented`);
 	}
-	// ========================================================================
-	// GENERIC VALUE/COLLECTION API
-	// ========================================================================
 
+	// Returns length of value if array/object, 0 if empty, 1 for scalar.
 	get length() {
 		if (
 			this.revision === -1 ||
@@ -292,6 +363,7 @@ class Reactive {
 		}
 	}
 
+	// Maps over value if array/object, returns null if empty, wraps scalar.
 	map(functor) {
 		if (this.revision === -1) {
 			return null;
@@ -309,25 +381,36 @@ class Reactive {
 			return [functor(this.value)];
 		}
 	}
+
+	// Gets value at `key` ( Nothing returns the cell's value itself).
 	get(key = Nothing) {
 		if (key === Nothing) {
 			return this.value;
 		}
 	}
 }
+
 // ----------------------------------------------------------------------------
 //
-// SELECTED (READ/WRITE)
+// SECTION: Selected (Property View)
 //
 // ----------------------------------------------------------------------------
 
-export class Selected extends Reactive {
+// Class: Selected
+// A reactive view into a nested property of a parent cell. Updates when the
+// parent cell changes. Supports setting values which propagate to parent.
+//
+// Attributes:
+// - `parent`: Cell - the parent cell this selection belongs to
+// - `path`: Array<string|number> - path to selected property within parent
+class Selected extends Reactive {
 	constructor(parent, path) {
 		super(access(parent, path));
 		this.parent = parent;
 		this.path = path;
 	}
 
+	// Refreshes value from parent and notifies subscribers.
 	refresh() {
 		// TODO: We could get a revision number from the parent and
 		// detect if it's dirty.
@@ -337,8 +420,8 @@ export class Selected extends Reactive {
 		this.pub(value, this.path, this.parent);
 	}
 
+	// Sets value at this selection's path. Delegates to parent cell.
 	set(value, path = Nothing, force = false) {
-		// Delegates to the parent
 		path = normpath(path);
 		return this.parent.set(
 			value,
@@ -350,43 +433,50 @@ export class Selected extends Reactive {
 
 // ----------------------------------------------------------------------------
 //
-// CELL (READ/WRITE)
+// SECTION: Cell
 //
 // ----------------------------------------------------------------------------
 
-export class Cell extends Reactive {
+// Class: Cell
+// A reactive container for a single value. Notifies subscribers on change.
+// Supports nested property updates via `set(value, path)`.
+//
+// Example:
+// ```javascript
+// const c = cell({ count: 0 })
+// c.sub((v) => console.log("Changed:", v))
+// c.set(1, "count")  // Updates nested property
+// ```
+
+class Cell extends Reactive {
 	constructor(value = Nothing) {
 		super(value);
 	}
 
-	// TODO: Maybe patch?
+	// Internal update implementation. Applies value, updates selections,
+	// notifies subscribers.
 	_update(value, path, _force = false) {
+		// TODO: Maybe patch?
 		path = normpath(path);
 		// TODO: Check existing
-		// const existing = access(value, path);
 		const updated = path ? assign(this.value, path, value) : value;
 		this.value = updated;
 		this.revision++;
-		// We refresh the selections based on the change
 		if (this.selections) {
 			for (const r of this.selections.iter(path)) {
-				console.log(" Refreshing selected", r.path);
 				r.refresh();
 			}
 		}
-		// We notify the subscribers of the change
 		this.pub(value, path, this);
 	}
 
-	// ========================================================================
-	// GENERIC VALUE/COLLECTION API
-	// ========================================================================
-
+	// Sets value (at optional `path`). Creates nested structure as needed.
 	set(value, path = Nothing, force = false) {
 		// TODO: Should detect a change
 		this._update(value, path, force);
 	}
 
+	// Appends value to array. Converts non-array to array first.
 	push(value) {
 		if (this.revision === -1) {
 			this.value = [value];
@@ -403,17 +493,24 @@ export class Cell extends Reactive {
 
 // ----------------------------------------------------------------------------
 //
-// DEFERRED (DEBOUNCED WRITE)
+// SECTION: Deferred
 //
 // ----------------------------------------------------------------------------
 
-export class Deferred extends Cell {
+// Class: Deferred
+// A cell that debounces updates. `set()` triggers after `delay` ms of
+// inactivity. Useful for search inputs, sliders, etc.
+//
+// Attributes:
+// - `delay`: number - milliseconds to debounce
+class Deferred extends Cell {
 	constructor(value = Nothing, delay = 0) {
 		super(value);
 		this.delay = delay;
 		this._timer = null;
 	}
 
+	// Sets value after debounce delay. Cancels pending update if called again.
 	set(value, path = Nothing, force = false) {
 		if (this._timer) {
 			clearTimeout(this._timer);
@@ -427,10 +524,19 @@ export class Deferred extends Cell {
 
 // ----------------------------------------------------------------------------
 //
-// DERIVATION
+// SECTION: Derivation
 //
 // ----------------------------------------------------------------------------
 
+// Class: Derivation
+// A reactive value computed from a template of source cells. Automatically
+// updates and notifies when any source cell changes.
+//
+// Attributes:
+// - `template`: any - template with nested reactive cells
+// - `processor`: function? - transforms expanded template values
+// - `reactors`: Array<function> - internal subscription handlers
+// - `expanded`: any - current expanded (non-reactive) template values
 class Derivation extends Reactive {
 	constructor(template, processor = undefined, initial = true) {
 		super();
@@ -449,6 +555,7 @@ class Derivation extends Reactive {
 		this.bind();
 	}
 
+	// Subscribes to all reactive cells in template.
 	bind() {
 		for (const [cell, path] of Reactive.Walk(this.template)) {
 			const reactor = (value) => {
@@ -467,6 +574,8 @@ class Derivation extends Reactive {
 		}
 		return this;
 	}
+
+	// Unsubscribes from all source cells.
 	unbind() {
 		let i = 0;
 		for (const [cell] of Reactive.Walk(this.template)) {
@@ -482,21 +591,75 @@ class Derivation extends Reactive {
 
 // ----------------------------------------------------------------------------
 //
-// API
+// SECTION: Factory Functions
 //
 // ----------------------------------------------------------------------------
 
-export const walk = Reactive.Walk;
-export const expand = Reactive.Expand;
-export function cell(value) {
+// Function: cell
+// Factory that creates a new Cell with optional initial value.
+//
+// Parameters:
+// - `value`: any - initial cell value
+//
+// Returns: Cell
+//
+// Example:
+// ```javascript
+// const c = cell(42)
+// c.sub(v => console.log(v))
+// c.set(100)  // Logs: 100
+// ```
+
+function cell(value) {
 	return new Cell(value);
 }
-export function deferred(value, delay) {
+
+// Function: deferred
+// Factory that creates a new Deferred (debounced) cell.
+//
+// Parameters:
+// - `value`: any - initial cell value
+// - `delay`: number - debounce delay in milliseconds
+//
+// Returns: Deferred
+
+function deferred(value, delay) {
 	return new Deferred(value, delay);
 }
-export function derived(template, processor, initial) {
+
+// Function: derived
+// Factory that creates a new Derivation from template cells.
+//
+// Parameters:
+// - `template`: any - template containing reactive cells (can be nested)
+// - `processor`: function? - transforms expanded values: (values...) => result
+// - `initial`: boolean? - compute initial value immediately (default true)
+//
+// Returns: Derivation
+//
+// Example:
+// ```javascript
+// const a = cell(1)
+// const b = cell(2)
+// const sum = derived([a, b], (x, y) => x + y)
+// sum.sub(v => console.log("Sum:", v))
+// a.set(5)  // Logs: "Sum: 7"
+// ```
+
+function derived(template, processor, initial) {
 	return new Derivation(template, processor, initial);
 }
-export default Object.assign(cell, { deferred, derived, walk, expand });
+
+// ----------------------------------------------------------------------------
+//
+// SECTION: Exports
+//
+// ----------------------------------------------------------------------------
+
+const walk = Reactive.Walk;
+const expand = Reactive.Expand;
+
+export { access, assign, Reactive, Selected, Cell, Deferred, Derivation, cell, deferred, derived, walk, expand }
+export default Object.assign(cell, { deferred, derived, walk, expand })
 
 // EOF

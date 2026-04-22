@@ -1,17 +1,53 @@
-// ```
-//    _____      __          __     __  ______
-//   / ___/___  / /__  _____/ /_   / / / /  _/
-//   \__ \/ _ \/ / _ \/ ___/ __/  / / / // /
-//  ___/ /  __/ /  __/ /__/ /_   / /_/ // /
-// /____/\___/_/\___/\___/\__/   \____/___/
-// ```
+// Project: Select.js
+// Author:  Sebastien Pierre
+// License: MIT
+// Created: 2024-01-01
+
+// Module: select.ui
+// A standalone, simple and performant UI rendering library designed for
+// quickly creating interactive UIs and visualizations. Templates are defined
+// with HTML and bound to reactive data cells.
 //
-// A standalone, simple and performant UI rendering library, design
-// for quickly creating interactive UIs and visualisations.
+// Templates use special attributes for data binding: `out` for output,
+// `in` for input, `inout` for bidirectional, `on:event` for event handlers,
+// `ref` for element references, `when` for conditional rendering, and
+// `out:attr` for attribute binding.
+//
+// Example:
+// ```javascript
+// import { ui, cell } from "./select.ui.js"
+//
+// const Counter = ui(`
+//   <div>
+//     <span out:text="count">0</span>
+//     <button on:click="increment">+</button>
+//   </div>
+// `).does({
+//   increment: (self, data) => data.count.set(data.count.get() + 1)
+// })
+//
+// const instance = Counter.new().mount(document.body)
+// instance.set({ count: cell(0) })
+// ```
 
 import { expand } from "./select.cells.js";
 
-export const len = (v) => {
+// ----------------------------------------------------------------------------
+//
+// SECTION: Utility Functions
+//
+// ----------------------------------------------------------------------------
+
+// Function: len
+// Returns the "length" of a value. Returns 0 for null/undefined, length for
+// arrays/strings, size for Map/Set, key count for plain objects, 1 for others.
+//
+// Parameters:
+// - `v`: any - value to measure
+//
+// Returns: number
+
+const len = (v) => {
 	if (v === undefined || v === null) {
 		return 0;
 	} else if (Array.isArray(v)) {
@@ -49,7 +85,31 @@ const _pruneTemplateWhitespace = (node) => {
 	}
 };
 
-export const type = Object.assign(
+// ----------------------------------------------------------------------------
+//
+// SECTION: Type System
+//
+// ----------------------------------------------------------------------------
+
+// Type: TypeCode
+// Numeric type codes for runtime type checking.
+// - Null: 1
+// - Number: 2
+// - Boolean: 3
+// - String: 4
+// - Object: 5
+// - List: 10
+// - Dict: 11
+
+// Function: type
+// Returns the type code for `value`.
+//
+// Parameters:
+// - `value`: any - value to classify
+//
+// Returns: TypeCode
+
+const type = Object.assign(
 	(value) =>
 		value === undefined || value === null
 			? type.Null
@@ -75,7 +135,17 @@ export const type = Object.assign(
 	},
 );
 
-export const remap = (value, f) => {
+// Function: remap
+// Maps `f` over all values in `value` (array, Map, Set, or object).
+// Returns same container type with transformed values.
+//
+// Parameters:
+// - `value`: any - container to map over
+// - `f`: function - transform function(value, key) => newValue
+//
+// Returns: any - container of same type with mapped values
+
+const remap = (value, f) => {
 	if (
 		value === null ||
 		value === undefined ||
@@ -174,7 +244,6 @@ const shallowEq = (a, b) => {
 };
 
 const asText = (value) => {
-	// Expand reactive values to their underlying value
 	value = expand(value);
 	return value === null || value === undefined
 		? ""
@@ -195,6 +264,7 @@ const isInputNode = (node) => {
 			return false;
 	}
 };
+
 const setNodeText = (node, text) => {
 	switch (node.nodeType) {
 		case Node.TEXT_NODE:
@@ -217,20 +287,6 @@ const setNodeText = (node, text) => {
 	return node;
 };
 
-// class TrackingProxy extends Proxy {
-// 	constructor(target) {
-// 		super(target, {
-// 			get: this.trackAccess.bind(this),
-// 		});
-// 		this.accessedProperties = new Set();
-// 	}
-//
-// 	trackAccess(target, property) {
-// 		this.accessedProperties.add(property);
-// 		return target[property];
-// 	}
-// }
-
 const _createTrackingProxy = (data) => {
 	const accessed = new Set();
 	return [
@@ -244,6 +300,21 @@ const _createTrackingProxy = (data) => {
 	];
 };
 
+// ----------------------------------------------------------------------------
+//
+// SECTION: UI Event System
+//
+// ----------------------------------------------------------------------------
+
+// Class: UIEvent
+// Event object passed to UI event handlers. Contains event name, data,
+// origin (emitting instance), and current (instance handling event).
+//
+// Attributes:
+// - `name`: string - event type name
+// - `data`: any - event payload
+// - `origin`: UIInstance - component that emitted the event
+// - `current`: UIInstance - component currently handling the event
 class UIEvent {
 	constructor(name, data, origin) {
 		this.name = name;
@@ -252,11 +323,24 @@ class UIEvent {
 		this.current = undefined;
 	}
 
+	// Stops event propagation when returned from handler.
 	stopPropagation() {
 		return null;
 	}
 }
 
+// ----------------------------------------------------------------------------
+//
+// SECTION: Template Application
+//
+// ----------------------------------------------------------------------------
+
+// Class: AppliedUITemplate
+// Represents a template bound to specific data. Returned by `UITemplate.apply()`.
+//
+// Attributes:
+// - `template`: UITemplate - the template being applied
+// - `data`: any - data to bind to the template
 class AppliedUITemplate {
 	constructor(template, data) {
 		this.template = template;
@@ -266,13 +350,24 @@ class AppliedUITemplate {
 
 // ----------------------------------------------------------------------------
 //
-// UI TEMPLATE SLOT
+// SECTION: Template Slots
 //
 // ----------------------------------------------------------------------------
 
+// Class: UITemplateSlot
+// Defines a slot in a template - a location where dynamic content will be
+// rendered. Found by searching for `[slotname]` attributes in template nodes.
+//
+// Attributes:
+// - `node`: Node - the slot node
+// - `parent`: Node - parent container of the slot
+// - `path`: Array<number> - path indices from parent to node
+// - `rootIndex`: number - index in root nodes array
+// - `tailPath`: Array<number>? - child indices beyond root
+// - `predicate`: function? - conditional rendering predicate (for `when` slots)
+// - `predicatePlaceholder`: Comment? - placeholder when condition false
 class UITemplateSlot {
-	// --
-	// Returns the list of indices to go from `parent` to `node`.
+	// Computes path indices from `parent` to `node`.
 	static Path(node, parent, path) {
 		const res = [];
 		while (node !== parent) {
@@ -286,6 +381,9 @@ class UITemplateSlot {
 		return path ? path.concat(res) : res;
 	}
 
+	// Finds all slots with `name` attribute in `nodes`. Returns map of
+	// slotName -> [UITemplateSlot, ...]. Optionally transforms slots with
+	// `processor(slot, key)`.
 	static Find(name, nodes, processor = undefined) {
 		const res = {};
 		let count = 0;
@@ -331,6 +429,7 @@ class UITemplateSlot {
 		this.predicatePlaceholder = undefined;
 	}
 
+	// Resolves to actual node in cloned instance `nodes`.
 	_resolve(nodes) {
 		let node = nodes[this.rootIndex];
 		if (this.tailPath) {
@@ -341,14 +440,14 @@ class UITemplateSlot {
 		return node;
 	}
 
+	// Applies this template slot to `nodes`, returning a UISlot.
 	apply(nodes, parent, raw = false) {
 		const node = this._resolve(nodes);
 		return node ? (raw ? node : new UISlot(node, this, parent)) : null;
 	}
 
-	// --
-	// Finds all attributes starting with `prefix` (e.g., "out:") in the given nodes.
-	// Returns a map of slotName -> [UIAttributeTemplateSlot, ...]
+	// Finds all attributes starting with `prefix` (e.g., "out:") in `nodes`.
+	// Returns map of slotName -> [UIAttributeTemplateSlot, ...].
 	static FindAttr(prefix, nodes) {
 		const res = {};
 		let count = 0;
@@ -359,9 +458,9 @@ class UITemplateSlot {
 				const toRemove = [];
 				for (const attr of node.attributes) {
 					if (attr.name.startsWith(prefix)) {
-						const attrName = attr.name.slice(prefix.length); // e.g., "style", "class", "disabled"
-						const slotName = attr.value || attrName; // Use attr value or default to attrName
-						const originalValue = node.getAttribute(attrName); // Preserve original for additive
+						const attrName = attr.name.slice(prefix.length);
+						const slotName = attr.value || attrName;
+						const originalValue = node.getAttribute(attrName);
 						toRemove.push(attr.name);
 
 						const slot = new UIAttributeTemplateSlot(
@@ -389,10 +488,9 @@ class UITemplateSlot {
 		return count ? res : null;
 	}
 
-	// --
-	// Finds all attributes starting with `prefix` (e.g., "on:") in the given nodes.
-	// Returns a map of handlerName -> [UIEventTemplateSlot, ...]
-	// For "on:click" the eventType is "click", handlerName defaults to eventType if no value.
+	// Finds all event attributes starting with `prefix` (e.g., "on:") in `nodes`.
+	// Returns map of handlerName -> [UIEventTemplateSlot, ...].
+	// For "on:click" the eventType is "click", handlerName defaults to eventType.
 	static FindEvent(prefix, nodes) {
 		const res = {};
 		let count = 0;
@@ -403,8 +501,8 @@ class UITemplateSlot {
 				const toRemove = [];
 				for (const attr of node.attributes) {
 					if (attr.name.startsWith(prefix)) {
-						const eventType = attr.name.slice(prefix.length); // e.g., "click", "submit"
-						const handlerName = attr.value || eventType; // Default to eventType if no value
+						const eventType = attr.name.slice(prefix.length);
+						const handlerName = attr.value || eventType;
 						toRemove.push(attr.name);
 
 						const slot = new UIEventTemplateSlot(
@@ -434,10 +532,22 @@ class UITemplateSlot {
 
 // ----------------------------------------------------------------------------
 //
-// UI ATTRIBUTE TEMPLATE SLOT
+// SECTION: Attribute Slots
 //
 // ----------------------------------------------------------------------------
 
+// Class: UIAttributeTemplateSlot
+// Template slot for attribute binding (e.g., out:style, out:class).
+//
+// Attributes:
+// - `node`: Node - target element
+// - `parent`: Node - parent container
+// - `path`: Array<number> - path to node
+// - `rootIndex`: number - index in root nodes
+// - `tailPath`: Array<number>? - child path beyond root
+// - `attrName`: string - target attribute name (e.g., "class", "style")
+// - `slotName`: string - data key binding name
+// - `originalValue`: string? - original attribute value for additive behavior
 class UIAttributeTemplateSlot {
 	constructor(node, parent, path, attrName, slotName, originalValue) {
 		this.node = node;
@@ -466,19 +576,25 @@ class UIAttributeTemplateSlot {
 	}
 }
 
-// ----------------------------------------------------------------------------
+// Class: UIAttributeSlot
+// Live attribute binding slot in a mounted instance. Handles class/style
+// additive behavior (preserves template classes/styles).
 //
-// UI ATTRIBUTE SLOT
-//
-// ----------------------------------------------------------------------------
-
+// Attributes:
+// - `node`: Node - target element
+// - `template`: UIAttributeTemplateSlot - template definition
+// - `parent`: UIInstance - owning component
+// - `attrName`: string - attribute being bound
+// - `originalClasses`: Set? - original class names from template
+// - `originalStyle`: string? - original inline style from template
+// - `appliedClasses`: Set - classes added via binding
+// - `appliedStyles`: Map - style properties added via binding
 class UIAttributeSlot {
 	constructor(node, template, parent) {
 		this.node = node;
 		this.template = template;
 		this.parent = parent;
 		this.attrName = template.attrName;
-		// Store original classes/styles for additive behavior
 		this.originalClasses =
 			template.attrName === "class"
 				? new Set(
@@ -489,10 +605,11 @@ class UIAttributeSlot {
 				: null;
 		this.originalStyle =
 			template.attrName === "style" ? template.originalValue || "" : null;
-		this.appliedClasses = new Set(); // Track what we've added
-		this.appliedStyles = new Map(); // Track style properties we've set
+		this.appliedClasses = new Set();
+		this.appliedStyles = new Map();
 	}
 
+	// Renders `value` to the bound attribute. Handles class/style specially.
 	render(value) {
 		if (this.attrName === "class") {
 			this._renderClass(value);
@@ -504,16 +621,13 @@ class UIAttributeSlot {
 	}
 
 	_renderClass(...values) {
-		// Remove previously applied classes (but keep original template classes)
 		for (const cls of this.appliedClasses) {
 			if (!this.originalClasses.has(cls)) {
 				this.node.classList.remove(cls);
 			}
 		}
 		this.appliedClasses.clear();
-
 		const classes = [];
-
 		const flatten = (value) => {
 			if (value == null) return;
 			if (typeof value === "boolean") return;
@@ -539,11 +653,9 @@ class UIAttributeSlot {
 				}
 			}
 		};
-
 		for (const value of values) {
 			flatten(value);
 		}
-
 		for (const cls of classes) {
 			this.node.classList.add(cls);
 			this.appliedClasses.add(cls);
@@ -551,13 +663,10 @@ class UIAttributeSlot {
 	}
 
 	_renderStyle(value) {
-		// Remove previously applied styles
 		for (const prop of this.appliedStyles.keys()) {
 			this.node.style.removeProperty(prop);
 		}
 		this.appliedStyles.clear();
-
-		// Re-apply original inline styles if they were removed
 		if (this.originalStyle) {
 			const tempDiv = document.createElement("div");
 			tempDiv.style.cssText = this.originalStyle;
@@ -570,14 +679,10 @@ class UIAttributeSlot {
 				}
 			}
 		}
-
 		if (value == null) return;
-
 		if (typeof value === "object") {
-			// Object format: { backgroundColor: 'red', padding: '10px' }
 			for (const [prop, val] of Object.entries(value)) {
 				if (val != null) {
-					// Convert camelCase to kebab-case
 					const kebabProp = prop
 						.replace(/([A-Z])/g, "-$1")
 						.toLowerCase();
@@ -586,7 +691,6 @@ class UIAttributeSlot {
 				}
 			}
 		} else {
-			// String format: "background-color: red; padding: 10px"
 			const tempDiv = document.createElement("div");
 			tempDiv.style.cssText = value;
 			for (const prop of tempDiv.style) {
@@ -610,10 +714,21 @@ class UIAttributeSlot {
 
 // ----------------------------------------------------------------------------
 //
-// UI EVENT TEMPLATE SLOT
+// SECTION: Event Slots
 //
 // ----------------------------------------------------------------------------
 
+// Class: UIEventTemplateSlot
+// Template slot for event binding (e.g., on:click).
+//
+// Attributes:
+// - `node`: Node - target element
+// - `parent`: Node - parent container
+// - `path`: Array<number> - path to node
+// - `rootIndex`: number - index in root nodes
+// - `tailPath`: Array<number>? - child path beyond root
+// - `eventType`: string - DOM event type (e.g., "click")
+// - `handlerName`: string - behavior method name to call
 class UIEventTemplateSlot {
 	constructor(node, parent, path, eventType, handlerName) {
 		this.node = node;
@@ -641,12 +756,15 @@ class UIEventTemplateSlot {
 	}
 }
 
-// ----------------------------------------------------------------------------
+// Class: UIEventSlot
+// Live event binding slot in a mounted instance.
 //
-// UI EVENT SLOT
-//
-// ----------------------------------------------------------------------------
-
+// Attributes:
+// - `node`: Node - target element
+// - `template`: UIEventTemplateSlot - template definition
+// - `parent`: UIInstance - owning component
+// - `eventType`: string - DOM event type
+// - `handlerName`: string - behavior method name
 class UIEventSlot {
 	constructor(node, template, parent) {
 		this.node = node;
@@ -659,14 +777,31 @@ class UIEventSlot {
 
 // ----------------------------------------------------------------------------
 //
-// UI TEMPLATE
+// SECTION: Template Definition
 //
 // ----------------------------------------------------------------------------
 
+// Class: UITemplate
+// Defines a reusable UI template parsed from HTML. Discovers slots, bindings,
+// and content slots. Provides factory methods for creating instances.
+//
+// Attributes:
+// - `nodes`: Array<Node> - cloned template nodes
+// - `on`: Object? - event slots map (handlerName -> [UIEventTemplateSlot])
+// - `in`: Object? - input slots map
+// - `out`: Object? - output slots map
+// - `inout`: Object? - bidirectional slots map
+// - `hasBindings`: boolean - true if any binding slots exist
+// - `ref`: Object? - reference slots map (single slots, not arrays)
+// - `when`: Object? - conditional slots map with predicates
+// - `outAttr`: Object? - attribute binding slots map
+// - `slots`: Array? - named content slots (<slot name="x">)
+// - `initializer`: function? - state factory function
+// - `behavior`: Object? - behavior methods map
+// - `subs`: Map? - event subscriptions map
 class UITemplate {
 	constructor(nodes) {
 		this.nodes = nodes;
-		// Slots, will be processed by instance
 		this.on = UITemplateSlot.FindEvent("on:", nodes);
 		this.in = UITemplateSlot.Find("in", nodes);
 		this.out = UITemplateSlot.Find("out", nodes);
@@ -680,11 +815,8 @@ class UITemplate {
 			slot.predicatePlaceholder = document.createComment(expr);
 			return slot;
 		});
-		// Attribute slots (out:style, out:class, out:disabled, etc.)
 		this.outAttr = UITemplateSlot.FindAttr("out:", nodes);
-		// Named content slots (<slot name="x">)
 		this.slots = this._findSlots(nodes);
-		// Interaction/Behavior (accessed from UIInstance)
 		this.initializer = undefined;
 		this.behavior = undefined;
 		this.subs = undefined;
@@ -727,37 +859,36 @@ class UITemplate {
 
 	// TODO: There's a question whether we should have Instance instead
 	// of clone. We could certainly speed up init.
+	// Creates a new UIInstance from this template.
 	new(parent) {
 		return new UIInstance(this, parent);
 	}
 
+	// Returns an AppliedUITemplate with this template and `data`.
 	apply(data) {
 		return new AppliedUITemplate(this, data);
 	}
 
+	// Maps `data` through this template, returning array of AppliedUITemplate.
 	map(data) {
 		return remap(data, (v) => new AppliedUITemplate(this, v));
 	}
 
-	// ========================================================================
-	// BEHAVIOUR
-	// ========================================================================
-
+	// Sets the state initializer function. Called as `init()` returning state.
 	init(init) {
 		this.initializer = init;
 		return this;
 	}
 
+	// Adds behavior methods. Merges with existing behavior.
 	does(behavior) {
 		this.behavior = Object.assign(this.behavior ?? {}, behavior);
 		return this;
 	}
 
-	// ========================================================================
-	// EVENTS
-	// ========================================================================
-
 	// FIXME: Should be on
+	// Subscribes to events. `event` can be string name or object mapping.
+	// Handler receives (instance, data, event).
 	sub(event, handler = undefined) {
 		if (typeof event === "string") {
 			if (!handler) {
@@ -782,12 +913,24 @@ class UITemplate {
 
 // ----------------------------------------------------------------------------
 //
-// UI SLOT
+// SECTION: Content Slot
 //
 // ----------------------------------------------------------------------------
 
-// --
-// Manages the content that gets rendered in an output.
+// Class: UISlot
+// Manages dynamic content rendering in an output slot. Handles lists,
+// dictionaries, applied templates, and plain values.
+//
+// Attributes:
+// - `parent`: UIInstance - owning component
+// - `node`: Node - the slot container node
+// - `isInput`: boolean - true if node is an input element
+// - `mapping`: Map - current rendered content by key
+// - `placeholder`: Array<Node>? - original child nodes for fallback
+// - `_extractedSlots`: Object? - cached named slot content
+// - `_hasNamedSlotContent`: boolean? - cache for slot detection
+// - `predicatePlaceholder`: Comment? - placeholder for conditional slots
+// - `template`: UITemplateSlot - slot definition
 class UISlot {
 	constructor(node, template, parent) {
 		this.parent = parent;
@@ -807,10 +950,7 @@ class UISlot {
 		this.template = template;
 	}
 
-	// --
-	// Helper to mount a UIInstance at a specific position within this.node,
-	// using nextNode as the insertion reference. If nextNode is null or
-	// detached, appends to the end.
+	// Mounts `instance` at `nextNode` position within this.node.
 	_mountInstance(instance, nextNode) {
 		const fragment = document.createDocumentFragment();
 		for (let i = 0; i < instance.nodes.length; i++) {
@@ -823,9 +963,7 @@ class UISlot {
 		}
 	}
 
-	// --
-	// Scans placeholder children for slot="name" attributes and extracts
-	// them into a slots map for passing to child components.
+	// Extracts slot="name" content from placeholder children.
 	_extractSlots() {
 		if (this._extractedSlots !== undefined) {
 			return this._extractedSlots;
@@ -860,8 +998,7 @@ class UISlot {
 		return this._extractedSlots;
 	}
 
-	// --
-	// Merges template-extracted slots with explicitly provided slots.
+	// Merges provided slots with extracted placeholder slots.
 	_mergeSlots(item) {
 		const providedSlots = item.data?.slots;
 		if (!providedSlots && !this._hasSlotContent()) {
@@ -919,7 +1056,6 @@ class UISlot {
 	_renderMapped(k, item, previous) {
 		const existing = this.mapping.get(k);
 		if (existing === undefined) {
-			// Creation: we don't have mapping for the item
 			let r;
 			if (item instanceof AppliedUITemplate) {
 				const data = this._mergeSlots(item);
@@ -941,14 +1077,12 @@ class UISlot {
 			}
 			this.mapping.set(k, r);
 		} else {
-			// Update: we do have a key like that
 			const r = existing;
 			if (r instanceof UIInstance) {
 				if (item instanceof AppliedUITemplate) {
 					if (item.template === r.template) {
 						r.update(item.data);
 					} else {
-						// Different template: unmount old, mount new at same position
 						const data = this._mergeSlots(item);
 						const lastNode = r.nodes[r.nodes.length - 1];
 						const nextNode = lastNode ? lastNode.nextSibling : null;
@@ -1001,12 +1135,7 @@ class UISlot {
 		return previous;
 	}
 
-
-	// --
-	// Renders a slot, which is either replacing the content of the node
-	// with an HTML/text value from the data, or creating one or more
-	// `UIInstance` in case the data returns an applied template or
-	// a collection of applied templates.
+	// Renders `data` into this slot. Handles lists, dicts, templates, and scalars.
 	render(data) {
 		const isList = Array.isArray(data);
 		const isDict =
@@ -1087,6 +1216,7 @@ class UISlot {
 		}
 	}
 
+	// Shows the slot (replaces placeholder with actual node).
 	show() {
 		// TODO: Edge case when the slot is a direct node in the instance `.nodes`.
 		if (this.predicatePlaceholder?.parentNode) {
@@ -1098,6 +1228,7 @@ class UISlot {
 		return this;
 	}
 
+	// Hides the slot (replaces node with placeholder).
 	hide() {
 		// TODO: Edge case when the slot is a direct node in the instance `.nodes`.
 		if (this.predicatePlaceholder && this.node.parentNode) {
@@ -1112,10 +1243,24 @@ class UISlot {
 
 // ----------------------------------------------------------------------------
 //
-// UI CONTENT SLOT (for <slot name="x">)
+// SECTION: Named Content Slots
 //
 // ----------------------------------------------------------------------------
 
+// Class: UIContentSlot
+// Manages a named <slot> element's content, handling fallback and provided
+// content with efficient diffing.
+//
+// Attributes:
+// - `placeholder`: Comment - comment node marking slot position
+// - `fallback`: Array<Node> - fallback content clones
+// - `parent`: UIInstance - owning component
+// - `name`: string - slot name
+// - `content`: any - currently mounted content
+// - `fallbackActive`: boolean - true if fallback is showing
+// - `_lastWasFallback`: boolean - cache for fallback state
+// - `_lastContent`: any - cache for content comparison
+// - `_lastContentType`: number - cache for content type (1=template,2=node,3=scalar)
 class UIContentSlot {
 	constructor(placeholder, fallback, parent, name) {
 		this.placeholder = placeholder;
@@ -1129,6 +1274,8 @@ class UIContentSlot {
 		this._lastContentType = 0;
 	}
 
+	// Mounts `content` (AppliedUITemplate, Node, or scalar). Shows fallback
+	// if content is null/undefined.
 	mount(content) {
 		if (!content) {
 			if (this.fallback.length) {
@@ -1218,6 +1365,7 @@ class UIContentSlot {
 		this.fallbackActive = true;
 	}
 
+	// Clears current content and fallback.
 	_clear() {
 		if (this.content instanceof UIInstance) {
 			this.content.unmount();
@@ -1239,14 +1387,38 @@ class UIContentSlot {
 
 // ----------------------------------------------------------------------------
 //
-// UI INSTANCE
+// SECTION: Component Instance
 //
 // ----------------------------------------------------------------------------
 
-// --
-// An instance of a template, manages inputs, outputs, event dispatching
-// and state.
+// Class: UIInstance
+// A mounted instance of a UITemplate. Manages data binding, event handling,
+// lifecycle, and rendering.
+//
+// Attributes:
+// - `template`: UITemplate - the template this instance was created from
+// - `nodes`: Array<Node> - cloned DOM nodes
+// - `in`: Object? - input slot bindings
+// - `out`: Object? - output slot bindings
+// - `inout`: Object? - bidirectional slot bindings
+// - `ref`: Object? - reference slot bindings (single slots)
+// - `on`: Object? - event slot bindings
+// - `when`: Object? - conditional slot bindings
+// - `outAttr`: Object? - attribute slot bindings
+// - `slots`: Array<UIContentSlot>? - named content slots
+// - `parent`: UIInstance? - parent component in tree
+// - `children`: Set<UIInstance>? - child components
+// - `data`: any - current rendered data
+// - `key`: any - optional key for list rendering
+// - `initial`: Object? - initial state from initializer
+// - `_renderer`: function? - cached render function for subscriptions
+// - `_context`: Map? - provider context values
+// - `_ctxSubs`: Map? - context cell subscriptions
+// - `_runtimeSubs`: Map? - runtime event subscriptions
+// - `_behaviorDeps`: Map? - behavior dependency tracking
+// - `_behaviorValues`: Map? - cached behavior results
 class UIInstance {
+	// Compiles slot definitions into efficient applier functions.
 	static _compileSlotApplier(slots, rawSingle = false) {
 		if (!slots) {
 			return null;
@@ -1291,7 +1463,6 @@ class UIInstance {
 	}
 
 	constructor(template, parent) {
-		// Parent
 		this.template = template;
 		const compiled = UIInstance._ensureCompiled(template);
 		// FIXME: This is on the hotpath
@@ -1305,9 +1476,7 @@ class UIInstance {
 		this.ref = compiled.ref ? compiled.ref(this.nodes, this) : null;
 		this.on = compiled.on ? compiled.on(this.nodes, this) : null;
 		this.when = compiled.when ? compiled.when(this.nodes, this) : null;
-		// Attribute slots (out:style, out:class, etc.)
 		this.outAttr = compiled.outAttr ? compiled.outAttr(this.nodes, this) : null;
-		// Content slots (<slot name="x">)
 		this.slots = null;
 		if (template.slots) {
 			this.slots = [];
@@ -1342,7 +1511,6 @@ class UIInstance {
 			}
 			parent.children.add(this);
 		}
-		// Data & State
 		if (template.hasBindings) {
 			this.bind();
 		}
@@ -1372,11 +1540,8 @@ class UIInstance {
 		return this._renderer;
 	}
 
-	// ========================================================================
-	// BEHAVIOR
-	// ========================================================================
-
-	dispose() {
+	// Cleans up subscriptions, recursively disposes children, removes from parent.
+		dispose() {
 		if (this.initial) {
 			const renderer = this._renderer;
 			for (const k in this.initial) {
@@ -1388,14 +1553,12 @@ class UIInstance {
 				}
 			}
 		}
-		// Unsubscribe from context cells
 		if (this._ctxSubs) {
 			for (const [cell, handler] of this._ctxSubs) {
 				cell.unsub(handler);
 			}
 			this._ctxSubs = undefined;
 		}
-		// Recursively dispose children
 		if (this.children) {
 			for (const child of this.children) {
 				child.dispose();
@@ -1403,14 +1566,14 @@ class UIInstance {
 			this.children.clear();
 			this.children = undefined;
 		}
-		// Remove from parent's children set
 		this.parent?.children?.delete(this);
 	}
 
-	// ========================================================================
-	// CONTEXT (Provider/Inject)
-	// ========================================================================
+	// ============================================================================
+	// SUBSECTION: Context (Provider/Inject)
+	// ============================================================================
 
+	// Provides `value` as `key` to child components. Returns this for chaining.
 	provide(key, value) {
 		if (this._context === undefined) {
 			this._context = new Map();
@@ -1419,17 +1582,17 @@ class UIInstance {
 		return this;
 	}
 
+	// Injects value for `key` from ancestor providers. Returns `defaultValue`
+	// if not found. Auto-subscribes to reactive cells for re-rendering.
 	inject(key, defaultValue = undefined) {
 		let current = this.parent;
 		while (current) {
 			if (current._context?.has(key)) {
 				const value = current._context.get(key);
-				// Auto-subscribe to reactive cells for re-rendering
 				if (value?.isReactive) {
 					if (this._ctxSubs === undefined) {
 						this._ctxSubs = new Map();
 					}
-					// Avoid duplicate subscriptions
 					if (!this._ctxSubs.has(value)) {
 						const handler = () => this.render();
 						value.sub(handler);
@@ -1443,14 +1606,17 @@ class UIInstance {
 		return defaultValue;
 	}
 
+	// ============================================================================
+	// SUBSECTION: Event Binding
+	// ============================================================================
+
+	// Binds all event handlers for on:, in, and inout slots.
 	bind() {
-		// We bind the event handlers for on: slots (explicit event type)
 		for (const k in this.on) {
 			for (const slot of this.on[k]) {
 				this._bindEvent(k, slot);
 			}
 		}
-		// We bind the event handlers for in/inout slots (inferred event type)
 		for (const set of [this.in, this.inout]) {
 			for (const k in set) {
 				for (const slot of set[k]) {
@@ -1460,13 +1626,11 @@ class UIInstance {
 		}
 	}
 
-	// Binds an event slot with explicit event type (on:click, on:submit, etc.)
+	// Binds event slot with explicit event type.
 	_bindEvent(name, target, handler = this.template.behavior[name]) {
 		if (handler) {
 			target.node.addEventListener(target.eventType, (event) => {
-				// Arguments are (self,data,event)
 				const result = handler(this, this.data || {}, event);
-				// If handler returns an object, update reactive cells in data
 				if (result && typeof result === "object" && !Array.isArray(result)) {
 					for (const key in result) {
 						const cell = this.data?.[key];
@@ -1479,7 +1643,7 @@ class UIInstance {
 		}
 	}
 
-	// Binds an input slot with inferred event type (in, inout)
+	// Binds input slot with inferred event type.
 	_bindInput(name, target, handler = this.template.behavior[name]) {
 		if (handler) {
 			let event;
@@ -1496,22 +1660,24 @@ class UIInstance {
 					event = "click";
 			}
 			target.node.addEventListener(event, (event) =>
-				// Arguments are (self,data,event)
 				handler(this, this.data || {}, event),
 			);
 		}
 	}
 
-	// ========================================================================
-	// DATA/STATE
-	// ========================================================================
+	// ============================================================================
+	// SUBSECTION: Data/State
+	// ============================================================================
 
+	// Sets data and renders. Updates key for list rendering.
 	set(data, key = this.key) {
 		this.key = key;
 		this.render(data);
 		return this;
 	}
 
+	// Updates data with granular change detection. Only re-renders changed fields
+	// when possible. Handles reactive cell subscription management.
 	update(data, force = false) {
 		if (data === undefined || data === null) {
 			if (force || this.data !== data) {
@@ -1540,7 +1706,6 @@ class UIInstance {
 						changedKeys = new Set();
 					}
 					changedKeys.add(k);
-					// We sub/unsub if there's a reactive cell in the update
 					if (existing?.isReactive) {
 						existing.unsub(renderer);
 					}
@@ -1559,6 +1724,7 @@ class UIInstance {
 		return this;
 	}
 
+	// Tests if any of `deps` changed in `changedKeys`.
 	_depsChanged(deps, changedKeys) {
 		for (const key of deps) {
 			if (changedKeys.has(key)) {
@@ -1568,24 +1734,28 @@ class UIInstance {
 		return false;
 	}
 
-	// ========================================================================
-	// PUB/SUB
-	// ========================================================================
+	// ============================================================================
+	// SUBSECTION: Pub/Sub Events
+	// ============================================================================
 
+	// Alias for `pub()`.
 	send(event, data) {
 		return this.pub(event, data);
 	}
 
+	// Alias for `pub()`.
 	emit(event, data) {
 		return this.pub(event, data);
 	}
 
+	// Publishes event up the component tree. Returns UIEvent.
 	pub(event, data) {
 		const res = new UIEvent(event, data, this);
 		this.parent?.onPub(res);
 		return res;
 	}
 
+	// Subscribes runtime handler to event.
 	on(event, handler) {
 		if (this._runtimeSubs === undefined) {
 			this._runtimeSubs = new Map();
@@ -1598,6 +1768,7 @@ class UIInstance {
 		return this;
 	}
 
+	// Unsubscribes runtime handler from event.
 	off(event, handler) {
 		if (!this._runtimeSubs) return this;
 		const handlers = this._runtimeSubs.get(event);
@@ -1613,10 +1784,11 @@ class UIInstance {
 		return this;
 	}
 
+	// Handles published event. Checks runtime subs, then template subs.
+	// Stops propagation if handler returns `false`, stops bubbling on `null`.
 	onPub(event) {
 		event.current = this;
 		let propagate = true;
-		// Check runtime subscriptions first
 		if (this._runtimeSubs) {
 			const rl = this._runtimeSubs.get(event.name);
 			if (rl) {
@@ -1630,12 +1802,10 @@ class UIInstance {
 				}
 			}
 		}
-		// Then check template-defined subscriptions
 		if (propagate && this.template.subs) {
 			const hl = this.template.subs.get(event.name);
 			if (hl) {
 				for (const h of hl) {
-					// We do an early exit when `false` is returned, Or stop propagation on `null`
 					const c = h(this, this.data, event);
 					if (c === false) {
 						return event;
@@ -1649,10 +1819,12 @@ class UIInstance {
 		return event;
 	}
 
-	// ========================================================================
-	// RENDERING
-	// ========================================================================
+	// ============================================================================
+	// SUBSECTION: Rendering
+	// ============================================================================
 
+	// Mounts this instance into `node` (selector string or Node). Optionally
+	// inserts after `previous` node.
 	mount(node, previous) {
 		if (typeof node === "string") {
 			const n = document.querySelector(node);
@@ -1695,6 +1867,7 @@ class UIInstance {
 		return this;
 	}
 
+	// Unmounts from DOM and disposes resources.
 	unmount() {
 		// TODO: Speedup: if the first node is not mounted, the rest is not.
 		// FIXME: Some root slots would have their node replaced by a placeholder
@@ -1705,9 +1878,8 @@ class UIInstance {
 		return this;
 	}
 
-	// --
-	// Renders the given data, using `create`, `update` and `remove`
-	// functions
+	// Renders `data`, optionally limited to `changedKeys` for granular updates.
+	// Processes all binding types (out, inout, in, when, outAttr, slots).
 	// TODO: Should take a "changes" and know which behaviour should be updated
 	render(data = this.data, changedKeys = null) {
 		if (!this.template) {
@@ -1728,8 +1900,6 @@ class UIInstance {
 				this.template.outAttr
 			)
 		) {
-			// By default, unless we have output slots, we render the data
-			// as text and put it in the first node.
 			const text = asText(data);
 			for (const node of this.nodes) {
 				if (node.nodeType === Node.ELEMENT_NODE) {
@@ -1739,10 +1909,9 @@ class UIInstance {
 			}
 			// TODO: Or text node if not set
 		} else {
-			// Apply the behavior for the inout/out fields.
+			const behavior = this.template.behavior;
 			// TODO: This is where there may be loops and where there's a need
 			// for optimisation
-			const behavior = this.template.behavior;
 			const renderSet = (set) => {
 				if (!set) {
 					return;
@@ -1751,7 +1920,6 @@ class UIInstance {
 					let v;
 					const hasBehavior = behavior?.[k];
 
-					// Granular skip: if no dependency changed, reuse cached value
 					if (isGranular && this._behaviorDeps && this._behaviorValues) {
 						const deps = this._behaviorDeps.get(k);
 						if (deps && !this._depsChanged(deps, changedKeys)) {
@@ -1779,7 +1947,6 @@ class UIInstance {
 							v = hasBehavior(this, data, null);
 						}
 					} else if (data && k in data) {
-						// Use corresponding property from data if no behavior defined
 						v = expand(data[k]);
 					} else {
 						v = undefined;
@@ -1803,27 +1970,23 @@ class UIInstance {
 					}
 				}
 			}
-			// Render attribute slots (out:style, out:class, etc.)
 			for (const k in this.outAttr) {
 				let v;
 				const b = behavior?.[k];
 				if (b) {
 					for (const slot of this.outAttr[k]) {
 						const attrValue = slot.node.getAttribute(slot.attrName);
-						// Handler signature: (self, data, attrValue, node)
 						v = b(this, data, attrValue, slot.node);
 						slot.render(v);
 					}
-					continue; // Already rendered in the loop above
+					continue;
 				} else if (data && k in data) {
-					// Use corresponding property from data if no behavior defined
 					v = expand(data[k]);
 				}
 				for (const slot of this.outAttr[k]) {
 					slot.render(v);
 				}
 			}
-			// Render named content slots (<slot name="x">)
 			if (this.slots?.length) {
 				for (const slot of this.slots) {
 					const content = data?.slots?.[slot.name];
@@ -1838,20 +2001,36 @@ class UIInstance {
 
 // ----------------------------------------------------------------------------
 //
-// API
+// SECTION: Component Registry
 //
 // ----------------------------------------------------------------------------
 
-// --
-// Component registry for Dynamic() resolution
 const _registry = new Map();
 
-export const Dynamic = (type, props = {}) => {
+// Function: Dynamic
+// Creates a component by type from the registry.
+//
+// Parameters:
+// - `type`: string|function - registered component name or component function
+// - `props`: Object? - properties to pass to component
+//
+// Returns: UIInstance|null
+
+const Dynamic = (type, props = {}) => {
 	const component = typeof type === "string" ? _registry.get(type) : type;
 	return component ? component(props) : null;
 };
 
-export const lazy = (loader, placeholder = null) => {
+// Function: lazy
+// Creates a lazy-loading component wrapper.
+//
+// Parameters:
+// - `loader`: function - async function returning component module
+// - `placeholder`: any? - content to show while loading
+//
+// Returns: function - component factory that loads on first call
+
+const lazy = (loader, placeholder = null) => {
 	let tmpl = null;
 	let loading = false;
 	return (data) => {
@@ -1865,7 +2044,33 @@ export const lazy = (loader, placeholder = null) => {
 	};
 };
 
-export const ui = (selection, scope = document) => {
+// ----------------------------------------------------------------------------
+//
+// SECTION: Factory Function
+//
+// ----------------------------------------------------------------------------
+
+// Function: ui
+// Factory that creates a component template from HTML or DOM nodes.
+// Accepts CSS selectors (queries document), HTML strings (parses), or nodes.
+//
+// Parameters:
+// - `selection`: string|Node|Array<Node> - HTML string, selector, or nodes
+// - `scope`: Node? - scope for selector queries (default: document)
+//
+// Returns: function - component factory function with template methods
+//
+// Example:
+// ```javascript
+// const Button = ui("<button out:text='label'></button>")
+//   .does({
+//     click: (self, data, event) => console.log("Clicked:", data.label)
+//   })
+//
+// const instance = Button({ label: "Click Me" }).mount(document.body)
+// ```
+
+const ui = (selection, scope = document) => {
 	if (selection === null || selection === undefined) {
 		throw new Error(
 			`ui() received ${selection === null ? "null" : "undefined"} as selection. ` +
@@ -1878,7 +2083,6 @@ export const ui = (selection, scope = document) => {
 	if (typeof selection === "string") {
 		let nodes = [];
 		if (/\s*</.test(selection)) {
-			// We support parsing HTML
 			const doc = parser.parseFromString(selection, "text/html");
 			_pruneTemplateWhitespace(doc.body);
 			nodes = [...doc.body.childNodes];
@@ -1975,12 +2179,22 @@ export const ui = (selection, scope = document) => {
 	);
 };
 
+// Registers `component` as `name` for Dynamic() resolution.
 ui.register = (name, component) => {
 	_registry.set(name, component);
 	return ui;
 };
 
+// Resolves registered component by `name`.
 ui.resolve = (name) => _registry.get(name);
 
-export default ui;
+// ----------------------------------------------------------------------------
+//
+// SECTION: Exports
+//
+// ----------------------------------------------------------------------------
+
+export { len, type, remap, UIEvent, AppliedUITemplate, UITemplateSlot, UIAttributeTemplateSlot, UIAttributeSlot, UIEventTemplateSlot, UIEventSlot, UITemplate, UISlot, UIContentSlot, UIInstance, Dynamic, lazy, ui }
+export default ui
+
 // EOF
