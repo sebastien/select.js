@@ -1,0 +1,1079 @@
+{
+	"schemaVersion": 1,
+	"generatedAt": "2026-04-22T21:07:12Z",
+	"source": "https://api.iconify.design/collections",
+	"count": 225,
+	"sources": {
+		"academicons": {
+			"url": "https://api.iconify.design/academicons/__ICON_NAME__.svg",
+			"collectionVersion": "1.9.5",
+			"size": [32, 32]
+		},
+		"akar-icons": {
+			"url": "https://api.iconify.design/akar-icons/__ICON_NAME__.svg",
+			"collectionVersion": "1.9.31",
+			"size": [24, 24]
+		},
+		"ant-design": {
+			"url": "https://api.iconify.design/ant-design/__ICON_NAME__.svg",
+			"collectionVersion": "4.4.2",
+			"size": [16, 16]
+		},
+		"arcticons": {
+			"url": "https://api.iconify.design/arcticons/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [48, 48]
+		},
+		"basil": {
+			"url": "https://api.iconify.design/basil/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"bi": {
+			"url": "https://api.iconify.design/bi/__ICON_NAME__.svg",
+			"collectionVersion": "1.13.1",
+			"size": [16, 16]
+		},
+		"bitcoin-icons": {
+			"url": "https://api.iconify.design/bitcoin-icons/__ICON_NAME__.svg",
+			"collectionVersion": "0.1.10",
+			"size": [24, 24]
+		},
+		"boxicons": {
+			"url": "https://api.iconify.design/boxicons/__ICON_NAME__.svg",
+			"collectionVersion": "1.0.5",
+			"size": [24, 24]
+		},
+		"bpmn": {
+			"url": "https://api.iconify.design/bpmn/__ICON_NAME__.svg",
+			"collectionVersion": "0.10.0"
+		},
+		"brandico": {
+			"url": "https://api.iconify.design/brandico/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"bx": {
+			"url": "https://api.iconify.design/bx/__ICON_NAME__.svg",
+			"collectionVersion": "2.1.4",
+			"size": [24, 24]
+		},
+		"bxl": {
+			"url": "https://api.iconify.design/bxl/__ICON_NAME__.svg",
+			"collectionVersion": "1.0.5",
+			"size": [24, 24]
+		},
+		"bxs": {
+			"url": "https://api.iconify.design/bxs/__ICON_NAME__.svg",
+			"collectionVersion": "2.1.4",
+			"size": [24, 24]
+		},
+		"bytesize": {
+			"url": "https://api.iconify.design/bytesize/__ICON_NAME__.svg",
+			"collectionVersion": "1.4.0",
+			"size": [32, 32]
+		},
+		"carbon": {
+			"url": "https://api.iconify.design/carbon/__ICON_NAME__.svg",
+			"collectionVersion": "11.78.0",
+			"size": [32, 32]
+		},
+		"catppuccin": {
+			"url": "https://api.iconify.design/catppuccin/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [16, 16]
+		},
+		"cbi": {
+			"url": "https://api.iconify.design/cbi/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"charm": {
+			"url": "https://api.iconify.design/charm/__ICON_NAME__.svg",
+			"collectionVersion": "0.12.1",
+			"size": [16, 16]
+		},
+		"ci": {
+			"url": "https://api.iconify.design/ci/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"cib": {
+			"url": "https://api.iconify.design/cib/__ICON_NAME__.svg",
+			"collectionVersion": "2.0.1",
+			"size": [32, 32]
+		},
+		"cif": {
+			"url": "https://api.iconify.design/cif/__ICON_NAME__.svg",
+			"collectionVersion": "2.0.1"
+		},
+		"cil": {
+			"url": "https://api.iconify.design/cil/__ICON_NAME__.svg",
+			"collectionVersion": "2.0.1",
+			"size": [32, 32]
+		},
+		"circle-flags": {
+			"url": "https://api.iconify.design/circle-flags/__ICON_NAME__.svg",
+			"collectionVersion": "1.0.0",
+			"size": [32, 32]
+		},
+		"circum": {
+			"url": "https://api.iconify.design/circum/__ICON_NAME__.svg",
+			"collectionVersion": "1.0.0",
+			"size": [24, 24]
+		},
+		"clarity": {
+			"url": "https://api.iconify.design/clarity/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [36, 36]
+		},
+		"codex": {
+			"url": "https://api.iconify.design/codex/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"codicon": {
+			"url": "https://api.iconify.design/codicon/__ICON_NAME__.svg",
+			"collectionVersion": "0.0.0"
+		},
+		"covid": {
+			"url": "https://api.iconify.design/covid/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"cryptocurrency": {
+			"url": "https://api.iconify.design/cryptocurrency/__ICON_NAME__.svg",
+			"collectionVersion": "0.18.1",
+			"size": [32, 32]
+		},
+		"cryptocurrency-color": {
+			"url": "https://api.iconify.design/cryptocurrency-color/__ICON_NAME__.svg",
+			"collectionVersion": "0.18.1",
+			"size": [32, 32]
+		},
+		"cuida": {
+			"url": "https://api.iconify.design/cuida/__ICON_NAME__.svg",
+			"collectionVersion": "1.18.0",
+			"size": [24, 24]
+		},
+		"dashicons": {
+			"url": "https://api.iconify.design/dashicons/__ICON_NAME__.svg",
+			"collectionVersion": "0.9.0",
+			"size": [20, 20]
+		},
+		"devicon": {
+			"url": "https://api.iconify.design/devicon/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [32, 32]
+		},
+		"devicon-plain": {
+			"url": "https://api.iconify.design/devicon-plain/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [32, 32]
+		},
+		"dinkie-icons": {
+			"url": "https://api.iconify.design/dinkie-icons/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"duo-icons": {
+			"url": "https://api.iconify.design/duo-icons/__ICON_NAME__.svg",
+			"collectionVersion": "1.1.4",
+			"size": [24, 24]
+		},
+		"ei": {
+			"url": "https://api.iconify.design/ei/__ICON_NAME__.svg",
+			"collectionVersion": "1.10.1",
+			"size": [25, 25]
+		},
+		"el": {
+			"url": "https://api.iconify.design/el/__ICON_NAME__.svg",
+			"collectionVersion": "2.0.0"
+		},
+		"emojione": {
+			"url": "https://api.iconify.design/emojione/__ICON_NAME__.svg",
+			"collectionVersion": "2.3.0",
+			"size": [32, 32]
+		},
+		"emojione-monotone": {
+			"url": "https://api.iconify.design/emojione-monotone/__ICON_NAME__.svg",
+			"collectionVersion": "2.2.7",
+			"size": [32, 32]
+		},
+		"emojione-v1": {
+			"url": "https://api.iconify.design/emojione-v1/__ICON_NAME__.svg",
+			"collectionVersion": "1.5.2",
+			"size": [32, 32]
+		},
+		"entypo": {
+			"url": "https://api.iconify.design/entypo/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [20, 20]
+		},
+		"entypo-social": {
+			"url": "https://api.iconify.design/entypo-social/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [20, 20]
+		},
+		"eos-icons": {
+			"url": "https://api.iconify.design/eos-icons/__ICON_NAME__.svg",
+			"collectionVersion": "5.4.0",
+			"size": [24, 24]
+		},
+		"ep": {
+			"url": "https://api.iconify.design/ep/__ICON_NAME__.svg",
+			"collectionVersion": "2.3.2",
+			"size": [32, 32]
+		},
+		"et": {
+			"url": "https://api.iconify.design/et/__ICON_NAME__.svg",
+			"collectionVersion": "1.0.1",
+			"size": [32, 32]
+		},
+		"eva": {
+			"url": "https://api.iconify.design/eva/__ICON_NAME__.svg",
+			"collectionVersion": "1.1.3",
+			"size": [24, 24]
+		},
+		"f7": {
+			"url": "https://api.iconify.design/f7/__ICON_NAME__.svg",
+			"collectionVersion": "5.0.5",
+			"size": [28, 28]
+		},
+		"fa": {
+			"url": "https://api.iconify.design/fa/__ICON_NAME__.svg",
+			"collectionVersion": "4.7.0"
+		},
+		"fa-brands": {
+			"url": "https://api.iconify.design/fa-brands/__ICON_NAME__.svg",
+			"collectionVersion": "5.15.4",
+			"size": [32, 32]
+		},
+		"fa-regular": {
+			"url": "https://api.iconify.design/fa-regular/__ICON_NAME__.svg",
+			"collectionVersion": "5.15.4",
+			"size": [32, 32]
+		},
+		"fa-solid": {
+			"url": "https://api.iconify.design/fa-solid/__ICON_NAME__.svg",
+			"collectionVersion": "5.15.4",
+			"size": [32, 32]
+		},
+		"fa6-brands": {
+			"url": "https://api.iconify.design/fa6-brands/__ICON_NAME__.svg",
+			"collectionVersion": "6.7.2",
+			"size": [32, 32]
+		},
+		"fa6-regular": {
+			"url": "https://api.iconify.design/fa6-regular/__ICON_NAME__.svg",
+			"collectionVersion": "6.7.2",
+			"size": [32, 32]
+		},
+		"fa6-solid": {
+			"url": "https://api.iconify.design/fa6-solid/__ICON_NAME__.svg",
+			"collectionVersion": "6.7.2",
+			"size": [32, 32]
+		},
+		"fa7-brands": {
+			"url": "https://api.iconify.design/fa7-brands/__ICON_NAME__.svg",
+			"collectionVersion": "7.2.0",
+			"size": [32, 32]
+		},
+		"fa7-regular": {
+			"url": "https://api.iconify.design/fa7-regular/__ICON_NAME__.svg",
+			"collectionVersion": "7.2.0",
+			"size": [32, 32]
+		},
+		"fa7-solid": {
+			"url": "https://api.iconify.design/fa7-solid/__ICON_NAME__.svg",
+			"collectionVersion": "7.2.0",
+			"size": [32, 32]
+		},
+		"fad": {
+			"url": "https://api.iconify.design/fad/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [16, 16]
+		},
+		"famicons": {
+			"url": "https://api.iconify.design/famicons/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [32, 32]
+		},
+		"fe": {
+			"url": "https://api.iconify.design/fe/__ICON_NAME__.svg",
+			"collectionVersion": "1.0.2",
+			"size": [24, 24]
+		},
+		"feather": {
+			"url": "https://api.iconify.design/feather/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"file-icons": {
+			"url": "https://api.iconify.design/file-icons/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [16, 16]
+		},
+		"flag": {
+			"url": "https://api.iconify.design/flag/__ICON_NAME__.svg",
+			"collectionVersion": "7.5.0"
+		},
+		"flagpack": {
+			"url": "https://api.iconify.design/flagpack/__ICON_NAME__.svg",
+			"collectionVersion": "2.1.0",
+			"size": [24, 24]
+		},
+		"flat-color-icons": {
+			"url": "https://api.iconify.design/flat-color-icons/__ICON_NAME__.svg",
+			"collectionVersion": "1.0.2",
+			"size": [48, 48]
+		},
+		"flat-ui": {
+			"url": "https://api.iconify.design/flat-ui/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"flowbite": {
+			"url": "https://api.iconify.design/flowbite/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"fluent": {
+			"url": "https://api.iconify.design/fluent/__ICON_NAME__.svg",
+			"collectionVersion": "1.1.324"
+		},
+		"fluent-color": {
+			"url": "https://api.iconify.design/fluent-color/__ICON_NAME__.svg",
+			"collectionVersion": "1.1.324"
+		},
+		"fluent-emoji": {
+			"url": "https://api.iconify.design/fluent-emoji/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [32, 32]
+		},
+		"fluent-emoji-flat": {
+			"url": "https://api.iconify.design/fluent-emoji-flat/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [32, 32]
+		},
+		"fluent-emoji-high-contrast": {
+			"url": "https://api.iconify.design/fluent-emoji-high-contrast/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [32, 32]
+		},
+		"fluent-mdl2": {
+			"url": "https://api.iconify.design/fluent-mdl2/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [32, 32]
+		},
+		"fontelico": {
+			"url": "https://api.iconify.design/fontelico/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"fontisto": {
+			"url": "https://api.iconify.design/fontisto/__ICON_NAME__.svg",
+			"collectionVersion": "3.0.4",
+			"size": [24, 24]
+		},
+		"formkit": {
+			"url": "https://api.iconify.design/formkit/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"foundation": {
+			"url": "https://api.iconify.design/foundation/__ICON_NAME__.svg",
+			"collectionVersion": "3.0.0"
+		},
+		"fxemoji": {
+			"url": "https://api.iconify.design/fxemoji/__ICON_NAME__.svg",
+			"collectionVersion": "0.0.2",
+			"size": [32, 32]
+		},
+		"gala": {
+			"url": "https://api.iconify.design/gala/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [32, 32]
+		},
+		"game-icons": {
+			"url": "https://api.iconify.design/game-icons/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"garden": {
+			"url": "https://api.iconify.design/garden/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"gcp": {
+			"url": "https://api.iconify.design/gcp/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"geo": {
+			"url": "https://api.iconify.design/geo/__ICON_NAME__.svg",
+			"collectionVersion": "0.0.10"
+		},
+		"gg": {
+			"url": "https://api.iconify.design/gg/__ICON_NAME__.svg",
+			"collectionVersion": "2.1.4",
+			"size": [24, 24]
+		},
+		"gis": {
+			"url": "https://api.iconify.design/gis/__ICON_NAME__.svg",
+			"collectionVersion": "1.0.6"
+		},
+		"glyphs": {
+			"url": "https://api.iconify.design/glyphs/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"glyphs-poly": {
+			"url": "https://api.iconify.design/glyphs-poly/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"gravity-ui": {
+			"url": "https://api.iconify.design/gravity-ui/__ICON_NAME__.svg",
+			"collectionVersion": "2.18.0",
+			"size": [16, 16]
+		},
+		"gridicons": {
+			"url": "https://api.iconify.design/gridicons/__ICON_NAME__.svg",
+			"collectionVersion": "3.4.2",
+			"size": [24, 24]
+		},
+		"grommet-icons": {
+			"url": "https://api.iconify.design/grommet-icons/__ICON_NAME__.svg",
+			"collectionVersion": "4.14.0",
+			"size": [24, 24]
+		},
+		"guidance": {
+			"url": "https://api.iconify.design/guidance/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"healthicons": {
+			"url": "https://api.iconify.design/healthicons/__ICON_NAME__.svg",
+			"collectionVersion": "2.0.0",
+			"size": [24, 24]
+		},
+		"heroicons": {
+			"url": "https://api.iconify.design/heroicons/__ICON_NAME__.svg",
+			"collectionVersion": "2.2.0"
+		},
+		"heroicons-outline": {
+			"url": "https://api.iconify.design/heroicons-outline/__ICON_NAME__.svg",
+			"collectionVersion": "1.0.6",
+			"size": [24, 24]
+		},
+		"heroicons-solid": {
+			"url": "https://api.iconify.design/heroicons-solid/__ICON_NAME__.svg",
+			"collectionVersion": "1.0.6",
+			"size": [20, 20]
+		},
+		"hugeicons": {
+			"url": "https://api.iconify.design/hugeicons/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"humbleicons": {
+			"url": "https://api.iconify.design/humbleicons/__ICON_NAME__.svg",
+			"collectionVersion": "1.29.0",
+			"size": [24, 24]
+		},
+		"ic": {
+			"url": "https://api.iconify.design/ic/__ICON_NAME__.svg",
+			"collectionVersion": "1.0.32",
+			"size": [24, 24]
+		},
+		"icomoon-free": {
+			"url": "https://api.iconify.design/icomoon-free/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [16, 16]
+		},
+		"icon-park": {
+			"url": "https://api.iconify.design/icon-park/__ICON_NAME__.svg",
+			"collectionVersion": "1.4.2",
+			"size": [24, 24]
+		},
+		"icon-park-outline": {
+			"url": "https://api.iconify.design/icon-park-outline/__ICON_NAME__.svg",
+			"collectionVersion": "1.4.2",
+			"size": [24, 24]
+		},
+		"icon-park-solid": {
+			"url": "https://api.iconify.design/icon-park-solid/__ICON_NAME__.svg",
+			"collectionVersion": "1.4.2",
+			"size": [24, 24]
+		},
+		"icon-park-twotone": {
+			"url": "https://api.iconify.design/icon-park-twotone/__ICON_NAME__.svg",
+			"collectionVersion": "1.4.2",
+			"size": [24, 24]
+		},
+		"iconamoon": {
+			"url": "https://api.iconify.design/iconamoon/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"iconoir": {
+			"url": "https://api.iconify.design/iconoir/__ICON_NAME__.svg",
+			"collectionVersion": "7.11.0",
+			"size": [24, 24]
+		},
+		"icons8": {
+			"url": "https://api.iconify.design/icons8/__ICON_NAME__.svg",
+			"collectionVersion": "1.0.0"
+		},
+		"il": {
+			"url": "https://api.iconify.design/il/__ICON_NAME__.svg",
+			"collectionVersion": "0.0.1"
+		},
+		"ion": {
+			"url": "https://api.iconify.design/ion/__ICON_NAME__.svg",
+			"collectionVersion": "8.0.13",
+			"size": [32, 32]
+		},
+		"iwwa": {
+			"url": "https://api.iconify.design/iwwa/__ICON_NAME__.svg",
+			"collectionVersion": "1.1.3"
+		},
+		"ix": {
+			"url": "https://api.iconify.design/ix/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"jam": {
+			"url": "https://api.iconify.design/jam/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"la": {
+			"url": "https://api.iconify.design/la/__ICON_NAME__.svg",
+			"collectionVersion": "1.2.1"
+		},
+		"lets-icons": {
+			"url": "https://api.iconify.design/lets-icons/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"line-md": {
+			"url": "https://api.iconify.design/line-md/__ICON_NAME__.svg",
+			"collectionVersion": "3.0.5",
+			"size": [24, 24]
+		},
+		"lineicons": {
+			"url": "https://api.iconify.design/lineicons/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"logos": {
+			"url": "https://api.iconify.design/logos/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"ls": {
+			"url": "https://api.iconify.design/ls/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"lsicon": {
+			"url": "https://api.iconify.design/lsicon/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [16, 16]
+		},
+		"lucide": {
+			"url": "https://api.iconify.design/lucide/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"lucide-lab": {
+			"url": "https://api.iconify.design/lucide-lab/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"mage": {
+			"url": "https://api.iconify.design/mage/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"majesticons": {
+			"url": "https://api.iconify.design/majesticons/__ICON_NAME__.svg",
+			"collectionVersion": "2.1.2",
+			"size": [24, 24]
+		},
+		"maki": {
+			"url": "https://api.iconify.design/maki/__ICON_NAME__.svg",
+			"collectionVersion": "8.2.0",
+			"size": [15, 15]
+		},
+		"map": {
+			"url": "https://api.iconify.design/map/__ICON_NAME__.svg",
+			"collectionVersion": "3.0.2",
+			"size": [25, 25]
+		},
+		"marketeq": {
+			"url": "https://api.iconify.design/marketeq/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [25, 25]
+		},
+		"material-icon-theme": {
+			"url": "https://api.iconify.design/material-icon-theme/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"material-symbols": {
+			"url": "https://api.iconify.design/material-symbols/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"material-symbols-light": {
+			"url": "https://api.iconify.design/material-symbols-light/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"mdi": {
+			"url": "https://api.iconify.design/mdi/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"mdi-light": {
+			"url": "https://api.iconify.design/mdi-light/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"medical-icon": {
+			"url": "https://api.iconify.design/medical-icon/__ICON_NAME__.svg",
+			"collectionVersion": "1.0.0"
+		},
+		"memory": {
+			"url": "https://api.iconify.design/memory/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [22, 22]
+		},
+		"meteocons": {
+			"url": "https://api.iconify.design/meteocons/__ICON_NAME__.svg",
+			"collectionVersion": "3.0.0",
+			"size": [32, 32]
+		},
+		"meteor-icons": {
+			"url": "https://api.iconify.design/meteor-icons/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"mi": {
+			"url": "https://api.iconify.design/mi/__ICON_NAME__.svg",
+			"collectionVersion": "1.3.1",
+			"size": [24, 24]
+		},
+		"mingcute": {
+			"url": "https://api.iconify.design/mingcute/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"mono-icons": {
+			"url": "https://api.iconify.design/mono-icons/__ICON_NAME__.svg",
+			"collectionVersion": "1.3.1",
+			"size": [24, 24]
+		},
+		"mynaui": {
+			"url": "https://api.iconify.design/mynaui/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"nimbus": {
+			"url": "https://api.iconify.design/nimbus/__ICON_NAME__.svg",
+			"collectionVersion": "0.3.2",
+			"size": [16, 16]
+		},
+		"nonicons": {
+			"url": "https://api.iconify.design/nonicons/__ICON_NAME__.svg",
+			"collectionVersion": "0.0.19",
+			"size": [16, 16]
+		},
+		"noto": {
+			"url": "https://api.iconify.design/noto/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [16, 16]
+		},
+		"noto-v1": {
+			"url": "https://api.iconify.design/noto-v1/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [16, 16]
+		},
+		"nrk": {
+			"url": "https://api.iconify.design/nrk/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"octicon": {
+			"url": "https://api.iconify.design/octicon/__ICON_NAME__.svg",
+			"collectionVersion": "19.24.1"
+		},
+		"oi": {
+			"url": "https://api.iconify.design/oi/__ICON_NAME__.svg",
+			"collectionVersion": "1.1.1",
+			"size": [8, 8]
+		},
+		"ooui": {
+			"url": "https://api.iconify.design/ooui/__ICON_NAME__.svg",
+			"collectionVersion": "0.53.1",
+			"size": [20, 20]
+		},
+		"openmoji": {
+			"url": "https://api.iconify.design/openmoji/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [36, 36]
+		},
+		"oui": {
+			"url": "https://api.iconify.design/oui/__ICON_NAME__.svg",
+			"collectionVersion": "2.0.0"
+		},
+		"pajamas": {
+			"url": "https://api.iconify.design/pajamas/__ICON_NAME__.svg",
+			"collectionVersion": "3.149.0"
+		},
+		"pepicons": {
+			"url": "https://api.iconify.design/pepicons/__ICON_NAME__.svg",
+			"collectionVersion": "1.2.7"
+		},
+		"pepicons-pencil": {
+			"url": "https://api.iconify.design/pepicons-pencil/__ICON_NAME__.svg",
+			"collectionVersion": "3.1.1"
+		},
+		"pepicons-pop": {
+			"url": "https://api.iconify.design/pepicons-pop/__ICON_NAME__.svg",
+			"collectionVersion": "3.1.1"
+		},
+		"pepicons-print": {
+			"url": "https://api.iconify.design/pepicons-print/__ICON_NAME__.svg",
+			"collectionVersion": "3.1.1"
+		},
+		"ph": {
+			"url": "https://api.iconify.design/ph/__ICON_NAME__.svg",
+			"collectionVersion": "2.1.1",
+			"size": [24, 24]
+		},
+		"picon": {
+			"url": "https://api.iconify.design/picon/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"pixel": {
+			"url": "https://api.iconify.design/pixel/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"pixelarticons": {
+			"url": "https://api.iconify.design/pixelarticons/__ICON_NAME__.svg",
+			"collectionVersion": "2.1.0",
+			"size": [24, 24]
+		},
+		"prime": {
+			"url": "https://api.iconify.design/prime/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"proicons": {
+			"url": "https://api.iconify.design/proicons/__ICON_NAME__.svg",
+			"collectionVersion": "4.13.3",
+			"size": [24, 24]
+		},
+		"ps": {
+			"url": "https://api.iconify.design/ps/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"qlementine-icons": {
+			"url": "https://api.iconify.design/qlementine-icons/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"quill": {
+			"url": "https://api.iconify.design/quill/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [32, 32]
+		},
+		"radix-icons": {
+			"url": "https://api.iconify.design/radix-icons/__ICON_NAME__.svg",
+			"collectionVersion": "1.3.2",
+			"size": [15, 15]
+		},
+		"raphael": {
+			"url": "https://api.iconify.design/raphael/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [32, 32]
+		},
+		"ri": {
+			"url": "https://api.iconify.design/ri/__ICON_NAME__.svg",
+			"collectionVersion": "4.8.0",
+			"size": [24, 24]
+		},
+		"rivet-icons": {
+			"url": "https://api.iconify.design/rivet-icons/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [16, 16]
+		},
+		"roentgen": {
+			"url": "https://api.iconify.design/roentgen/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [16, 16]
+		},
+		"si": {
+			"url": "https://api.iconify.design/si/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"si-glyph": {
+			"url": "https://api.iconify.design/si-glyph/__ICON_NAME__.svg",
+			"collectionVersion": "0.0.2"
+		},
+		"sidekickicons": {
+			"url": "https://api.iconify.design/sidekickicons/__ICON_NAME__.svg",
+			"collectionVersion": "0.15.0"
+		},
+		"simple-icons": {
+			"url": "https://api.iconify.design/simple-icons/__ICON_NAME__.svg",
+			"collectionVersion": "16.17.0",
+			"size": [24, 24]
+		},
+		"simple-line-icons": {
+			"url": "https://api.iconify.design/simple-line-icons/__ICON_NAME__.svg",
+			"collectionVersion": "2.5.5",
+			"size": [32, 32]
+		},
+		"skill-icons": {
+			"url": "https://api.iconify.design/skill-icons/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"solar": {
+			"url": "https://api.iconify.design/solar/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"stash": {
+			"url": "https://api.iconify.design/stash/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"streamline": {
+			"url": "https://api.iconify.design/streamline/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [28, 28]
+		},
+		"streamline-block": {
+			"url": "https://api.iconify.design/streamline-block/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [16, 16]
+		},
+		"streamline-color": {
+			"url": "https://api.iconify.design/streamline-color/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [28, 28]
+		},
+		"streamline-cyber": {
+			"url": "https://api.iconify.design/streamline-cyber/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"streamline-cyber-color": {
+			"url": "https://api.iconify.design/streamline-cyber-color/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"streamline-emojis": {
+			"url": "https://api.iconify.design/streamline-emojis/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"streamline-flex": {
+			"url": "https://api.iconify.design/streamline-flex/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [28, 28]
+		},
+		"streamline-flex-color": {
+			"url": "https://api.iconify.design/streamline-flex-color/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [28, 28]
+		},
+		"streamline-freehand": {
+			"url": "https://api.iconify.design/streamline-freehand/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"streamline-freehand-color": {
+			"url": "https://api.iconify.design/streamline-freehand-color/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"streamline-kameleon-color": {
+			"url": "https://api.iconify.design/streamline-kameleon-color/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"streamline-logos": {
+			"url": "https://api.iconify.design/streamline-logos/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"streamline-pixel": {
+			"url": "https://api.iconify.design/streamline-pixel/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [32, 32]
+		},
+		"streamline-plump": {
+			"url": "https://api.iconify.design/streamline-plump/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"streamline-plump-color": {
+			"url": "https://api.iconify.design/streamline-plump-color/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"streamline-sharp": {
+			"url": "https://api.iconify.design/streamline-sharp/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"streamline-sharp-color": {
+			"url": "https://api.iconify.design/streamline-sharp-color/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"streamline-stickies-color": {
+			"url": "https://api.iconify.design/streamline-stickies-color/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"streamline-ultimate": {
+			"url": "https://api.iconify.design/streamline-ultimate/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"streamline-ultimate-color": {
+			"url": "https://api.iconify.design/streamline-ultimate-color/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"subway": {
+			"url": "https://api.iconify.design/subway/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [16, 16]
+		},
+		"svg-spinners": {
+			"url": "https://api.iconify.design/svg-spinners/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"system-uicons": {
+			"url": "https://api.iconify.design/system-uicons/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [21, 21]
+		},
+		"tabler": {
+			"url": "https://api.iconify.design/tabler/__ICON_NAME__.svg",
+			"collectionVersion": "3.41.1",
+			"size": [24, 24]
+		},
+		"tdesign": {
+			"url": "https://api.iconify.design/tdesign/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"teenyicons": {
+			"url": "https://api.iconify.design/teenyicons/__ICON_NAME__.svg",
+			"collectionVersion": "0.4.1",
+			"size": [15, 15]
+		},
+		"temaki": {
+			"url": "https://api.iconify.design/temaki/__ICON_NAME__.svg",
+			"collectionVersion": "5.13.0"
+		},
+		"token": {
+			"url": "https://api.iconify.design/token/__ICON_NAME__.svg",
+			"collectionVersion": "4.0.51",
+			"size": [24, 24]
+		},
+		"token-branded": {
+			"url": "https://api.iconify.design/token-branded/__ICON_NAME__.svg",
+			"collectionVersion": "4.0.51",
+			"size": [24, 24]
+		},
+		"topcoat": {
+			"url": "https://api.iconify.design/topcoat/__ICON_NAME__.svg",
+			"collectionVersion": "0.2.0"
+		},
+		"twemoji": {
+			"url": "https://api.iconify.design/twemoji/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [36, 36]
+		},
+		"typcn": {
+			"url": "https://api.iconify.design/typcn/__ICON_NAME__.svg",
+			"collectionVersion": "2.1.2",
+			"size": [24, 24]
+		},
+		"uil": {
+			"url": "https://api.iconify.design/uil/__ICON_NAME__.svg",
+			"collectionVersion": "4.2.0",
+			"size": [24, 24]
+		},
+		"uim": {
+			"url": "https://api.iconify.design/uim/__ICON_NAME__.svg",
+			"collectionVersion": "4.2.0",
+			"size": [24, 24]
+		},
+		"uis": {
+			"url": "https://api.iconify.design/uis/__ICON_NAME__.svg",
+			"collectionVersion": "4.2.0",
+			"size": [24, 24]
+		},
+		"uit": {
+			"url": "https://api.iconify.design/uit/__ICON_NAME__.svg",
+			"collectionVersion": "4.2.0",
+			"size": [24, 24]
+		},
+		"uiw": {
+			"url": "https://api.iconify.design/uiw/__ICON_NAME__.svg",
+			"collectionVersion": "2.6.10",
+			"size": [20, 20]
+		},
+		"unjs": {
+			"url": "https://api.iconify.design/unjs/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [32, 32]
+		},
+		"vaadin": {
+			"url": "https://api.iconify.design/vaadin/__ICON_NAME__.svg",
+			"collectionVersion": "4.3.2",
+			"size": [32, 32]
+		},
+		"vs": {
+			"url": "https://api.iconify.design/vs/__ICON_NAME__.svg",
+			"collectionVersion": "5.11.2"
+		},
+		"vscode-icons": {
+			"url": "https://api.iconify.design/vscode-icons/__ICON_NAME__.svg",
+			"collectionVersion": "12.17.0",
+			"size": [32, 32]
+		},
+		"websymbol": {
+			"url": "https://api.iconify.design/websymbol/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"weui": {
+			"url": "https://api.iconify.design/weui/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"whh": {
+			"url": "https://api.iconify.design/whh/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"wi": {
+			"url": "https://api.iconify.design/wi/__ICON_NAME__.svg",
+			"collectionVersion": "2.0.12",
+			"size": [30, 30]
+		},
+		"wordpress": {
+			"url": "https://api.iconify.design/wordpress/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [24, 24]
+		},
+		"wpf": {
+			"url": "https://api.iconify.design/wpf/__ICON_NAME__.svg",
+			"collectionVersion": "latest",
+			"size": [26, 26]
+		},
+		"zmdi": {
+			"url": "https://api.iconify.design/zmdi/__ICON_NAME__.svg",
+			"collectionVersion": "latest"
+		},
+		"zondicons": {
+			"url": "https://api.iconify.design/zondicons/__ICON_NAME__.svg",
+			"collectionVersion": "0.1.0",
+			"size": [20, 20]
+		}
+	}
+}

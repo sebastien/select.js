@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select Icons — CDN + Catalog Sources</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/" } }
+	</script>
+	<style>
+		:root {
+			--panel-border: #d9dde6;
+			--panel-bg: #fff;
+			--page-bg: #f6f8fc;
+			--accent: #2e6df6;
+		}
+
+		body {
+			font-family: ui-sans-serif, system-ui, sans-serif;
+			padding: 20px;
+			max-width: 960px;
+			margin: 0 auto;
+			background: var(--page-bg);
+			color: #1b2130;
+		}
+
+		.layout {
+			display: grid;
+			gap: 16px;
+		}
+
+		.panel {
+			border: 1px solid var(--panel-border);
+			border-radius: 10px;
+			padding: 14px;
+			background: var(--panel-bg);
+		}
+
+		.controls {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+			gap: 8px;
+		}
+
+		label {
+			display: grid;
+			gap: 4px;
+			font-size: 0.95rem;
+		}
+
+		input,
+		select,
+		button {
+			padding: 8px 10px;
+			border: 1px solid #c9cfdd;
+			border-radius: 6px;
+			background: #fff;
+		}
+
+		button {
+			cursor: pointer;
+			background: #eef3ff;
+			border-color: #c7d7ff;
+		}
+
+		button:hover {
+			background: #e4ecff;
+		}
+
+		.showcase {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+			gap: 12px;
+		}
+
+		.preview {
+			display: grid;
+			gap: 8px;
+			border: 1px solid #e5e8f1;
+			border-radius: 8px;
+			padding: 10px;
+		}
+
+		.icon-row {
+			display: inline-flex;
+			align-items: center;
+			gap: 8px;
+			font-weight: 600;
+		}
+
+		.muted {
+			font-size: 0.9rem;
+			color: #55607a;
+		}
+
+		.swatches {
+			display: flex;
+			gap: 8px;
+			flex-wrap: wrap;
+		}
+
+		.swatches button {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Icons: CDN collections + JSON catalog</h1>
+	<p class="muted">This example demonstrates live icon updates powered by <code>ui(...)</code> and <code>cell(...)</code>, with both default CDN discovery and a local catalog.</p>
+
+	<div id="ui"></div>
+
+	<template id="App">
+		<div class="layout">
+			<section class="panel">
+				<h2>Controls (live)</h2>
+				<div class="controls">
+					<label>
+						Icon family (source)
+						<select out:value="source" on:change="setSource">
+							<option value="lucide">lucide</option>
+							<option value="tabler">tabler</option>
+							<option value="mdi">mdi</option>
+							<option value="material-symbols">material-symbols</option>
+						</select>
+					</label>
+					<label>
+						Icon name
+						<input inout="name" placeholder="home" />
+					</label>
+					<label>
+						Size
+						<select out:value="size" on:change="setSize">
+							<option value="1em">1em</option>
+							<option value="1.5em">1.5em</option>
+							<option value="2em">2em</option>
+							<option value="32px">32px</option>
+						</select>
+					</label>
+				</div>
+			</section>
+
+			<section class="panel showcase">
+				<article class="preview">
+					<h3>Programmatic <code>icon(...)</code></h3>
+					<div out="programmatic" class="icon-row"></div>
+					<div class="muted">Uses <code>icon(name, { source, size })</code>.</div>
+				</article>
+
+				<article class="preview">
+					<h3>Default catalog <code>&lt;ui-icon&gt;</code></h3>
+					<div class="icon-row">
+						<ui-icon out:icon="qualified" out:size="size"></ui-icon>
+						<span out="qualified"></span>
+					</div>
+					<div class="muted">No explicit <code>sources</code> passed. Collections are fetched from CDN.</div>
+				</article>
+
+				<article class="preview">
+					<h3>Local JSON catalog <code>&lt;ui-icon-local&gt;</code></h3>
+					<div class="icon-row">
+						<ui-icon-local out:icon="qualified" out:size="size"></ui-icon-local>
+						<span out="qualified"></span>
+					</div>
+					<div class="muted">Created with <code>install("ui-icon-local", { sources: ../src/js/select.icons.json })</code>. Catalog entries: <span out="catalogCount"></span>.</div>
+				</article>
+			</section>
+
+			<section class="panel">
+				<h2>Quick picks</h2>
+				<div class="swatches">
+					<button on:click="pickSparkles">lucide:sparkles</button>
+					<button on:click="pickAlien">tabler:alien</button>
+					<button on:click="pickAccount">mdi:account</button>
+					<button on:click="pickSchedule">material-symbols:schedule</button>
+				</div>
+			</section>
+		</div>
+	</template>
+
+	<script type="module">
+		import { cell, derived } from "@./select.cells.js"
+		import { icon, install } from "@./select.icons.js"
+		import ui from "@./select.ui.js"
+
+		install("ui-icon")
+		const catalog = await fetch("../src/js/select.icons.json").then((r) => r.json())
+		install("ui-icon-local", { sources: catalog })
+
+		const App = ui("#App").init(() => {
+			const source = cell("lucide")
+			const name = cell("home")
+			const size = cell("1.5em")
+			const qualified = derived([source, name], (src, iconName) => {
+				const normalized = `${iconName ?? ""}`.trim() || "home"
+				return `${src}:${normalized}`
+			})
+			const catalogCount = cell(catalog?.count || Object.keys(catalog?.sources || {}).length || 0)
+			return { source, name, size, qualified, catalogCount }
+		}).does({
+			source: (_self, { source }) => source.value,
+			name: (_self, { name }, event) =>
+				event ? name.set(event.target.value) : name.value,
+			size: (_self, { size }) => size.value,
+			setSource: (_self, { source }, event) => source.set(event.target.value),
+			setSize: (_self, { size }, event) => size.set(event.target.value),
+			qualified: (_self, { qualified }) => qualified.value,
+			catalogCount: (_self, { catalogCount }) => catalogCount.value,
+			programmatic: (_self, { source, size, qualified }) => {
+				const node = document.createElement("span")
+				node.className = "icon-row"
+				node.appendChild(icon(qualified.value.split(":")[1], {
+					source: source.value,
+					size: size.value,
+				}))
+				node.append(` ${qualified.value}`)
+				return node
+			},
+			pickSparkles: (_self, { source, name }) => {
+				source.set("lucide")
+				name.set("sparkles")
+			},
+			pickAlien: (_self, { source, name }) => {
+				source.set("tabler")
+				name.set("alien")
+			},
+			pickAccount: (_self, { source, name }) => {
+				source.set("mdi")
+				name.set("account")
+			},
+			pickSchedule: (_self, { source, name }) => {
+				source.set("material-symbols")
+				name.set("schedule")
+			},
+		})
+
+		App.new().mount("#ui")
+	</script>
+</body>
+
+</html>
