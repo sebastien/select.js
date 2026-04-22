@@ -34,6 +34,7 @@ You can learn more about each component:
 - **Select.js**: jQuery-like library ― [manual](docs/select.md)
 - **Select.ui.js**: UI component library  ― [manual](docs/ui.md) & [reference](docs/ref-ui.md)
 - **Select.cells.js**: Reactive state library ― [manual](docs/cells.md) & [reference](docs/ref-cells.md)
+- **Select.extra.js**: Agnostic utility helpers ― [manual](docs/extra.md) & [reference](docs/ref-extra.md)
 
 ## In a nutshell
 
@@ -80,15 +81,22 @@ $("#app").addClass("ready")
 - `cell(value?)`: mutable reactive cell.
 - `derived(template, processor?, initial?)`: derived reactive value.
 - `ui(selection, scope?)`: template component factory.
+- `webcomponent(name, componentFactory, initial?, options?)`: native custom element registration from Select UI or pure render functions.
 - `Dynamic(type, props?)`: dynamic component resolution by name/function.
 - `lazy(loader, placeholder?)`: lazy component loader.
 - `len`, `type`, `remap`: shared utility helpers from `select.ui.js`.
+- `clsx`, `bind`, `drag`, `autoresize`, `Keyboard`: agnostic helpers from `select.extra.js`.
 
 ### Modules
 
 - [`docs/select.md`](docs/select.md): `select.js` complete reference (original README split).
 - [`docs/ui.md`](docs/ui.md): `select.ui.js` usage and API guide.
 - [`docs/cells.md`](docs/cells.md): `select.cells.js` usage and API guide.
+- [`docs/extra.md`](docs/extra.md): `select.extra.js` usage and API guide.
+
+### Notable examples
+
+- [`examples/feature-webcomponent.html`](examples/feature-webcomponent.html): custom elements with `webcomponent(...)` for both Select UI templates and pure render functions.
 
 # Features
 
@@ -97,4 +105,3 @@ $("#app").addClass("ready")
 - *Template-driven UI*: declarative slot attributes with direct DOM updates.
 - *No build step required*: works in modern browsers with native ESM.
 - *Small and fast*: designed with explicit loops and low-overhead primitives.
-

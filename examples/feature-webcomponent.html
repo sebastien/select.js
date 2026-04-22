@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI — Web Components</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/" } }
+	</script>
+	<style>
+		body {
+			font-family: system-ui, sans-serif;
+			padding: 20px;
+			max-width: 840px;
+			margin: 0 auto;
+		}
+
+		.layout {
+			display: grid;
+			gap: 16px;
+		}
+
+		.panel {
+			border: 1px solid #ddd;
+			border-radius: 8px;
+			padding: 12px;
+			background: #fff;
+		}
+
+		.controls {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px;
+			margin-top: 10px;
+		}
+
+		button {
+			padding: 6px 10px;
+			border: 1px solid #bbb;
+			border-radius: 4px;
+			background: #f8f8f8;
+			cursor: pointer;
+		}
+
+		button:hover {
+			background: #f0f0f0;
+		}
+
+		x-ui-counter,
+		x-pure-badge {
+			display: block;
+			margin-top: 12px;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Web Components</h1>
+	<p>This example registers both a Select UI custom element and a pure render-function custom element using <code>webcomponent()</code>.</p>
+
+	<div class="layout">
+		<section class="panel">
+			<h2>Select UI component</h2>
+			<x-ui-counter id="counter" title="Web Counter" count="2"></x-ui-counter>
+			<div class="controls">
+				<button id="counter-dec">count -1 (attribute)</button>
+				<button id="counter-inc">count +1 (attribute)</button>
+				<button id="counter-title">toggle title</button>
+			</div>
+		</section>
+
+		<section class="panel">
+			<h2>Pure render function component</h2>
+			<x-pure-badge id="badge" label="Ready" tone="info"></x-pure-badge>
+			<div class="controls">
+				<button id="badge-tone">toggle tone</button>
+				<button id="badge-label">toggle label</button>
+			</div>
+		</section>
+	</div>
+
+	<script type="module">
+		import ui, { webcomponent } from "@./select.ui.js"
+
+		const Counter = ui(`
+			<section style="display:grid;gap:8px;padding:10px;border:1px solid #ccd5ff;border-radius:8px;background:#f7f9ff;">
+				<strong out="title">Counter</strong>
+				<div>
+					<button on:click="dec">-</button>
+					<span out="count" style="padding:0 8px;">0</span>
+					<button on:click="inc">+</button>
+				</div>
+			</section>
+		`).does({
+			title: (_self, { title }) => title,
+			count: (_self, { count }) => count ?? 0,
+			dec: (self, { count }) => self.update({ count: (count ?? 0) - 1 }),
+			inc: (self, { count }) => self.update({ count: (count ?? 0) + 1 }),
+		})
+
+		webcomponent("x-ui-counter", Counter, { title: "Counter", count: 0 })
+
+		const PureBadge = ({ label, tone }) => {
+			const root = document.createElement("div")
+			root.style.display = "inline-flex"
+			root.style.alignItems = "center"
+			root.style.gap = "8px"
+			root.style.padding = "8px 12px"
+			root.style.borderRadius = "999px"
+			root.style.border = "1px solid #d0d0d0"
+			root.style.background = tone === "warn" ? "#fff7e0" : "#e8f2ff"
+
+			const dot = document.createElement("span")
+			dot.style.width = "10px"
+			dot.style.height = "10px"
+			dot.style.borderRadius = "50%"
+			dot.style.background = tone === "warn" ? "#d97706" : "#2563eb"
+
+			const text = document.createElement("strong")
+			text.textContent = label ?? "Badge"
+
+			root.appendChild(dot)
+			root.appendChild(text)
+			return root
+		}
+
+		webcomponent("x-pure-badge", PureBadge, { label: "Ready", tone: "info" })
+
+		const counter = document.getElementById("counter")
+		document.getElementById("counter-dec").addEventListener("click", () => {
+			const count = Number(counter.getAttribute("count") || 0)
+			counter.setAttribute("count", `${count - 1}`)
+		})
+		document.getElementById("counter-inc").addEventListener("click", () => {
+			const count = Number(counter.getAttribute("count") || 0)
+			counter.setAttribute("count", `${count + 1}`)
+		})
+		document.getElementById("counter-title").addEventListener("click", () => {
+			const next = counter.getAttribute("title") === "Web Counter" ? "Counter via Attribute" : "Web Counter"
+			counter.setAttribute("title", next)
+		})
+
+		const badge = document.getElementById("badge")
+		document.getElementById("badge-tone").addEventListener("click", () => {
+			const next = badge.getAttribute("tone") === "warn" ? "info" : "warn"
+			badge.setAttribute("tone", next)
+		})
+		document.getElementById("badge-label").addEventListener("click", () => {
+			const next = badge.getAttribute("label") === "Ready" ? "Needs Attention" : "Ready"
+			badge.setAttribute("label", next)
+		})
+	</script>
+</body>
+
+</html>

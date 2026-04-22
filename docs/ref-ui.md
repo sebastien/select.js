@@ -177,6 +177,62 @@ Returns a component function with these methods:
 - `ui.register(name, component)`: Register a component in the global registry.
 - `ui.resolve(name)`: Resolve a component from the global registry.
 
+### Web Components
+
+Select UI can register native custom elements through `webcomponent(...)`.
+
+```javascript
+import ui, { webcomponent } from "./select.ui.js";
+
+const Counter = ui(`
+  <section>
+    <h3 out="title"></h3>
+    <button on:click="dec">-</button>
+    <strong out="count">0</strong>
+    <button on:click="inc">+</button>
+  </section>
+`).does({
+  title: (_self, { title }) => title,
+  count: (_self, { count }) => count ?? 0,
+  dec: (self, { count }) => self.update({ count: (count ?? 0) - 1 }),
+  inc: (self, { count }) => self.update({ count: (count ?? 0) + 1 }),
+});
+
+webcomponent("x-counter", Counter, { title: "Counter", count: 0 });
+```
+
+```html
+<x-counter title="From attribute" count="3"></x-counter>
+```
+
+`webcomponent` also accepts pure render functions:
+
+```javascript
+import { webcomponent } from "./select.ui.js";
+
+const Badge = ({ label, tone }) => {
+  const node = document.createElement("span");
+  node.textContent = label ?? "Badge";
+  node.style.padding = "0.2rem 0.5rem";
+  node.style.borderRadius = "999px";
+  node.style.background = tone === "warn" ? "#fff3cd" : "#e7f1ff";
+  return node;
+};
+
+webcomponent("x-badge", Badge, { label: "Ready", tone: "info" });
+```
+
+Web component API:
+
+- `webcomponent(name, componentFactory, initial?, options?)`: Registers a custom element class and returns it.
+- `componentFactory`: Select UI component (from `ui(...)`) or pure render function.
+- `initial`: Initial data and default observed attributes.
+- `options.shadow` (default `true`): Enables/disables shadow DOM mounting.
+- `options.shadowMode` (default `"open"`): Shadow root mode.
+- `options.attributes`: Explicit mapping from attribute names to data keys.
+- `options.observedAttributes`: Additional observed attribute names.
+- `UIWebComponent`: Base class used internally and exported for extension.
+
 ### Component Instance Methods
 
 - `set(data, key?)`: Replaces the instance data and triggers a re-render.

@@ -12,6 +12,8 @@ without a build step.
 - `ui(selection, scope?)`: Main entry point for creating templates.
 - `Dynamic(type, props?)`: Dynamic component resolution.
 - `lazy(loader, placeholder?)`: Lazy loading support.
+- `webcomponent(name, componentFactory, initial?, options?)`: Registers a custom element backed by Select UI or a pure render function.
+- `UIWebComponent`: Base class used by registered Select UI custom elements.
 - `ui.register(name, component)`: Component registration.
 - `ui.resolve(name)`: Component lookup.
 
@@ -75,6 +77,55 @@ Counter.new().set({ count: 1 }).mount("#app")
 </script>
 ```
 
+### Web Components
+
+`select.ui.js` can register native custom elements through `webcomponent(...)`.
+The component factory can be either:
+
+- a Select UI template (from `ui(...)`)
+- a pure render function returning `Node`, node lists, `Selection`, or text
+
+```javascript
+import ui, { webcomponent } from "@./select.ui.js"
+
+const Counter = ui(`
+  <section>
+    <h3 out="title">Counter</h3>
+    <button on:click="dec">-</button>
+    <strong out="count">0</strong>
+    <button on:click="inc">+</button>
+  </section>
+`).does({
+  title: (_self, { title }) => title,
+  count: (_self, { count }) => count ?? 0,
+  dec: (self, { count }) => self.update({ count: (count ?? 0) - 1 }),
+  inc: (self, { count }) => self.update({ count: (count ?? 0) + 1 }),
+})
+
+webcomponent("x-counter", Counter, { title: "Counter", count: 0 })
+```
+
+```html
+<x-counter title="Web Counter" count="3"></x-counter>
+```
+
+For a pure renderer:
+
+```javascript
+import { webcomponent } from "@./select.ui.js"
+
+const Badge = ({ label, tone }) => {
+  const node = document.createElement("span")
+  node.textContent = label ?? "Badge"
+  node.style.padding = "0.2rem 0.5rem"
+  node.style.borderRadius = "999px"
+  node.style.background = tone === "warn" ? "#fff3cd" : "#e7f1ff"
+  return node
+}
+
+webcomponent("x-badge", Badge, { label: "Ready", tone: "info" })
+```
+
 ### Extending
 
 UI is designed for composition: create reusable templates, register them for
@@ -98,6 +149,8 @@ Dynamic("Badge", { label: "Ready" })
 - `ui(selection, scope?)`: Creates a template component from a CSS selector, HTML string, DOM node, or node array. Returns a callable template function enhanced with component builder methods.
 - `Dynamic(type, props?)`: Resolves a registered component by name (or uses the function directly) and applies `props`.
 - `lazy(loader, placeholder?)`: Creates a lazy component resolver that returns `placeholder` until `loader` resolves.
+- `webcomponent(name, componentFactory, initial?, options?)`: Registers a custom element using either a Select UI template component or a pure render function.
+- `UIWebComponent`: Exported base class for Select UI-backed custom elements.
 - `ui.register(name, component)`: Registers a component in the dynamic registry.
 - `ui.resolve(name)`: Resolves a component from the dynamic registry by name.
 

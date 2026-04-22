@@ -424,6 +424,204 @@ function derived(template, processor, initial) {
 var walk = Reactive.Walk;
 var expand = Reactive.Expand;
 var select_cells_default = Object.assign(cell, { deferred, derived, walk, expand });
+// src/js/select.extra.js
+function* iclsx(...args) {
+  for (const value of args) {
+    if (!value) {
+      continue;
+    }
+    switch (value?.constructor) {
+      case Array:
+        yield* iclsx(...value);
+        break;
+      case Object:
+        for (const key in value) {
+          const token = key.trim();
+          if (value[key] && token) {
+            yield token;
+          }
+        }
+        break;
+      case String:
+        {
+          const token = value.trim();
+          if (token.length) {
+            yield token;
+          }
+        }
+        break;
+      case Number:
+        yield `${value}`;
+        break;
+      case Boolean:
+        break;
+    }
+  }
+}
+var clsx = (...args) => {
+  return [...iclsx(...args)].join(" ");
+};
+var bind = (node, handlers) => {
+  if (handlers) {
+    for (const [name, handler] of Object.entries(handlers)) {
+      for (const target of Array.isArray(node) ? node : [node]) {
+        target.addEventListener(name, handler);
+      }
+    }
+  }
+  return node;
+};
+var unbind = (node, handlers) => {
+  if (handlers) {
+    for (const [name, handler] of Object.entries(handlers)) {
+      for (const target of Array.isArray(node) ? node : [node]) {
+        target.removeEventListener(name, handler);
+      }
+    }
+  }
+  return node;
+};
+var drag = (event, move, end) => {
+  const context = {};
+  const dragging = {
+    node: event.target,
+    ox: event.pageX,
+    oy: event.pageY,
+    pointerEvents: event.target.style.pointerEvents,
+    userSelect: event.target.style.userSelect,
+    context,
+    isFirst: true,
+    isLast: false,
+    step: 0,
+    dx: 0,
+    dy: 0
+  };
+  const data = Object.create(dragging);
+  const scope = globalThis.window;
+  const onEnd = (event2) => {
+    const mouseEvent = event2;
+    dragging.node.style.pointerEvents = dragging.pointerEvents;
+    dragging.node.style.userSelect = dragging.userSelect;
+    unbind(scope, handlers);
+    data.dx = mouseEvent.pageX - dragging.ox;
+    data.dy = mouseEvent.pageY - dragging.oy;
+    data.isLast = true;
+    end?.(mouseEvent, data);
+  };
+  const handlers = {
+    mousemove: (event2) => {
+      const mouseEvent = event2;
+      data.dx = mouseEvent.pageX - dragging.ox;
+      data.dy = mouseEvent.pageY - dragging.oy;
+      data.isFirst = dragging.step === 0;
+      dragging.step += 1;
+      const result = move?.(mouseEvent, data);
+      switch (result) {
+        case null:
+          event2.preventDefault();
+          event2.stopPropagation();
+          break;
+        case false:
+          doEnd();
+      }
+    },
+    mouseup: onEnd,
+    mouseleave: onEnd
+  };
+  event.target.style.userSelect = "none";
+  const doEnd = () => unbind(scope, handlers);
+  bind(scope, handlers);
+  return doEnd;
+};
+var target = (node, predicate) => {
+  while (node && node.nodeType === Node.ELEMENT_NODE) {
+    if (predicate(node)) {
+      return node;
+    }
+    node = node.parentNode;
+  }
+  return;
+};
+var dragtarget = (node, name) => {
+  while (node && node.nodeType === Node.ELEMENT_NODE) {
+    const element = node;
+    if (!name && element.hasAttribute("data-drag")) {
+      return element;
+    }
+    if (name && element.getAttribute("data-drag") === name) {
+      return element;
+    }
+    node = element.parentNode;
+  }
+  return node?.nodeType === Node.ELEMENT_NODE ? node : undefined;
+};
+drag.target = dragtarget;
+var autoresize = (event) => {
+  const node = event.target;
+  node.style.height = "auto";
+  const style = globalThis.window.getComputedStyle(node);
+  const border = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+  node.style.height = `${border + node.scrollHeight}px`;
+};
+var Keyboard = {
+  Down: "keydown",
+  Up: "keyup",
+  Press: "press",
+  Codes: {
+    SPACE: 32,
+    TAB: 9,
+    ENTER: 13,
+    COMMA: 188,
+    COLON: 186,
+    BACKSPACE: 8,
+    INSERT: 45,
+    DELETE: 46,
+    ESC: 27,
+    UP: 38,
+    DOWN: 40,
+    LEFT: 37,
+    RIGHT: 39,
+    PAGE_UP: 33,
+    PAGE_DOWN: 34,
+    HOME: 36,
+    END: 35,
+    SHIFT: 16,
+    ALT: 18,
+    CTRL: 17,
+    META_L: 91,
+    META_R: 92
+  },
+  Key(event) {
+    return event ? event.key ?? event.keyIdentifier ?? null : null;
+  },
+  Code(event) {
+    return event ? event.keyCode ?? null : null;
+  },
+  Char(event) {
+    const key = Keyboard.Key(event);
+    return !key ? null : key.length === 1 ? key : key === "Enter" ? `
+` : null;
+  },
+  IsControl(event) {
+    const key = Keyboard.Key(event);
+    return !!(key && key.length > 1);
+  },
+  HasModifier(event) {
+    return !!(event && (event.altKey || event.ctrlKey));
+  }
+};
+var extra = Object.freeze({
+  autoresize,
+  bind,
+  clsx,
+  drag,
+  dragtarget,
+  iclsx,
+  Keyboard,
+  target,
+  unbind
+});
+var select_extra_default = extra;
 // src/js/select.js
 var _match = Element.prototype.matches ? 1 : Element.prototype.mozMatchesSelector ? 2 : Element.prototype.webkitMatchesSelector ? 3 : null;
 var logSelect = (level, scope, message, details = {}) => {
@@ -1888,9 +2086,9 @@ var _createTrackingProxy = (data) => {
   const accessed = new Set;
   return [
     new Proxy(data, {
-      get(target, property) {
+      get(target2, property) {
         accessed.add(property);
-        return target[property];
+        return target2[property];
       }
     }),
     accessed
@@ -2952,7 +3150,7 @@ class UIInstance {
       }
     }
   }
-  _bindEvent(name, target, handler = this.template.behavior?.[name]) {
+  _bindEvent(name, target2, handler = this.template.behavior?.[name]) {
     if (handler) {
       const listener = (event) => {
         const result = handler(this, this.data || {}, event);
@@ -2965,17 +3163,17 @@ class UIInstance {
           }
         }
       };
-      target.node.addEventListener(target.eventType, listener);
+      target2.node.addEventListener(target2.eventType, listener);
       this._domListeners.push({
-        node: target.node,
-        type: target.eventType,
+        node: target2.node,
+        type: target2.eventType,
         handler: listener
       });
     }
   }
-  _bindInput(name, target, handler = this.template.behavior?.[name]) {
+  _bindInput(name, target2, handler = this.template.behavior?.[name]) {
     let event;
-    switch (target.node.nodeName) {
+    switch (target2.node.nodeName) {
       case "INPUT":
       case "TEXTAREA":
       case "SELECT":
@@ -3006,9 +3204,9 @@ class UIInstance {
         slotValue.set(event2?.target?.value);
       }
     };
-    target.node.addEventListener(event, listener);
+    target2.node.addEventListener(event, listener);
     this._domListeners.push({
-      node: target.node,
+      node: target2.node,
       type: event,
       handler: listener
     });
@@ -3297,6 +3495,242 @@ var lazy = (loader, placeholder = null) => {
     return tmpl ? tmpl(data) : placeholder;
   };
 };
+var Disconnect = Symbol.for("Disconnect");
+var Adopted = Symbol.for("Adopted");
+var BaseHTMLElement = globalThis.HTMLElement || class {
+};
+var _wcToKebabCase = (value) => value.replace(/([a-z0-9])([A-Z])/g, "$1-$2").replace(/[_\s]+/g, "-").toLowerCase();
+var _wcToCamelCase = (value) => value.toLowerCase().replace(/-([a-z0-9])/g, (_, letter) => letter.toUpperCase());
+var _wcParseAttributeValue = (value) => {
+  if (value === null) {
+    return null;
+  }
+  if (value === "true") {
+    return true;
+  }
+  if (value === "false") {
+    return false;
+  }
+  if (value !== "" && !Number.isNaN(Number(value))) {
+    return Number(value);
+  }
+  return value;
+};
+var _wcCreateAttributeBindings = (initial, options) => {
+  const bindings = new Map;
+  const addBinding = (attribute, key) => {
+    if (!attribute || !key) {
+      return;
+    }
+    const attr = `${attribute}`.toLowerCase();
+    bindings.set(attr, key);
+  };
+  if (initial && typeof initial === "object") {
+    for (const key in initial) {
+      addBinding(key, key);
+      addBinding(_wcToKebabCase(key), key);
+    }
+  }
+  if (isPlainObject(options?.attributes)) {
+    for (const attribute in options.attributes) {
+      addBinding(attribute, options.attributes[attribute]);
+    }
+  }
+  if (Array.isArray(options?.observedAttributes)) {
+    for (const attribute of options.observedAttributes) {
+      if (typeof attribute !== "string") {
+        continue;
+      }
+      const key = _wcToCamelCase(attribute);
+      addBinding(attribute, key);
+    }
+  }
+  return bindings;
+};
+var _wcCollectObservedAttributes = (initial, bindings, options) => {
+  const attributes = new Set;
+  if (initial && typeof initial === "object") {
+    for (const key in initial) {
+      attributes.add(`${key}`.toLowerCase());
+      attributes.add(_wcToKebabCase(key));
+    }
+  }
+  for (const key of bindings.keys()) {
+    attributes.add(key);
+  }
+  if (Array.isArray(options?.observedAttributes)) {
+    for (const attribute of options.observedAttributes) {
+      if (typeof attribute === "string") {
+        attributes.add(attribute.toLowerCase());
+      }
+    }
+  }
+  return [...attributes];
+};
+var _wcAsNodes = (value, nodes = []) => {
+  if (value === undefined || value === null || value === false) {
+    return nodes;
+  }
+  if (value instanceof Node) {
+    nodes.push(value);
+    return nodes;
+  }
+  if (value instanceof NodeList || value instanceof HTMLCollection || value && typeof value === "object" && typeof value.length === "number" && value.length >= 0 && value.length % 1 === 0) {
+    for (let i = 0;i < value.length; i++) {
+      _wcAsNodes(value[i], nodes);
+    }
+    return nodes;
+  }
+  if (Array.isArray(value)) {
+    for (let i = 0;i < value.length; i++) {
+      _wcAsNodes(value[i], nodes);
+    }
+    return nodes;
+  }
+  nodes.push(document.createTextNode(asText(value)));
+  return nodes;
+};
+
+class UIWebComponent extends BaseHTMLElement {
+  constructor(componentFactory, initial = {}, attributeBindings = new Map, options = {}) {
+    super();
+    const useShadow = options.shadow !== false;
+    const shadowMode = options.shadowMode || "open";
+    this.root = useShadow && typeof this.attachShadow === "function" ? this.shadowRoot || this.attachShadow({ mode: shadowMode }) : this;
+    this.componentFactory = componentFactory;
+    this.attributeBindings = attributeBindings;
+    this.options = options;
+    this.instance = undefined;
+    this.nodes = [];
+    this.isInitialized = false;
+    this.data = {
+      ...initial && typeof initial === "object" ? initial : {}
+    };
+  }
+  readAttributes() {
+    const data = {};
+    for (const attribute of this.attributes) {
+      const name = attribute.name.toLowerCase();
+      const key = this.attributeBindings.get(name) || _wcToCamelCase(name);
+      data[key] = _wcParseAttributeValue(attribute.value);
+    }
+    return data;
+  }
+  _clearPureNodes() {
+    if (!this.nodes || this.nodes.length === 0) {
+      return;
+    }
+    for (let i = 0;i < this.nodes.length; i++) {
+      this.nodes[i].parentNode?.removeChild(this.nodes[i]);
+    }
+    this.nodes = [];
+  }
+  _renderUIComponent() {
+    if (!this.instance) {
+      this.instance = this.componentFactory.new();
+      this.instance.set(this.data).mount(this.root);
+    } else {
+      this.instance.update(this.data);
+    }
+  }
+  _renderPureComponent() {
+    if (this.instance) {
+      this.instance.unmount();
+      this.instance = undefined;
+    }
+    this._clearPureNodes();
+    const output = this.componentFactory(this.data, this);
+    const nodes = _wcAsNodes(output);
+    for (let i = 0;i < nodes.length; i++) {
+      this.root.appendChild(nodes[i]);
+    }
+    this.nodes = nodes;
+  }
+  render() {
+    if (this.componentFactory?.isTemplate && this.componentFactory?.new) {
+      this._renderUIComponent();
+    } else if (typeof this.componentFactory === "function") {
+      this._renderPureComponent();
+    } else {
+      logSelectUI("error", "UIWebComponent", "invalid component factory", {
+        componentFactory: this.componentFactory,
+        host: this
+      });
+    }
+  }
+  applyData(data) {
+    if (!data || typeof data !== "object") {
+      return;
+    }
+    this.data = Object.assign({}, this.data, data);
+    if (this.isInitialized) {
+      this.render();
+    }
+  }
+  connectedCallback() {
+    if (!this.isInitialized) {
+      this.applyData(this.readAttributes());
+      this.isInitialized = true;
+      this.render();
+      return;
+    }
+    this.applyData(this.readAttributes());
+  }
+  disconnectedCallback() {
+    this.trigger(Disconnect);
+    if (this.instance) {
+      this.instance.unmount();
+      this.instance = undefined;
+    }
+    this._clearPureNodes();
+    this.isInitialized = false;
+  }
+  adoptedCallback() {
+    this.trigger(Adopted);
+  }
+  attributeChangedCallback(name, previous, current) {
+    if (previous === current) {
+      return;
+    }
+    const normalized = `${name}`.toLowerCase();
+    const key = this.attributeBindings.get(normalized) || _wcToCamelCase(normalized);
+    this.applyData({ [key]: _wcParseAttributeValue(current) });
+    this.trigger(name, previous, current);
+  }
+  trigger(name, previous, current) {
+    if (typeof name === "symbol") {
+      return;
+    }
+    this.dispatchEvent(new CustomEvent(`wc:${name}`, {
+      detail: {
+        name,
+        previous,
+        current
+      }
+    }));
+  }
+}
+var webcomponent = (name, componentFactory, initial = undefined, options = undefined) => {
+  const registry = globalThis.customElements;
+  if (!registry) {
+    return null;
+  }
+  const existing = registry.get(name);
+  if (existing) {
+    return existing;
+  }
+  const initialData = initial && typeof initial === "object" ? { ...initial } : {};
+  const attributeBindings = _wcCreateAttributeBindings(initialData, options);
+  const observedAttributes = _wcCollectObservedAttributes(initialData, attributeBindings, options);
+  const WebComponent = class extends UIWebComponent {
+    static observedAttributes = observedAttributes;
+    constructor() {
+      super(componentFactory, initialData, attributeBindings, options || {});
+    }
+  };
+  registry.define(name, WebComponent);
+  return WebComponent;
+};
 var ui = (selection, scope = document) => {
   if (selection === null || selection === undefined) {
     throw new Error(`ui() received ${selection === null ? "null" : "undefined"} as selection. ` + `Expected a CSS selector string, an HTML string starting with "<", ` + `a DOM Node, or an array of DOM Nodes. ` + `Example: ui("#container") or ui("<div>Hello</div>")`);
@@ -3348,22 +3782,33 @@ ui.register = (name, component) => {
 ui.resolve = (name) => _registry.get(name);
 var select_ui_default = ui;
 export {
+  webcomponent,
   walk,
+  unbind,
   select_ui_default as ui,
   type,
+  target,
   select_default as select,
   remap,
   query,
   match,
   len,
   lazy,
+  iclsx,
   filter,
+  select_extra_default as extra,
   expand,
+  dragtarget,
+  drag,
   derived,
   deferred,
+  clsx,
   select_cells_default as cell,
+  bind,
+  autoresize,
   assign,
   access,
+  UIWebComponent,
   UITemplateSlot,
   UITemplate,
   UISlot,
@@ -3378,10 +3823,13 @@ export {
   Selected,
   S,
   Reactive,
+  Keyboard,
   Dynamic,
+  Disconnect,
   Derivation,
   Deferred,
   Cell,
   AppliedUITemplate,
+  Adopted,
   $
 };
