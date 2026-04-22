@@ -176,6 +176,10 @@ Returns a component function with these methods:
 - `apply(data)`: Create an applied template for composition (same result as calling the component as a function).
 - `ui.register(name, component)`: Register a component in the global registry.
 - `ui.resolve(name)`: Resolve a component from the global registry.
+- `ui.formats`: Global formatter/processor registry for `out` and `when` pipelines.
+- `ui.format(name, formatter)`: Register a formatter in `ui.formats`.
+- `ui.unformat(name)`: Remove a formatter from `ui.formats`.
+- `ui.resolveFormat(name)`: Resolve a formatter from `ui.formats`.
 
 ### Web Components
 
@@ -251,11 +255,12 @@ Web component API:
 ### Slot Attributes
 
 - `out`: Binds a slot's content to a data value (output).
+- `out` processors: `out="slot|Formatter|Formatter"` transforms slot values through named processors.
 - `out:<attr>`: Binds a specific DOM attribute to a data value (e.g., `out:class`, `out:style`, `out:disabled`).
 - `in`: Binds a slot's input (e.g., value of an `<input>`) to instance data.
 - `inout`: Two-way binding between slot and instance data.
 - `on:<event>`: Binds a DOM event to an instance method or behavior handler.
-- `when`: Conditional rendering with expression or shorthand predicates.
+- `when`: Conditional rendering with shorthand predicates (no expression eval).
 - `ref`: Provides a reference to the DOM node in the instance's `self.ref`.
 - `slot`: Defines a named slot for content injection.
 
@@ -352,6 +357,27 @@ Render data to the DOM. Content can be text, HTML, or nested components.
 })
 ```
 
+`out` also supports processors with pipe syntax:
+
+```html
+<li out="client|ClientItem"></li>
+```
+
+Processors are looked up by name in `ui.formats`.
+
+Naming convention:
+
+- `PascalCase` names are component formatters (for example `ClientItem`)
+- `camelCase`/`lowercase` names are regular formatter functions (for example `asCurrency`)
+
+```javascript
+ui.format("ClientItem", ClientItem)
+ui.format("asCurrency", (value) => `$${Number(value ?? 0).toFixed(2)}`)
+```
+
+When a processor resolves to a UI component/template, the value is applied to it
+and rendered as child content.
+
 ### Input Slots (`in`)
 
 Capture user input. The handler receives the DOM event.
@@ -421,7 +447,7 @@ Bind event handlers with explicit event types using `on:<event>="handlerName"`.
 
 ### Conditional Slots (`when`)
 
-Show/hide elements with either slot shorthand predicates or full expressions.
+Show/hide elements with slot shorthand predicates.
 
 Shorthand forms:
 
@@ -429,6 +455,13 @@ Shorthand forms:
 - `!slot` (falsy)
 - `?slot` (defined, including `null`)
 - `!?slot` (undefined)
+
+Processor forms are also supported:
+
+- `slot|Formatter`
+- `?slot|FormatterA|FormatterB`
+
+Processor resolution uses the same `ui.formats` registry as `out`.
 
 Key inference from `out` on the same element:
 
@@ -440,15 +473,12 @@ Key inference from `out` on the same element:
 If key inference is requested but no `out` slot exists, `when` stays as a
 regular HTML attribute and an error is logged.
 
-For full expressions, `when` still evaluates JavaScript with access to `self`,
-`data`, and `event`.
-
 ```html
-<div when="data.editing">
+<div when="editing">
   <input in="editValue" />
   <button on:click="save">Save</button>
 </div>
-<div when="!data.editing">
+<div when="!editing">
   <span out="value"></span>
   <button on:click="edit">Edit</button>
 </div>
@@ -460,7 +490,13 @@ For full expressions, `when` still evaluates JavaScript with access to `self`,
 <div when="?" out="value">
   Visible when `value` is defined
 </div>
+
+<div when="status|isVisible" out="status">
+  Visible when processed `status` value is truthy
+</div>
 ```
+
+Security note: `when` does not evaluate arbitrary JavaScript expressions.
 
 ### Reference Slots (`ref`)
 
@@ -719,11 +755,11 @@ const FilteredList = ui(`
 
 ```html
 <template id="EditableItem">
-  <div when="!data.editing">
+  <div when="!editing">
     <span out="value"></span>
     <button on:click="edit">Edit</button>
   </div>
-  <div when="data.editing">
+  <div when="editing">
     <input inout="editValue" />
     <button on:click="save">Save</button>
     <button on:click="cancel">Cancel</button>

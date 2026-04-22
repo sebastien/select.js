@@ -7,6 +7,8 @@ binds data and behavior directly to DOM templates using lightweight slot
 attributes (`out`, `in`, `inout`, `on:<event>`, `when`, `ref`, `out:<attr>`),
 without a build step.
 
+For icon loading and `<ui-icon>` usage, see [`docs/icons.md`](./icons.md).
+
 ### Template creation:
 
 - `ui(selection, scope?)`: Main entry point for creating templates.
@@ -16,6 +18,10 @@ without a build step.
 - `UIWebComponent`: Base class used by registered Select UI custom elements.
 - `ui.register(name, component)`: Component registration.
 - `ui.resolve(name)`: Component lookup.
+- `ui.formats`: Global formatter/processor registry used by `out` and `when` pipelines.
+- `ui.format(name, formatter)`: Registers a formatter in `ui.formats`.
+- `ui.unformat(name)`: Removes a formatter from `ui.formats`.
+- `ui.resolveFormat(name)`: Looks up a formatter in `ui.formats`.
 
 ### Template utilities:
 
@@ -153,6 +159,10 @@ Dynamic("Badge", { label: "Ready" })
 - `UIWebComponent`: Exported base class for Select UI-backed custom elements.
 - `ui.register(name, component)`: Registers a component in the dynamic registry.
 - `ui.resolve(name)`: Resolves a component from the dynamic registry by name.
+- `ui.formats`: Global formatter/processor registry used by `out="slot|..."` and `when="...|..."`.
+- `ui.format(name, formatter)`: Registers `formatter` in `ui.formats`.
+- `ui.unformat(name)`: Removes a formatter from `ui.formats`.
+- `ui.resolveFormat(name)`: Resolves a formatter from `ui.formats` by name.
 
 ### Template utilities:
 
@@ -187,15 +197,38 @@ Dynamic("Badge", { label: "Ready" })
 ### Slot attributes:
 
 - `out`: Binds a slot's content to a data value (output).
+- `out` with processors: `out="slot|Formatter|Formatter"` pipes the slot value through processors.
 - `in`: Binds a slot's input (e.g., value of an `<input>`) to instance data.
 - `inout`: Two-way binding between slot and instance data.
 - `on:<event>`: Binds a DOM event to an instance method or behavior handler.
-- `when`: Conditional rendering with expression or shorthand predicate syntax.
+- `when`: Conditional rendering with shorthand predicates (safe, non-eval).
 - `ref`: Provides a reference to the DOM node in the instance's `self.ref`.
 - `out:<attr>`: Binds a specific DOM attribute to a data value.
 - `slot`: Defines a named slot for content injection.
 
-### `when` shorthand and inference
+### `out` processors and `when` shorthand
+
+`out` accepts processor pipelines:
+
+- `out="slot"`: render slot value directly
+- `out="slot|Formatter"`: pass `slot` through one processor
+- `out="slot|FormatterA|FormatterB"`: chain processors left-to-right
+
+Processor lookup is global via `ui.formats`.
+
+Naming convention:
+
+1. `PascalCase` names are for component formatters (for example `ClientItem`)
+2. `camelCase`/`lowercase` names are for function formatters (for example `asCurrency`)
+
+Registering processors:
+
+```javascript
+ui.format("ClientItem", ClientItem)
+ui.format("asCurrency", (value) => `$${Number(value ?? 0).toFixed(2)}`)
+```
+
+When a processor resolves to a UI component/template, it is applied to the current value and rendered as child content (`out="client|ClientItem"`).
 
 `when` accepts shorthand slot predicates:
 
@@ -203,6 +236,13 @@ Dynamic("Badge", { label: "Ready" })
 - `when="!slot"`: show when `slot` is falsy
 - `when="?slot"`: show when `slot !== undefined`
 - `when="!?slot"`: show when `slot === undefined`
+
+`when` also accepts processor pipelines:
+
+- `when="slot|Formatter"`
+- `when="?slot|FormatterA|FormatterB"`
+
+`when` uses the same `ui.formats` registry as `out`.
 
 If the key is omitted, it is inferred from `out` on the same element:
 
@@ -213,3 +253,5 @@ If the key is omitted, it is inferred from `out` on the same element:
 
 If key inference is requested but no `out` slot is available, `when` is left as a
 regular HTML attribute and an error is logged.
+
+Security note: `when` does not evaluate arbitrary JavaScript expressions.

@@ -1898,6 +1898,33 @@ var WHEN_MODE_TRUTHY = 1;
 var WHEN_MODE_FALSY = 2;
 var WHEN_MODE_DEFINED = 3;
 var WHEN_MODE_UNDEFINED = 4;
+var _parsePipedBinding = (expr, validateSource = false) => {
+  const source = typeof expr === "string" ? expr.trim() : "";
+  if (!source) {
+    return null;
+  }
+  const parts = source.split("|");
+  for (let i = 0;i < parts.length; i++) {
+    parts[i] = parts[i].trim();
+    if (!parts[i]) {
+      return null;
+    }
+  }
+  const sourceKey = parts[0];
+  if (!sourceKey) {
+    return null;
+  }
+  if (validateSource && !/^[A-Za-z0-9_$-]+$/.test(sourceKey)) {
+    return null;
+  }
+  const processors = parts.length > 1 ? parts.slice(1) : [];
+  for (let i = 0;i < processors.length; i++) {
+    if (/\s/.test(processors[i])) {
+      return null;
+    }
+  }
+  return { sourceKey, processors };
+};
 var _parseWhenShorthand = (expr) => {
   const source = typeof expr === "string" ? expr.trim() : "";
   let i = 0;
@@ -1911,15 +1938,22 @@ var _parseWhenShorthand = (expr) => {
     queryDefined = true;
     i++;
   }
-  const key = source.slice(i).trim();
-  if (key && !/^[A-Za-z0-9_$-]+$/.test(key)) {
-    return null;
+  const bindingExpr = source.slice(i).trim();
+  let key = undefined;
+  let processors = [];
+  if (bindingExpr) {
+    const binding = _parsePipedBinding(bindingExpr, true);
+    if (!binding) {
+      return null;
+    }
+    key = binding.sourceKey;
+    processors = binding.processors;
   }
-  if (!key && source.length > 0 && i === 0) {
+  if (!bindingExpr && source.length > 0 && i === 0) {
     return null;
   }
   const mode = queryDefined ? negate ? WHEN_MODE_UNDEFINED : WHEN_MODE_DEFINED : negate ? WHEN_MODE_FALSY : WHEN_MODE_TRUTHY;
-  return { key: key || undefined, mode };
+  return { key, processors, mode };
 };
 var _evaluateWhen = (mode, value) => {
   switch (mode) {
@@ -1946,7 +1980,74 @@ var _resolveWhenValue = (self, data, key) => {
   }
   return;
 };
-var _createWhenPredicate = (mode, key) => (self, data) => _evaluateWhen(mode, _resolveWhenValue(self, data, key));
+var _resolveNamedProcessor = (self, name) => {
+  if (!self?.template || !name) {
+    return null;
+  }
+  const template = self.template;
+  if (!template._processorCache) {
+    template._processorCache = new Map;
+  }
+  if (template._processorCache.has(name)) {
+    return template._processorCache.get(name);
+  }
+  let resolved = null;
+  const behaviorProcessor = template.behavior?.[name];
+  if (behaviorProcessor) {
+    resolved = { type: "behavior", value: behaviorProcessor };
+  } else {
+    const registeredProcessor = ui.resolve(name);
+    if (registeredProcessor) {
+      resolved = { type: "component", value: registeredProcessor };
+    } else {
+      const scope = template.scope || document;
+      const registry = _templateRegistryFor(scope);
+      const templateNode = registry.get(_templateKey(name));
+      if (templateNode) {
+        const nodes = [];
+        for (const child of templateNode.content.childNodes) {
+          nodes.push(child.cloneNode(true));
+        }
+        resolved = {
+          type: "component",
+          value: _createComponent(new UITemplate(nodes, scope))
+        };
+      }
+    }
+  }
+  template._processorCache.set(name, resolved);
+  return resolved;
+};
+var _applyNamedProcessors = (self, data, value, processors, sourceKey) => {
+  if (!processors || processors.length === 0) {
+    return value;
+  }
+  let current = value;
+  for (let i = 0;i < processors.length; i++) {
+    const name = processors[i];
+    const processor = _resolveNamedProcessor(self, name);
+    if (!processor) {
+      logSelectUI("warn", "UIInstance.render", "processor not found", { processor: name, sourceKey, instance: self });
+      continue;
+    }
+    if (processor.type === "behavior") {
+      current = processor.value(self, data, current, sourceKey, name);
+    } else {
+      const component = processor.value;
+      if (typeof component?.apply === "function" && component?.isTemplate) {
+        current = component(current);
+      } else if (typeof component === "function") {
+        current = component(current, self, data);
+      }
+    }
+  }
+  return current;
+};
+var _createWhenPredicate = (mode, key, processors = undefined) => (self, data) => {
+  const value = _resolveWhenValue(self, data, key);
+  const resolved = _applyNamedProcessors(self, data, value, processors, key);
+  return _evaluateWhen(mode, resolved);
+};
 var SLOT_DEFAULT_KEY = "_";
 var _isPrunableWhitespaceText = (node) => node && node.nodeType === Node.TEXT_NODE && !/\S/.test(node.data) && /[\n\r\t]/.test(node.data);
 var _pruneTemplateWhitespace = (node) => {
@@ -2131,6 +2232,19 @@ class UITemplateSlot {
       const k = node.getAttribute(name);
       node.removeAttribute(name);
       let v = new UITemplateSlot(node, parent, UITemplateSlot.Path(node, parent, [i]));
+      if (name === "out") {
+        const parsed = _parsePipedBinding(k);
+        if (!parsed) {
+          logSelectUI("warn", "UITemplate", "invalid [out] binding", {
+            binding: k,
+            node,
+            example: 'out="slot|Formatter|Formatter"'
+          });
+          v.binding = { sourceKey: `${k || ""}`.trim(), processors: [] };
+        } else {
+          v.binding = parsed;
+        }
+      }
       v = processor ? processor(v, k) : v;
       if (res[k] === undefined) {
         res[k] = [v];
@@ -2163,6 +2277,7 @@ class UITemplateSlot {
       const slot = new UITemplateSlot(node, parent, UITemplateSlot.Path(node, parent, [i]));
       if (parsed) {
         let whenKey = parsed.key;
+        let whenProcessors = parsed.processors || [];
         if (!whenKey) {
           const outKey = node.getAttribute("out")?.trim();
           if (!outKey) {
@@ -2178,12 +2293,17 @@ class UITemplateSlot {
             });
             return;
           }
-          whenKey = outKey;
+          const outBinding = _parsePipedBinding(outKey);
+          if (!outBinding?.sourceKey) {
+            logSelectUI("error", "UITemplate", "unable to infer [when] key from [out] binding", { expression: expr, out: outKey, node });
+            return;
+          }
+          whenKey = outBinding.sourceKey;
         }
         node.removeAttribute("when");
-        slot.predicate = _createWhenPredicate(parsed.mode, whenKey);
+        slot.predicate = _createWhenPredicate(parsed.mode, whenKey, whenProcessors);
         slot.predicatePlaceholder = document.createComment(expr || "when");
-        const groupKey = `${parsed.mode}:${whenKey}`;
+        const groupKey = `${parsed.mode}:${whenKey}:${whenProcessors.join("|")}`;
         if (res[groupKey] === undefined) {
           res[groupKey] = [slot];
         } else {
@@ -2193,12 +2313,23 @@ class UITemplateSlot {
         return;
       }
       node.removeAttribute("when");
-      slot.predicate = new Function(`return ((self,data,event)=>(${expr}))`)();
-      slot.predicatePlaceholder = document.createComment(expr);
-      if (res[expr] === undefined) {
-        res[expr] = [slot];
+      logSelectUI("error", "UITemplate", "unsafe [when] expression blocked", {
+        expression: expr,
+        node,
+        supported: [
+          'when="slot"',
+          'when="!slot"',
+          'when="?slot"',
+          'when="!?slot"',
+          'when="slot|Formatter|Formatter"'
+        ]
+      });
+      slot.predicate = () => false;
+      slot.predicatePlaceholder = document.createComment("when:blocked");
+      if (res.__blocked__ === undefined) {
+        res.__blocked__ = [slot];
       } else {
-        res[expr].push(slot);
+        res.__blocked__.push(slot);
       }
       count++;
     };
@@ -2223,6 +2354,7 @@ class UITemplateSlot {
     this.tailPath = path.length > 1 ? path.slice(1) : null;
     this.predicate = undefined;
     this.predicatePlaceholder = undefined;
+    this.binding = undefined;
   }
   _resolve(nodes) {
     let node = nodes[this.rootIndex];
@@ -2476,8 +2608,9 @@ class UIEventSlot {
 }
 
 class UITemplate {
-  constructor(nodes) {
+  constructor(nodes, scope = document) {
     this.nodes = nodes;
+    this.scope = scope;
     this.on = UITemplateSlot.FindEvent("on:", nodes);
     this.in = UITemplateSlot.Find("in", nodes);
     this.when = UITemplateSlot.FindWhen(nodes);
@@ -3394,18 +3527,22 @@ class UIInstance {
       }
     } else {
       const behavior = this.template.behavior;
-      const renderSet = (set) => {
+      const renderSet = (set, withProcessors = false) => {
         if (!set) {
           return;
         }
         for (const k in set) {
           let v;
-          const hasBehavior = behavior?.[k];
+          const slots = set[k];
+          const binding = withProcessors ? slots?.[0]?.template?.binding : null;
+          const sourceKey = binding?.sourceKey || k;
+          const processors = binding?.processors || null;
+          const hasBehavior = behavior?.[sourceKey];
           if (isGranular && this._behaviorDeps && this._behaviorValues) {
             const deps = this._behaviorDeps.get(k);
             if (deps && !this._depsChanged(deps, changedKeys)) {
               v = this._behaviorValues.get(k);
-              for (const slot of set[k]) {
+              for (const slot of slots) {
                 slot.render(v);
               }
               continue;
@@ -3426,17 +3563,20 @@ class UIInstance {
             } else {
               v = hasBehavior(this, data, null);
             }
-          } else if (data && k in data) {
-            v = expand(data[k]);
+          } else if (data && sourceKey in data) {
+            v = expand(data[sourceKey]);
           } else {
             v = undefined;
           }
-          for (const slot of set[k]) {
+          if (withProcessors && processors?.length) {
+            v = _applyNamedProcessors(this, data, v, processors, sourceKey);
+          }
+          for (const slot of slots) {
             slot.render(v);
           }
         }
       };
-      renderSet(this.out);
+      renderSet(this.out, true);
       renderSet(this.inout);
       renderSet(this.in);
       for (const k in this.when) {
@@ -3766,12 +3906,12 @@ var ui = (selection, scope = document) => {
         scope
       });
     }
-    return _createComponent(new UITemplate(nodes));
+    return _createComponent(new UITemplate(nodes, scope));
   }
   if (selection instanceof Node || Array.isArray(selection)) {
     const nodes = selection instanceof Node ? [selection] : selection;
     _registerTemplatesInNodes(nodes, _templateRegistryFor(scope), scope);
-    return _createComponent(new UITemplate([...nodes]));
+    return _createComponent(new UITemplate([...nodes], scope));
   }
   throw new Error(`ui() received an invalid selection type: ${typeof selection}. ` + `Expected a string (CSS selector or HTML), a DOM Node, or an array of DOM Nodes. ` + `Received: ${selection}`);
 };

@@ -93,10 +93,12 @@ $("#app").addClass("ready")
 - [`docs/ui.md`](docs/ui.md): `select.ui.js` usage and API guide.
 - [`docs/cells.md`](docs/cells.md): `select.cells.js` usage and API guide.
 - [`docs/extra.md`](docs/extra.md): `select.extra.js` usage and API guide.
+- [`docs/icons.md`](docs/icons.md): `select.icons.js` CDN icon loading and catalog usage.
 
 ### Notable examples
 
 - [`examples/feature-webcomponent.html`](examples/feature-webcomponent.html): custom elements with `webcomponent(...)` for both Select UI templates and pure render functions.
+- [`examples/feature-icons.html`](examples/feature-icons.html): icon usage with default CDN collections and local JSON catalog.
 
 # Features
 
