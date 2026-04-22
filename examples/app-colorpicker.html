@@ -30,32 +30,85 @@
       }
 
       .swatch {
-      	width: 96px;
-      	height: 96px;
-      	border: 1px solid #222;
-      	border-radius: 8px;
-      	flex: 0 0 auto;
-      }
+	      width: 96px;
+	      height: 96px;
+	      border: 1px solid #222;
+	      border-radius: 8px;
+	      flex: 0 0 auto;
+	      cursor: pointer;
+	      transition: transform 120ms ease;
+	    }
+
+	    .swatch:hover {
+	      transform: scale(1.03);
+	    }
+
+	    .swatch:active {
+	      transform: scale(0.98);
+	    }
+
+	    .native-picker {
+	      position: absolute;
+	      width: 1px;
+	      height: 1px;
+	      margin: -1px;
+	      border: 0;
+	      padding: 0;
+	      clip: rect(0 0 0 0);
+	      overflow: hidden;
+	      white-space: nowrap;
+	    }
 
       .channels {
-      	flex: 1;
-      	min-width: 220px;
+	      flex: 1;
+	      min-width: 220px;
+	      display: grid;
+	      gap: 10px;
       }
 
       .channel {
-      	margin-bottom: 10px;
+	      display: grid;
+	      grid-template-columns: 56px minmax(140px, 1fr) 72px;
+	      gap: 10px;
+	      align-items: center;
       }
 
       .channel label {
-      	display: inline-block;
-      	min-width: 52px;
-      	font-weight: 600;
+	      font-weight: 600;
+	      color: #1f2937;
       }
 
       .channel input[type="range"] {
-      	width: calc(100% - 62px);
-      	vertical-align: middle;
-      }
+	      width: 100%;
+	      accent-color: #2563eb;
+	      margin: 0;
+	      height: 1.2rem;
+	    }
+
+	    .channel input[type="text"] {
+	      width: 100%;
+	      box-sizing: border-box;
+	      border: 1px solid #cbd5e1;
+	      border-radius: 6px;
+	      padding: 6px 8px;
+	      font: 600 0.9rem/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	      text-align: right;
+	      color: #0f172a;
+	      background: #f8fafc;
+	    }
+
+	    .channel input[type="text"]:focus {
+	      outline: 2px solid #93c5fd;
+	      outline-offset: 1px;
+	      border-color: #60a5fa;
+	    }
+
+	    @media (max-width: 560px) {
+	      .channel {
+	      	grid-template-columns: 44px 1fr 64px;
+	      	gap: 8px;
+	      }
+	    }
     </style>
   </head>
   <body>
@@ -67,12 +120,13 @@
       <div class="channel">
         <label out="label">Component</label>
         <input inout="value" type="range" min="0" max="255" />
-        <input inout="value" type="text" />
+        <input inout="value" type="text" inputmode="numeric" pattern="[0-9]*" />
       </div>
     </template>
     <template id="ColorPicker">
       <div class="picker">
-        <div out="color" class="swatch" ref="swatch"></div>
+        <div out="color" class="swatch" ref="swatch" on:click="pick"></div>
+        <input class="native-picker" ref="nativePicker" type="color" on:input="pickColor" />
         <div class="channels">
           <div out="red"></div>
           <div out="green"></div>
@@ -84,9 +138,38 @@
       import cell, {derived} from "@./select.cells.js"
       import ui from "@./select.ui.js"
 
+	  const clamp255 = (value) => {
+	  	const n = Number(value)
+	  	if (!Number.isFinite(n)) {
+	  		return 0
+	  	}
+	  	return Math.max(0, Math.min(255, Math.round(n)))
+	  }
+
+	  const toHex = (value) => clamp255(value).toString(16).padStart(2, "0")
+
+	  const rgbToHex = (red, green, blue) => `#${toHex(red)}${toHex(green)}${toHex(blue)}`
+
+	  const hexToRgb = (hex) => {
+	  	const parsed = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || "")
+	  	if (!parsed) {
+	  		return null
+	  	}
+	  	return [
+	  		parseInt(parsed[1], 16),
+	  		parseInt(parsed[2], 16),
+	  		parseInt(parsed[3], 16),
+	  	]
+	  }
+
       const ColorComponent = ui("#ColorComponent").does({
-      	label: (_self, {label}) => label,
-      	value: (_self, {value}, event) => Math.min(255, Math.max(0, event ? value.set(event.target.value) : (value.value ?? 0))),
+	      label: (_self, {label}) => label,
+	      value: (_self, {value}, event) => {
+	      	if (event) {
+	      		return clamp255(event.target.value)
+	      	}
+	      	return clamp255(value?.isReactive ? value.value : value)
+	      },
       })
 
       const ColorPicker = ui("#ColorPicker").init(() => {
@@ -100,12 +183,43 @@
       }).does({
       	// TODO: If we were able to keep track of what is used, we could only
       	// re-trigger the behaviors that have changed.
-      	red: (_, data) => ColorComponent({value: data.red, label: "Red"}),
-      	green: (_, {green}) => ColorComponent({value: green, label: "Green"}),
-      	blue: (_, {blue}) => ColorComponent({value: blue, label: "Blue"}),
-      	color: (self, {color}) => {
-      		self.ref.swatch.style.backgroundColor = color.value;
-      	}
+	      red: (_, data) => ColorComponent({
+	      	value: data.red,
+	      	label: "Red"
+	      }),
+	      green: (_, {green}) => ColorComponent({
+	      	value: green,
+	      	label: "Green"
+	      }),
+	      blue: (_, {blue}) => ColorComponent({
+	      	value: blue,
+	      	label: "Blue"
+	      }),
+	      pick: (self, {red, green, blue}) => {
+	      	const picker = self.ref.nativePicker
+	      	picker.value = rgbToHex(red.value, green.value, blue.value)
+	      	picker.click()
+	      },
+	      pickColor: (_self, {red, green, blue}, event) => {
+	      	const rgb = hexToRgb(event?.target?.value)
+	      	if (!rgb) {
+	      		return
+	      	}
+	      	red.set(rgb[0])
+	      	green.set(rgb[1])
+	      	blue.set(rgb[2])
+	      },
+	      color: (self, {color, red, green, blue}) => {
+	      	self.ref.swatch.style.backgroundColor = color.value;
+	      	const picker = self.ref.nativePicker
+	      	if (picker) {
+	      		picker.value = rgbToHex(
+	      			red.value,
+	      			green.value,
+	      			blue.value,
+	      		)
+	      	}
+	      }
       })
 
       ColorPicker.new().mount("#ui")

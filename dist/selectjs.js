@@ -2792,16 +2792,10 @@ class UIInstance {
       this.bind();
     }
     this._renderer = undefined;
+    this._reactiveDataSubs = undefined;
     if (template.initializer) {
       const state = template.initializer();
       if (state) {
-        const renderer = this._getRenderer();
-        for (const k in state) {
-          const v = state[k];
-          if (v?.isReactive) {
-            v.sub(renderer);
-          }
-        }
         this.initial = state;
       }
       this.set(state);
@@ -2813,16 +2807,48 @@ class UIInstance {
     }
     return this._renderer;
   }
-  dispose() {
-    if (this.initial) {
-      const renderer = this._renderer;
-      for (const k in this.initial) {
-        const v = this.initial[k];
-        if (v?.isReactive && renderer) {
-          v.unsub(renderer);
+  _collectReactiveDataRefs(data) {
+    const refs = new Set;
+    if (data && typeof data === "object") {
+      for (const k in data) {
+        const v = data[k];
+        if (v?.isReactive) {
+          refs.add(v);
         }
       }
     }
+    return refs;
+  }
+  _syncReactiveDataSubs(data) {
+    const refs = this._collectReactiveDataRefs(data);
+    if (this._reactiveDataSubs === undefined) {
+      this._reactiveDataSubs = new Map;
+    }
+    const renderer = this._getRenderer();
+    for (const cell2 of this._reactiveDataSubs.keys()) {
+      if (!refs.has(cell2)) {
+        cell2.unsub(renderer);
+        this._reactiveDataSubs.delete(cell2);
+      }
+    }
+    for (const cell2 of refs) {
+      if (!this._reactiveDataSubs.has(cell2)) {
+        cell2.sub(renderer);
+        this._reactiveDataSubs.set(cell2, true);
+      }
+    }
+  }
+  _clearReactiveDataSubs() {
+    if (!this._reactiveDataSubs || !this._renderer) {
+      return;
+    }
+    for (const cell2 of this._reactiveDataSubs.keys()) {
+      cell2.unsub(this._renderer);
+    }
+    this._reactiveDataSubs.clear();
+  }
+  dispose() {
+    this._clearReactiveDataSubs();
     if (this._ctxSubs) {
       for (const [cell2, handler] of this._ctxSubs) {
         cell2.unsub(handler);
@@ -2880,7 +2906,7 @@ class UIInstance {
       }
     }
   }
-  _bindEvent(name, target, handler = this.template.behavior[name]) {
+  _bindEvent(name, target, handler = this.template.behavior?.[name]) {
     if (handler) {
       target.node.addEventListener(target.eventType, (event) => {
         const result = handler(this, this.data || {}, event);
@@ -2895,23 +2921,39 @@ class UIInstance {
       });
     }
   }
-  _bindInput(name, target, handler = this.template.behavior[name]) {
-    if (handler) {
-      let event;
-      switch (target.node.nodeName) {
-        case "INPUT":
-        case "TEXTAREA":
-        case "SELECT":
-          event = "input";
-          break;
-        case "FORM":
-          event = "submit";
-          break;
-        default:
-          event = "click";
-      }
-      target.node.addEventListener(event, (event2) => handler(this, this.data || {}, event2));
+  _bindInput(name, target, handler = this.template.behavior?.[name]) {
+    let event;
+    switch (target.node.nodeName) {
+      case "INPUT":
+      case "TEXTAREA":
+      case "SELECT":
+        event = "input";
+        break;
+      case "FORM":
+        event = "submit";
+        break;
+      default:
+        event = "click";
     }
+    target.node.addEventListener(event, (event2) => {
+      const data = this.data || {};
+      const slotValue = data[name];
+      if (handler) {
+        const result = handler(this, data, event2);
+        if (result && typeof result === "object" && !Array.isArray(result)) {
+          for (const key in result) {
+            const cell2 = data[key];
+            if (cell2?.isReactive) {
+              cell2.set(result[key]);
+            }
+          }
+        } else if (result !== undefined && slotValue?.isReactive) {
+          slotValue.set(result);
+        }
+      } else if (slotValue?.isReactive) {
+        slotValue.set(event2?.target?.value);
+      }
+    });
   }
   set(data, key = this.key) {
     this.key = key;
@@ -3174,6 +3216,7 @@ class UIInstance {
         }
       }
     }
+    this._syncReactiveDataSubs(data);
     this.data = data;
     return this;
   }
