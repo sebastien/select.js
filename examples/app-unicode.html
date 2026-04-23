@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI ― Unicode Viewer</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/" } }
+	</script>
+	<style>
+		body {
+			font-family: system-ui, sans-serif;
+			padding: 20px;
+			max-width: 1100px;
+			margin: 0 auto;
+		}
+
+		#ui {
+			border: 1px solid #ddd;
+			border-radius: 8px;
+			padding: 12px;
+			background: #fff;
+		}
+
+		.frame {
+			display: grid;
+			grid-template-columns: 300px 1fr;
+			height: 70vh;
+			min-height: 520px;
+			border: 1px solid #ddd;
+			border-radius: 8px;
+			overflow: hidden;
+			background: #fff;
+		}
+
+		.sidebar {
+			display: grid;
+			grid-template-rows: auto auto 1fr;
+			gap: 10px;
+			padding: 12px;
+			border-right: 1px solid #e5e5e5;
+			background: #fafafa;
+			min-height: 0;
+		}
+
+		.sidebar h2 {
+			margin: 0;
+			font-size: 0.95rem;
+			color: #333;
+		}
+
+		.sidebar input {
+			border: 1px solid #ccc;
+			border-radius: 4px;
+			padding: 8px 10px;
+			font: inherit;
+		}
+
+		.sidebar input:focus {
+			outline: 2px solid #bfd7ff;
+			outline-offset: 1px;
+			border-color: #79a6ff;
+		}
+
+		.block-list {
+			overflow-y: auto;
+			overflow-x: hidden;
+			display: grid;
+			gap: 2px;
+			padding-right: 4px;
+			min-height: 0;
+		}
+
+		.block-item {
+			border: 1px solid transparent;
+			background: transparent;
+			border-radius: 6px;
+			padding: 4px 6px;
+			text-align: left;
+			cursor: pointer;
+			display: grid;
+			gap: 1px;
+			transition: background-color 120ms ease;
+		}
+
+		.block-item:hover {
+			border-color: #ddd;
+			background: #f5f5f5;
+		}
+
+		.block-item.selected {
+			border-color: #7aa2ff;
+			background: #eef4ff;
+		}
+
+		.block-item:focus-visible {
+			outline: 2px solid #bfd7ff;
+			outline-offset: 1px;
+		}
+
+		.block-name {
+			font-weight: 600;
+			font-size: 0.83rem;
+			line-height: 1.2;
+		}
+
+		.block-range {
+			font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+			font-size: 0.67rem;
+			color: #666;
+		}
+
+		.viewer {
+			display: grid;
+			grid-template-rows: auto 1fr;
+			overflow: hidden;
+			min-height: 0;
+		}
+
+		.viewer-head {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 10px;
+			padding: 12px 16px;
+			border-bottom: 1px solid #e5e5e5;
+			background: #fff;
+		}
+
+		.current-block {
+			font-weight: 650;
+		}
+
+		.current-meta {
+			font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+			font-size: 0.8rem;
+			color: #666;
+			background: #f3f3f3;
+			padding: 4px 8px;
+			border-radius: 4px;
+		}
+
+		.status {
+			color: #256b2a;
+			font-size: 0.86rem;
+			font-weight: 600;
+			min-height: 1em;
+		}
+
+		.grid-pane {
+			overflow: auto;
+			padding: 14px;
+			background: #fff;
+			min-height: 0;
+		}
+
+		.block-section {
+			margin-bottom: 18px;
+		}
+
+		.block-section h3 {
+			margin: 0 0 4px;
+			font-size: 0.95rem;
+		}
+
+		.block-section-meta {
+			margin: 0 0 8px;
+			font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+			font-size: 0.73rem;
+			color: #666;
+		}
+
+		.char-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+			gap: 8px;
+		}
+
+		.char-cell {
+			height: 72px;
+			border: 1px solid #ddd;
+			border-radius: 6px;
+			padding: 6px;
+			background: #fff;
+			display: grid;
+			grid-template-rows: 1fr auto;
+			align-items: center;
+			justify-items: center;
+			cursor: copy;
+			transition: border-color 110ms ease;
+		}
+
+		.char-cell:hover {
+			border-color: #aaa;
+			background: #fafafa;
+		}
+
+		.char-cell:focus-visible {
+			outline: 2px solid #bfd7ff;
+			outline-offset: 2px;
+		}
+
+		.char-glyph {
+			font-size: 1.35rem;
+			line-height: 1;
+		}
+
+		.char-code {
+			font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+			font-size: 0.62rem;
+			color: #666;
+		}
+
+		.empty {
+			margin: 12px;
+			padding: 10px 12px;
+			border: 1px dashed #ccc;
+			border-radius: 6px;
+			background: #fff;
+			color: #666;
+		}
+
+		@media (max-width: 920px) {
+			.frame {
+				grid-template-columns: 1fr;
+				grid-template-rows: 260px 1fr;
+				height: 75vh;
+			}
+
+			.sidebar {
+				border-right: none;
+				border-bottom: 1px solid #e5e5e5;
+			}
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Unicode Viewer</h1>
+	<p>This app example shows a two-pane unicode browser with block navigation, character grid rendering, and click-to-copy clipboard support.</p>
+	<div id="ui"></div>
+
+	<template id="BlockItem">
+		<button class="block-item" out:class="classes" out:data-block-start="start" on:click="selectBlock" out:aria-label="ariaLabel">
+			<span class="block-name" out="name">Block Name</span>
+			<span class="block-range" out="range">U+0000..U+00FF</span>
+		</button>
+	</template>
+
+	<template id="CharCell">
+		<button class="char-cell" on:click="copy" out:title="title" out:aria-label="title">
+			<span class="char-glyph" out="char">A</span>
+			<span class="char-code" out="code">U+0041</span>
+		</button>
+	</template>
+
+	<template id="BlockSection">
+		<section class="block-section" out:data-segment-index="segmentIndex" out:data-segment-start="segmentStart" out:data-block-start="blockStart">
+			<h3 out="heading">Basic Latin</h3>
+			<p class="block-section-meta" out="range">U+0000..U+007F</p>
+			<div class="char-grid" out="chars">
+				<div class="empty">No characters in this range</div>
+			</div>
+		</section>
+	</template>
+
+	<template id="UnicodeApp">
+		<div class="frame">
+			<aside class="sidebar">
+				<h2>Unicode Blocks</h2>
+				<input inout="query" placeholder="Search block" aria-label="Search unicode blocks" />
+				<div class="block-list" ref="blockList" out="blockItems">
+					<div class="empty">No blocks</div>
+				</div>
+			</aside>
+			<section class="viewer">
+				<header class="viewer-head">
+					<div>
+						<div class="current-block" out="activeBlockName">-</div>
+						<div class="current-meta" out="activeBlockRange">U+0000..U+0000</div>
+					</div>
+					<div class="status" out="status"></div>
+				</header>
+				<div class="grid-pane" ref="grid" on:scroll="onGridScroll">
+					<div out="sections">
+						<div class="empty">No characters in this block</div>
+					</div>
+				</div>
+			</section>
+		</div>
+	</template>
+
+	<script type="module">
+		import ui from "@./select.ui.js"
+
+		const BLOCKS_TEXT = `
+0000..007F; Basic Latin
+0080..00FF; Latin-1 Supplement
+0100..017F; Latin Extended-A
+0180..024F; Latin Extended-B
+0250..02AF; IPA Extensions
+02B0..02FF; Spacing Modifier Letters
+0300..036F; Combining Diacritical Marks
+0370..03FF; Greek and Coptic
+0400..04FF; Cyrillic
+0500..052F; Cyrillic Supplement
+0530..058F; Armenian
+0590..05FF; Hebrew
+0600..06FF; Arabic
+0700..074F; Syriac
+0750..077F; Arabic Supplement
+0780..07BF; Thaana
+07C0..07FF; NKo
+0800..083F; Samaritan
+0840..085F; Mandaic
+0860..086F; Syriac Supplement
+0870..089F; Arabic Extended-B
+08A0..08FF; Arabic Extended-A
+0900..097F; Devanagari
+0980..09FF; Bengali
+0A00..0A7F; Gurmukhi
+0A80..0AFF; Gujarati
+0B00..0B7F; Oriya
+0B80..0BFF; Tamil
+0C00..0C7F; Telugu
+0C80..0CFF; Kannada
+0D00..0D7F; Malayalam
+0D80..0DFF; Sinhala
+0E00..0E7F; Thai
+0E80..0EFF; Lao
+0F00..0FFF; Tibetan
+1000..109F; Myanmar
+10A0..10FF; Georgian
+1100..11FF; Hangul Jamo
+1200..137F; Ethiopic
+1380..139F; Ethiopic Supplement
+13A0..13FF; Cherokee
+1400..167F; Unified Canadian Aboriginal Syllabics
+1680..169F; Ogham
+16A0..16FF; Runic
+1700..171F; Tagalog
+1720..173F; Hanunoo
+1740..175F; Buhid
+1760..177F; Tagbanwa
+1780..17FF; Khmer
+1800..18AF; Mongolian
+18B0..18FF; Unified Canadian Aboriginal Syllabics Extended
+1900..194F; Limbu
+1950..197F; Tai Le
+1980..19DF; New Tai Lue
+19E0..19FF; Khmer Symbols
+1A00..1A1F; Buginese
+1A20..1AAF; Tai Tham
+1AB0..1AFF; Combining Diacritical Marks Extended
+1B00..1B7F; Balinese
+1B80..1BBF; Sundanese
+1BC0..1BFF; Batak
+1C00..1C4F; Lepcha
+1C50..1C7F; Ol Chiki
+1C80..1C8F; Cyrillic Extended-C
+1C90..1CBF; Georgian Extended
+1CC0..1CCF; Sundanese Supplement
+1CD0..1CFF; Vedic Extensions
+1D00..1D7F; Phonetic Extensions
+1D80..1DBF; Phonetic Extensions Supplement
+1DC0..1DFF; Combining Diacritical Marks Supplement
+1E00..1EFF; Latin Extended Additional
+1F00..1FFF; Greek Extended
+2000..206F; General Punctuation
+2070..209F; Superscripts and Subscripts
+20A0..20CF; Currency Symbols
+20D0..20FF; Combining Diacritical Marks for Symbols
+2100..214F; Letterlike Symbols
+2150..218F; Number Forms
+2190..21FF; Arrows
+2200..22FF; Mathematical Operators
+2300..23FF; Miscellaneous Technical
+2400..243F; Control Pictures
+2440..245F; Optical Character Recognition
+2460..24FF; Enclosed Alphanumerics
+2500..257F; Box Drawing
+2580..259F; Block Elements
+25A0..25FF; Geometric Shapes
+2600..26FF; Miscellaneous Symbols
+2700..27BF; Dingbats
+27C0..27EF; Miscellaneous Mathematical Symbols-A
+27F0..27FF; Supplemental Arrows-A
+2800..28FF; Braille Patterns
+2900..297F; Supplemental Arrows-B
+2980..29FF; Miscellaneous Mathematical Symbols-B
+2A00..2AFF; Supplemental Mathematical Operators
+2B00..2BFF; Miscellaneous Symbols and Arrows
+2C00..2C5F; Glagolitic
+2C60..2C7F; Latin Extended-C
+2C80..2CFF; Coptic
+2D00..2D2F; Georgian Supplement
+2D30..2D7F; Tifinagh
+2D80..2DDF; Ethiopic Extended
+2DE0..2DFF; Cyrillic Extended-A
+2E00..2E7F; Supplemental Punctuation
+2E80..2EFF; CJK Radicals Supplement
+2F00..2FDF; Kangxi Radicals
+2FF0..2FFF; Ideographic Description Characters
+3000..303F; CJK Symbols and Punctuation
+3040..309F; Hiragana
+30A0..30FF; Katakana
+3100..312F; Bopomofo
+3130..318F; Hangul Compatibility Jamo
+3190..319F; Kanbun
+31A0..31BF; Bopomofo Extended
+31C0..31EF; CJK Strokes
+31F0..31FF; Katakana Phonetic Extensions
+3200..32FF; Enclosed CJK Letters and Months
+3300..33FF; CJK Compatibility
+3400..4DBF; CJK Unified Ideographs Extension A
+4DC0..4DFF; Yijing Hexagram Symbols
+4E00..9FFF; CJK Unified Ideographs
+A000..A48F; Yi Syllables
+A490..A4CF; Yi Radicals
+A4D0..A4FF; Lisu
+A500..A63F; Vai
+A640..A69F; Cyrillic Extended-B
+A6A0..A6FF; Bamum
+A700..A71F; Modifier Tone Letters
+A720..A7FF; Latin Extended-D
+A800..A82F; Syloti Nagri
+A830..A83F; Common Indic Number Forms
+A840..A87F; Phags-pa
+A880..A8DF; Saurashtra
+A8E0..A8FF; Devanagari Extended
+A900..A92F; Kayah Li
+A930..A95F; Rejang
+A960..A97F; Hangul Jamo Extended-A
+A980..A9DF; Javanese
+A9E0..A9FF; Myanmar Extended-B
+AA00..AA5F; Cham
+AA60..AA7F; Myanmar Extended-A
+AA80..AADF; Tai Viet
+AAE0..AAFF; Meetei Mayek Extensions
+AB00..AB2F; Ethiopic Extended-A
+AB30..AB6F; Latin Extended-E
+AB70..ABBF; Cherokee Supplement
+ABC0..ABFF; Meetei Mayek
+AC00..D7AF; Hangul Syllables
+D7B0..D7FF; Hangul Jamo Extended-B
+D800..DB7F; High Surrogates
+DB80..DBFF; High Private Use Surrogates
+DC00..DFFF; Low Surrogates
+E000..F8FF; Private Use Area
+F900..FAFF; CJK Compatibility Ideographs
+FB00..FB4F; Alphabetic Presentation Forms
+FB50..FDFF; Arabic Presentation Forms-A
+FE00..FE0F; Variation Selectors
+FE10..FE1F; Vertical Forms
+FE20..FE2F; Combining Half Marks
+FE30..FE4F; CJK Compatibility Forms
+FE50..FE6F; Small Form Variants
+FE70..FEFF; Arabic Presentation Forms-B
+FF00..FFEF; Halfwidth and Fullwidth Forms
+FFF0..FFFF; Specials
+10000..1007F; Linear B Syllabary
+10080..100FF; Linear B Ideograms
+10100..1013F; Aegean Numbers
+10140..1018F; Ancient Greek Numbers
+10190..101CF; Ancient Symbols
+101D0..101FF; Phaistos Disc
+10280..1029F; Lycian
+102A0..102DF; Carian
+102E0..102FF; Coptic Epact Numbers
+10300..1032F; Old Italic
+10330..1034F; Gothic
+10350..1037F; Old Permic
+10380..1039F; Ugaritic
+103A0..103DF; Old Persian
+10400..1044F; Deseret
+10450..1047F; Shavian
+10480..104AF; Osmanya
+104B0..104FF; Osage
+10500..1052F; Elbasan
+10530..1056F; Caucasian Albanian
+10570..105BF; Vithkuqi
+10600..1077F; Linear A
+10780..107BF; Latin Extended-F
+10800..1083F; Cypriot Syllabary
+10840..1085F; Imperial Aramaic
+10860..1087F; Palmyrene
+10880..108AF; Nabataean
+108E0..108FF; Hatran
+10900..1091F; Phoenician
+10920..1093F; Lydian
+10980..1099F; Meroitic Hieroglyphs
+109A0..109FF; Meroitic Cursive
+10A00..10A5F; Kharoshthi
+10A60..10A7F; Old South Arabian
+10A80..10A9F; Old North Arabian
+10AC0..10AFF; Manichaean
+10B00..10B3F; Avestan
+10B40..10B5F; Inscriptional Parthian
+10B60..10B7F; Inscriptional Pahlavi
+10B80..10BAF; Psalter Pahlavi
+10C00..10C4F; Old Turkic
+10C80..10CFF; Old Hungarian
+10D00..10D3F; Hanifi Rohingya
+10E60..10E7F; Rumi Numeral Symbols
+10E80..10EBF; Yezidi
+10EC0..10EFF; Arabic Extended-C
+10F00..10F2F; Old Sogdian
+10F30..10F6F; Sogdian
+10F70..10FAF; Old Uyghur
+10FB0..10FDF; Chorasmian
+10FE0..10FFF; Elymaic
+11000..1107F; Brahmi
+11080..110CF; Kaithi
+110D0..110FF; Sora Sompeng
+11100..1114F; Chakma
+11150..1117F; Mahajani
+11180..111DF; Sharada
+111E0..111FF; Sinhala Archaic Numbers
+11200..1124F; Khojki
+11280..112AF; Multani
+112B0..112FF; Khudawadi
+11300..1137F; Grantha
+11400..1147F; Newa
+11480..114DF; Tirhuta
+11580..115FF; Siddham
+11600..1165F; Modi
+11660..1167F; Mongolian Supplement
+11680..116CF; Takri
+11700..1174F; Ahom
+11800..1184F; Dogra
+118A0..118FF; Warang Citi
+11900..1195F; Dives Akuru
+119A0..119FF; Nandinagari
+11A00..11A4F; Zanabazar Square
+11A50..11AAF; Soyombo
+11AB0..11ABF; Unified Canadian Aboriginal Syllabics Extended-A
+11AC0..11AFF; Pau Cin Hau
+11B00..11B5F; Devanagari Extended-A
+11C00..11C6F; Bhaiksuki
+11C70..11CBF; Marchen
+11D00..11D5F; Masaram Gondi
+11D60..11DAF; Gunjala Gondi
+11EE0..11EFF; Makasar
+11F00..11F5F; Kawi
+11FB0..11FBF; Lisu Supplement
+11FC0..11FFF; Tamil Supplement
+12000..123FF; Cuneiform
+12400..1247F; Cuneiform Numbers and Punctuation
+12480..1254F; Early Dynastic Cuneiform
+12F90..12FFF; Cypro-Minoan
+13000..1342F; Egyptian Hieroglyphs
+13430..1345F; Egyptian Hieroglyph Format Controls
+14400..1467F; Anatolian Hieroglyphs
+16800..16A3F; Bamum Supplement
+16A40..16A6F; Mro
+16A70..16ACF; Tangsa
+16AD0..16AFF; Bassa Vah
+16B00..16B8F; Pahawh Hmong
+16E40..16E9F; Medefaidrin
+16F00..16F9F; Miao
+16FE0..16FFF; Ideographic Symbols and Punctuation
+17000..187FF; Tangut
+18800..18AFF; Tangut Components
+18B00..18CFF; Khitan Small Script
+18D00..18D7F; Tangut Supplement
+1AFF0..1AFFF; Kana Extended-B
+1B000..1B0FF; Kana Supplement
+1B100..1B12F; Kana Extended-A
+1B130..1B16F; Small Kana Extension
+1B170..1B2FF; Nushu
+1BC00..1BC9F; Duployan
+1BCA0..1BCAF; Shorthand Format Controls
+1CF00..1CFCF; Znamenny Musical Notation
+1D000..1D0FF; Byzantine Musical Symbols
+1D100..1D1FF; Musical Symbols
+1D200..1D24F; Ancient Greek Musical Notation
+1D2C0..1D2DF; Kaktovik Numerals
+1D2E0..1D2FF; Mayan Numerals
+1D300..1D35F; Tai Xuan Jing Symbols
+1D360..1D37F; Counting Rod Numerals
+1D400..1D7FF; Mathematical Alphanumeric Symbols
+1D800..1DAAF; Sutton SignWriting
+1DF00..1DFFF; Latin Extended-G
+1E000..1E02F; Glagolitic Supplement
+1E030..1E08F; Cyrillic Extended-D
+1E100..1E14F; Nyiakeng Puachue Hmong
+1E290..1E2BF; Toto
+1E2C0..1E2FF; Wancho
+1E4D0..1E4FF; Nag Mundari
+1E7E0..1E7FF; Ethiopic Extended-B
+1E800..1E8DF; Mende Kikakui
+1E900..1E95F; Adlam
+1EC70..1ECBF; Indic Siyaq Numbers
+1ED00..1ED4F; Ottoman Siyaq Numbers
+1EE00..1EEFF; Arabic Mathematical Alphabetic Symbols
+1F000..1F02F; Mahjong Tiles
+1F030..1F09F; Domino Tiles
+1F0A0..1F0FF; Playing Cards
+1F100..1F1FF; Enclosed Alphanumeric Supplement
+1F200..1F2FF; Enclosed Ideographic Supplement
+1F300..1F5FF; Miscellaneous Symbols and Pictographs
+1F600..1F64F; Emoticons
+1F650..1F67F; Ornamental Dingbats
+1F680..1F6FF; Transport and Map Symbols
+1F700..1F77F; Alchemical Symbols
+1F780..1F7FF; Geometric Shapes Extended
+1F800..1F8FF; Supplemental Arrows-C
+1F900..1F9FF; Supplemental Symbols and Pictographs
+1FA00..1FA6F; Chess Symbols
+1FA70..1FAFF; Symbols and Pictographs Extended-A
+1FB00..1FBFF; Symbols for Legacy Computing
+20000..2A6DF; CJK Unified Ideographs Extension B
+2A700..2B73F; CJK Unified Ideographs Extension C
+2B740..2B81F; CJK Unified Ideographs Extension D
+2B820..2CEAF; CJK Unified Ideographs Extension E
+2CEB0..2EBEF; CJK Unified Ideographs Extension F
+2EBF0..2EE5F; CJK Unified Ideographs Extension I
+2F800..2FA1F; CJK Compatibility Ideographs Supplement
+30000..3134F; CJK Unified Ideographs Extension G
+31350..323AF; CJK Unified Ideographs Extension H
+E0000..E007F; Tags
+E0100..E01EF; Variation Selectors Supplement
+F0000..FFFFF; Supplementary Private Use Area-A
+100000..10FFFF; Supplementary Private Use Area-B`
+
+		const parseBlocks = (text) => {
+			const lines = text.trim().split("\n")
+			const blocks = []
+			for (let i = 0; i < lines.length; i++) {
+				const line = lines[i].trim()
+				if (!line || line.startsWith("#")) {
+					continue
+				}
+				const split = line.split(";")
+				if (split.length < 2) {
+					continue
+				}
+				const range = split[0].trim().split("..")
+				if (range.length < 2) {
+					continue
+				}
+				const start = parseInt(range[0], 16)
+				const end = parseInt(range[1], 16)
+				if (Number.isNaN(start) || Number.isNaN(end)) {
+					continue
+				}
+				blocks.push({
+					name: split[1].trim(),
+					start,
+					end,
+				})
+			}
+			return blocks
+		}
+
+		const BLOCKS = parseBlocks(BLOCKS_TEXT)
+		const SEGMENT_SIZE = 256
+		const INITIAL_SECTIONS = 6
+		const LOAD_STEP = 4
+
+		const toCode = (cp) => `U+${cp.toString(16).toUpperCase().padStart(cp > 0xffff ? 5 : 4, "0")}`
+
+		const toRange = (start, end) => `${toCode(start)}..${toCode(end)}`
+
+		const escapeChar = (char) => {
+			if (char === " ") return "SPACE"
+			if (char === "\t") return "TAB"
+			if (char === "\n") return "LF"
+			if (char === "\r") return "CR"
+			return char
+		}
+
+		const findBlock = (blocks, selectedStart) => {
+			for (let i = 0; i < blocks.length; i++) {
+				if (blocks[i].start === selectedStart) {
+					return blocks[i]
+				}
+			}
+			return blocks[0]
+		}
+
+		const filterBlocks = (blocks, query) => {
+			const q = (query || "").trim().toLowerCase()
+			if (!q) {
+				return blocks
+			}
+			const result = []
+			for (let i = 0; i < blocks.length; i++) {
+				const b = blocks[i]
+				if (b.name.toLowerCase().includes(q)) {
+					result.push(b)
+				}
+			}
+			return result
+		}
+
+		const buildSegments = (blocks, size) => {
+			const segments = []
+			for (let i = 0; i < blocks.length; i++) {
+				const block = blocks[i]
+				for (let start = block.start; start <= block.end; start += size) {
+					const end = Math.min(block.end, start + size - 1)
+					segments.push({
+						name: block.name,
+						blockStart: block.start,
+						blockEnd: block.end,
+						start,
+						end,
+					})
+				}
+			}
+			return segments
+		}
+
+		const SEGMENTS = buildSegments(BLOCKS, SEGMENT_SIZE)
+
+		const filterSegments = (segments, query) => {
+			const q = (query || "").trim().toLowerCase()
+			if (!q) {
+				return segments
+			}
+			const result = []
+			for (let i = 0; i < segments.length; i++) {
+				const s = segments[i]
+				if (s.name.toLowerCase().includes(q)) {
+					result.push(s)
+				}
+			}
+			return result
+		}
+
+		const indexOfSegment = (segments, start) => {
+			for (let i = 0; i < segments.length; i++) {
+				if (segments[i].start === start) {
+					return i
+				}
+			}
+			return 0
+		}
+
+		const firstSegmentForBlock = (segments, blockStart) => {
+			for (let i = 0; i < segments.length; i++) {
+				if (segments[i].blockStart === blockStart) {
+					return segments[i]
+				}
+			}
+			return segments[0]
+		}
+
+		const BlockItem = ui("#BlockItem").does({
+			name: (_self, { name }) => name,
+			range: (_self, { start, end }) => toRange(start, end),
+			start: (_self, { start }) => start,
+			classes: (_self, { selected }) => ({ selected }),
+			ariaLabel: (_self, { name, start, end }) => `${name}, ${toRange(start, end)}`,
+			selectBlock: (self, data) => self.send("SelectBlock", data),
+		})
+
+		const CharCell = ui("#CharCell").does({
+			char: (_self, { char }) => escapeChar(char),
+			code: (_self, { code }) => code,
+			title: (_self, { code, name }) => `${code} - ${name}`,
+			copy: (self, data) => self.send("CopyChar", data),
+		})
+
+		const BlockSection = ui("#BlockSection").does({
+			heading: (_self, { name }) => name,
+			range: (_self, { start, end, blockStart, blockEnd }) => {
+				const chunk = end - start + 1
+				if (start === blockStart && end === blockEnd) {
+					return `${toRange(start, end)} (${chunk} chars)`
+				}
+				return `${toRange(start, end)} (${chunk} chars, segment)`
+			},
+			segmentIndex: (_self, { index }) => index,
+			segmentStart: (_self, { start }) => start,
+			blockStart: (_self, { blockStart }) => blockStart,
+			chars: (_self, { start, end, name }) => {
+				const count = end - start + 1
+				const cells = new Array(count)
+				for (let i = 0; i < count; i++) {
+					const cp = start + i
+					cells[i] = CharCell({
+						cp,
+						char: String.fromCodePoint(cp),
+						code: toCode(cp),
+						name,
+					})
+				}
+				return cells
+			},
+		})
+
+		const UnicodeApp = ui("#UnicodeApp").init(() => ({
+			blocks: BLOCKS,
+			segments: SEGMENTS,
+			selectedStart: BLOCKS[0]?.start,
+			query: "",
+			visibleSections: INITIAL_SECTIONS,
+			syncPaused: false,
+			status: "",
+			statusTick: 0,
+		})).does({
+			query: (self, { blocks, segments, selectedStart, query }, event) => {
+				if (!event) {
+					return query
+				}
+				const nextQuery = event.target.value
+				const filteredBlocks = filterBlocks(blocks, nextQuery)
+				const keep = findBlock(filteredBlocks, selectedStart)
+				const filteredSegments = filterSegments(segments, nextQuery)
+				const firstSegment = keep ? firstSegmentForBlock(filteredSegments, keep.start) : filteredSegments[0]
+				const firstIndex = indexOfSegment(filteredSegments, firstSegment?.start)
+				self.update({
+					query: nextQuery,
+					selectedStart: keep?.start,
+					visibleSections: Math.max(INITIAL_SECTIONS, firstIndex + INITIAL_SECTIONS),
+				})
+				if (self.ref.grid) {
+					self.ref.grid.scrollTop = 0
+				}
+			},
+			blockItems: (_self, { blocks, query, selectedStart }) => {
+				const filtered = filterBlocks(blocks, query)
+				if (filtered.length === 0) {
+					return []
+				}
+				const items = new Array(filtered.length)
+				for (let i = 0; i < filtered.length; i++) {
+					const block = filtered[i]
+					items[i] = BlockItem({
+						...block,
+						selected: selectedStart === block.start,
+					})
+				}
+				return items
+			},
+			activeBlockName: (_self, { blocks, selectedStart }) => {
+				const block = findBlock(blocks, selectedStart)
+				return block ? block.name : "No block"
+			},
+			activeBlockRange: (_self, { blocks, selectedStart }) => {
+				const block = findBlock(blocks, selectedStart)
+				if (!block) {
+					return "-"
+				}
+				const total = block.end - block.start + 1
+				return `${toRange(block.start, block.end)} (${total} chars)`
+			},
+			sections: (_self, { segments, query, visibleSections }) => {
+				const filtered = filterSegments(segments, query)
+				if (!filtered.length) {
+					return []
+				}
+				const count = Math.min(filtered.length, Math.max(INITIAL_SECTIONS, Math.floor(visibleSections || INITIAL_SECTIONS)))
+				const items = new Array(count)
+				for (let i = 0; i < count; i++) {
+					const segment = filtered[i]
+					items[i] = BlockSection({
+						...segment,
+						index: i,
+					})
+				}
+				return items
+			},
+			status: (_self, { status }) => status,
+			onGridScroll: (self, { segments, query, visibleSections, syncPaused, selectedStart }, event) => {
+				if (!event?.target) {
+					return
+				}
+				const node = event.target
+				const filteredSegments = filterSegments(segments, query)
+				if (node.scrollTop + node.clientHeight >= node.scrollHeight - 240) {
+					if (visibleSections < filteredSegments.length) {
+						self.update({ visibleSections: Math.min(filteredSegments.length, visibleSections + LOAD_STEP) })
+					}
+				}
+				if (node.scrollTop <= 220) {
+					if (visibleSections < filteredSegments.length) {
+						self.update({ visibleSections: Math.min(filteredSegments.length, visibleSections + LOAD_STEP) })
+					}
+				}
+				if (syncPaused) {
+					return
+				}
+				const sectionNodes = node.querySelectorAll(".block-section")
+				if (!sectionNodes.length) {
+					return
+				}
+				let nearestStart = selectedStart
+				let nearestDistance = Infinity
+				let nearestSegmentStart
+				for (let i = 0; i < sectionNodes.length; i++) {
+					const section = sectionNodes[i]
+					const top = section.offsetTop - node.scrollTop
+					const distance = Math.abs(top)
+					if (distance < nearestDistance) {
+						nearestDistance = distance
+						nearestStart = Number(section.getAttribute("data-block-start"))
+						nearestSegmentStart = Number(section.getAttribute("data-segment-start"))
+					}
+				}
+				if (nearestStart !== selectedStart) {
+					const blockList = self.ref.blockList
+					if (blockList) {
+						const active = blockList.querySelector(`[data-block-start="${nearestStart}"]`)
+						if (active) {
+							active.scrollIntoView({ block: "nearest" })
+						}
+					}
+					self.update({
+						selectedStart: nearestStart,
+						visibleSections: Math.max(visibleSections, (nearestSegmentStart || 0) + INITIAL_SECTIONS),
+					})
+				}
+			},
+		}).sub({
+			SelectBlock: (self, _data, event) => {
+				const nextStart = event.data.start
+				const filteredSegments = filterSegments(self.data.segments, self.data.query)
+				const nextSegment = firstSegmentForBlock(filteredSegments, nextStart)
+				const segmentIndex = indexOfSegment(filteredSegments, nextSegment?.start)
+				const needed = segmentIndex + INITIAL_SECTIONS
+				self.update({
+					selectedStart: nextStart,
+					visibleSections: Math.max(self.data.visibleSections, needed, INITIAL_SECTIONS),
+					syncPaused: true,
+				})
+				requestAnimationFrame(() => {
+					const grid = self.ref.grid
+					const blockList = self.ref.blockList
+					if (!grid) {
+						self.update({ syncPaused: false })
+						return
+					}
+					const node = grid.querySelector(`[data-segment-index="${segmentIndex}"]`)
+					if (node) {
+						node.scrollIntoView({ block: "start", behavior: "smooth" })
+					}
+					if (blockList) {
+						const active = blockList.querySelector(`[data-block-start="${nextStart}"]`)
+						if (active) {
+							active.scrollIntoView({ block: "nearest" })
+						}
+					}
+					setTimeout(() => self.update({ syncPaused: false }), 300)
+				})
+			},
+			CopyChar: async (self, { statusTick }, event) => {
+				const char = event?.data?.char
+				if (!char) {
+					return
+				}
+				let ok = false
+				try {
+					if (navigator?.clipboard?.writeText) {
+						await navigator.clipboard.writeText(char)
+						ok = true
+					}
+				} catch (_error) {
+					ok = false
+				}
+				if (!ok) {
+					const t = document.createElement("textarea")
+					t.value = char
+					t.setAttribute("readonly", "")
+					t.style.position = "absolute"
+					t.style.left = "-9999px"
+					document.body.appendChild(t)
+					t.select()
+					ok = document.execCommand("copy")
+					document.body.removeChild(t)
+				}
+				const nextTick = statusTick + 1
+				const code = event.data.code
+				self.update({
+					status: ok ? `Copied ${code}` : `Copy failed for ${code}`,
+					statusTick: nextTick,
+				})
+				setTimeout(() => {
+					if ((self.data?.statusTick || 0) === nextTick) {
+						self.update({ status: "" })
+					}
+				}, 1300)
+			},
+		})
+
+		UnicodeApp.new().mount("#ui")
+	</script>
+</body>
+
+</html>

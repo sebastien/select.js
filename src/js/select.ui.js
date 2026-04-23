@@ -69,6 +69,15 @@ const queueMicro =
 		? globalThis.queueMicrotask.bind(globalThis)
 		: (fn) => Promise.resolve().then(fn);
 
+const scheduleRenderTask = (fn) => {
+	const mutate = globalThis.fastdom?.mutate;
+	if (typeof mutate === "function") {
+		mutate(fn);
+	} else {
+		queueMicro(fn);
+	}
+};
+
 const _templateRegistries = new WeakMap();
 
 const _templateKey = (value) => {
@@ -246,7 +255,7 @@ const _parseWhenShorthand = (expr) => {
 		i++;
 	}
 	const bindingExpr = source.slice(i).trim();
-	let key = undefined;
+	let key;
 	let processors = [];
 	if (bindingExpr) {
 		const binding = _parsePipedBinding(bindingExpr, true);
@@ -323,16 +332,26 @@ const _resolveNamedProcessor = (self, name) => {
 		typeof registered === "function" &&
 		(registered?.isTemplate || typeof registered?.new === "function");
 	if (isPascal && !isComponent) {
-		logSelectUI("warn", "ui.formats", "PascalCase formatter is not a component", {
-			name,
-			formatter: registered,
-		});
+		logSelectUI(
+			"warn",
+			"ui.formats",
+			"PascalCase formatter is not a component",
+			{
+				name,
+				formatter: registered,
+			},
+		);
 	}
 	if (!isPascal && isComponent) {
-		logSelectUI("warn", "ui.formats", "component formatter should use PascalCase", {
-			name,
-			formatter: registered,
-		});
+		logSelectUI(
+			"warn",
+			"ui.formats",
+			"component formatter should use PascalCase",
+			{
+				name,
+				formatter: registered,
+			},
+		);
 	}
 	const resolved = {
 		type: isComponent ? "component" : "function",
@@ -355,17 +374,12 @@ const _applyNamedProcessors = (self, data, value, processors, sourceKey) => {
 		const processor = _resolveNamedProcessor(self, name);
 		if (!processor) {
 			const availableProcessors = Object.keys(_formatsStore).sort();
-			logSelectUI(
-				"warn",
-				"UIInstance.render",
-				"processor not found",
-				{
-					processor: name,
-					sourceKey,
-					availableProcessors,
-					instance: self,
-				},
-			);
+			logSelectUI("warn", "UIInstance.render", "processor not found", {
+				processor: name,
+				sourceKey,
+				availableProcessors,
+				instance: self,
+			});
 			continue;
 		}
 		if (processor.type === "component") {
@@ -385,16 +399,11 @@ const _applyNamedProcessors = (self, data, value, processors, sourceKey) => {
 	return current;
 };
 
-const _createWhenPredicate = (mode, key, processors = undefined) =>
+const _createWhenPredicate =
+	(mode, key, processors = undefined) =>
 	(self, data) => {
 		const value = _resolveWhenValue(self, data, key);
-		const resolved = _applyNamedProcessors(
-			self,
-			data,
-			value,
-			processors,
-			key,
-		);
+		const resolved = _applyNamedProcessors(self, data, value, processors, key);
 		return _evaluateWhen(mode, resolved);
 	};
 
@@ -784,7 +793,7 @@ class UITemplateSlot {
 
 			if (parsed) {
 				let whenKey = parsed.key;
-				let whenProcessors = parsed.processors || [];
+				const whenProcessors = parsed.processors || [];
 				if (!whenKey) {
 					const outKey = node.getAttribute("out")?.trim();
 					if (!outKey) {
@@ -836,22 +845,17 @@ class UITemplateSlot {
 			}
 
 			node.removeAttribute("when");
-			logSelectUI(
-				"error",
-				"UITemplate",
-				"unsafe [when] expression blocked",
-				{
-					expression: expr,
-					node,
-					supported: [
-						'when="slot"',
-						'when="!slot"',
-						'when="?slot"',
-						'when="!?slot"',
-						'when="slot|Formatter|Formatter"',
-					],
-				},
-			);
+			logSelectUI("error", "UITemplate", "unsafe [when] expression blocked", {
+				expression: expr,
+				node,
+				supported: [
+					'when="slot"',
+					'when="!slot"',
+					'when="?slot"',
+					'when="!?slot"',
+					'when="slot|Formatter|Formatter"',
+				],
+			});
 			slot.predicate = () => false;
 			slot.predicatePlaceholder = document.createComment("when:blocked");
 			if (res.__blocked__ === undefined) {
@@ -1974,7 +1978,7 @@ class UIInstance {
 			return;
 		}
 		this._renderQueued = true;
-		queueMicro(() => {
+		scheduleRenderTask(() => {
 			this._renderQueued = false;
 			if (!this._isDisposed) {
 				this.render();
@@ -2099,7 +2103,7 @@ class UIInstance {
 
 	// Binds all event handlers for on:, in, and inout slots.
 	bind() {
-		if (this._domListeners && this._domListeners.length) {
+		if (this._domListeners?.length) {
 			return;
 		}
 		if (!this._domListeners) {

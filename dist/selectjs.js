@@ -1798,6 +1798,14 @@ var len = (v) => {
 };
 var parser = new DOMParser;
 var queueMicro = typeof globalThis.queueMicrotask === "function" ? globalThis.queueMicrotask.bind(globalThis) : (fn) => Promise.resolve().then(fn);
+var scheduleRenderTask = (fn) => {
+  const mutate = globalThis.fastdom?.mutate;
+  if (typeof mutate === "function") {
+    mutate(fn);
+  } else {
+    queueMicro(fn);
+  }
+};
 var _templateRegistries = new WeakMap;
 var _templateKey = (value) => {
   if (typeof value !== "string") {
@@ -1860,6 +1868,20 @@ var _registerTemplatesInNodes = (nodes, registry, scope) => {
       }
     }
   }
+};
+var _templateFormatterName = (template) => {
+  if (template?.nodeName !== "TEMPLATE") {
+    return null;
+  }
+  const name = template.getAttribute("name");
+  if (typeof name === "string") {
+    const normalizedName = name.trim();
+    if (normalizedName.length) {
+      return normalizedName;
+    }
+  }
+  const id = typeof template.id === "string" ? template.id.trim() : "";
+  return id.length ? id : null;
 };
 var _createComponent = (tmpl) => {
   const component = (...args) => tmpl.apply(...args);
@@ -1940,7 +1962,7 @@ var _parseWhenShorthand = (expr) => {
     i++;
   }
   const bindingExpr = source.slice(i).trim();
-  let key = undefined;
+  let key;
   let processors = [];
   if (bindingExpr) {
     const binding = _parsePipedBinding(bindingExpr, true);
@@ -2035,11 +2057,20 @@ var _applyNamedProcessors = (self, data, value, processors, sourceKey) => {
     const name = processors[i];
     const processor = _resolveNamedProcessor(self, name);
     if (!processor) {
-      logSelectUI("warn", "UIInstance.render", "processor not found", { processor: name, sourceKey, instance: self });
+      const availableProcessors = Object.keys(_formatsStore).sort();
+      logSelectUI("warn", "UIInstance.render", "processor not found", {
+        processor: name,
+        sourceKey,
+        availableProcessors,
+        instance: self
+      });
       continue;
     }
     if (processor.type === "component") {
       const component = processor.value;
+      if (current === undefined || current === null) {
+        continue;
+      }
       if (typeof component?.apply === "function" && component?.isTemplate) {
         current = component(current);
       } else if (typeof component === "function") {
@@ -2285,7 +2316,7 @@ class UITemplateSlot {
       const slot = new UITemplateSlot(node, parent, UITemplateSlot.Path(node, parent, [i]));
       if (parsed) {
         let whenKey = parsed.key;
-        let whenProcessors = parsed.processors || [];
+        const whenProcessors = parsed.processors || [];
         if (!whenKey) {
           const outKey = node.getAttribute("out")?.trim();
           if (!outKey) {
@@ -3186,7 +3217,7 @@ class UIInstance {
       return;
     }
     this._renderQueued = true;
-    queueMicro(() => {
+    scheduleRenderTask(() => {
       this._renderQueued = false;
       if (!this._isDisposed) {
         this.render();
@@ -3291,7 +3322,7 @@ class UIInstance {
     return defaultValue;
   }
   bind() {
-    if (this._domListeners && this._domListeners.length) {
+    if (this._domListeners?.length) {
       return;
     }
     if (!this._domListeners) {
@@ -3920,25 +3951,37 @@ var ui = (selection, scope = document) => {
   }
   if (typeof selection === "string") {
     let nodes = [];
+    let autoFormatName = null;
     const templateRegistry = _templateRegistryFor(scope);
     if (/^\s*</.test(selection)) {
       const doc = parser.parseFromString(selection, "text/html");
       _pruneTemplateWhitespace(doc.body);
       nodes = [...doc.body.childNodes];
+      if (nodes.length === 1) {
+        autoFormatName = _templateFormatterName(nodes[0]);
+      }
       _registerTemplatesInNodes(nodes, templateRegistry, scope);
     } else {
       const template = templateRegistry.get(_templateKey(selection));
       if (template) {
         nodes = [...template.content.childNodes];
+        autoFormatName = _templateFormatterName(template);
       } else {
+        let matchedTemplateCount = 0;
+        let matchedTemplateName = null;
         const parent = scope?.querySelectorAll ? scope : document;
         for (const node of parent.querySelectorAll(selection)) {
           if (node.nodeName === "TEMPLATE") {
+            matchedTemplateCount += 1;
+            matchedTemplateName = _templateFormatterName(node);
             _registerTemplateNode(node, templateRegistry, scope);
             nodes = [...nodes, ...node.content.childNodes];
           } else {
             nodes.push(node);
           }
+        }
+        if (matchedTemplateCount === 1) {
+          autoFormatName = matchedTemplateName;
         }
         _registerTemplatesInNodes(nodes, templateRegistry, scope);
       }
@@ -3949,12 +3992,24 @@ var ui = (selection, scope = document) => {
         scope
       });
     }
-    return _createComponent(new UITemplate(nodes, scope));
+    const component = _createComponent(new UITemplate(nodes, scope));
+    if (autoFormatName) {
+      ui.format(autoFormatName, component);
+    }
+    return component;
   }
   if (selection instanceof Node || Array.isArray(selection)) {
     const nodes = selection instanceof Node ? [selection] : selection;
+    let autoFormatName = null;
+    if (nodes.length === 1) {
+      autoFormatName = _templateFormatterName(nodes[0]);
+    }
     _registerTemplatesInNodes(nodes, _templateRegistryFor(scope), scope);
-    return _createComponent(new UITemplate([...nodes], scope));
+    const component = _createComponent(new UITemplate([...nodes], scope));
+    if (autoFormatName) {
+      ui.format(autoFormatName, component);
+    }
+    return component;
   }
   throw new Error(`ui() received an invalid selection type: ${typeof selection}. ` + `Expected a string (CSS selector or HTML), a DOM Node, or an array of DOM Nodes. ` + `Received: ${selection}`);
 };
