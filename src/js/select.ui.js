@@ -148,6 +148,21 @@ const _registerTemplatesInNodes = (nodes, registry, scope) => {
 	}
 };
 
+const _templateFormatterName = (template) => {
+	if (template?.nodeName !== "TEMPLATE") {
+		return null;
+	}
+	const name = template.getAttribute("name");
+	if (typeof name === "string") {
+		const normalizedName = name.trim();
+		if (normalizedName.length) {
+			return normalizedName;
+		}
+	}
+	const id = typeof template.id === "string" ? template.id.trim() : "";
+	return id.length ? id : null;
+};
+
 const _createComponent = (tmpl) => {
 	const component = (...args) => tmpl.apply(...args);
 	Object.assign(component, {
@@ -339,16 +354,25 @@ const _applyNamedProcessors = (self, data, value, processors, sourceKey) => {
 		const name = processors[i];
 		const processor = _resolveNamedProcessor(self, name);
 		if (!processor) {
+			const availableProcessors = Object.keys(_formatsStore).sort();
 			logSelectUI(
 				"warn",
 				"UIInstance.render",
 				"processor not found",
-				{ processor: name, sourceKey, instance: self },
+				{
+					processor: name,
+					sourceKey,
+					availableProcessors,
+					instance: self,
+				},
 			);
 			continue;
 		}
 		if (processor.type === "component") {
 			const component = processor.value;
+			if (current === undefined || current === null) {
+				continue;
+			}
 			if (typeof component?.apply === "function" && component?.isTemplate) {
 				current = component(current);
 			} else if (typeof component === "function") {
@@ -2914,25 +2938,37 @@ const ui = (selection, scope = document) => {
 
 	if (typeof selection === "string") {
 		let nodes = [];
+		let autoFormatName = null;
 		const templateRegistry = _templateRegistryFor(scope);
 		if (/^\s*</.test(selection)) {
 			const doc = parser.parseFromString(selection, "text/html");
 			_pruneTemplateWhitespace(doc.body);
 			nodes = [...doc.body.childNodes];
+			if (nodes.length === 1) {
+				autoFormatName = _templateFormatterName(nodes[0]);
+			}
 			_registerTemplatesInNodes(nodes, templateRegistry, scope);
 		} else {
 			const template = templateRegistry.get(_templateKey(selection));
 			if (template) {
 				nodes = [...template.content.childNodes];
+				autoFormatName = _templateFormatterName(template);
 			} else {
+				let matchedTemplateCount = 0;
+				let matchedTemplateName = null;
 				const parent = scope?.querySelectorAll ? scope : document;
 				for (const node of parent.querySelectorAll(selection)) {
 					if (node.nodeName === "TEMPLATE") {
+						matchedTemplateCount += 1;
+						matchedTemplateName = _templateFormatterName(node);
 						_registerTemplateNode(node, templateRegistry, scope);
 						nodes = [...nodes, ...node.content.childNodes];
 					} else {
 						nodes.push(node);
 					}
+				}
+				if (matchedTemplateCount === 1) {
+					autoFormatName = matchedTemplateName;
 				}
 				_registerTemplatesInNodes(nodes, templateRegistry, scope);
 			}
@@ -2943,14 +2979,25 @@ const ui = (selection, scope = document) => {
 				scope,
 			});
 		}
-		// TODO: Should retrieve id and assign a name.
-		return _createComponent(new UITemplate(nodes, scope));
+		const component = _createComponent(new UITemplate(nodes, scope));
+		if (autoFormatName) {
+			ui.format(autoFormatName, component);
+		}
+		return component;
 	}
 
 	if (selection instanceof Node || Array.isArray(selection)) {
 		const nodes = selection instanceof Node ? [selection] : selection;
+		let autoFormatName = null;
+		if (nodes.length === 1) {
+			autoFormatName = _templateFormatterName(nodes[0]);
+		}
 		_registerTemplatesInNodes(nodes, _templateRegistryFor(scope), scope);
-		return _createComponent(new UITemplate([...nodes], scope));
+		const component = _createComponent(new UITemplate([...nodes], scope));
+		if (autoFormatName) {
+			ui.format(autoFormatName, component);
+		}
+		return component;
 	}
 
 	throw new Error(
