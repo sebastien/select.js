@@ -63,9 +63,19 @@ dist/%.js: src/js/%.js
 	cat src/js/$*.js > "$@"
 	echo "[DIST] $$(du -hs $@)"
 
+dist/select.all.js: src/js/select.all.js $(SOURCES_JS)
+	@mkdir -p $(dir $@); true
+	@$(CMD) bun build --bundle --format=esm --outfile="$@" "$<"
+	echo "[DIST] $$(du -hs $@)"
+
 dist/%.min.js: dist/%.js
 	@mkdir -p $(dir $@); true
 	@$(CMD) bun build --minify --outfile="$@" "$<"
+	echo "[DIST] $$(du -hs $@)"
+
+dist/select.all.min.js: src/js/select.all.js $(SOURCES_JS)
+	@mkdir -p $(dir $@); true
+	@$(CMD) bun build --bundle --format=esm --minify --outfile="$@" "$<"
 	echo "[DIST] $$(du -hs $@)"
 
 dist/selectjs.js: src/js/select.all.js $(SOURCES_JS)

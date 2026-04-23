@@ -1,9 +1,9 @@
 # Select Extra (`select.extra.js`)
 
-## Agnostic helpers for interaction and class composition
+## Agnostic helpers for interaction, routing, and history
 
-`select.extra.js` contains small, framework-agnostic browser helpers. It does
-not depend on `select.js` or `select.ui.js`, and can be used in plain DOM code.
+`select.extra.js` contains small, framework-agnostic helpers. It does not
+depend on `select.js` or `select.ui.js`, and can be used in plain DOM code.
 
 ### Class helpers
 
@@ -28,10 +28,44 @@ Accepted `clsx` values:
 - `autoresize(event)`: Auto-resizes a textarea to fit content.
 - `Keyboard`: Key helpers and code constants (`Keyboard.Key`, `Keyboard.Code`, `Keyboard.Char`, ...).
 
+### Routing helpers
+
+- `route(expr)`: Parses route expressions such as `/users/{id:number}`.
+- `Router`: Route trie with `on`, `off`, `match`, `run`, `tree`, and `iwalk`.
+- `router(map)`: Creates a `Router` from `{ routeExpr: handler }`.
+- `routed(map)`: Returns a callable dispatcher with attached `.router` and `.match`.
+
+Supported route slot forms:
+
+- `{name}`: non-empty path chunk
+- `{name:number}`: numeric chunk
+- `{name:alpha}`: alphabetic chunk
+- `{name:string}`: alphanumeric, `_`, and `-`
+- `{name:<regexp>}`: custom regexp source
+
+### URL history helpers
+
+- `URLHistory`: Browser history wrapper for path/hash/query state.
+- `PathSerializer`: Path serializer (`/a/b` <-> `['a', 'b']`).
+- `HashSerializer`: Hash serializer using hashformat semantics.
+- `ParamsSerializer`: Query-string serializer with array support (`key[]`).
+
+`URLHistory` tracks and updates:
+
+- `path` (array of chunks)
+- `hash` (object with `path` + structured values)
+- `params` (query key-value map)
+- `title`
+
+and exposes subscription APIs:
+
+- `onPath`, `onHash`, `onParams`
+- `onPush`, `onReplace`
+
 ### Using
 
 ```javascript
-import { bind, clsx, drag } from "@./select.extra.js"
+import { bind, clsx, drag, router, URLHistory } from "@./select.extra.js"
 
 const button = document.querySelector("button")
 
@@ -48,6 +82,16 @@ document.addEventListener("mousedown", (event) => {
     handle.style.transform = `translate(${delta.dx}px, ${delta.dy}px)`
   })
 })
+
+const routes = router({
+  "/": () => console.log("home"),
+  "/users/{id:number}": (_path, { id }) => console.log("user", Number(id)),
+})
+
+const history = new URLHistory()
+history.onPath((path) => {
+  routes.run(`/${path.join("/")}`)
+}, true)
 ```
 
 ### API
@@ -78,3 +122,41 @@ document.addEventListener("mousedown", (event) => {
 - `Keyboard.Char(event)`: Returns typed character or newline for Enter.
 - `Keyboard.IsControl(event)`: True when key represents control/non-char input.
 - `Keyboard.HasModifier(event)`: True when Alt or Ctrl is pressed.
+
+### Routing
+
+- `route(expr)`: Returns normalized route chunks and capture slots.
+- `new Router()`: Creates an empty router.
+- `router(routes?)`: Creates and preloads a router from route map.
+- `routed(routes?)`: Returns callable `(path, ...args)` with:
+  - `.router`: backing `Router` instance
+  - `.match(path)`: same as `router.match(path)`
+
+`Router` methods:
+
+- `on(expr, handler, priority?)`: Registers handler.
+- `off(expr, handler?)`: Unregisters one or all handlers for expr.
+- `match(path)`: Returns matching handler list or `null`.
+- `run(path, ...args)`: Runs best handler (highest priority, then latest registered).
+- `tree()`: Returns a serializable route tree.
+- `iwalk()`: Yields all handlers depth-first.
+
+Handler signature:
+
+- `(path, captured, ...args) => any`
+- `captured` is an object keyed by slot names.
+
+### URL History
+
+- `new URLHistory(pathSerializer?, hashSerializer?, paramsSerializer?)`
+- `PathSerializer`: `{ parse(value), format(path) }`
+- `HashSerializer`: `{ parse(value), format(hash) }`
+- `ParamsSerializer`: `{ parse(value), format(params) }`
+
+`URLHistory` methods:
+
+- State reads: `getPath()`, `getHash()`, `getParams()`, `getTitle()`
+- State writes: `setPath(path, replace?)`, `setHash(hash, replace?)`, `setParams(params, replace?)`, `setTitle(title, replace?)`
+- Merge updates: `mergeHash(hash, replace?)`, `mergeParams(params, replace?)`
+- Hooks: `onPath(cb, trigger?)`, `onHash(cb, trigger?)`, `onParams(cb, trigger?)`, `onPush(cb, trigger?)`, `onReplace(cb, trigger?)`
+- Lifecycle: `syncFromURL()`, `destroy()`

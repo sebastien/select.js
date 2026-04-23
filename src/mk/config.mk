@@ -13,7 +13,6 @@ DIST_MODE:=
 # PREP_ALL:=
 
 SOURCES_JS:=$(wildcard src/js/*.js)
-SOURCES_JS:=$(filter-out src/js/select.all.js,$(SOURCES_JS))
 
 BUNDLE_JS:=dist/selectjs.js dist/selectjs.min.js
 

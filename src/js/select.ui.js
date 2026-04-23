@@ -2431,14 +2431,22 @@ class UIInstance {
 				this.template.outAttr
 			)
 		) {
-			const text = asText(data);
+			let hasElementNode = false;
 			for (const node of this.nodes) {
 				if (node.nodeType === Node.ELEMENT_NODE) {
-					setNodeText(node, text);
+					hasElementNode = true;
 					break;
 				}
 			}
-			// TODO: Or text node if not set
+			if (!hasElementNode) {
+				const text = asText(data);
+				for (const node of this.nodes) {
+					if (node.nodeType === Node.TEXT_NODE) {
+						setNodeText(node, text);
+						break;
+					}
+				}
+			}
 		} else {
 			const behavior = this.template.behavior;
 			// TODO: This is where there may be loops and where there's a need

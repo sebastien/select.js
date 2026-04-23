@@ -1,7 +1,8 @@
 # Select Extra Reference Guide
 
 Utility module with agnostic helpers for class-name composition, DOM event
-binding, dragging, textarea auto-resize, and keyboard handling.
+binding, dragging, textarea auto-resize, keyboard handling, route dispatch,
+and URL history state.
 
 ## Overview
 
@@ -11,7 +12,7 @@ in plain DOM scripts, custom elements, or alongside any rendering library.
 ## Quick Start
 
 ```javascript
-import { bind, clsx, Keyboard } from "./select.extra.js";
+import { bind, clsx, Keyboard, router, URLHistory } from "./select.extra.js";
 
 const input = document.querySelector("input");
 
@@ -22,6 +23,16 @@ bind(input, {
     }
   },
 });
+
+const routes = router({
+  "/": () => console.log("home"),
+  "/users/{id:number}": (_path, { id }) => console.log("user", Number(id)),
+});
+
+const history = new URLHistory();
+history.onPath((path) => {
+  routes.run(`/${path.join("/")}`);
+}, true);
 ```
 
 ## API Reference
@@ -158,3 +169,132 @@ textarea.addEventListener("input", autoresize);
 - `Keyboard.Char(event)`: printable character or newline for Enter
 - `Keyboard.IsControl(event)`: true if key is non-character/control
 - `Keyboard.HasModifier(event)`: true when Alt or Ctrl is pressed
+
+### Routing
+
+#### `route(expr)`
+
+Parses a route expression into normalized path chunks and dynamic capture slots.
+
+Supported slots:
+
+- `{name}`: any non-empty chunk
+- `{name:number}`: numeric chunk
+- `{name:alpha}`: alphabetic chunk
+- `{name:string}`: alphanumeric plus `_` and `-`
+- `{name:<regexp>}`: custom regexp source
+
+```javascript
+route("/users/{id:number}");
+```
+
+#### `class Router`
+
+Route trie that stores handlers for static and dynamic path chunks.
+
+##### `on(expr, handler, priority?)`
+
+Registers a handler for the route expression.
+
+Handler signature:
+
+- `(path, captured, ...args) => any`
+
+`captured` maps slot names to matched string chunks.
+
+##### `off(expr, handler?)`
+
+Unregisters one handler (when provided) or all handlers for `expr`.
+
+##### `match(path)`
+
+Returns matching handlers array at the matched leaf, or `null`.
+
+##### `run(path, ...args)`
+
+Runs the best matching handler.
+
+Selection order:
+
+1. highest `priority`
+2. when equal, latest registered
+
+##### `tree()`
+
+Returns a serializable object representation of the route tree.
+
+##### `iwalk()`
+
+Generator yielding all handlers depth-first.
+
+#### `router(routes?)`
+
+Factory that creates a `Router` and registers entries from:
+
+- `{ "/path": handler, ... }`
+
+#### `routed(routes?)`
+
+Factory returning a callable dispatcher function:
+
+- call: `(path, ...args) => any`
+- props: `.router`, `.match(path)`
+
+### URL History
+
+#### `PathSerializer`
+
+Default path serializer:
+
+- `parse("/a/b") -> ["a", "b"]`
+- `format(["a", "b"]) -> "/a/b"`
+
+#### `HashSerializer`
+
+Default hash serializer using hashformat semantics for structured values.
+
+- Hash structure: `{ path: string, ...rest }`
+- Example: `#users&tab="activity",page=2`
+
+#### `ParamsSerializer`
+
+Default query serializer using `URLSearchParams` and array notation (`key[]`).
+
+- parse: `?tag[]=a&tag[]=b&page=2`
+- format: `{ tag: ["a", "b"], page: 2 }`
+
+#### `class URLHistory`
+
+Browser URL/history wrapper with path/hash/params synchronization.
+
+Constructor:
+
+- `new URLHistory(pathSerializer?, hashSerializer?, paramsSerializer?)`
+
+State methods:
+
+- `getPath()`, `getHash()`, `getParams()`, `getTitle()`
+- `setPath(path, replace = true)`
+- `setHash(hash, replace = false)`
+- `setParams(params, replace = true)`
+- `setTitle(title, replace = false)`
+- `mergeHash(hash, replace = true)`
+- `mergeParams(params, replace = true)`
+
+Subscriptions:
+
+- `onPath(callback, trigger?)`
+- `onHash(callback, trigger?)`
+- `onParams(callback, trigger?)`
+- `onPush(callback, trigger?)`
+- `onReplace(callback, trigger?)`
+
+Lifecycle:
+
+- `syncFromURL()`
+- `destroy()`
+
+Notes:
+
+- Works in browser contexts (`window`/`document`).
+- Outside browser contexts, URL side effects are safely skipped.
