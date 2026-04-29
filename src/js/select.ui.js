@@ -80,7 +80,7 @@ const scheduleRenderTask = (fn) => {
 
 const _templateRegistries = new WeakMap();
 
-const _templateKey = (value) => {
+const templateKey = (value) => {
 	if (typeof value !== "string") {
 		return null;
 	}
@@ -89,7 +89,7 @@ const _templateKey = (value) => {
 	return key.length ? key : null;
 };
 
-const _registerTemplateKey = (registry, key, template, scope) => {
+const registerTemplateKey = (registry, key, template, scope) => {
 	if (!key) {
 		return;
 	}
@@ -106,12 +106,12 @@ const _registerTemplateKey = (registry, key, template, scope) => {
 	registry.set(key, template);
 };
 
-const _registerTemplateNode = (template, registry, scope) => {
+const registerTemplateNode = (template, registry, scope) => {
 	if (!template || template.nodeName !== "TEMPLATE") {
 		return;
 	}
-	_registerTemplateKey(registry, template.id, template, scope);
-	_registerTemplateKey(
+	registerTemplateKey(registry, template.id, template, scope);
+	registerTemplateKey(
 		registry,
 		template.getAttribute("name"),
 		template,
@@ -121,11 +121,11 @@ const _registerTemplateNode = (template, registry, scope) => {
 		return;
 	}
 	for (const nested of template.content.querySelectorAll("template")) {
-		_registerTemplateNode(nested, registry, scope);
+		registerTemplateNode(nested, registry, scope);
 	}
 };
 
-const _templateRegistryFor = (scope = document) => {
+const templateRegistryFor = (scope = document) => {
 	let registry = _templateRegistries.get(scope);
 	if (registry) {
 		return registry;
@@ -134,30 +134,30 @@ const _templateRegistryFor = (scope = document) => {
 	_templateRegistries.set(scope, registry);
 	const isTemplate = scope?.nodeName === "TEMPLATE";
 	if (isTemplate) {
-		_registerTemplateNode(scope, registry, scope);
+		registerTemplateNode(scope, registry, scope);
 	} else if (scope?.querySelectorAll) {
 		for (const template of scope.querySelectorAll("template")) {
-			_registerTemplateNode(template, registry, scope);
+			registerTemplateNode(template, registry, scope);
 		}
 	}
 	return registry;
 };
 
-const _registerTemplatesInNodes = (nodes, registry, scope) => {
+const registerTemplatesInNodes = (nodes, registry, scope) => {
 	for (let i = 0; i < nodes.length; i++) {
 		const node = nodes[i];
 		if (node?.nodeName === "TEMPLATE") {
-			_registerTemplateNode(node, registry, scope);
+			registerTemplateNode(node, registry, scope);
 		}
 		if (node?.querySelectorAll) {
 			for (const template of node.querySelectorAll("template")) {
-				_registerTemplateNode(template, registry, scope);
+				registerTemplateNode(template, registry, scope);
 			}
 		}
 	}
 };
 
-const _templateFormatterName = (template) => {
+const templateFormatterName = (template) => {
 	if (template?.nodeName !== "TEMPLATE") {
 		return null;
 	}
@@ -172,7 +172,7 @@ const _templateFormatterName = (template) => {
 	return id.length ? id : null;
 };
 
-const _createComponent = (tmpl) => {
+const createComponent = (tmpl) => {
 	const component = (...args) => tmpl.apply(...args);
 	Object.assign(component, {
 		isTemplate: true,
@@ -208,12 +208,13 @@ const logSelectUI = (level, scope, message, details = {}) => {
 	console[level](`[select.ui] ${scope}: ${message}, details`, details);
 };
 
+// TODO: This should be moved closer to where it is defined
 const WHEN_MODE_TRUTHY = 1;
 const WHEN_MODE_FALSY = 2;
 const WHEN_MODE_DEFINED = 3;
 const WHEN_MODE_UNDEFINED = 4;
 
-const _parsePipedBinding = (expr, validateSource = false) => {
+const parsePipedBinding = (expr, validateSource = false) => {
 	const source = typeof expr === "string" ? expr.trim() : "";
 	if (!source) {
 		return null;
@@ -241,18 +242,20 @@ const _parsePipedBinding = (expr, validateSource = false) => {
 	return { sourceKey, processors };
 };
 
-const _parseTemplatePath = (expr) => {
+const RE_BINDING_PATH = /^[A-Za-z_$][A-Za-z0-9_$-]*$/;
+
+const parseBindingPath = (expr, allowDotted = true) => {
 	const source = typeof expr === "string" ? expr.trim() : "";
 	if (!source) {
 		return null;
 	}
-	const parts = source.split(".");
+	const parts = allowDotted ? source.split(".") : [source];
 	if (!parts.length) {
 		return null;
 	}
 	for (let i = 0; i < parts.length; i++) {
 		const part = parts[i].trim();
-		if (!part || !/^[A-Za-z_$][A-Za-z0-9_$-]*$/.test(part)) {
+		if (!part || !RE_BINDING_PATH.test(part)) {
 			return null;
 		}
 		parts[i] = part;
@@ -260,7 +263,11 @@ const _parseTemplatePath = (expr) => {
 	return parts;
 };
 
-const _parseTemplatePlaceholder = (expr) => {
+const parseTemplatePath = (expr) => {
+	return parseBindingPath(expr, true);
+};
+
+const parseTemplatePlaceholder = (expr) => {
 	const source = typeof expr === "string" ? expr.trim() : "";
 	if (!source) {
 		return null;
@@ -272,7 +279,7 @@ const _parseTemplatePlaceholder = (expr) => {
 			return null;
 		}
 	}
-	const path = _parseTemplatePath(parts[0]);
+	const path = parseTemplatePath(parts[0]);
 	if (!path) {
 		return null;
 	}
@@ -287,12 +294,12 @@ const _parseTemplatePlaceholder = (expr) => {
 	return { path, processors };
 };
 
-const _parseOutAttributeBinding = (expr) => {
+const parseOutAttributeBinding = (expr) => {
 	const source = typeof expr === "string" ? expr : "";
 	if (!source) {
 		return {
 			mode: "binding",
-			binding: _parsePipedBinding(source),
+			binding: parsePipedBinding(source),
 		};
 	}
 	const tokens = [];
@@ -316,7 +323,7 @@ const _parseOutAttributeBinding = (expr) => {
 			last = source.length;
 			break;
 		}
-		const placeholder = _parseTemplatePlaceholder(source.slice(start + 2, end));
+		const placeholder = parseTemplatePlaceholder(source.slice(start + 2, end));
 		if (!placeholder) {
 			tokens.push({ type: "invalid" });
 			last = end + 1;
@@ -333,11 +340,11 @@ const _parseOutAttributeBinding = (expr) => {
 	}
 	return {
 		mode: "binding",
-		binding: _parsePipedBinding(source),
+		binding: parsePipedBinding(source),
 	};
 };
 
-const _resolveTemplateTokens = (self, tokens, data) => {
+const resolveTemplateTokens = (self, tokens, data) => {
 	if (!tokens?.length) {
 		return "";
 	}
@@ -353,13 +360,13 @@ const _resolveTemplateTokens = (self, tokens, data) => {
 		}
 		if (token.type === "expr") {
 			const path = token.value.path;
-			let value = _resolveDataPath(data, path);
+			let value = resolveDataPath(data, path);
 			if (value === undefined || value === null) {
 				continue;
 			}
 			let resolved = expand(value);
 			if (token.value.processors?.length) {
-				resolved = _applyNamedProcessors(
+				resolved = applyNamedProcessors(
 					self,
 					data,
 					resolved,
@@ -375,7 +382,7 @@ const _resolveTemplateTokens = (self, tokens, data) => {
 	return result;
 };
 
-const _resolveDataPath = (data, path) => {
+const resolveDataPath = (data, path) => {
 	if (!path || !path.length) {
 		return data;
 	}
@@ -390,17 +397,17 @@ const _resolveDataPath = (data, path) => {
 	return value;
 };
 
-const _resolveSourceValue = (data, sourceKey) => {
+const resolveSourceValue = (data, sourceKey) => {
 	if (!sourceKey) {
 		return undefined;
 	}
 	if (!sourceKey.includes(".")) {
 		return data ? data[sourceKey] : undefined;
 	}
-	return _resolveDataPath(data, sourceKey.split("."));
+	return resolveDataPath(data, sourceKey.split("."));
 };
 
-const _parseWhenShorthand = (expr) => {
+const parseWhenShorthand = (expr) => {
 	const source = typeof expr === "string" ? expr.trim() : "";
 	let i = 0;
 	let negate = false;
@@ -417,11 +424,15 @@ const _parseWhenShorthand = (expr) => {
 	let key;
 	let processors = [];
 	if (bindingExpr) {
-		const binding = _parsePipedBinding(bindingExpr, true);
+		const binding = parsePipedBinding(bindingExpr, false);
 		if (!binding) {
 			return null;
 		}
-		key = binding.sourceKey;
+		const path = parseBindingPath(binding.sourceKey, true);
+		if (!path) {
+			return null;
+		}
+		key = path.join(".");
 		processors = binding.processors;
 	}
 	if (!bindingExpr && source.length > 0 && i === 0) {
@@ -437,7 +448,7 @@ const _parseWhenShorthand = (expr) => {
 	return { key, processors, mode };
 };
 
-const _evaluateWhen = (mode, value) => {
+const evaluateWhen = (mode, value) => {
 	switch (mode) {
 		case WHEN_MODE_TRUTHY:
 			return !!value;
@@ -452,19 +463,19 @@ const _evaluateWhen = (mode, value) => {
 	}
 };
 
-const _resolveWhenValue = (self, data, key) => {
+const resolveWhenValue = (self, data, key) => {
 	const behavior = self?.template?.behavior;
 	const b = behavior?.[key];
 	if (b) {
 		return b(self, data, null);
 	}
-	const value = _resolveSourceValue(data, key);
+	const value = resolveSourceValue(data, key);
 	return value === undefined ? undefined : expand(value);
 };
 
-const _isPascalCaseName = (name) => /^[A-Z][A-Za-z0-9_]*$/.test(name);
+const isPascalCaseName = (name) => /^[A-Z][A-Za-z0-9_]*$/.test(name);
 
-const _resolveNamedProcessor = (self, name) => {
+const resolveNamedProcessor = (self, name) => {
 	if (!self?.template || !name) {
 		return null;
 	}
@@ -484,7 +495,7 @@ const _resolveNamedProcessor = (self, name) => {
 		});
 		return null;
 	}
-	const isPascal = _isPascalCaseName(name);
+	const isPascal = isPascalCaseName(name);
 	const isComponent =
 		typeof registered === "function" &&
 		(registered?.isTemplate || typeof registered?.new === "function");
@@ -521,14 +532,14 @@ const _resolveNamedProcessor = (self, name) => {
 	return resolved;
 };
 
-const _applyNamedProcessors = (self, data, value, processors, sourceKey) => {
+const applyNamedProcessors = (self, data, value, processors, sourceKey) => {
 	if (!processors || processors.length === 0) {
 		return value;
 	}
 	let current = value;
 	for (let i = 0; i < processors.length; i++) {
 		const name = processors[i];
-		const processor = _resolveNamedProcessor(self, name);
+		const processor = resolveNamedProcessor(self, name);
 		if (!processor) {
 			const availableProcessors = Object.keys(_formatsStore).sort();
 			logSelectUI("warn", "UIInstance.render", "processor not found", {
@@ -556,32 +567,32 @@ const _applyNamedProcessors = (self, data, value, processors, sourceKey) => {
 	return current;
 };
 
-const _createWhenPredicate =
+const createWhenPredicate =
 	(mode, key, processors = undefined) =>
 	(self, data) => {
-		const value = _resolveWhenValue(self, data, key);
-		const resolved = _applyNamedProcessors(self, data, value, processors, key);
-		return _evaluateWhen(mode, resolved);
+		const value = resolveWhenValue(self, data, key);
+		const resolved = applyNamedProcessors(self, data, value, processors, key);
+		return evaluateWhen(mode, resolved);
 	};
 
 const SLOT_DEFAULT_KEY = "_";
 
-const _isPrunableWhitespaceText = (node) =>
+const isPrunableWhitespaceText = (node) =>
 	node &&
 	node.nodeType === Node.TEXT_NODE &&
 	!/\S/.test(node.data) &&
 	/[\n\r\t]/.test(node.data);
 
-const _pruneTemplateWhitespace = (node) => {
+const pruneTemplateWhitespace = (node) => {
 	if (!node?.childNodes || node.childNodes.length === 0) {
 		return;
 	}
 	for (let i = node.childNodes.length - 1; i >= 0; i--) {
 		const child = node.childNodes[i];
-		if (_isPrunableWhitespaceText(child)) {
+		if (isPrunableWhitespaceText(child)) {
 			node.removeChild(child);
 		} else {
-			_pruneTemplateWhitespace(child);
+			pruneTemplateWhitespace(child);
 		}
 	}
 };
@@ -788,7 +799,7 @@ const setNodeText = (node, text) => {
 	return node;
 };
 
-const _createTrackingProxy = (data) => {
+const createTrackingProxy = (data) => {
 	const accessed = new Set();
 	return [
 		new Proxy(data, {
@@ -898,7 +909,7 @@ class UITemplateSlot {
 				UITemplateSlot.Path(node, parent, [i]),
 			);
 			if (name === "out") {
-				const parsed = _parsePipedBinding(k);
+				const parsed = parsePipedBinding(k);
 				if (!parsed) {
 					logSelectUI("warn", "UITemplate", "invalid [out] binding", {
 						binding: k,
@@ -941,7 +952,7 @@ class UITemplateSlot {
 		const selector = `[when]`;
 		const add = (node, parent, i) => {
 			const expr = node.getAttribute("when") || "";
-			const parsed = _parseWhenShorthand(expr);
+			const parsed = parseWhenShorthand(expr);
 			const slot = new UITemplateSlot(
 				node,
 				parent,
@@ -971,7 +982,7 @@ class UITemplateSlot {
 						);
 						return;
 					}
-					const outBinding = _parsePipedBinding(outKey);
+					const outBinding = parsePipedBinding(outKey);
 					if (!outBinding?.sourceKey) {
 						logSelectUI(
 							"error",
@@ -985,7 +996,7 @@ class UITemplateSlot {
 				}
 
 				node.removeAttribute("when");
-				slot.predicate = _createWhenPredicate(
+				slot.predicate = createWhenPredicate(
 					parsed.mode,
 					whenKey,
 					whenProcessors,
@@ -1049,7 +1060,7 @@ class UITemplateSlot {
 	}
 
 	// Resolves to actual node in cloned instance `nodes`.
-	_resolve(nodes) {
+	resolve(nodes) {
 		let node = nodes[this.rootIndex];
 		if (this.tailPath) {
 			for (let i = 0; i < this.tailPath.length; i++) {
@@ -1061,7 +1072,7 @@ class UITemplateSlot {
 
 	// Applies this template slot to `nodes`, returning a UISlot.
 	apply(nodes, parent, raw = false) {
-		const node = this._resolve(nodes);
+		const node = this.resolve(nodes);
 		return node ? (raw ? node : new UISlot(node, this, parent)) : null;
 	}
 
@@ -1080,7 +1091,7 @@ class UITemplateSlot {
 					if (attr.name.startsWith(prefix)) {
 						const attrName = attr.name.slice(prefix.length);
 						const slotName = attr.value || attrName;
-						const parsed = _parseOutAttributeBinding(slotName);
+						const parsed = parseOutAttributeBinding(slotName);
 						const binding = parsed.binding;
 						const sourceKey = binding?.sourceKey ?? slotName;
 						const processorsKey = binding?.processors?.join("|") || "";
@@ -1200,7 +1211,7 @@ class UIAttributeTemplateSlot {
 		this.template = parsed?.template || null;
 	}
 
-	_resolve(nodes) {
+	resolve(nodes) {
 		let node = nodes[this.rootIndex];
 		if (this.tailPath) {
 			for (let i = 0; i < this.tailPath.length; i++) {
@@ -1211,7 +1222,7 @@ class UIAttributeTemplateSlot {
 	}
 
 	apply(nodes, parent) {
-		const node = this._resolve(nodes);
+		const node = this.resolve(nodes);
 		return node ? new UIAttributeSlot(node, this, parent) : null;
 	}
 }
@@ -1374,7 +1385,7 @@ class UIEventTemplateSlot {
 		this.handlerName = handlerName;
 	}
 
-	_resolve(nodes) {
+	resolve(nodes) {
 		let node = nodes[this.rootIndex];
 		if (this.tailPath) {
 			for (let i = 0; i < this.tailPath.length; i++) {
@@ -1385,7 +1396,7 @@ class UIEventTemplateSlot {
 	}
 
 	apply(nodes, parent) {
-		const node = this._resolve(nodes);
+		const node = this.resolve(nodes);
 		return node ? new UIEventSlot(node, this, parent) : null;
 	}
 }
@@ -2179,7 +2190,7 @@ class UIInstance {
 		return refs;
 	}
 
-	_syncReactiveDataSubs(data) {
+	syncReactiveDataSubs(data) {
 		const refs = this._collectReactiveDataRefs(data);
 		if (this._reactiveDataSubs === undefined) {
 			this._reactiveDataSubs = new Map();
@@ -2444,13 +2455,17 @@ class UIInstance {
 
 	// FIXME: Remove, use pub() instead
 	send(event, data) {
-		console.warn(`[select.ui] Deprecation: send() is deprecated, use pub() instead`);
+		console.warn(
+			`[select.ui] Deprecation: send() is deprecated, use pub() instead`,
+		);
 		return this.pub(event, data);
 	}
 
 	// FIXME: Remove, use pub() instead
 	emit(event, data) {
-		console.warn(`[select.ui] Deprecation: emit() is deprecated, use pub() instead`);
+		console.warn(
+			`[select.ui] Deprecation: emit() is deprecated, use pub() instead`,
+		);
 		return this.pub(event, data);
 	}
 
@@ -2658,7 +2673,7 @@ class UIInstance {
 
 					if (hasBehavior) {
 						if (isGranular) {
-							const [trackedData, accessed] = _createTrackingProxy(data);
+						const [trackedData, accessed] = createTrackingProxy(data);
 							v = hasBehavior(this, trackedData, null);
 							if (!this._behaviorDeps) {
 								this._behaviorDeps = new Map();
@@ -2672,12 +2687,12 @@ class UIInstance {
 							v = hasBehavior(this, data, null);
 						}
 					} else {
-						v = _resolveSourceValue(data, sourceKey);
+						v = resolveSourceValue(data, sourceKey);
 						v = v === undefined ? undefined : expand(v);
 					}
 
 					if (withProcessors && processors?.length) {
-						v = _applyNamedProcessors(this, data, v, processors, sourceKey);
+						v = applyNamedProcessors(this, data, v, processors, sourceKey);
 					}
 
 					for (const slot of slots) {
@@ -2702,14 +2717,15 @@ class UIInstance {
 				if (k === "$template") {
 					for (const slot of this.outAttr.$template) {
 						slot.render(
-							_resolveTemplateTokens(this, slot.template.template?.tokens, data),
+							resolveTemplateTokens(this, slot.template.template?.tokens, data),
 						);
 					}
 					continue;
 				}
 				const slots = this.outAttr[k];
 				const binding = slots?.[0]?.template.binding;
-				const sourceKey = binding?.sourceKey || slots?.[0]?.template.slotName || k;
+				const sourceKey =
+					binding?.sourceKey || slots?.[0]?.template.slotName || k;
 				const processors = binding?.processors;
 				const hasBehavior = behavior?.[sourceKey];
 				let v;
@@ -2718,17 +2734,17 @@ class UIInstance {
 						const attrValue = slot.node.getAttribute(slot.attrName);
 						v = hasBehavior(this, data, attrValue, slot.node);
 						if (processors?.length) {
-							v = _applyNamedProcessors(this, data, v, processors, sourceKey);
+							v = applyNamedProcessors(this, data, v, processors, sourceKey);
 						}
 						slot.render(v);
 					}
 					continue;
 				}
-				v = _resolveSourceValue(data, sourceKey);
+				v = resolveSourceValue(data, sourceKey);
 				if (v !== undefined) {
 					v = expand(v);
 					if (processors?.length) {
-						v = _applyNamedProcessors(this, data, v, processors, sourceKey);
+						v = applyNamedProcessors(this, data, v, processors, sourceKey);
 					}
 				}
 				for (const slot of slots) {
@@ -2742,7 +2758,7 @@ class UIInstance {
 				}
 			}
 		}
-		this._syncReactiveDataSubs(data);
+		this.syncReactiveDataSubs(data);
 		this.data = data;
 		return this;
 	}
@@ -2819,18 +2835,18 @@ const Disconnect = Symbol.for("Disconnect");
 const Adopted = Symbol.for("Adopted");
 const BaseHTMLElement = globalThis.HTMLElement || class {};
 
-const _wcToKebabCase = (value) =>
+const wcToKebabCase = (value) =>
 	value
 		.replace(/([a-z0-9])([A-Z])/g, "$1-$2")
 		.replace(/[_\s]+/g, "-")
 		.toLowerCase();
 
-const _wcToCamelCase = (value) =>
+const wcToCamelCase = (value) =>
 	value
 		.toLowerCase()
 		.replace(/-([a-z0-9])/g, (_, letter) => letter.toUpperCase());
 
-const _wcParseAttributeValue = (value) => {
+const wcParseAttributeValue = (value) => {
 	if (value === null) {
 		return null;
 	}
@@ -2846,7 +2862,7 @@ const _wcParseAttributeValue = (value) => {
 	return value;
 };
 
-const _wcCreateAttributeBindings = (initial, options) => {
+const wcCreateAttributeBindings = (initial, options) => {
 	const bindings = new Map();
 	const addBinding = (attribute, key) => {
 		if (!attribute || !key) {
@@ -2859,7 +2875,7 @@ const _wcCreateAttributeBindings = (initial, options) => {
 	if (initial && typeof initial === "object") {
 		for (const key in initial) {
 			addBinding(key, key);
-			addBinding(_wcToKebabCase(key), key);
+			addBinding(wcToKebabCase(key), key);
 		}
 	}
 
@@ -2874,7 +2890,7 @@ const _wcCreateAttributeBindings = (initial, options) => {
 			if (typeof attribute !== "string") {
 				continue;
 			}
-			const key = _wcToCamelCase(attribute);
+			const key = wcToCamelCase(attribute);
 			addBinding(attribute, key);
 		}
 	}
@@ -2882,13 +2898,13 @@ const _wcCreateAttributeBindings = (initial, options) => {
 	return bindings;
 };
 
-const _wcCollectObservedAttributes = (initial, bindings, options) => {
+const wcCollectObservedAttributes = (initial, bindings, options) => {
 	const attributes = new Set();
 
 	if (initial && typeof initial === "object") {
 		for (const key in initial) {
 			attributes.add(`${key}`.toLowerCase());
-			attributes.add(_wcToKebabCase(key));
+			attributes.add(wcToKebabCase(key));
 		}
 	}
 
@@ -2907,7 +2923,7 @@ const _wcCollectObservedAttributes = (initial, bindings, options) => {
 	return [...attributes];
 };
 
-const _wcAsNodes = (value, nodes = []) => {
+const wcAsNodes = (value, nodes = []) => {
 	if (value === undefined || value === null || value === false) {
 		return nodes;
 	}
@@ -2925,13 +2941,13 @@ const _wcAsNodes = (value, nodes = []) => {
 			value.length % 1 === 0)
 	) {
 		for (let i = 0; i < value.length; i++) {
-			_wcAsNodes(value[i], nodes);
+			wcAsNodes(value[i], nodes);
 		}
 		return nodes;
 	}
 	if (Array.isArray(value)) {
 		for (let i = 0; i < value.length; i++) {
-			_wcAsNodes(value[i], nodes);
+			wcAsNodes(value[i], nodes);
 		}
 		return nodes;
 	}
@@ -2968,8 +2984,8 @@ class UIWebComponent extends BaseHTMLElement {
 		const data = {};
 		for (const attribute of this.attributes) {
 			const name = attribute.name.toLowerCase();
-			const key = this.attributeBindings.get(name) || _wcToCamelCase(name);
-			data[key] = _wcParseAttributeValue(attribute.value);
+			const key = this.attributeBindings.get(name) || wcToCamelCase(name);
+			data[key] = wcParseAttributeValue(attribute.value);
 		}
 		return data;
 	}
@@ -3000,7 +3016,7 @@ class UIWebComponent extends BaseHTMLElement {
 		}
 		this._clearPureNodes();
 		const output = this.componentFactory(this.data, this);
-		const nodes = _wcAsNodes(output);
+		const nodes = wcAsNodes(output);
 		for (let i = 0; i < nodes.length; i++) {
 			this.root.appendChild(nodes[i]);
 		}
@@ -3060,8 +3076,8 @@ class UIWebComponent extends BaseHTMLElement {
 		}
 		const normalized = `${name}`.toLowerCase();
 		const key =
-			this.attributeBindings.get(normalized) || _wcToCamelCase(normalized);
-		this.applyData({ [key]: _wcParseAttributeValue(current) });
+			this.attributeBindings.get(normalized) || wcToCamelCase(normalized);
+		this.applyData({ [key]: wcParseAttributeValue(current) });
 		this.trigger(name, previous, current);
 	}
 
@@ -3097,8 +3113,8 @@ const webcomponent = (
 	}
 	const initialData =
 		initial && typeof initial === "object" ? { ...initial } : {};
-	const attributeBindings = _wcCreateAttributeBindings(initialData, options);
-	const observedAttributes = _wcCollectObservedAttributes(
+	const attributeBindings = wcCreateAttributeBindings(initialData, options);
+	const observedAttributes = wcCollectObservedAttributes(
 		initialData,
 		attributeBindings,
 		options,
@@ -3152,20 +3168,20 @@ const ui = (selection, scope = document) => {
 	if (typeof selection === "string") {
 		let nodes = [];
 		let autoFormatName = null;
-		const templateRegistry = _templateRegistryFor(scope);
+		const templateRegistry = templateRegistryFor(scope);
 		if (/^\s*</.test(selection)) {
 			const doc = parser.parseFromString(selection, "text/html");
-			_pruneTemplateWhitespace(doc.body);
+			pruneTemplateWhitespace(doc.body);
 			nodes = [...doc.body.childNodes];
 			if (nodes.length === 1) {
-				autoFormatName = _templateFormatterName(nodes[0]);
+				autoFormatName = templateFormatterName(nodes[0]);
 			}
-			_registerTemplatesInNodes(nodes, templateRegistry, scope);
+			registerTemplatesInNodes(nodes, templateRegistry, scope);
 		} else {
-			const template = templateRegistry.get(_templateKey(selection));
+			const template = templateRegistry.get(templateKey(selection));
 			if (template) {
 				nodes = [...template.content.childNodes];
-				autoFormatName = _templateFormatterName(template);
+				autoFormatName = templateFormatterName(template);
 			} else {
 				let matchedTemplateCount = 0;
 				let matchedTemplateName = null;
@@ -3173,8 +3189,8 @@ const ui = (selection, scope = document) => {
 				for (const node of parent.querySelectorAll(selection)) {
 					if (node.nodeName === "TEMPLATE") {
 						matchedTemplateCount += 1;
-						matchedTemplateName = _templateFormatterName(node);
-						_registerTemplateNode(node, templateRegistry, scope);
+						matchedTemplateName = templateFormatterName(node);
+						registerTemplateNode(node, templateRegistry, scope);
 						nodes = [...nodes, ...node.content.childNodes];
 					} else {
 						nodes.push(node);
@@ -3183,7 +3199,7 @@ const ui = (selection, scope = document) => {
 				if (matchedTemplateCount === 1) {
 					autoFormatName = matchedTemplateName;
 				}
-				_registerTemplatesInNodes(nodes, templateRegistry, scope);
+				registerTemplatesInNodes(nodes, templateRegistry, scope);
 			}
 		}
 		if (nodes.length === 0) {
@@ -3192,7 +3208,7 @@ const ui = (selection, scope = document) => {
 				scope,
 			});
 		}
-		const component = _createComponent(new UITemplate(nodes, scope));
+		const component = createComponent(new UITemplate(nodes, scope));
 		if (autoFormatName) {
 			ui.format(autoFormatName, component);
 		}
@@ -3203,10 +3219,10 @@ const ui = (selection, scope = document) => {
 		const nodes = selection instanceof Node ? [selection] : selection;
 		let autoFormatName = null;
 		if (nodes.length === 1) {
-			autoFormatName = _templateFormatterName(nodes[0]);
+			autoFormatName = templateFormatterName(nodes[0]);
 		}
-		_registerTemplatesInNodes(nodes, _templateRegistryFor(scope), scope);
-		const component = _createComponent(new UITemplate([...nodes], scope));
+		registerTemplatesInNodes(nodes, templateRegistryFor(scope), scope);
+		const component = createComponent(new UITemplate([...nodes], scope));
 		if (autoFormatName) {
 			ui.format(autoFormatName, component);
 		}
