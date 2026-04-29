@@ -118,6 +118,62 @@ const assign = (scope, path, value, merge = undefined, offset = 0) => {
 	return root;
 };
 
+const clone = (value, key) => {
+	return Array.isArray(value)
+		? value.slice()
+		: value && Object.getPrototypeOf(value) === Object.prototype
+			? { ...value }
+			: typeof key === "number"
+				? []
+				: {};
+};
+
+const reassign = (scope, path, value, merge = undefined, offset = 0) => {
+	const n = path.length;
+	if (n === 0) {
+		return merge ? merge(scope, value) : value;
+	}
+	const start = offset < 0 ? 0 : offset;
+	if (start >= n) {
+		return scope;
+	}
+
+	const rootKey = path[start];
+	const root = clone(scope);
+
+	let currentClone = root;
+	let currentOriginal =
+		scope &&
+		(Array.isArray(scope) || Object.getPrototypeOf(scope) === Object.prototype)
+			? scope
+			: undefined;
+
+	for (let i = start; i < n - 1; i++) {
+		const key = path[i];
+		const nextKey = path[i + 1];
+		const originalChild = currentOriginal ? currentOriginal[key] : undefined;
+		const childClone = clone(originalChild);
+		// We pad any missing intermediate array items if key is a number
+		if (Array.isArray(currentClone) && typeof key === "number") {
+			while (currentClone.length <= key) {
+				currentClone.push(undefined);
+			}
+		}
+		currentClone[key] = childClone;
+		currentClone = childClone;
+		currentOriginal = originalChild;
+	}
+
+	const leafKey = path[n - 1];
+	if (Array.isArray(currentClone) && typeof leafKey === "number") {
+		while (currentClone.length <= leafKey) {
+			currentClone.push(undefined);
+		}
+	}
+	currentClone[leafKey] = merge ? merge(currentClone[leafKey], value) : value;
+	return root;
+};
+
 // Normalizes path to array form. Nothing becomes null, single values become
 // single-element arrays.
 const normpath = (path) => {
@@ -470,8 +526,18 @@ class Cell extends Reactive {
 	_update(value, path, _force = false) {
 		// TODO: Maybe patch?
 		path = normpath(path);
+		if (!_force) {
+			if (path) {
+				const current = access(this.value, path);
+				if (Object.is(current, value)) {
+					return;
+				}
+			} else if (Object.is(this.value, value)) {
+				return;
+			}
+		}
 		// TODO: Check existing
-		const updated = path ? assign(this.value, path, value) : value;
+		const updated = path ? reassign(this.value, path, value) : value;
 		this.previous = this.value;
 		this.value = updated;
 		this.isPending = !!(updated && typeof updated.then === "function");
@@ -638,7 +704,7 @@ class Derivation extends Reactive {
 						: Array.isArray(sourcePath)
 							? [...path, ...sourcePath]
 							: [...path, sourcePath];
-				this.expanded = assign(this.expanded, fullPath, value);
+				this.expanded = reassign(this.expanded, fullPath, value);
 				this._apply(this._compute());
 			};
 			cell.sub(reactor);
