@@ -352,15 +352,8 @@ const _resolveTemplateTokens = (self, tokens, data) => {
 			continue;
 		}
 		if (token.type === "expr") {
-			let value = data;
 			const path = token.value.path;
-			for (let j = 0; j < path.length; j++) {
-				if (value === undefined || value === null) {
-					value = undefined;
-					break;
-				}
-				value = value[path[j]];
-			}
+			let value = _resolveDataPath(data, path);
 			if (value === undefined || value === null) {
 				continue;
 			}
@@ -380,6 +373,31 @@ const _resolveTemplateTokens = (self, tokens, data) => {
 		}
 	}
 	return result;
+};
+
+const _resolveDataPath = (data, path) => {
+	if (!path || !path.length) {
+		return data;
+	}
+	let value = data;
+	for (let i = 0; i < path.length; i++) {
+		value = expand(value);
+		if (value === undefined || value === null) {
+			return undefined;
+		}
+		value = value[path[i]];
+	}
+	return value;
+};
+
+const _resolveSourceValue = (data, sourceKey) => {
+	if (!sourceKey) {
+		return undefined;
+	}
+	if (!sourceKey.includes(".")) {
+		return data ? data[sourceKey] : undefined;
+	}
+	return _resolveDataPath(data, sourceKey.split("."));
 };
 
 const _parseWhenShorthand = (expr) => {
@@ -440,10 +458,8 @@ const _resolveWhenValue = (self, data, key) => {
 	if (b) {
 		return b(self, data, null);
 	}
-	if (data && key in data) {
-		return expand(data[key]);
-	}
-	return undefined;
+	const value = _resolveSourceValue(data, key);
+	return value === undefined ? undefined : expand(value);
 };
 
 const _isPascalCaseName = (name) => /^[A-Z][A-Za-z0-9_]*$/.test(name);
@@ -2655,10 +2671,9 @@ class UIInstance {
 						} else {
 							v = hasBehavior(this, data, null);
 						}
-					} else if (data && sourceKey in data) {
-						v = expand(data[sourceKey]);
 					} else {
-						v = undefined;
+						v = _resolveSourceValue(data, sourceKey);
+						v = v === undefined ? undefined : expand(v);
 					}
 
 					if (withProcessors && processors?.length) {
@@ -2709,8 +2724,9 @@ class UIInstance {
 					}
 					continue;
 				}
-				if (data && sourceKey in data) {
-					v = expand(data[sourceKey]);
+				v = _resolveSourceValue(data, sourceKey);
+				if (v !== undefined) {
+					v = expand(v);
 					if (processors?.length) {
 						v = _applyNamedProcessors(this, data, v, processors, sourceKey);
 					}
