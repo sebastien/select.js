@@ -2426,13 +2426,15 @@ class UIInstance {
 	// SUBSECTION: Pub/Sub Events
 	// ============================================================================
 
-	// Alias for `pub()`.
+	// FIXME: Remove, use pub() instead
 	send(event, data) {
+		console.warn(`[select.ui] Deprecation: send() is deprecated, use pub() instead`);
 		return this.pub(event, data);
 	}
 
-	// Alias for `pub()`.
+	// FIXME: Remove, use pub() instead
 	emit(event, data) {
+		console.warn(`[select.ui] Deprecation: emit() is deprecated, use pub() instead`);
 		return this.pub(event, data);
 	}
 

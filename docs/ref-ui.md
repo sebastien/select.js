@@ -245,8 +245,7 @@ Web component API:
 - `unmount()`: Removes the instance's nodes from the DOM.
 - `dispose()`: Releases instance resources (runtime listeners, reactive/context subscriptions, child instances) without removing nodes directly.
 - `render(data?)`: Forces a re-render of the instance, optionally with new data.
-- `send(event, data)` / `pub(event, data)`: Publishes an event upward through the component tree.
-- `emit(event, data)`: Alias for `pub(event, data)`.
+- `pub(event, data)`: Publishes an event upward through the component tree.
 - `on(event, handler)` / `off(event, handler)`: Adds or removes runtime event listeners on the instance.
 - `provide(key, value)`: Provides a context value to be consumed by child instances.
 - `inject(key, defaultValue?)`: Consumes a context value provided by an ancestor instance.
@@ -657,7 +656,7 @@ const Item = ui(`
   </li>
 `).does({
   name: (self, { name }) => name,
-  remove: (self, data) => self.send("Remove", data),
+  remove: (self, data) => self.pub("Remove", data),
 });
 
 const List = ui(`<ul out="items"></ul>`)
@@ -746,7 +745,7 @@ const LoginForm = ui("#LoginForm").does({
     event ? self.update({ password: event.target.value }) : data.password,
   submit: (self, { username, password }, event) => {
     event.preventDefault();
-    self.send("Login", { username, password });
+    self.pub("Login", { username, password });
   },
 });
 ```
@@ -884,7 +883,7 @@ const Button = ui(`
   isDisabled: (self, { disabled, loading }) => disabled || loading,
   click: (self, data, event) => {
     if (!data.disabled && !data.loading) {
-      self.send("Click", data);
+      self.pub("Click", data);
     }
   },
 });

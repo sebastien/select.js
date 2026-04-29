@@ -47,8 +47,7 @@ For icon loading and `<ui-icon>` usage, see [`docs/icons.md`](./icons.md).
 - `unmount()`: DOM detachment.
 - `dispose()`: Releases instance listeners/subscriptions and child instances.
 - `render(data?)`: Rendering engine access.
-- `send(event, data)` / `pub(event, data)`: Message passing.
-- `emit(event, data)`: Event emission.
+- `pub(event, data)`: Publishes an event upward through the component tree.
 - `on(event, handler)` / `off(event, handler)`: Dynamic event binding.
 - `provide(key, value)` / `inject(key, defaultValue?)`: Context management.
 
@@ -188,8 +187,7 @@ Dynamic("Badge", { label: "Ready" })
 - `instance.unmount()`: Removes the instance's nodes from the DOM.
 - `instance.dispose()`: Releases runtime listeners/subscriptions and child instances.
 - `instance.render(data?)`: Forces a re-render of the instance, optionally with new data.
-- `instance.send(event, data)` / `instance.pub(event, data)`: Publishes an event upward through the component tree.
-- `instance.emit(event, data)`: Alias for `pub(event, data)`.
+- `instance.pub(event, data)`: Publishes an event upward through the component tree.
 - `instance.on(event, handler)` / `instance.off(event, handler)`: Adds or removes runtime event listeners on the instance.
 - `instance.provide(key, value)`: Provides a context value to be consumed by child instances.
 - `instance.inject(key, defaultValue?)`: Consumes a context value provided by an ancestor instance.
