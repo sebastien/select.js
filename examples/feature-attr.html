@@ -108,6 +108,8 @@
 
 	<template id="ActionButton">
 		<button class="btn" out:class="btnClass" out:disabled="isDisabled" out:aria-busy="loading" out:style="customStyle"
+			out:title="${label|upper} (${variant})" out:data-state="load:${loading}|disable:${disabled}|missing:${doesNotExist}"
+			out:data-width="${column.width|em}"
 			on:click>
 			<span out="label">Button</span>
 		</button>
@@ -143,12 +145,16 @@
 
 	<script type="module">
 		import ui from "@./select.ui.js"
+		ui.format("upper", (value) => `${value ?? ""}`.toUpperCase())
+		ui.format("em", (value) => `${value ?? ""}em`)
 
 		// ActionButton demonstrates multiple out:attr bindings:
 		// - out:class for dynamic CSS classes (object format like clsx)
 		// - out:disabled for boolean attribute
 		// - out:aria-busy for accessibility
 		// - out:style for inline styles (object format)
+		// - out:title / out:data-state / out:data-width for template interpolation
+		//   including placeholder processors like ${column.width|em}
 		const ActionButton = ui("#ActionButton").does({
 			label: (_self, { label }) => label || "Click me",
 
@@ -193,17 +199,20 @@
 					ActionButton({
 						label: "Submit",
 						variant: variants[variantIndex],
+						column: { width: 8 },
 						loading,
 						disabled
 					}),
 					ActionButton({
 						label: "Cancel",
 						variant: "danger",
+						column: { width: 6 },
 						disabled
 					}),
 					ActionButton({
 						label: "Special",
 						variant: "success",
+						column: { width: 10 },
 						highlight: true
 					}),
 				],

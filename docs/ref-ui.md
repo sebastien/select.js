@@ -520,6 +520,16 @@ Direct access to DOM nodes.
 Bind behavior outputs directly to element attributes. Use `out:<attr>` where
 `<attr>` is the attribute name, optionally with a custom slot name.
 
+`out:<attr>` supports two exclusive forms:
+
+- binding mode: `out:<attr>="slot|Formatter|Formatter"`
+- template mode: `out:<attr>="prefix-${path.to.value}-suffix"`
+
+Template mode supports placeholder pipelines too, such as
+`${column.width|em}` and `${name|TitleCase}`. Placeholder expressions are data
+path lookups with optional processors (no JavaScript evaluation). Missing or
+invalid placeholders are rendered as empty strings.
+
 ```html
 <!-- Uses "disabled" as the behavior name -->
 <button out:disabled>Submit</button>
@@ -529,6 +539,16 @@ Bind behavior outputs directly to element attributes. Use `out:<attr>` where
 
 <!-- Multiple attribute bindings -->
 <div out:class="classes" out:style="styles" out:data-id="itemId">
+  Content
+</div>
+
+<!-- Template interpolation mode -->
+<div out:style="width:${width}px; height:${height}px" out:title="${name} (${role})">
+  Content
+</div>
+
+<!-- Placeholder processors are supported -->
+<div out:data-width="${column.width|em}" out:title="${name|TitleCase}">
   Content
 </div>
 ```

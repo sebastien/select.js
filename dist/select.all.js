@@ -3243,6 +3243,137 @@ var _parsePipedBinding = (expr, validateSource = false) => {
   }
   return { sourceKey, processors };
 };
+var _parseTemplatePath = (expr) => {
+  const source = typeof expr === "string" ? expr.trim() : "";
+  if (!source) {
+    return null;
+  }
+  const parts = source.split(".");
+  if (!parts.length) {
+    return null;
+  }
+  for (let i = 0;i < parts.length; i++) {
+    const part = parts[i].trim();
+    if (!part || !/^[A-Za-z_$][A-Za-z0-9_$-]*$/.test(part)) {
+      return null;
+    }
+    parts[i] = part;
+  }
+  return parts;
+};
+var _parseTemplatePlaceholder = (expr) => {
+  const source = typeof expr === "string" ? expr.trim() : "";
+  if (!source) {
+    return null;
+  }
+  const parts = source.split("|");
+  for (let i = 0;i < parts.length; i++) {
+    parts[i] = parts[i].trim();
+    if (!parts[i]) {
+      return null;
+    }
+  }
+  const path = _parseTemplatePath(parts[0]);
+  if (!path) {
+    return null;
+  }
+  const processors = parts.length > 1 ? parts.slice(1) : null;
+  if (processors) {
+    for (let i = 0;i < processors.length; i++) {
+      if (/\s/.test(processors[i])) {
+        return null;
+      }
+    }
+  }
+  return { path, processors };
+};
+var _parseOutAttributeBinding = (expr) => {
+  const source = typeof expr === "string" ? expr : "";
+  if (!source) {
+    return {
+      mode: "binding",
+      binding: _parsePipedBinding(source)
+    };
+  }
+  const tokens = [];
+  let last = 0;
+  let hasTemplate = false;
+  while (last < source.length) {
+    const start = source.indexOf("${", last);
+    if (start === -1) {
+      if (last < source.length) {
+        tokens.push({ type: "text", value: source.slice(last) });
+      }
+      break;
+    }
+    hasTemplate = true;
+    if (start > last) {
+      tokens.push({ type: "text", value: source.slice(last, start) });
+    }
+    const end = source.indexOf("}", start + 2);
+    if (end === -1) {
+      tokens.push({ type: "invalid" });
+      last = source.length;
+      break;
+    }
+    const placeholder = _parseTemplatePlaceholder(source.slice(start + 2, end));
+    if (!placeholder) {
+      tokens.push({ type: "invalid" });
+      last = end + 1;
+      continue;
+    }
+    tokens.push({ type: "expr", value: placeholder });
+    last = end + 1;
+  }
+  if (hasTemplate) {
+    return {
+      mode: "template",
+      template: { tokens }
+    };
+  }
+  return {
+    mode: "binding",
+    binding: _parsePipedBinding(source)
+  };
+};
+var _resolveTemplateTokens = (self, tokens, data) => {
+  if (!tokens?.length) {
+    return "";
+  }
+  let result = "";
+  for (let i = 0;i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token.type === "text") {
+      result += token.value;
+      continue;
+    }
+    if (token.type === "invalid") {
+      continue;
+    }
+    if (token.type === "expr") {
+      let value = data;
+      const path = token.value.path;
+      for (let j = 0;j < path.length; j++) {
+        if (value === undefined || value === null) {
+          value = undefined;
+          break;
+        }
+        value = value[path[j]];
+      }
+      if (value === undefined || value === null) {
+        continue;
+      }
+      let resolved = expand(value);
+      if (token.value.processors?.length) {
+        resolved = _applyNamedProcessors(self, data, resolved, token.value.processors, path.join("."));
+      }
+      if (resolved !== undefined && resolved !== null) {
+        result += String(resolved);
+      }
+    }
+  }
+  return result;
+};
 var _parseWhenShorthand = (expr) => {
   const source = typeof expr === "string" ? expr.trim() : "";
   let i = 0;
@@ -3705,6 +3836,7 @@ class UITemplateSlot {
   }
   static FindAttr(prefix, nodes) {
     const res = {};
+    const template = [];
     let count = 0;
     for (let i = 0;i < nodes.length; i++) {
       const parent = nodes[i];
@@ -3716,12 +3848,21 @@ class UITemplateSlot {
           if (attr.name.startsWith(prefix)) {
             const attrName = attr.name.slice(prefix.length);
             const slotName = attr.value || attrName;
+            const parsed = _parseOutAttributeBinding(slotName);
+            const binding = parsed.binding;
+            const sourceKey = binding?.sourceKey ?? slotName;
+            const processorsKey = binding?.processors?.join("|") || "";
+            const bindingKey = parsed.mode === "binding" ? `${sourceKey}|${processorsKey}` : slotName;
             const originalValue = node.getAttribute(attrName);
             toRemove.push(attr.name);
-            const slot = new UIAttributeTemplateSlot(node, parent, UITemplateSlot.Path(node, parent, [i]), attrName, slotName, originalValue);
-            if (!res[slotName])
-              res[slotName] = [];
-            res[slotName].push(slot);
+            const slot = new UIAttributeTemplateSlot(node, parent, UITemplateSlot.Path(node, parent, [i]), attrName, slotName, originalValue, parsed);
+            if (parsed.mode === "template") {
+              template.push(slot);
+            } else {
+              if (!res[bindingKey])
+                res[bindingKey] = [];
+              res[bindingKey].push(slot);
+            }
             count++;
           }
         }
@@ -3734,7 +3875,13 @@ class UITemplateSlot {
           processNode(node);
       }
     }
-    return count ? res : null;
+    if (!count) {
+      return null;
+    }
+    if (template.length) {
+      res.$template = template;
+    }
+    return res;
   }
   static FindEvent(prefix, nodes) {
     const res = {};
@@ -3771,7 +3918,7 @@ class UITemplateSlot {
 }
 
 class UIAttributeTemplateSlot {
-  constructor(node, parent, path, attrName, slotName, originalValue) {
+  constructor(node, parent, path, attrName, slotName, originalValue, parsed) {
     this.node = node;
     this.parent = parent;
     this.path = path;
@@ -3780,6 +3927,9 @@ class UIAttributeTemplateSlot {
     this.attrName = attrName;
     this.slotName = slotName;
     this.originalValue = originalValue;
+    this.mode = parsed?.mode || "binding";
+    this.binding = parsed?.binding || null;
+    this.template = parsed?.template || null;
   }
   _resolve(nodes) {
     let node = nodes[this.rootIndex];
@@ -4871,11 +5021,20 @@ class UIInstance {
     }
     const isGranular = changedKeys !== null && changedKeys.size > 0;
     if (!(this.template.out || this.template.inout || this.template.in || this.template.outAttr)) {
-      const text = asText(data);
+      let hasElementNode = false;
       for (const node of this.nodes) {
         if (node.nodeType === Node.ELEMENT_NODE) {
-          setNodeText(node, text);
+          hasElementNode = true;
           break;
+        }
+      }
+      if (!hasElementNode) {
+        const text = asText(data);
+        for (const node of this.nodes) {
+          if (node.nodeType === Node.TEXT_NODE) {
+            setNodeText(node, text);
+            break;
+          }
         }
       }
     } else {
@@ -4942,19 +5101,36 @@ class UIInstance {
         }
       }
       for (const k in this.outAttr) {
+        if (k === "$template") {
+          for (const slot of this.outAttr.$template) {
+            slot.render(_resolveTemplateTokens(this, slot.template.template?.tokens, data));
+          }
+          continue;
+        }
+        const slots = this.outAttr[k];
+        const binding = slots?.[0]?.template.binding;
+        const sourceKey = binding?.sourceKey || slots?.[0]?.template.slotName || k;
+        const processors = binding?.processors;
+        const hasBehavior = behavior?.[sourceKey];
         let v;
-        const b = behavior?.[k];
-        if (b) {
-          for (const slot of this.outAttr[k]) {
+        if (hasBehavior) {
+          for (const slot of slots) {
             const attrValue = slot.node.getAttribute(slot.attrName);
-            v = b(this, data, attrValue, slot.node);
+            v = hasBehavior(this, data, attrValue, slot.node);
+            if (processors?.length) {
+              v = _applyNamedProcessors(this, data, v, processors, sourceKey);
+            }
             slot.render(v);
           }
           continue;
-        } else if (data && k in data) {
-          v = expand(data[k]);
         }
-        for (const slot of this.outAttr[k]) {
+        if (data && sourceKey in data) {
+          v = expand(data[sourceKey]);
+          if (processors?.length) {
+            v = _applyNamedProcessors(this, data, v, processors, sourceKey);
+          }
+        }
+        for (const slot of slots) {
           slot.render(v);
         }
       }

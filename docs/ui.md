@@ -204,6 +204,9 @@ Dynamic("Badge", { label: "Ready" })
 - `when`: Conditional rendering with shorthand predicates (safe, non-eval).
 - `ref`: Provides a reference to the DOM node in the instance's `self.ref`.
 - `out:<attr>`: Binds a specific DOM attribute to a data value.
+  - Binding mode: `out:<attr>="slot|Formatter|Formatter"`
+  - Template mode: `out:<attr>="prefix-${path.to.value}-suffix"`
+  - Modes are exclusive: use either whole-attribute binding pipelines or template interpolation.
 - `slot`: Defines a named slot for content injection.
 
 ### `out` processors and `when` shorthand
@@ -229,6 +232,14 @@ ui.format("asCurrency", (value) => `$${Number(value ?? 0).toFixed(2)}`)
 ```
 
 When a processor resolves to a UI component/template, it is applied to the current value and rendered as child content (`out="client|ClientItem"`).
+
+`out:<attr>` also supports template interpolation for all attributes:
+
+- `out:style="width:${width}px; height:${height}px"`
+- `out:title="${name} (${role})"`
+- `out:style="width:${column.width|em}"`
+
+In template mode, placeholders support optional processor pipelines (`${path|Formatter|Formatter}`), with no expression evaluation. Missing or invalid placeholders render as empty strings.
 
 `when` accepts shorthand slot predicates:
 
