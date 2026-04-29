@@ -26,7 +26,7 @@
 		"bench:inspector:chrome": "node benchmarks/inspector/run-node.js"
 	},
 	"devDependencies": {
-		"eslint": "^8.31.0",
+		"eslint": "^10.2.1",
 		"happy-dom": "^20.9.0",
 		"preact": "^10.29.1",
 		"solid-js": "^1.9.12"
