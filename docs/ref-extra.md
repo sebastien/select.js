@@ -41,6 +41,20 @@ selection = add(selection, { id: 3 });
 console.log(selection[next(selection, 0, -1)]);
 ```
 
+### Text Compression Helpers
+
+#### `shortdict(text)`
+
+Builds a dictionary from words to compact base-26 tokens (`a`, `b`, ..., `aa`, ...), sorted by descending frequency.
+
+#### `shortword(text, dict = shortdict(text))`
+
+Compresses text by replacing dictionary words with token values.
+
+#### `unshortword(text, dict = shortdict(text))`
+
+Decompresses text produced by `shortword`. Also supports inline dictionary payloads in the form `word1,word2,...=payload`.
+
 ### Selection Helpers
 
 #### `itemkey(item)`

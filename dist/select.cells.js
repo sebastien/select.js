@@ -227,20 +227,259 @@ const normpath = (path) => {
 	return null;
 };
 
-const parsePrimitive = (value) => {
-	if (value === "null") return null;
-	if (value === "true") return true;
-	if (value === "false") return false;
-	const num = Number(value);
-	if (!Number.isNaN(num) && value.trim() !== "") return num;
-	return value;
+const RE_HASH_ESCAPE = /[&,()="]/;
+const RE_HASH_NUMBER = /^-?\d+(_?\d+)*(\.\d+)?$/;
+
+const formatHashAtom = (value) => {
+	if (value === undefined) {
+		return "undefined";
+	}
+	if (value === null || value === true || value === false) {
+		return `${value}`;
+	}
+	if (typeof value === "number") {
+		return Number.isFinite(value) ? `${value}` : "";
+	}
+	const text = `${value}`;
+	if (RE_HASH_ESCAPE.test(text)) {
+		return `"${text.replaceAll('"', '\\"')}"`;
+	}
+	return text;
 };
 
-const formatPrimitive = (value) => {
-	if (value === null) return "null";
-	if (value === true) return "true";
-	if (value === false) return "false";
-	return `${value}`;
+const iformatHash = function* (value, depth = 0) {
+	if (
+		value === undefined ||
+		value === null ||
+		typeof value === "string" ||
+		typeof value === "number" ||
+		typeof value === "boolean"
+	) {
+		yield formatHashAtom(value);
+		return;
+	}
+	if (depth > 0) {
+		yield "(";
+	}
+	if (Array.isArray(value)) {
+		for (let i = 0; i < value.length; i++) {
+			yield* iformatHash(value[i], depth + 1);
+			if (i < value.length - 1) {
+				yield ",";
+			}
+		}
+	} else if (isPlainObject(value)) {
+		const keys = Object.keys(value);
+		for (let i = 0; i < keys.length; i++) {
+			const key = keys[i];
+			yield `${key}=`;
+			yield* iformatHash(value[key], depth + 1);
+			if (i < keys.length - 1) {
+				yield ",";
+			}
+		}
+	}
+	if (depth > 0) {
+		yield ")";
+	}
+};
+
+const formatHash = (value) => [...iformatHash(value)].join("");
+
+const nextHashSeparator = (value, offset = 0) => {
+	let quoted = false;
+	for (let i = offset; i < value.length; i++) {
+		const c = value[i];
+		if (c === '"' && value[i - 1] !== "\\") {
+			quoted = !quoted;
+			if (quoted) {
+				return [i, '"'];
+			}
+			continue;
+		}
+		if (!quoted && (c === "," || c === "=" || c === "(" || c === ")")) {
+			return [i, c];
+		}
+	}
+	return [null, null];
+};
+
+const decodeHashComponent = (value) => {
+	if (!value?.includes("%")) {
+		return value;
+	}
+	try {
+		return decodeURIComponent(value);
+	} catch (_error) {
+		return value;
+	}
+};
+
+const parseHashAtom = (value) => {
+	const decode = decodeHashComponent(value);
+	if (value === "") {
+		return "";
+	}
+	if (decode === "null") {
+		return null;
+	}
+	if (decode === "undefined") {
+		return undefined;
+	}
+	if (decode === "true") {
+		return true;
+	}
+	if (decode === "false") {
+		return false;
+	}
+	if (RE_HASH_NUMBER.test(decode)) {
+		const parsed = Number(decode.replaceAll("_", ""));
+		if (!Number.isNaN(parsed)) {
+			return parsed;
+		}
+	}
+	return decode;
+};
+
+const parseHash = (value) => {
+	const source = sanitizeLocationText(value, undefined, "browser.hashformat");
+	const root = [];
+	const stack = [root];
+	const indexStack = [{ key: undefined, index: 0 }];
+	let key;
+	let keyBlocked = false;
+	let index = 0;
+	let rawStart = -1;
+	let cursor = 0;
+
+	const current = () => stack[stack.length - 1];
+	const commit = (atom) => {
+		const container = current();
+		if (key !== undefined) {
+			if (Array.isArray(container)) {
+				const parent = stack[stack.length - 2];
+				const parentRef = indexStack[indexStack.length - 1];
+				const replacement = {};
+				for (let i = 0; i < container.length; i++) {
+					replacement[i] = container[i];
+				}
+				if (parent) {
+					parent[parentRef.key ?? parentRef.index] = replacement;
+				}
+				stack[stack.length - 1] = replacement;
+			}
+			current()[key] = atom;
+			return;
+		}
+		if (Array.isArray(container)) {
+			container.push(atom);
+		} else {
+			container[index] = atom;
+		}
+	};
+
+	while (cursor < source.length) {
+		if (rawStart >= 0) {
+			const quote = source.indexOf('"', cursor);
+			if (quote < 0) {
+				const raw = decodeHashComponent(
+					source.substring(rawStart).replaceAll('\\"', '"'),
+				);
+				if (raw !== "") {
+					commit(raw);
+				}
+				break;
+			}
+			if (source[quote - 1] === "\\") {
+				cursor = quote + 1;
+				continue;
+			}
+			const raw = decodeHashComponent(
+				source.substring(rawStart, quote).replaceAll('\\"', '"'),
+			);
+			if (raw !== "") {
+				commit(raw);
+			}
+			rawStart = -1;
+			cursor = quote + 1;
+			continue;
+		}
+
+		const [sepIndex, sep] = nextHashSeparator(source, cursor);
+		const end = sepIndex === null ? source.length : sepIndex;
+		const token = source.substring(cursor, end).trim();
+
+		if (sep === "=") {
+			const nextKey = sanitizeLocationKey(
+				decodeHashComponent(token),
+				undefined,
+				"browser.hash",
+			);
+			key = nextKey;
+			keyBlocked = nextKey === undefined;
+			cursor = sepIndex + 1;
+			continue;
+		}
+
+		if (!keyBlocked && token !== "") {
+			const atom = parseHashAtom(token);
+			if (atom !== "") {
+				commit(atom);
+			}
+		}
+
+		if (sep === ",") {
+			key = undefined;
+			keyBlocked = false;
+			index += 1;
+			cursor = sepIndex + 1;
+			continue;
+		}
+
+		if (sep === '"') {
+			rawStart = sepIndex + 1;
+			cursor = rawStart;
+			continue;
+		}
+
+		if (sep === "(") {
+			if (keyBlocked) {
+				cursor = sepIndex + 1;
+				continue;
+			}
+			const nested = [];
+			commit(nested);
+			stack.push(nested);
+			indexStack.push({ key, index });
+			key = undefined;
+			keyBlocked = false;
+			index = 0;
+			cursor = sepIndex + 1;
+			continue;
+		}
+
+		if (sep === ")") {
+			if (stack.length > 1) {
+				stack.pop();
+				const previous = indexStack.pop();
+				key = previous?.key;
+				index = previous?.index ?? 0;
+			}
+			cursor = sepIndex + 1;
+			continue;
+		}
+
+		break;
+	}
+
+	const result = stack[0][0] !== undefined && stack[0].length === 1 ? stack[0][0] : stack[0];
+	if (Array.isArray(result) || isPlainObject(result)) {
+		return result;
+	}
+	if (result === undefined) {
+		return {};
+	}
+	return { 0: result };
 };
 
 const UNSAFE_LOCATION_KEY = /^(?:__proto__|prototype|constructor)$/;
@@ -465,43 +704,17 @@ const mergePatch = (scope, path, value) => {
 
 const QuerySerializer = {
 	parse(value) {
-		const result = {};
-		const search = `${value || ""}`.replace(/^[?#]/, "");
-		const entries = new URLSearchParams(search);
-		for (const [k, v] of entries.entries()) {
-			if (k.endsWith("[]")) {
-				const baseKey = k.slice(0, -2);
-				const existing = result[baseKey];
-				if (Array.isArray(existing)) {
-					existing.push(parsePrimitive(v));
-				} else if (existing !== undefined) {
-					result[baseKey] = [existing, parsePrimitive(v)];
-				} else {
-					result[baseKey] = [parsePrimitive(v)];
-				}
-			} else {
-				result[k] = parsePrimitive(v);
-			}
+		const parsed = parseHash(`${value || ""}`.replace(/^[?#]/, ""));
+		if (isPlainObject(parsed)) {
+			return parsed;
 		}
-		return result;
+		if (Array.isArray(parsed)) {
+			return Object.assign({}, parsed);
+		}
+		return {};
 	},
 	format(value) {
-		const search = new URLSearchParams();
-		const params = sanitizeValue(value) || {};
-		for (const k in params) {
-			if (!Object.hasOwn(params, k)) {
-				continue;
-			}
-			const v = params[k];
-			if (Array.isArray(v)) {
-				for (let i = 0; i < v.length; i++) {
-					search.append(`${k}[]`, formatPrimitive(v[i]));
-				}
-			} else if (v !== undefined) {
-				search.set(k, formatPrimitive(v));
-			}
-		}
-		return search.toString();
+		return formatHash(sanitizeLocationRecord(value, undefined, "browser.query"));
 	},
 };
 

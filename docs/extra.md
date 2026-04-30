@@ -20,6 +20,12 @@ depend on `select.js` or `select.ui.js`, and can be used in plain DOM code.
 - `toggle(items, item, key?)`: Adds when absent, removes when present.
 - `next(itemsOrLength, index, delta?)`: Returns wrapped index for cyclic navigation.
 
+### Text compression helpers
+
+- `shortdict(text)`: Builds a word-frequency dictionary mapped to short base-26 tokens.
+- `shortword(text, dict?)`: Replaces dictionary words with short tokens.
+- `unshortword(text, dict?)`: Restores text compressed with `shortword`.
+
 Accepted `clsx` values:
 
 - strings (`"btn active"`)
@@ -126,6 +132,12 @@ console.log(items[idx])
 - `remove(items, item, key = itemkey)`: Returns array copy with item removed when found.
 - `toggle(items, item, key = itemkey)`: Removes existing item, otherwise adds it.
 - `next(itemsOrLength, index, delta = 1)`: Returns wrapped index in `[0, n)`.
+
+### Text compression
+
+- `shortdict(text)`: Returns `{ word: shortToken }` dictionary using frequency ordering.
+- `shortword(text, dict = shortdict(text))`: Replaces words using the dictionary.
+- `unshortword(text, dict = shortdict(text))`: Reverses compressed tokens back to source words.
 
 ### Textarea and keyboard
 

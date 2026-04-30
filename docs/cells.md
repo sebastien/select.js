@@ -10,6 +10,7 @@ and lightweight pub/sub.
 
 - `cell(value?)`: Creates a mutable reactive `Cell` instance.
 - `browser(options?)`: Creates browser-backed cells for `path`, `query`, `hash`, and `localStorage`.
+	- Query and hash use the same hashformat serializer by default (`a=1,b=(2,3)`).
 - `deferred(value?, delay)`: Creates a mutable reactive `Deferred` cell that debounces updates by the given delay.
 - `derived(template, processor?, initial?)`: Creates a reactive derivation from a template containing cells.
 - `Cell` (class): The base class for mutable reactive values.
@@ -75,6 +76,12 @@ sidebar.set("open")
 const prefs = state.local("prefs", { theme: "light" })
 prefs.select("theme").set("dark")
 ```
+
+Serializer note:
+
+- Default query/hash format is hashformat (comma-separated atoms, `key=value`, nested values in parentheses).
+- Legacy URLSearchParams-style query parsing (`a=1&b=2`) is not supported by default.
+- Custom serializers can still be provided through `browser({ query, hash })`.
 
 Path-based selection example:
 

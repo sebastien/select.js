@@ -193,6 +193,144 @@ function next(items, index, delta = 1) {
 
 // ----------------------------------------------------------------------------
 //
+// COLLECTIONS
+//
+// ----------------------------------------------------------------------------
+
+// --
+// Iterates through `[value, path, parents]` by recursively walking
+// through the given value.
+function* iwalk(
+	value,
+	// --
+	// If provided, will guard walking the value when returning `false`
+	functor,
+	// --
+	// When given, will be applied to the `value` before being processed
+	processor,
+	path = [],
+	parents = [],
+) {
+	value = processor ? processor(value) : value;
+	if (!functor || functor(value, path, parents) !== false) {
+		yield [value, path, parents];
+
+		switch (value?.constructor) {
+			case Array:
+				{
+					const p = [...parents, value];
+					for (let i = 0; i < value.length; i++) {
+						yield* iwalk(value[i], functor, processor, [...path, i], p);
+					}
+				}
+				break;
+			case Object:
+				{
+					const p = [...parents, value];
+					for (const k in value) {
+						yield* iwalk(value[k], functor, processor, [...path, k], p);
+					}
+				}
+				break;
+			case Map:
+			case Set: {
+				const p = [...parents, value];
+				// The original code for Map/Set iteration in iwalk had a 'break' inside the loop,
+				// which would cause it to only process the first element.
+				// Correcting to iterate all entries.
+				for (const [k, v] of value.entries()) {
+					yield* iwalk(v, functor, processor, [...path, k], p);
+				}
+				break;
+			}
+		}
+	}
+}
+
+// ----------------------------------------------------------------------------
+//
+// SHORTWORD
+//
+// ----------------------------------------------------------------------------
+
+const RE_SHORTWORD = /[A-Za-z][A-Za-z0-9]+/g;
+const escapeRegExp = (value) =>
+	`${value}`.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+function b26(index) {
+	let result = "";
+	const base = 26;
+	do {
+		result = String.fromCharCode(97 + (index % base)) + result;
+		index = Math.floor(index / base) - 1;
+	} while (index >= 0);
+	return result;
+}
+
+function shortdict(text) {
+	const words =
+		text instanceof Array ? text : `${text ?? ""}`.match(RE_SHORTWORD) || [];
+	const counts = new Map();
+	for (let i = 0; i < words.length; i++) {
+		const word = words[i];
+		counts.set(word, (counts.get(word) || 0) + 1);
+	}
+	const sortedWords = Array.from(counts.entries())
+		.sort((a, b) => b[1] - a[1])
+		.map((entry) => entry[0]);
+	return Object.fromEntries(sortedWords.map((word, i) => [word, b26(i)]));
+}
+
+function shortword(text, dict = shortdict(text)) {
+	const source = `${text ?? ""}`;
+	let compressed = source;
+	for (const [originalWord, indexWord] of Object.entries(dict || {})) {
+		const original = `${originalWord}`;
+		if (!original) {
+			continue;
+		}
+		compressed = compressed.replace(
+			new RegExp(`\\b${escapeRegExp(original)}\\b`, "g"),
+			`${indexWord}`,
+		);
+	}
+	return compressed;
+}
+
+function unshortword(text, dict = shortdict(text)) {
+	const source = `${text ?? ""}`;
+	let compressed = source;
+	let activeDict = dict || {};
+	const splitIndex = source.indexOf("=");
+	if (splitIndex >= 0) {
+		const dictionary = source.slice(0, splitIndex);
+		compressed = source.slice(splitIndex + 1);
+		const words = dictionary ? dictionary.split(",") : [];
+		const decoded = {};
+		for (let i = 0; i < words.length; i++) {
+			const word = words[i]?.trim();
+			if (word) {
+				decoded[word] = b26(i);
+			}
+		}
+		activeDict = decoded;
+	}
+	let decompressed = compressed;
+	for (const [originalWord, indexWord] of Object.entries(activeDict)) {
+		const short = `${indexWord ?? ""}`;
+		if (!short) {
+			continue;
+		}
+		decompressed = decompressed.replace(
+			new RegExp(`\\b${escapeRegExp(short)}\\b`, "g"),
+			`${originalWord}`,
+		);
+	}
+	return decompressed;
+}
+
+// ----------------------------------------------------------------------------
+//
 // SECTION: Classname Composition
 //
 // ----------------------------------------------------------------------------
@@ -691,64 +829,72 @@ const routed = (routes = undefined) => {
 };
 
 const extra = Object.freeze({
+	Keyboard,
+	Router,
+	add,
 	bind,
-	clsx,
 	bool,
+	clsx,
 	cmp,
-	predicate,
+	drag,
+	dragtarget,
 	extractor,
-	sorted,
 	filter,
 	find,
 	has,
-	drag,
-	dragtarget,
 	iclsx,
-	Keyboard,
 	itemkey,
+	iwalk,
+	list,
 	next,
-	add,
+	predicate,
 	remove,
 	route,
-	Router,
-	router,
 	routed,
+	router,
+	shortdict,
+	shortword,
+	sorted,
 	target,
 	toggle,
 	unbind,
-	list,
 	unique,
+	unshortword,
 });
 
 export {
+	Keyboard,
+	Router,
+	add,
 	autoresize,
 	bind,
-	clsx,
 	bool,
+	clsx,
 	cmp,
-	predicate,
+	drag,
+	dragtarget,
 	extractor,
-	sorted,
 	filter,
 	find,
 	has,
-	drag,
-	dragtarget,
 	iclsx,
-	Keyboard,
 	itemkey,
+	iwalk,
+	list,
 	next,
-	add,
+	predicate,
 	remove,
 	route,
-	Router,
-	router,
 	routed,
+	router,
+	shortdict,
+	shortword,
+	sorted,
 	target,
 	toggle,
 	unbind,
 	unique,
-	list,
+	unshortword,
 };
 export default extra;
 

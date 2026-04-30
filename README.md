@@ -85,7 +85,7 @@ $("#app").addClass("ready")
 - `Dynamic(type, props?)`: dynamic component resolution by name/function.
 - `lazy(loader, placeholder?)`: lazy component loader.
 - `len`, `type`, `remap`: shared utility helpers from `select.ui.js`.
-- `clsx`, `bind`, `drag`, `autoresize`, `Keyboard`: agnostic helpers from `select.extra.js`.
+- `clsx`, `bind`, `drag`, `autoresize`, `Keyboard`, `shortword`: agnostic helpers from `select.extra.js`.
 
 ### Modules
 

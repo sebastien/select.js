@@ -94,6 +94,7 @@ state.set(2, "a.b");
 
 - `cell(value?)`: Factory function to create a new `Cell` instance.
 - `browser(options?)`: Factory that returns browser-backed `path`, `query`, `hash`, and `local(key, dflt, opts?)` cells.
+	- Default `query`/`hash` serialization uses hashformat syntax (for example `a=1,b=(2,3)`).
 - `deferred(value?, delay)`: Factory function to create a new `Deferred` cell instance for debounced updates.
 - `derived(template, processor?, initial?)`: Factory function to create a new `Derivation` instance. `template` can be a cell, an array of cells, or a function.
 - `access(context, path, offset?)`: Utility to read a nested value from a plain object/array by path.
@@ -121,6 +122,19 @@ state.set(2, "a.b");
 - `length`: Returns the length of the underlying value (if it supports `.length`).
 
 ### Common Patterns
+
+### Browser Query/Hash Format
+
+By default, `browser()` uses the same hashformat serializer for both `location.search` and `location.hash`:
+
+- lists: `1,2,3`
+- objects: `a=1,b=2`
+- nested values: `a=(1,2),b=(x=1,y=2)`
+
+Notes:
+
+- Legacy URL query parsing (`a=1&b=2`) is not supported by default.
+- You can override behavior with `browser({ query: { parse, format }, hash: { parse, format } })`.
 
 ### Reactive Objects
 You can store complex objects in cells and subscribe to specific paths.
