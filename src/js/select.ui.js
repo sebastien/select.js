@@ -2532,7 +2532,17 @@ class UIInstance {
 	// Sets data and renders. Updates key for list rendering.
 	set(data, key = this.key) {
 		this.key = key;
-		this.render(data);
+		if (
+			this.initial &&
+			data !== null &&
+			data !== undefined &&
+			typeof data === "object" &&
+			Object.getPrototypeOf(data) === Object.prototype
+		) {
+			this.render({ ...this.initial, ...data });
+		} else {
+			this.render(data);
+		}
 		return this;
 	}
 
