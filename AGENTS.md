@@ -9,6 +9,15 @@ make all
 # Build distribution files only
 make dist
 
+# Run all checks (Biome + project checks)
+make check
+
+# Apply formatting fixes
+make fmt
+
+# Run repository CI checks locally
+make ci
+
 # Start HTTP server on port 8001
 make run
 
@@ -56,7 +65,7 @@ import { ui, remap } from "@./select.ui.js"
 | **Classes** | PascalCase | `Selection`, `UIInstance`, `Cell`, `Reactive` |
 | **Functions** | camelCase | `find()`, `filter()`, `append()` |
 | **Static methods** | PascalCase on class | `Selection.Is()`, `Selection.AsElementList()` |
-| **Constants** | UPPER_SNAKE_CASE | `Nothing`, `Something` |
+| **Constants/Sentinels** | UPPER_SNAKE_CASE or PascalCase | `MAX_SIZE`, `Nothing`, `Something` |
 | **Variables** | camelCase | `selector`, `scope`, `nodes` |
 | **Private/internal** | underscore prefix | `_match`, `_update`, `_createTrackingProxy` |
 | **Short vars** | Common abbreviations | `n` (node), `i` (index), `k` (key), `v` (value) |
@@ -71,9 +80,9 @@ Exports are consolidated at the end of each file, not inline.
 const query = (selector, scope, limit) => { ... }
 class Selection extends Array { ... }
 
-// Default exports for main functionality
-export default select;
-export default ui;
+// Default export (one per module)
+export default select
+// export default ui
 
 // Multiple exports at end of file
 export { query, filter, match, Selection, select, S, $ }
@@ -96,13 +105,13 @@ export { query, filter, match, Selection, select, S, $ }
 ```javascript
 // Preferred - explicit for loop
 for (let i = offset; i < n; i++) {
-    context = context[path[i]];
+    context = context[path[i]]
 }
 
 // Avoid - functional approach
 path.forEach(key => {
-    context = context[key];
-});
+    context = context[key]
+})
 ```
 
 ### Documentation Style
@@ -171,11 +180,16 @@ function mul(a, b) {
   return a * b
 }
 
-// Type: Point
+// Class: Point
 // Represents a 2D coordinate with `x` and `y` values.
 // - x: number - horizontal position
 // - y: number - vertical position
-type Point = { x, y }
+class Point {
+  constructor(x, y) {
+    this.x = x
+    this.y = y
+  }
+}
 
 // Function: createCalculator
 // Factory that returns a calculator instance with the given `precision`.
@@ -204,24 +218,29 @@ export { mul, Point, createCalculator, Calculator }
 ### Special Constants
 ```javascript
 // Frozen object singletons for sentinel values
-const Nothing = Object.freeze(new Object());
-const Something = Object.freeze(new Object());
+const Nothing = Object.freeze(new Object())
+const Something = Object.freeze(new Object())
 ```
 
 ## Tool Versions
 
-Managed via mise.toml:
-- Python 3
-- Bun 1 (for minification)
+Managed via `mise.toml` and SDK make modules.
 
 ## Linting
 
 ```bash
-# Run ESLint (uses .eslintrc.js)
-npx eslint src/js/
+# Check formatting/linting with Biome
+make check-biome
+
+# Auto-format with Biome
+make fmt-biome
+
+# Or run all project checks/formatters
+make check
+make fmt
 ```
 
-ESLint config: `eslint:recommended`, browser environment, ES2021.
+Biome config is in `biome.jsonc`.
 
 ## Testing
 

@@ -36,6 +36,7 @@ For icon loading and `<ui-icon>` usage, see [`docs/icons.md`](./icons.md).
 - `does(behavior)`: Behavior definition.
 - `on(event, handler)` / `sub(event, handler)`: Event subscription.
 - `init(initializer)`: State initialization.
+- `cleanup(handler)`: Dispose-time teardown hook.
 - `map(data)`: Collection mapping to applied templates.
 - `apply(data)`: Applied template creation (same result as `Component(data)`).
 
@@ -174,6 +175,7 @@ Dynamic("Badge", { label: "Ready" })
 - `template.new(parent?)`: Creates a new component instance from this template.
 - `template.does(behavior)`: Binds slot handlers (behavior) to the template. Handler signature is `(self, data, event?) => value`.
 - `template.init(initializer)`: Defines an initializer that provides initial state for each new instance.
+- `template.cleanup(handler)`: Registers a cleanup handler called at instance disposal. Signature: `(self, data) => void`.
 - `template.on(event, handler)` / `template.sub(event, handler)`: Subscribes to events bubbled by child instances of this template.
 - `template.apply(data)`: Returns an applied template object for composition or nested rendering (same as `template(data)`).
 - `template.map(data)`: Returns a list (or mapped container) of applied template objects, one per entry in the input collection.
@@ -281,3 +283,33 @@ If key inference is requested but no `out` slot is available, `when` is left as 
 regular HTML attribute and an error is logged.
 
 Security note: `when` does not evaluate arbitrary JavaScript expressions.
+
+### Eager behaviors and cleanup
+
+`does(...)` supports eager entries using a `!` suffix:
+
+- `does({ "name!": fn })` executes `fn(self, data, event?)` on every render, even if `name!` is not referenced by `out`, `in`, `inout`, `when`, or `out:<attr>`.
+- Return `undefined` for side-effect-only handlers (no state write).
+- Return any other value to write into key `name` (without `!`).
+
+Use `cleanup(...)` to teardown resources established by eager handlers when the instance is disposed/unmounted.
+
+```javascript
+const Feed = ui(`<div out="channel"></div>`)
+  .does({
+    "channel!": (self, data) => {
+      const next = data.name
+      const state = self._sub || (self._sub = { name: null, off: null })
+      if (state.name !== next) {
+        state.off?.()
+        state.name = next
+        state.off = next ? subscribeToChannel(next) : null
+      }
+      return undefined
+    },
+    channel: (self, { channel }) => channel,
+  })
+  .cleanup((self) => {
+    self._sub?.off?.()
+  })
+```

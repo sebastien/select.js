@@ -1402,12 +1402,16 @@ var sanitizeLocationRecord = (value, warn, scope) => {
     }
     const item = value[key];
     if (Array.isArray(item)) {
-      const safeArray = sanitizeLocationArray(item, warn, scope, { key: safeKey });
+      const safeArray = sanitizeLocationArray(item, warn, scope, {
+        key: safeKey
+      });
       if (safeArray.length) {
         res[safeKey] = safeArray;
       }
     } else {
-      const safeValue = sanitizeLocationItem(item, warn, scope, { key: safeKey });
+      const safeValue = sanitizeLocationItem(item, warn, scope, {
+        key: safeKey
+      });
       if (safeValue !== undefined) {
         res[safeKey] = safeValue;
       }
@@ -1677,13 +1681,7 @@ class Reactive {
     this.selections = undefined;
   }
   select(path) {
-    path = Array.isArray(path) ? path : [path];
-    this.selections = this.selections ?? new Selections;
-    const sel = new Selected(this.value, path);
-    sel.parent = this;
-    sel.path = path;
-    this.selections.add(path, sel);
-    return sel;
+    return new Selected(this, path);
   }
   sub(handler) {
     this.subs.push(handler);
@@ -1743,9 +1741,40 @@ class Reactive {
 
 class Selected extends Reactive {
   constructor(parent, path) {
-    super(access(parent, path));
+    super();
+    this.parent = undefined;
+    this.path = undefined;
+    this.select(parent, path);
+  }
+  select(parent, path) {
+    const nextPath = path === undefined || path === null ? [] : Array.isArray(path) ? path : [path];
+    let samePath = this.path === nextPath;
+    if (!samePath && this.path && this.path.length === nextPath.length) {
+      samePath = true;
+      for (let i = 0;i < nextPath.length; i++) {
+        if (this.path[i] !== nextPath[i]) {
+          samePath = false;
+          break;
+        }
+      }
+    }
+    if (this.parent === parent && samePath) {
+      return this;
+    }
+    if (this.parent?.selections && this.path) {
+      this.parent.selections.remove(this.path, this);
+    }
     this.parent = parent;
-    this.path = path;
+    this.path = nextPath;
+    if (parent instanceof Reactive) {
+      parent.selections = parent.selections ?? new Selections;
+      parent.selections.add(nextPath, this);
+      this.value = access(parent.value, nextPath);
+    } else {
+      this.value = parent ? access(parent, nextPath) : undefined;
+    }
+    this.isPending = !!(this.value && typeof this.value.then === "function");
+    return this;
   }
   dispose() {
     this.parent?.selections?.remove(this.path, this);
@@ -1821,7 +1850,10 @@ class Cell extends Reactive {
           return;
         }
         this.isPending = false;
-        logSelectCells("error", "Cell._update", "cell promise rejected", { error, path });
+        logSelectCells("error", "Cell._update", "cell promise rejected", {
+          error,
+          path
+        });
       });
     }
   }
@@ -2025,7 +2057,10 @@ function browser(options = {}) {
   const hasWindow = !!win?.location;
   const hasHistory = !!(hasWindow && win.history && typeof win.history.replaceState === "function");
   const hasStorage = !!(hasWindow && win.localStorage);
-  const warn = typeof options.warn === "function" ? options.warn : (scope, error, details = {}) => logSelectCells("warn", scope, error?.message || "browser warning", { error, ...details });
+  const warn = typeof options.warn === "function" ? options.warn : (scope, error, details = {}) => logSelectCells("warn", scope, error?.message || "browser warning", {
+    error,
+    ...details
+  });
   const urlMode = options.mode === "push" ? "push" : "replace";
   const querySerializer = options.query && typeof options.query.parse === "function" && typeof options.query.format === "function" ? options.query : QuerySerializer;
   const hashSerializer = options.hash && typeof options.hash.parse === "function" && typeof options.hash.format === "function" ? options.hash : QuerySerializer;
@@ -2163,9 +2198,19 @@ function deferred(value, delay) {
 function derived(template, processor, initial) {
   return new Derivation(template, processor, initial);
 }
+function selected(parent, path) {
+  return new Selected(parent, path);
+}
 var walk = Reactive.Walk;
 var expand = Reactive.Expand;
-var select_cells_default = Object.assign(cell, { browser, deferred, derived, walk, expand });
+var select_cells_default = Object.assign(cell, {
+  browser,
+  deferred,
+  derived,
+  selected,
+  walk,
+  expand
+});
 
 // src/js/select.extra.js
 function bool(value) {
@@ -3271,6 +3316,10 @@ var createComponent = (tmpl) => {
     sub: (...args) => {
       tmpl.sub(...args);
       return component;
+    },
+    cleanup: (...args) => {
+      tmpl.cleanup(...args);
+      return component;
     }
   });
   return component;
@@ -4314,6 +4363,7 @@ class UITemplate {
     this.initializer = undefined;
     this.behavior = undefined;
     this.subs = undefined;
+    this.doCleanup = undefined;
   }
   _findSlots(nodes) {
     const slots = [];
@@ -4384,6 +4434,10 @@ class UITemplate {
         this.sub(k, event[k]);
       }
     }
+    return this;
+  }
+  cleanup(handler) {
+    this.doCleanup = handler;
     return this;
   }
 }
@@ -4922,6 +4976,16 @@ class UIInstance {
     }
     this._isDisposed = true;
     this._renderQueued = false;
+    if (this.template.doCleanup) {
+      try {
+        this.template.doCleanup(this, this.data || {});
+      } catch (err) {
+        logSelectUI("error", "UIInstance.dispose", "cleanup threw", {
+          error: err,
+          instance: this
+        });
+      }
+    }
     if (this._domListeners) {
       for (const listener of this._domListeners) {
         listener.node.removeEventListener(listener.type, listener.handler);
@@ -5110,6 +5174,40 @@ class UIInstance {
     }
     return false;
   }
+  _applyEagerBehaviorResult(entryKey, result, data) {
+    if (result === undefined) {
+      return data;
+    }
+    const stateKey = entryKey.endsWith("!") ? entryKey.slice(0, -1) : entryKey;
+    if (!stateKey) {
+      return data;
+    }
+    const target2 = data?.[stateKey];
+    if (target2?.isReactive) {
+      target2.set(result);
+      return data;
+    }
+    if (!data || typeof data !== "object") {
+      return data;
+    }
+    data[stateKey] = result;
+    return data;
+  }
+  _runEagerBehaviors(data) {
+    const behavior = this.template.behavior;
+    if (!behavior) {
+      return data;
+    }
+    let nextData = data;
+    for (const key in behavior) {
+      if (!key.endsWith("!")) {
+        continue;
+      }
+      const result = behavior[key](this, nextData, null);
+      nextData = this._applyEagerBehaviorResult(key, result, nextData);
+    }
+    return nextData;
+  }
   send(event, data) {
     console.warn(`[select.ui] Deprecation: send() is deprecated, use pub() instead`);
     return this.pub(event, data);
@@ -5228,6 +5326,7 @@ class UIInstance {
       logSelectUI("error", "UIInstance.render", "called on instance with undefined template", { instance: this });
       return this;
     }
+    data = this._runEagerBehaviors(data);
     const isGranular = changedKeys !== null && changedKeys.size > 0;
     if (!(this.template.out || this.template.inout || this.template.in || this.template.outAttr)) {
       let hasElementNode = false;
@@ -5732,6 +5831,7 @@ export {
   type,
   target,
   sorted,
+  selected,
   select_default as select,
   router,
   routed,

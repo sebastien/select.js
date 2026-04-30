@@ -200,6 +200,10 @@ const createComponent = (tmpl) => {
 			tmpl.sub(...args);
 			return component;
 		},
+		cleanup: (...args) => {
+			tmpl.cleanup(...args);
+			return component;
+		},
 	});
 	return component;
 };
@@ -1585,6 +1589,7 @@ class UITemplate {
 		this.initializer = undefined;
 		this.behavior = undefined;
 		this.subs = undefined;
+		this.doCleanup = undefined;
 	}
 
 	_findSlots(nodes) {
@@ -1672,6 +1677,12 @@ class UITemplate {
 				this.sub(k, event[k]);
 			}
 		}
+		return this;
+	}
+
+	// Sets the cleanup handler called when an instance is disposed. Passed `(self, data)`.
+	cleanup(handler) {
+		this.doCleanup = handler;
 		return this;
 	}
 }
@@ -2352,6 +2363,16 @@ class UIInstance {
 		}
 		this._isDisposed = true;
 		this._renderQueued = false;
+		if (this.template.doCleanup) {
+			try {
+				this.template.doCleanup(this, this.data || {});
+			} catch (err) {
+				logSelectUI("error", "UIInstance.dispose", "cleanup threw", {
+					error: err,
+					instance: this,
+				});
+			}
+		}
 		if (this._domListeners) {
 			for (const listener of this._domListeners) {
 				listener.node.removeEventListener(listener.type, listener.handler);
@@ -2574,6 +2595,42 @@ class UIInstance {
 		return false;
 	}
 
+	_applyEagerBehaviorResult(entryKey, result, data) {
+		if (result === undefined) {
+			return data;
+		}
+		const stateKey = entryKey.endsWith("!") ? entryKey.slice(0, -1) : entryKey;
+		if (!stateKey) {
+			return data;
+		}
+		const target = data?.[stateKey];
+		if (target?.isReactive) {
+			target.set(result);
+			return data;
+		}
+		if (!data || typeof data !== "object") {
+			return data;
+		}
+		data[stateKey] = result;
+		return data;
+	}
+
+	_runEagerBehaviors(data) {
+		const behavior = this.template.behavior;
+		if (!behavior) {
+			return data;
+		}
+		let nextData = data;
+		for (const key in behavior) {
+			if (!key.endsWith("!")) {
+				continue;
+			}
+			const result = behavior[key](this, nextData, null);
+			nextData = this._applyEagerBehaviorResult(key, result, nextData);
+		}
+		return nextData;
+	}
+
 	// ============================================================================
 	// SUBSECTION: Pub/Sub Events
 	// ============================================================================
@@ -2743,6 +2800,7 @@ class UIInstance {
 			return this;
 		}
 
+		data = this._runEagerBehaviors(data);
 		const isGranular = changedKeys !== null && changedKeys.size > 0;
 		// FIXME: I'm not sure this condition is good.
 		if (

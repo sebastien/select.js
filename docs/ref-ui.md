@@ -63,7 +63,7 @@ const Button = ui("#Button");
 ### Component Lifecycle
 
 ```
-ui(template) → .does(behavior) → .new() → .set(data) → .mount(target)
+ui(template) → .init(state?) → .does(behavior) → .cleanup(handler?) → .new() → .set(data) → .mount(target)
 ```
 
 ### List Rendering
@@ -171,6 +171,7 @@ Returns a component function with these methods:
 - `new(parent?)`: Create a new component instance.
 - `does(behavior)`: Define behavior handlers for slots. Returns the component for chaining.
 - `init(initializer)`: Define initial state (often used with cells). Returns the component for chaining.
+- `cleanup(handler)`: Define a teardown handler called on instance disposal. Returns the component for chaining.
 - `on(event, handler)` / `sub(event, handler)`: Subscribe to events bubbled by child instances. Returns the component for chaining.
 - `map(data)`: Map a collection of data to a list of applied templates.
 - `apply(data)`: Create an applied template for composition (same result as calling the component as a function).
@@ -287,6 +288,44 @@ const Counter = ui(`
 - `self` - The component instance
 - `data` - Current component data
 - `event` - DOM event (for `on:<event>`/`in` handlers)
+
+Eager behavior entries are supported with a `!` suffix:
+
+- `does({ "channel!": fn })` runs on every render, even when not bound to any slot.
+- If an eager handler returns `undefined`, it does not update state.
+- If it returns a value, that value is written to the key without `!` (for example `channel!` writes to `channel`).
+
+```javascript
+const ChannelBadge = ui(`<span out="channel"></span>`)
+  .does({
+    "channel!": (self, data) => {
+      const next = data.name
+      const state = self._channelSub || (self._channelSub = { name: null, stop: null })
+      if (state.name !== next) {
+        state.stop?.()
+        state.name = next
+        state.stop = next ? subscribe(next) : null
+      }
+      return undefined // side effect only, no state write
+    },
+    channel: (self, { channel }) => channel,
+  })
+  .cleanup((self) => {
+    self._channelSub?.stop?.()
+  })
+```
+
+### Cleanup
+
+#### `.cleanup(handler)`
+
+Registers a teardown callback invoked when the instance is disposed or unmounted.
+
+**Handler signature:** `(self, data) => void`
+
+- `self` - The component instance
+- `data` - Last rendered component data
+- Typical use: unsubscribe listeners, release external resources created by eager effects.
 
 ### Event Subscription
 

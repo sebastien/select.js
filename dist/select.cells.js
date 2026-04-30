@@ -278,7 +278,11 @@ const sanitizeLocationText = (value, warn, scope, details = {}) => {
 
 const sanitizeLocationKey = (key, warn, scope, details = {}) => {
 	const sanitized = sanitizeLocationText(key, warn, scope, details);
-	if (!sanitized || UNSAFE_LOCATION_KEY.test(sanitized) || sanitized.endsWith("[]")) {
+	if (
+		!sanitized ||
+		UNSAFE_LOCATION_KEY.test(sanitized) ||
+		sanitized.endsWith("[]")
+	) {
 		warnIssue(warn, scope, "unsafe key pruned", {
 			key,
 			sanitized,
@@ -349,12 +353,16 @@ const sanitizeLocationRecord = (value, warn, scope) => {
 		}
 		const item = value[key];
 		if (Array.isArray(item)) {
-			const safeArray = sanitizeLocationArray(item, warn, scope, { key: safeKey });
+			const safeArray = sanitizeLocationArray(item, warn, scope, {
+				key: safeKey,
+			});
 			if (safeArray.length) {
 				res[safeKey] = safeArray;
 			}
 		} else {
-			const safeValue = sanitizeLocationItem(item, warn, scope, { key: safeKey });
+			const safeValue = sanitizeLocationItem(item, warn, scope, {
+				key: safeKey,
+			});
 			if (safeValue !== undefined) {
 				res[safeKey] = safeValue;
 			}
@@ -520,7 +528,12 @@ const getHistoryMode = (options, dflt = "replace") => {
 
 const isForced = (options) =>
 	options === true ||
-	!!(options && typeof options === "object" && !Array.isArray(options) && options.force);
+	!!(
+		options &&
+		typeof options === "object" &&
+		!Array.isArray(options) &&
+		options.force
+	);
 
 // ----------------------------------------------------------------------------
 //
@@ -696,14 +709,7 @@ class Reactive {
 
 	// Creates a `Selected` view at `path` within this cell's value.
 	select(path) {
-		// TODO: A selection should be a path
-		path = Array.isArray(path) ? path : [path];
-		this.selections = this.selections ?? new Selections();
-		const sel = new Selected(this.value, path);
-		sel.parent = this;
-		sel.path = path;
-		this.selections.add(path, sel);
-		return sel;
+		return new Selected(this, path);
 	}
 
 	// Subscribes `handler` to value changes. Handler receives (value, path, origin).
@@ -797,9 +803,51 @@ class Reactive {
 // - `path`: Array<string|number> - path to selected property within parent
 class Selected extends Reactive {
 	constructor(parent, path) {
-		super(access(parent, path));
+		super();
+		this.parent = undefined;
+		this.path = undefined;
+		this.select(parent, path);
+	}
+
+	select(parent, path) {
+		const nextPath =
+			path === undefined || path === null
+				? []
+				: Array.isArray(path)
+					? path
+					: [path];
+
+		let samePath = this.path === nextPath;
+		if (!samePath && this.path && this.path.length === nextPath.length) {
+			samePath = true;
+			for (let i = 0; i < nextPath.length; i++) {
+				if (this.path[i] !== nextPath[i]) {
+					samePath = false;
+					break;
+				}
+			}
+		}
+
+		if (this.parent === parent && samePath) {
+			return this;
+		}
+
+		if (this.parent?.selections && this.path) {
+			this.parent.selections.remove(this.path, this);
+		}
+
 		this.parent = parent;
-		this.path = path;
+		this.path = nextPath;
+
+		if (parent instanceof Reactive) {
+			parent.selections = parent.selections ?? new Selections();
+			parent.selections.add(nextPath, this);
+			this.value = access(parent.value, nextPath);
+		} else {
+			this.value = parent ? access(parent, nextPath) : undefined;
+		}
+		this.isPending = !!(this.value && typeof this.value.then === "function");
+		return this;
 	}
 
 	// Disposes this selection and removes it from parent registry.
@@ -897,9 +945,7 @@ class Cell extends Reactive {
 						return;
 					}
 					this.previous = this.value;
-					this.value = path
-						? reassign(this.value, path, resolved)
-						: resolved;
+					this.value = path ? reassign(this.value, path, resolved) : resolved;
 					this.isPending = false;
 					this.revision++;
 					if (this.selections) {
@@ -914,12 +960,10 @@ class Cell extends Reactive {
 						return;
 					}
 					this.isPending = false;
-					logSelectCells(
-						"error",
-						"Cell._update",
-						"cell promise rejected",
-						{ error, path },
-					);
+					logSelectCells("error", "Cell._update", "cell promise rejected", {
+						error,
+						path,
+					});
 				},
 			);
 		}
@@ -1156,7 +1200,11 @@ class BrowserValueCell extends Cell {
 		if (!force && eq(this.value, next)) {
 			return this;
 		}
-		this._update(resolvedPath ? access(next, resolvedPath) : next, resolvedPath, force);
+		this._update(
+			resolvedPath ? access(next, resolvedPath) : next,
+			resolvedPath,
+			force,
+		);
 		if (this.writer) {
 			this.writer(this.value, {
 				mode: getHistoryMode(options, this.mode),
@@ -1194,7 +1242,11 @@ class LocalStorageCell extends Cell {
 		if (!force && eq(this.value, next)) {
 			return this;
 		}
-		this._update(resolvedPath ? access(next, resolvedPath) : next, resolvedPath, force);
+		this._update(
+			resolvedPath ? access(next, resolvedPath) : next,
+			resolvedPath,
+			force,
+		);
 		if (this.writer) {
 			this.writer(this.value, { path: resolvedPath });
 		}
@@ -1217,19 +1269,20 @@ class LocalStorageCell extends Cell {
 function browser(options = {}) {
 	const win = getBrowserWindow();
 	const hasWindow = !!win?.location;
-	const hasHistory =
-		!!(hasWindow && win.history && typeof win.history.replaceState === "function");
+	const hasHistory = !!(
+		hasWindow &&
+		win.history &&
+		typeof win.history.replaceState === "function"
+	);
 	const hasStorage = !!(hasWindow && win.localStorage);
 	const warn =
 		typeof options.warn === "function"
 			? options.warn
 			: (scope, error, details = {}) =>
-					logSelectCells(
-						"warn",
-						scope,
-						error?.message || "browser warning",
-						{ error, ...details },
-					);
+					logSelectCells("warn", scope, error?.message || "browser warning", {
+						error,
+						...details,
+					});
 	const urlMode = options.mode === "push" ? "push" : "replace";
 	const querySerializer =
 		options.query &&
@@ -1260,7 +1313,11 @@ function browser(options = {}) {
 	};
 
 	const parseLocationRecord = (scope, serializer, text, fallback) =>
-		sanitizeLocationRecord(safeParse(scope, serializer, text, fallback), warn, scope);
+		sanitizeLocationRecord(
+			safeParse(scope, serializer, text, fallback),
+			warn,
+			scope,
+		);
 
 	const formatLocationRecord = (scope, serializer, value) =>
 		serializer.format(sanitizeLocationRecord(value, warn, scope));
@@ -1323,15 +1380,13 @@ function browser(options = {}) {
 	const query = new BrowserValueCell(readQuery({}), {
 		mode: urlMode,
 		merge: true,
-		normalize: (value) =>
-			sanitizeLocationRecord(value, warn, "browser.query"),
+		normalize: (value) => sanitizeLocationRecord(value, warn, "browser.query"),
 		writer: (_value, settings) => writeURL(settings.mode),
 	});
 	const hash = new BrowserValueCell(readHash({}), {
 		mode: urlMode,
 		merge: true,
-		normalize: (value) =>
-			sanitizeLocationRecord(value, warn, "browser.hash"),
+		normalize: (value) => sanitizeLocationRecord(value, warn, "browser.hash"),
 		writer: (_value, settings) => writeURL(settings.mode),
 	});
 
@@ -1426,7 +1481,11 @@ function browser(options = {}) {
 			defaultValue: dflt,
 			serializer,
 		});
-		if (hasStorage && win.localStorage.getItem(key) === null && dflt !== undefined) {
+		if (
+			hasStorage &&
+			win.localStorage.getItem(key) === null &&
+			dflt !== undefined
+		) {
 			writeLocal(key, initial, serializer);
 		}
 		return cell;
@@ -1496,6 +1555,10 @@ function derived(template, processor, initial) {
 	return new Derivation(template, processor, initial);
 }
 
+function selected(parent, path) {
+	return new Selected(parent, path);
+}
+
 // ----------------------------------------------------------------------------
 //
 // SECTION: Exports
@@ -1511,6 +1574,7 @@ export {
 	browser,
 	Cell,
 	cell,
+	selected,
 	Deferred,
 	Derivation,
 	deferred,
@@ -1520,6 +1584,13 @@ export {
 	Selected,
 	walk,
 };
-export default Object.assign(cell, { browser, deferred, derived, walk, expand });
+export default Object.assign(cell, {
+	browser,
+	deferred,
+	derived,
+	selected,
+	walk,
+	expand,
+});
 
 // EOF
