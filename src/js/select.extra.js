@@ -116,6 +116,81 @@ function list(value) {
 	}
 }
 
+// --
+// Extracts a stable item key
+function itemkey(item) {
+	return item?.id ?? item?.key ?? item?.name ?? item;
+}
+
+// --
+// Finds item index in a list with optional key extractor
+function find(items, item, key = itemkey) {
+	if (!items) {
+		return -1;
+	}
+	items = list(items);
+	if (key === null) {
+		return items.indexOf(item);
+	}
+	const extract = key ?? itemkey;
+	const k = extract(item);
+	return items.findIndex((_) => extract(_) === k);
+}
+
+// --
+// Checks if item exists in a list
+function has(items, item, key = itemkey) {
+	return find(items, item, key) >= 0;
+}
+
+// --
+// Adds item to list if not already present
+function add(items, item, key = itemkey) {
+	if (!items) {
+		return [item];
+	}
+	items = list(items);
+	const i = find(items, item, key);
+	if (i === -1) {
+		return [...items, item];
+	}
+	return items;
+}
+
+// --
+// Removes item from list if present
+function remove(items, item, key = itemkey) {
+	if (!items) {
+		return items;
+	}
+	items = list(items);
+	const i = find(items, item, key);
+	if (i >= 0) {
+		const res = [...items];
+		res.splice(i, 1);
+		return res;
+	}
+	return items;
+}
+
+// --
+// Toggles item presence in a list
+function toggle(items, item, key = itemkey) {
+	return has(items, item, key)
+		? (remove(items, item, key) ?? [])
+		: add(items, item, key);
+}
+
+// --
+// Gets the wrapped index around bounds
+function next(items, index, delta = 1) {
+	const n = typeof items === "number" ? items : (items?.length ?? 0);
+	if (n <= 0) {
+		return 0;
+	}
+	return (((index + delta) % n) + n) % n;
+}
+
 // ----------------------------------------------------------------------------
 //
 // SECTION: Classname Composition
@@ -624,15 +699,22 @@ const extra = Object.freeze({
 	extractor,
 	sorted,
 	filter,
+	find,
+	has,
 	drag,
 	dragtarget,
 	iclsx,
 	Keyboard,
+	itemkey,
+	next,
+	add,
+	remove,
 	route,
 	Router,
 	router,
 	routed,
 	target,
+	toggle,
 	unbind,
 	list,
 	unique,
@@ -648,15 +730,22 @@ export {
 	extractor,
 	sorted,
 	filter,
+	find,
+	has,
 	drag,
 	dragtarget,
 	iclsx,
 	Keyboard,
+	itemkey,
+	next,
+	add,
+	remove,
 	route,
 	Router,
 	router,
 	routed,
 	target,
+	toggle,
 	unbind,
 	unique,
 	list,

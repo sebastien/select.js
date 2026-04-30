@@ -1,7 +1,8 @@
 # Select Extra Reference Guide
 
 Utility module with agnostic helpers for class-name composition, DOM event
-binding, dragging, textarea auto-resize, keyboard handling, and route dispatch.
+binding, selection list operations, dragging, textarea auto-resize, keyboard
+handling, and route dispatch.
 
 ## Overview
 
@@ -11,7 +12,7 @@ in plain DOM scripts, custom elements, or alongside any rendering library.
 ## Quick Start
 
 ```javascript
-import { bind, clsx, Keyboard, router } from "./select.extra.js";
+import { add, bind, clsx, Keyboard, next, router, toggle } from "./select.extra.js";
 import { browser } from "./select.cells.js";
 
 const input = document.querySelector("input");
@@ -33,7 +34,54 @@ const state = browser();
 state.path.sub((path) => {
   routes.run(path);
 });
+
+let selection = [{ id: 1 }, { id: 2 }];
+selection = toggle(selection, { id: 2 });
+selection = add(selection, { id: 3 });
+console.log(selection[next(selection, 0, -1)]);
 ```
+
+### Selection Helpers
+
+#### `itemkey(item)`
+
+Returns a stable fallback key:
+
+- `item.id`
+- `item.key`
+- `item.name`
+- otherwise `item`
+
+#### `find(items, item, key = itemkey)`
+
+Finds index for `item` in `items`.
+
+- if `items` is nullish, returns `-1`
+- if `key === null`, uses strict identity (`indexOf`)
+- otherwise compares extracted keys
+
+#### `has(items, item, key = itemkey)`
+
+Returns `true` when `find(...) >= 0`.
+
+#### `add(items, item, key = itemkey)`
+
+Returns a new array with `item` appended only when absent.
+
+#### `remove(items, item, key = itemkey)`
+
+Returns a new array without `item` when found; otherwise returns original input.
+
+#### `toggle(items, item, key = itemkey)`
+
+Removes `item` when present, adds it when absent.
+
+#### `next(itemsOrLength, index, delta = 1)`
+
+Returns wrapped index in the range `[0, n)`, where `n` is:
+
+- `itemsOrLength` when it is a number
+- `itemsOrLength.length` when array-like
 
 ## API Reference
 

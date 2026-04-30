@@ -2299,6 +2299,58 @@ function list(value) {
       return [value];
   }
 }
+function itemkey(item) {
+  return item?.id ?? item?.key ?? item?.name ?? item;
+}
+function find(items, item, key = itemkey) {
+  if (!items) {
+    return -1;
+  }
+  items = list(items);
+  if (key === null) {
+    return items.indexOf(item);
+  }
+  const extract = key ?? itemkey;
+  const k = extract(item);
+  return items.findIndex((_) => extract(_) === k);
+}
+function has(items, item, key = itemkey) {
+  return find(items, item, key) >= 0;
+}
+function add(items, item, key = itemkey) {
+  if (!items) {
+    return [item];
+  }
+  items = list(items);
+  const i = find(items, item, key);
+  if (i === -1) {
+    return [...items, item];
+  }
+  return items;
+}
+function remove(items, item, key = itemkey) {
+  if (!items) {
+    return items;
+  }
+  items = list(items);
+  const i = find(items, item, key);
+  if (i >= 0) {
+    const res = [...items];
+    res.splice(i, 1);
+    return res;
+  }
+  return items;
+}
+function toggle(items, item, key = itemkey) {
+  return has(items, item, key) ? remove(items, item, key) ?? [] : add(items, item, key);
+}
+function next(items, index, delta = 1) {
+  const n = typeof items === "number" ? items : items?.length ?? 0;
+  if (n <= 0) {
+    return 0;
+  }
+  return ((index + delta) % n + n) % n;
+}
 function* iclsx(...args) {
   for (const value of args) {
     if (!value) {
@@ -2738,15 +2790,22 @@ var extra = Object.freeze({
   extractor,
   sorted,
   filter: filter2,
+  find,
+  has,
   drag,
   dragtarget,
   iclsx,
   Keyboard,
+  itemkey,
+  next,
+  add,
+  remove,
   route,
   Router,
   router,
   routed,
   target,
+  toggle,
   unbind,
   list,
   unique
@@ -2793,7 +2852,7 @@ class FastDOM {
     return task;
   }
   clear(task) {
-    return remove(this.reads, task) || remove(this.writes, task);
+    return remove2(this.reads, task) || remove2(this.writes, task);
   }
   extend(props) {
     if (typeof props !== "object")
@@ -2831,7 +2890,7 @@ function flush(fastdom) {
       throw error;
   }
 }
-function remove(array, item) {
+function remove2(array, item) {
   const index = array.indexOf(item);
   return index !== -1 && array.splice(index, 1).length > 0;
 }
@@ -3937,7 +3996,7 @@ class UITemplateSlot {
     const res = {};
     let count = 0;
     const selector = `[${name}]`;
-    const add = (node, parent, i) => {
+    const add2 = (node, parent, i) => {
       const k = node.getAttribute(name);
       node.removeAttribute(name);
       let v = new UITemplateSlot(node, parent, UITemplateSlot.Path(node, parent, [i]));
@@ -3966,11 +4025,11 @@ class UITemplateSlot {
     for (let i = 0;i < nodes.length; i++) {
       const parent = nodes[i];
       if (parent.matches?.(selector)) {
-        add(parent, parent, i);
+        add2(parent, parent, i);
       }
       if (parent.querySelectorAll) {
         for (const node of parent.querySelectorAll(`[${name}]`)) {
-          add(node, parent, i);
+          add2(node, parent, i);
         }
       }
     }
@@ -3980,7 +4039,7 @@ class UITemplateSlot {
     const res = {};
     let count = 0;
     const selector = `[when]`;
-    const add = (node, parent, i) => {
+    const add2 = (node, parent, i) => {
       const expr = node.getAttribute("when") || "";
       const parsed = parseWhenShorthand(expr);
       const slot = new UITemplateSlot(node, parent, UITemplateSlot.Path(node, parent, [i]));
@@ -4057,11 +4116,11 @@ class UITemplateSlot {
     for (let i = 0;i < nodes.length; i++) {
       const parent = nodes[i];
       if (parent.matches?.(selector)) {
-        add(parent, parent, i);
+        add2(parent, parent, i);
       }
       if (parent.querySelectorAll) {
         for (const node of parent.querySelectorAll(selector)) {
-          add(node, parent, i);
+          add2(node, parent, i);
         }
       }
     }
@@ -5120,7 +5179,11 @@ class UIInstance {
   }
   set(data, key = this.key) {
     this.key = key;
-    this.render(data);
+    if (this.initial && data !== null && data !== undefined && typeof data === "object" && Object.getPrototypeOf(data) === Object.prototype) {
+      this.render({ ...this.initial, ...data });
+    } else {
+      this.render(data);
+    }
     return this;
   }
   update(data, force = false) {
@@ -5829,6 +5892,7 @@ export {
   unbind,
   select_ui_default as ui,
   type,
+  toggle,
   target,
   sorted,
   selected,
@@ -5836,20 +5900,25 @@ export {
   router,
   routed,
   route,
+  remove,
   remap,
   raf,
   query,
   predicate,
+  next,
   match,
   loadIcons,
   loadIcon,
   list,
   len,
   lazy,
+  itemkey,
   install,
   select_icons_default as icons,
   icon,
   iclsx,
+  has,
+  find,
   select_fastdom_default as fastdom,
   extractor,
   select_extra_default as extra,
@@ -5867,6 +5936,7 @@ export {
   bind,
   autoresize,
   assign,
+  add,
   access,
   UIWebComponent,
   UITemplateSlot,

@@ -10,6 +10,16 @@ depend on `select.js` or `select.ui.js`, and can be used in plain DOM code.
 - `clsx(...values)`: Joins class fragments into one class string.
 - `iclsx(...values)`: Generator form of `clsx` (yields each normalized token).
 
+### Selection helpers
+
+- `itemkey(item)`: Returns `item.id ?? item.key ?? item.name ?? item`.
+- `find(items, item, key?)`: Finds item index, with optional key extractor (or `null` for strict identity).
+- `has(items, item, key?)`: True when `item` exists in `items`.
+- `add(items, item, key?)`: Returns array with `item` added when absent.
+- `remove(items, item, key?)`: Returns array with `item` removed when present.
+- `toggle(items, item, key?)`: Adds when absent, removes when present.
+- `next(itemsOrLength, index, delta?)`: Returns wrapped index for cyclic navigation.
+
 Accepted `clsx` values:
 
 - strings (`"btn active"`)
@@ -52,7 +62,7 @@ Browser URL and storage state now live in `select.cells.js` via
 ### Using
 
 ```javascript
-import { bind, clsx, drag, router } from "@./select.extra.js"
+import { add, bind, clsx, drag, next, router, toggle } from "@./select.extra.js"
 import { browser } from "@./select.cells.js"
 
 const button = document.querySelector("button")
@@ -80,6 +90,13 @@ const state = browser()
 state.path.sub((path) => {
   routes.run(path)
 })
+
+let items = [{ id: 1 }, { id: 2 }]
+items = toggle(items, { id: 2 })
+items = add(items, { id: 3 })
+
+const idx = next(items, 0, -1)
+console.log(items[idx])
 ```
 
 ### API
@@ -99,6 +116,16 @@ state.path.sub((path) => {
   - returns a cleanup function to stop tracking immediately
 - `dragtarget(node, name?)`: Returns the nearest drag handle element.
 - `target(node, predicate)`: Returns nearest ancestor matching `predicate`.
+
+### Selection
+
+- `itemkey(item)`: Returns fallback key in order `id`, `key`, `name`, then item itself.
+- `find(items, item, key = itemkey)`: Returns matching index, or `-1`.
+- `has(items, item, key = itemkey)`: Convenience boolean around `find`.
+- `add(items, item, key = itemkey)`: Returns existing array or appended copy.
+- `remove(items, item, key = itemkey)`: Returns array copy with item removed when found.
+- `toggle(items, item, key = itemkey)`: Removes existing item, otherwise adds it.
+- `next(itemsOrLength, index, delta = 1)`: Returns wrapped index in `[0, n)`.
 
 ### Textarea and keyboard
 
