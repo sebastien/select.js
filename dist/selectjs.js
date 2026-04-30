@@ -1164,6 +1164,42 @@ var Something = Object.freeze(new Object);
 var logSelectCells = (level, scope, message, details = {}) => {
   console[level](`[select.cells] ${scope}: ${message}, details`, details);
 };
+var isPlainObject = (value) => value !== null && value !== undefined && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype;
+var eq = (a, b) => {
+  if (Object.is(a, b)) {
+    return true;
+  }
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) {
+      return false;
+    }
+    for (let i = 0;i < a.length; i++) {
+      if (!eq(a[i], b[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (isPlainObject(a) && isPlainObject(b)) {
+    let n = 0;
+    for (const k in a) {
+      if (!Object.hasOwn(a, k)) {
+        continue;
+      }
+      n += 1;
+      if (!Object.hasOwn(b, k) || !eq(a[k], b[k])) {
+        return false;
+      }
+    }
+    for (const k in b) {
+      if (Object.hasOwn(b, k)) {
+        n -= 1;
+      }
+    }
+    return n === 0;
+  }
+  return false;
+};
 var access = (context, path, offset = 0) => {
   if (path?.length && context !== undefined) {
     const n = path.length;
@@ -1245,11 +1281,281 @@ var normpath = (path) => {
     return null;
   } else if (Array.isArray(path)) {
     return path;
-  } else if (path !== undefined) {
+  } else if (path !== undefined && path !== null) {
     return [path];
   }
   return null;
 };
+var parsePrimitive = (value) => {
+  if (value === "null")
+    return null;
+  if (value === "true")
+    return true;
+  if (value === "false")
+    return false;
+  const num = Number(value);
+  if (!Number.isNaN(num) && value.trim() !== "")
+    return num;
+  return value;
+};
+var formatPrimitive = (value) => {
+  if (value === null)
+    return "null";
+  if (value === true)
+    return "true";
+  if (value === false)
+    return "false";
+  return `${value}`;
+};
+var UNSAFE_LOCATION_KEY = /^(?:__proto__|prototype|constructor)$/;
+var warnIssue = (warn, scope, message, details = {}) => {
+  if (typeof warn === "function") {
+    warn(scope, new Error(message), details);
+  }
+};
+var sanitizeLocationText = (value, warn, scope, details = {}) => {
+  const text = `${value ?? ""}`;
+  let sanitized = "";
+  for (let i = 0;i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code >= 0 && code <= 31 || code === 127 || code === 8232 || code === 8233) {
+      continue;
+    }
+    sanitized += text[i];
+  }
+  if (sanitized !== text) {
+    warnIssue(warn, scope, "control characters pruned", {
+      value: text,
+      sanitized,
+      ...details
+    });
+  }
+  return sanitized;
+};
+var sanitizeLocationKey = (key, warn, scope, details = {}) => {
+  const sanitized = sanitizeLocationText(key, warn, scope, details);
+  if (!sanitized || UNSAFE_LOCATION_KEY.test(sanitized) || sanitized.endsWith("[]")) {
+    warnIssue(warn, scope, "unsafe key pruned", {
+      key,
+      sanitized,
+      ...details
+    });
+    return;
+  }
+  return sanitized;
+};
+var sanitizeLocationItem = (value, warn, scope, details = {}) => {
+  if (value === undefined) {
+    return;
+  }
+  if (value === null || value === true || value === false) {
+    return value;
+  }
+  if (typeof value === "string") {
+    return sanitizeLocationText(value, warn, scope, details);
+  }
+  if (typeof value === "number") {
+    if (Number.isFinite(value)) {
+      return value;
+    }
+    warnIssue(warn, scope, "non-finite number pruned", { value, ...details });
+    return;
+  }
+  warnIssue(warn, scope, "unsupported location value pruned", {
+    type: typeof value,
+    value,
+    ...details
+  });
+  return;
+};
+var sanitizeLocationArray = (value, warn, scope, details = {}) => {
+  const res = [];
+  for (let i = 0;i < value.length; i++) {
+    const item = sanitizeLocationItem(value[i], warn, scope, {
+      ...details,
+      index: i
+    });
+    if (item !== undefined) {
+      res.push(item);
+    }
+  }
+  return res;
+};
+var sanitizeLocationRecord = (value, warn, scope) => {
+  if (!isPlainObject(value)) {
+    if (value !== undefined && value !== null) {
+      warnIssue(warn, scope, "unsupported location container pruned", {
+        type: typeof value,
+        value
+      });
+    }
+    return {};
+  }
+  const res = {};
+  for (const key in value) {
+    if (!Object.hasOwn(value, key)) {
+      continue;
+    }
+    const safeKey = sanitizeLocationKey(key, warn, scope, { key });
+    if (safeKey === undefined) {
+      continue;
+    }
+    const item = value[key];
+    if (Array.isArray(item)) {
+      const safeArray = sanitizeLocationArray(item, warn, scope, { key: safeKey });
+      if (safeArray.length) {
+        res[safeKey] = safeArray;
+      }
+    } else {
+      const safeValue = sanitizeLocationItem(item, warn, scope, { key: safeKey });
+      if (safeValue !== undefined) {
+        res[safeKey] = safeValue;
+      }
+    }
+  }
+  return res;
+};
+var sanitizeQueryText = (value, warn, scope) => {
+  const text = sanitizeLocationText(value, warn, scope);
+  const normalized = text.replace(/^\?/, "");
+  const i = normalized.indexOf("#");
+  if (i >= 0) {
+    const pruned = normalized.slice(0, i);
+    warnIssue(warn, scope, "query hash fragment pruned", {
+      value: normalized,
+      sanitized: pruned
+    });
+    return pruned;
+  }
+  return normalized;
+};
+var sanitizeHashText = (value, warn, scope) => sanitizeLocationText(`${value || ""}`.replace(/^#/, ""), warn, scope);
+var sanitizePathText = (value, warn, scope) => {
+  const text = sanitizeLocationText(value, warn, scope);
+  const normalized = text ? text.startsWith("/") ? text : `/${text}` : "/";
+  return normalized;
+};
+var formatPath = (value, warn) => {
+  const text = sanitizePathText(value, warn, "browser.path");
+  const segments = text.split("/");
+  for (let i = 0;i < segments.length; i++) {
+    segments[i] = encodeURIComponent(segments[i]);
+  }
+  return segments.join("/") || "/";
+};
+var parsePath = (value, warn) => {
+  const text = sanitizePathText(value, warn, "browser.path");
+  const segments = text.split("/");
+  for (let i = 0;i < segments.length; i++) {
+    try {
+      segments[i] = decodeURIComponent(segments[i]);
+    } catch (error) {
+      warnIssue(warn, "browser.path", "path segment decode failed", {
+        error,
+        segment: segments[i],
+        index: i
+      });
+    }
+  }
+  const path = segments.join("/");
+  return path || "/";
+};
+var sanitizeValue = (value) => {
+  if (value === undefined) {
+    return;
+  }
+  if (Array.isArray(value)) {
+    const res = [];
+    for (let i = 0;i < value.length; i++) {
+      const item = sanitizeValue(value[i]);
+      if (item !== undefined) {
+        res.push(item);
+      }
+    }
+    return res;
+  }
+  if (isPlainObject(value)) {
+    const res = {};
+    for (const k in value) {
+      if (!Object.hasOwn(value, k)) {
+        continue;
+      }
+      const item = sanitizeValue(value[k]);
+      if (item !== undefined) {
+        res[k] = item;
+      }
+    }
+    return res;
+  }
+  return value;
+};
+var mergePatch = (scope, path, value) => {
+  if (!path || path.length === 0) {
+    return value;
+  }
+  if (path.length === 1 && isPlainObject(scope) && isPlainObject(value)) {
+    const merged = { ...scope, ...value };
+    return sanitizeValue(merged);
+  }
+  return sanitizeValue(reassign(scope, path, value));
+};
+var QuerySerializer = {
+  parse(value) {
+    const result = {};
+    const search = `${value || ""}`.replace(/^[?#]/, "");
+    const entries = new URLSearchParams(search);
+    for (const [k, v] of entries.entries()) {
+      if (k.endsWith("[]")) {
+        const baseKey = k.slice(0, -2);
+        const existing = result[baseKey];
+        if (Array.isArray(existing)) {
+          existing.push(parsePrimitive(v));
+        } else if (existing !== undefined) {
+          result[baseKey] = [existing, parsePrimitive(v)];
+        } else {
+          result[baseKey] = [parsePrimitive(v)];
+        }
+      } else {
+        result[k] = parsePrimitive(v);
+      }
+    }
+    return result;
+  },
+  format(value) {
+    const search = new URLSearchParams;
+    const params = sanitizeValue(value) || {};
+    for (const k in params) {
+      if (!Object.hasOwn(params, k)) {
+        continue;
+      }
+      const v = params[k];
+      if (Array.isArray(v)) {
+        for (let i = 0;i < v.length; i++) {
+          search.append(`${k}[]`, formatPrimitive(v[i]));
+        }
+      } else if (v !== undefined) {
+        search.set(k, formatPrimitive(v));
+      }
+    }
+    return search.toString();
+  }
+};
+var JSONSerializer = {
+  parse(value) {
+    return JSON.parse(value);
+  },
+  format(value) {
+    return JSON.stringify(sanitizeValue(value));
+  }
+};
+var getBrowserWindow = () => typeof globalThis !== "undefined" && globalThis.window ? globalThis.window : undefined;
+var getHistoryMode = (options, dflt = "replace") => {
+  if (options && typeof options === "object" && !Array.isArray(options)) {
+    return options.mode === "push" ? "push" : dflt;
+  }
+  return dflt;
+};
+var isForced = (options) => options === true || !!(options && typeof options === "object" && !Array.isArray(options) && options.force);
 
 class Selections {
   constructor() {
@@ -1652,6 +1958,202 @@ class Derivation extends Reactive {
     return this;
   }
 }
+
+class BrowserValueCell extends Cell {
+  constructor(value, options = {}) {
+    super(value);
+    this.mode = options.mode === "push" ? "push" : "replace";
+    this.merge = options.merge || false;
+    this.normalize = options.normalize;
+    this.writer = options.writer;
+  }
+  set(value, path = Nothing, options = false) {
+    const resolvedPath = normpath(path);
+    const force = isForced(options);
+    let next = this.merge ? mergePatch(this.value, resolvedPath, value) : resolvedPath ? sanitizeValue(reassign(this.value, resolvedPath, value)) : value;
+    if (this.normalize) {
+      next = this.normalize(next);
+    }
+    if (!force && eq(this.value, next)) {
+      return this;
+    }
+    this._update(resolvedPath ? access(next, resolvedPath) : next, resolvedPath, force);
+    if (this.writer) {
+      this.writer(this.value, {
+        mode: getHistoryMode(options, this.mode),
+        path: resolvedPath
+      });
+    }
+    return this;
+  }
+  sync(value) {
+    if (this.normalize) {
+      value = this.normalize(value);
+    }
+    this._update(value, Nothing, false);
+    return this;
+  }
+}
+
+class LocalStorageCell extends Cell {
+  constructor(key, value, options = {}) {
+    super(value);
+    this.key = key;
+    this.merge = options.merge || false;
+    this.writer = options.writer;
+  }
+  set(value, path = Nothing, options = false) {
+    const resolvedPath = normpath(path);
+    const force = isForced(options);
+    const next = this.merge ? mergePatch(this.value, resolvedPath, value) : resolvedPath ? sanitizeValue(reassign(this.value, resolvedPath, value)) : value;
+    if (!force && eq(this.value, next)) {
+      return this;
+    }
+    this._update(resolvedPath ? access(next, resolvedPath) : next, resolvedPath, force);
+    if (this.writer) {
+      this.writer(this.value, { path: resolvedPath });
+    }
+    return this;
+  }
+  sync(value) {
+    this._update(value, Nothing, false);
+    return this;
+  }
+}
+function browser(options = {}) {
+  const win = getBrowserWindow();
+  const hasWindow = !!win?.location;
+  const hasHistory = !!(hasWindow && win.history && typeof win.history.replaceState === "function");
+  const hasStorage = !!(hasWindow && win.localStorage);
+  const warn = typeof options.warn === "function" ? options.warn : (scope, error, details = {}) => logSelectCells("warn", scope, error?.message || "browser warning", { error, ...details });
+  const urlMode = options.mode === "push" ? "push" : "replace";
+  const querySerializer = options.query && typeof options.query.parse === "function" && typeof options.query.format === "function" ? options.query : QuerySerializer;
+  const hashSerializer = options.hash && typeof options.hash.parse === "function" && typeof options.hash.format === "function" ? options.hash : QuerySerializer;
+  const localSerializer = options.local && typeof options.local.parse === "function" && typeof options.local.format === "function" ? options.local : JSONSerializer;
+  const safeParse = (scope, serializer, text, fallback) => {
+    try {
+      return serializer.parse(text);
+    } catch (error) {
+      warn(scope, error, { text });
+      return fallback;
+    }
+  };
+  const parseLocationRecord = (scope, serializer, text, fallback) => sanitizeLocationRecord(safeParse(scope, serializer, text, fallback), warn, scope);
+  const formatLocationRecord = (scope, serializer, value) => serializer.format(sanitizeLocationRecord(value, warn, scope));
+  const formatURL = (pathValue, queryValue, hashValue) => {
+    const path2 = formatPath(pathValue, warn);
+    const search = sanitizeQueryText(formatLocationRecord("browser.query", querySerializer, queryValue), warn, "browser.query");
+    const hash2 = sanitizeHashText(formatLocationRecord("browser.hash", hashSerializer, hashValue), warn, "browser.hash");
+    return `${path2}${search ? `?${search}` : ""}${hash2 ? `#${hash2}` : ""}`;
+  };
+  const readPath = () => hasWindow ? parsePath(win.location.pathname, warn) : sanitizePathText(options.path || "/", warn, "browser.path");
+  const readQuery = (fallback = {}) => hasWindow ? parseLocationRecord("browser.query", querySerializer, sanitizeQueryText(win.location.search, warn, "browser.query"), fallback) : fallback;
+  const readHash = (fallback = {}) => hasWindow ? parseLocationRecord("browser.hash", hashSerializer, sanitizeHashText(win.location.hash, warn, "browser.hash"), fallback) : fallback;
+  const writeURL = (mode = urlMode) => {
+    if (!hasHistory) {
+      return;
+    }
+    const url = formatURL(path.value, query2.value, hash.value);
+    if (mode === "push" && typeof win.history.pushState === "function") {
+      win.history.pushState(null, "", url);
+    } else {
+      win.history.replaceState(null, "", url);
+    }
+  };
+  const path = new BrowserValueCell(readPath(), {
+    mode: urlMode,
+    normalize: (value) => parsePath(value, warn),
+    writer: (_value, settings) => writeURL(settings.mode)
+  });
+  const query2 = new BrowserValueCell(readQuery({}), {
+    mode: urlMode,
+    merge: true,
+    normalize: (value) => sanitizeLocationRecord(value, warn, "browser.query"),
+    writer: (_value, settings) => writeURL(settings.mode)
+  });
+  const hash = new BrowserValueCell(readHash({}), {
+    mode: urlMode,
+    merge: true,
+    normalize: (value) => sanitizeLocationRecord(value, warn, "browser.hash"),
+    writer: (_value, settings) => writeURL(settings.mode)
+  });
+  const syncFromLocation = () => {
+    const nextPath = readPath();
+    const nextQuery = readQuery(query2.value || {});
+    const nextHash = readHash(hash.value || {});
+    if (!eq(path.value, nextPath)) {
+      path.sync(nextPath);
+    }
+    if (!eq(query2.value, nextQuery)) {
+      query2.sync(nextQuery);
+    }
+    if (!eq(hash.value, nextHash)) {
+      hash.sync(nextHash);
+    }
+  };
+  if (hasWindow && typeof win.addEventListener === "function") {
+    win.addEventListener("popstate", syncFromLocation);
+    win.addEventListener("hashchange", () => {
+      const nextHash = readHash(hash.value || {});
+      if (!eq(hash.value, nextHash)) {
+        hash.sync(nextHash);
+      }
+    });
+  }
+  const locals = new Map;
+  const writeLocal = (key, value, serializer) => {
+    if (!hasStorage) {
+      return;
+    }
+    if (value === undefined) {
+      win.localStorage.removeItem(key);
+      return;
+    }
+    const formatted = serializer.format(value);
+    if (formatted === undefined) {
+      win.localStorage.removeItem(key);
+    } else {
+      win.localStorage.setItem(key, formatted);
+    }
+  };
+  if (hasWindow && typeof win.addEventListener === "function") {
+    win.addEventListener("storage", (event) => {
+      if (!event.key || !locals.has(event.key)) {
+        return;
+      }
+      const entry = locals.get(event.key);
+      const fallback = entry.defaultValue;
+      const next = event.newValue === null ? fallback : safeParse(`browser.local:${event.key}`, entry.serializer, event.newValue, entry.cell.value ?? fallback);
+      if (!eq(entry.cell.value, next)) {
+        entry.cell.sync(next);
+      }
+    });
+  }
+  const local = (key, dflt, opts = {}) => {
+    if (locals.has(key)) {
+      return locals.get(key).cell;
+    }
+    const serializer = opts && typeof opts.parse === "function" && typeof opts.format === "function" ? opts : localSerializer;
+    const initial = hasStorage ? (() => {
+      const raw = win.localStorage.getItem(key);
+      return raw === null ? dflt : safeParse(`browser.local:${key}`, serializer, raw, dflt);
+    })() : dflt;
+    const cell = new LocalStorageCell(key, initial, {
+      merge: true,
+      writer: (value) => writeLocal(key, value, serializer)
+    });
+    locals.set(key, {
+      cell,
+      defaultValue: dflt,
+      serializer
+    });
+    if (hasStorage && win.localStorage.getItem(key) === null && dflt !== undefined) {
+      writeLocal(key, initial, serializer);
+    }
+    return cell;
+  };
+  return { path, query: query2, hash, local };
+}
 function cell(value) {
   return new Cell(value);
 }
@@ -1663,7 +2165,7 @@ function derived(template, processor, initial) {
 }
 var walk = Reactive.Walk;
 var expand = Reactive.Expand;
-var select_cells_default = Object.assign(cell, { deferred, derived, walk, expand });
+var select_cells_default = Object.assign(cell, { browser, deferred, derived, walk, expand });
 
 // src/js/select.extra.js
 function bool(value) {
@@ -2182,611 +2684,6 @@ var routed = (routes = undefined) => {
     return r.run(path, ...args);
   }, { router: r, match: r.match.bind(r) });
 };
-var isBrowser = typeof globalThis !== "undefined" && !!globalThis.window && !!globalThis.document;
-var isPlainObject = (value) => {
-  return value !== null && value !== undefined && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype;
-};
-var eq = (a, b) => {
-  if (a === b) {
-    return true;
-  }
-  if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) {
-      return false;
-    }
-    for (let i = 0;i < a.length; i++) {
-      if (!eq(a[i], b[i])) {
-        return false;
-      }
-    }
-    return true;
-  }
-  if (isPlainObject(a) && isPlainObject(b)) {
-    let count = 0;
-    for (const k in a) {
-      if (!Object.hasOwn(a, k)) {
-        continue;
-      }
-      count += 1;
-      if (!Object.hasOwn(b, k) || !eq(a[k], b[k])) {
-        return false;
-      }
-    }
-    for (const k in b) {
-      if (Object.hasOwn(b, k)) {
-        count -= 1;
-      }
-    }
-    return count === 0;
-  }
-  return false;
-};
-var hashIsObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
-var hashNeedsQuote = (str) => {
-  return str.includes(",") || str.includes("=") || str.includes("(") || str.includes(")") || str.includes("&") || str.includes('"');
-};
-var hashQuoteString = (str) => {
-  if (hashNeedsQuote(str)) {
-    return `"${str.replace(/"/g, "\\\"")}"`;
-  }
-  return str;
-};
-var formatHashValue = (value) => {
-  if (value === null)
-    return "null";
-  if (value === undefined)
-    return "";
-  if (typeof value === "boolean")
-    return `${value}`;
-  if (typeof value === "number")
-    return `${value}`;
-  if (typeof value === "string")
-    return hashQuoteString(value);
-  if (Array.isArray(value)) {
-    if (value.length === 0)
-      return "()";
-    const items = new Array(value.length);
-    for (let i = 0;i < value.length; i++) {
-      items[i] = formatHashValue(value[i]);
-    }
-    return `(${items.join(",")})`;
-  }
-  if (hashIsObject(value)) {
-    const keys = Object.keys(value);
-    if (keys.length === 0)
-      return "()";
-    const entries = new Array(keys.length);
-    for (let i = 0;i < keys.length; i++) {
-      const k = keys[i];
-      entries[i] = `${k}=${formatHashValue(value[k])}`;
-    }
-    return `(${entries.join(",")})`;
-  }
-  return `${value}`;
-};
-var hashTokenize = (str) => {
-  const tokens = [];
-  let current = "";
-  let inQuotes = false;
-  let i = 0;
-  while (i < str.length) {
-    const char = str[i];
-    if (inQuotes) {
-      if (char === "\\" && str[i + 1] === '"') {
-        current += '"';
-        i += 2;
-      } else if (char === '"') {
-        inQuotes = false;
-        i += 1;
-      } else {
-        current += char;
-        i += 1;
-      }
-    } else if (char === '"') {
-      inQuotes = true;
-      i += 1;
-    } else if (char === "," || char === "=" || char === "(" || char === ")") {
-      if (current) {
-        tokens.push(current);
-      }
-      tokens.push(char);
-      current = "";
-      i += 1;
-    } else if (char.trim() === "") {
-      i += 1;
-    } else {
-      current += char;
-      i += 1;
-    }
-  }
-  if (current) {
-    tokens.push(current);
-  }
-  return tokens;
-};
-var parseHashPrimitive = (str) => {
-  const trimmed = str.trim();
-  if (trimmed === "")
-    return "";
-  if (trimmed === "null")
-    return null;
-  if (trimmed === "true")
-    return true;
-  if (trimmed === "false")
-    return false;
-  const number = Number(trimmed);
-  if (!Number.isNaN(number) && trimmed !== "") {
-    return number;
-  }
-  return trimmed;
-};
-var parseHashValue = (tokens, i) => {
-  const token = tokens[i];
-  if (token === "(") {
-    const items = [];
-    let j = i + 1;
-    while (j < tokens.length && tokens[j] !== ")") {
-      if (tokens[j] === ",") {
-        j += 1;
-        continue;
-      }
-      const [val, next] = parseHashValue(tokens, j);
-      items.push(val);
-      j = next;
-    }
-    if (j < tokens.length && tokens[j] === ")") {
-      j += 1;
-    }
-    let hasKeyValue = false;
-    for (let k = 0;k < items.length; k++) {
-      const item = items[k];
-      if (hashIsObject(item) && Object.keys(item).length === 1) {
-        hasKeyValue = true;
-        break;
-      }
-    }
-    if (!hasKeyValue) {
-      return [items, j];
-    }
-    const obj = {};
-    for (let k = 0;k < items.length; k++) {
-      const item = items[k];
-      if (!hashIsObject(item)) {
-        return [items, j];
-      }
-      Object.assign(obj, item);
-    }
-    return [obj, j];
-  }
-  if (token === ")" || token === ",") {
-    return [null, i + 1];
-  }
-  if (tokens[i + 1] === "=") {
-    const key = token;
-    const [val, next] = parseHashValue(tokens, i + 2);
-    return [{ [key]: val }, next];
-  }
-  return [parseHashPrimitive(token), i + 1];
-};
-var parseHash = (str) => {
-  const trimmed = `${str || ""}`.trim();
-  if (!trimmed) {
-    return [];
-  }
-  const tokens = hashTokenize(trimmed);
-  if (tokens.length === 0) {
-    return [];
-  }
-  if (tokens[0] === "(") {
-    const [result] = parseHashValue(tokens, 0);
-    return result;
-  }
-  const results = [];
-  let i = 0;
-  while (i < tokens.length) {
-    if (tokens[i] === ",") {
-      i += 1;
-      continue;
-    }
-    const [value, next] = parseHashValue(tokens, i);
-    results.push(value);
-    i = next;
-  }
-  let hasObject = false;
-  for (let j = 0;j < results.length; j++) {
-    if (hashIsObject(results[j])) {
-      hasObject = true;
-      break;
-    }
-  }
-  if (!hasObject) {
-    return results.length === 1 ? results[0] : results;
-  }
-  const obj = {};
-  const rest = [];
-  for (let j = 0;j < results.length; j++) {
-    const value = results[j];
-    if (hashIsObject(value)) {
-      Object.assign(obj, value);
-    } else {
-      rest.push(value);
-    }
-  }
-  if (rest.length) {
-    obj.__rest = rest;
-  }
-  return obj;
-};
-var formatHash = (value) => {
-  if (value === null || value === undefined)
-    return "";
-  if (Array.isArray(value)) {
-    if (value.length === 0)
-      return "";
-    const items = new Array(value.length);
-    for (let i = 0;i < value.length; i++) {
-      items[i] = formatHashValue(value[i]);
-    }
-    return items.join(",");
-  }
-  if (hashIsObject(value)) {
-    const keys = Object.keys(value);
-    if (keys.length === 0) {
-      return "";
-    }
-    const entries = new Array(keys.length);
-    for (let i = 0;i < keys.length; i++) {
-      const k = keys[i];
-      entries[i] = `${k}=${formatHashValue(value[k])}`;
-    }
-    return entries.join(",");
-  }
-  return formatHashValue(value);
-};
-var parsePrimitive = (value) => {
-  if (value === "null")
-    return null;
-  if (value === "true")
-    return true;
-  if (value === "false")
-    return false;
-  const num = Number(value);
-  if (!Number.isNaN(num) && value.trim() !== "")
-    return num;
-  return value;
-};
-var formatPrimitive = (value) => {
-  if (value === null)
-    return "null";
-  if (value === true)
-    return "true";
-  if (value === false)
-    return "false";
-  return `${value}`;
-};
-var asHashObject = (value) => {
-  if (hashIsObject(value)) {
-    return value;
-  }
-  if (Array.isArray(value)) {
-    return { __rest: value };
-  }
-  if (value === undefined || value === null) {
-    return {};
-  }
-  return { value };
-};
-var PathSerializer = {
-  parse(value) {
-    return splitPath(value);
-  },
-  format(path) {
-    const items = splitPath(path);
-    return `/${items.join("/")}`;
-  }
-};
-var HashSerializer = {
-  parse(value) {
-    const hashValue = `${value || ""}`.replace(/^#/, "");
-    if (!hashValue) {
-      return { path: "" };
-    }
-    const parts = hashValue.split("&");
-    const first = parts[0];
-    const rest = [];
-    for (let i = 1;i < parts.length; i++) {
-      rest.push(parts[i]);
-    }
-    if (first.includes("=")) {
-      return { path: "", ...asHashObject(parseHash(hashValue)) };
-    }
-    const restValue = rest.length ? asHashObject(parseHash(rest.join("&"))) : {};
-    return { path: first || "", ...restValue };
-  },
-  format(hash) {
-    const data = hash || { path: "" };
-    const path = typeof data.path === "string" ? data.path : "";
-    const rest = {};
-    for (const k in data) {
-      if (k === "path") {
-        continue;
-      }
-      rest[k] = data[k];
-    }
-    const parts = [];
-    if (path) {
-      parts.push(path);
-    }
-    const params = formatHash(rest);
-    if (params) {
-      parts.push(params);
-    }
-    return parts.join("&");
-  }
-};
-var ParamsSerializer = {
-  parse(value) {
-    const result = {};
-    const search = `${value || ""}`.replace(/^\?/, "");
-    const entries = new URLSearchParams(search);
-    for (const [k, v] of entries.entries()) {
-      if (k.endsWith("[]")) {
-        const baseKey = k.slice(0, -2);
-        const existing = result[baseKey];
-        if (Array.isArray(existing)) {
-          existing.push(parsePrimitive(v));
-        } else if (existing !== undefined) {
-          result[baseKey] = [existing, parsePrimitive(v)];
-        } else {
-          result[baseKey] = [parsePrimitive(v)];
-        }
-      } else {
-        result[k] = parsePrimitive(v);
-      }
-    }
-    return result;
-  },
-  format(params) {
-    const search = new URLSearchParams;
-    for (const k in params || {}) {
-      const v = params[k];
-      if (Array.isArray(v)) {
-        for (let i = 0;i < v.length; i++) {
-          search.append(`${k}[]`, formatPrimitive(v[i]));
-        }
-      } else if (v !== undefined) {
-        search.set(k, formatPrimitive(v));
-      }
-    }
-    return search.toString();
-  }
-};
-
-class URLHistory {
-  constructor(pathSerializer = PathSerializer, hashSerializer = HashSerializer, paramsSerializer = ParamsSerializer) {
-    this.pathSerializer = pathSerializer;
-    this.hashSerializer = hashSerializer;
-    this.paramsSerializer = paramsSerializer;
-    this.path = [];
-    this.hash = { path: "" };
-    this.params = {};
-    this.title = "";
-    this.onPathCallbacks = [];
-    this.onHashCallbacks = [];
-    this.onParamsCallbacks = [];
-    this.onPushCallbacks = [];
-    this.onReplaceCallbacks = [];
-    this.onPopState = this.onPopState.bind(this);
-    this.onHashChange = this.onHashChange.bind(this);
-    this.init();
-  }
-  init() {
-    if (!isBrowser) {
-      return;
-    }
-    this.syncFromURL();
-    globalThis.window.addEventListener("popstate", this.onPopState);
-    globalThis.window.addEventListener("hashchange", this.onHashChange);
-  }
-  destroy() {
-    if (!isBrowser) {
-      return;
-    }
-    globalThis.window.removeEventListener("popstate", this.onPopState);
-    globalThis.window.removeEventListener("hashchange", this.onHashChange);
-  }
-  syncFromURL() {
-    if (!isBrowser) {
-      return;
-    }
-    this.path = this.pathSerializer.parse(globalThis.window.location.pathname);
-    this.hash = this.hashSerializer.parse(globalThis.window.location.hash);
-    this.params = this.paramsSerializer.parse(globalThis.window.location.search);
-    this.title = globalThis.document.title;
-  }
-  notify(callbacks, current, previous, type) {
-    for (let i = 0;i < callbacks.length; i++) {
-      callbacks[i](current, previous, type);
-    }
-  }
-  formatURLSearch() {
-    const search = this.paramsSerializer.format(this.params);
-    return search ? `?${search}` : "";
-  }
-  formatURLHash() {
-    const hash = this.hashSerializer.format(this.hash);
-    return hash ? `#${hash}` : "";
-  }
-  formatURL() {
-    return `${this.pathSerializer.format(this.path)}${this.formatURLSearch()}${this.formatURLHash()}`;
-  }
-  writeURL(replace = true) {
-    if (!isBrowser) {
-      return;
-    }
-    const url = this.formatURL();
-    if (replace) {
-      globalThis.window.history.replaceState(null, "", url);
-    } else {
-      globalThis.window.history.pushState(null, "", url);
-    }
-  }
-  onPopState() {
-    const previousPath = this.path;
-    const previousHash = this.hash;
-    const previousParams = this.params;
-    this.syncFromURL();
-    if (!eq(previousPath, this.path)) {
-      this.notify(this.onPathCallbacks, this.path, previousPath, "path");
-    }
-    if (!eq(previousHash, this.hash)) {
-      this.notify(this.onHashCallbacks, this.hash, previousHash, "hash");
-    }
-    if (!eq(previousParams, this.params)) {
-      this.notify(this.onParamsCallbacks, this.params, previousParams, "params");
-    }
-  }
-  onHashChange() {
-    if (!isBrowser) {
-      return;
-    }
-    const previous = this.hash;
-    this.hash = this.hashSerializer.parse(globalThis.window.location.hash);
-    if (!eq(previous, this.hash)) {
-      this.notify(this.onHashCallbacks, this.hash, previous, "hash");
-    }
-  }
-  setTitle(title, replace = false) {
-    const previous = this.title;
-    this.title = title;
-    if (isBrowser) {
-      globalThis.document.title = title;
-    }
-    if (replace) {
-      this.notify(this.onReplaceCallbacks, title, previous, "path");
-    } else {
-      this.notify(this.onPushCallbacks, title, previous, "path");
-    }
-  }
-  getTitle() {
-    return this.title;
-  }
-  setPath(path, replace = true) {
-    const next = typeof path === "string" ? this.pathSerializer.parse(path) : path;
-    if (eq(this.path, next)) {
-      return;
-    }
-    const previous = this.path;
-    this.path = splitPath(next);
-    this.writeURL(replace);
-    this.notify(this.onPathCallbacks, this.path, previous, "path");
-    if (replace) {
-      this.notify(this.onReplaceCallbacks, this.path, previous, "path");
-    } else {
-      this.notify(this.onPushCallbacks, this.path, previous, "path");
-    }
-  }
-  getPath() {
-    return [...this.path];
-  }
-  setHash(hash, replace = false) {
-    const next = typeof hash === "string" ? { path: hash } : hash;
-    if (eq(this.hash, next)) {
-      return;
-    }
-    const previous = this.hash;
-    this.hash = next;
-    this.writeURL(replace);
-    this.notify(this.onHashCallbacks, this.hash, previous, "hash");
-    if (replace) {
-      this.notify(this.onReplaceCallbacks, this.hash, previous, "hash");
-    } else {
-      this.notify(this.onPushCallbacks, this.hash, previous, "hash");
-    }
-  }
-  getHash() {
-    return this.hash;
-  }
-  mergeHash(hash, replace = true) {
-    const currentIsObject = hashIsObject(this.hash);
-    const nextIsObject = hashIsObject(hash);
-    const merged = currentIsObject && nextIsObject ? Object.fromEntries(Object.entries({ ...this.hash, ...hash }).filter(([, v]) => v !== null)) : hash;
-    if (eq(this.hash, merged)) {
-      return;
-    }
-    this.setHash(merged, replace);
-  }
-  setParams(params, replace = true) {
-    const next = { ...params || {} };
-    if (eq(this.params, next)) {
-      return;
-    }
-    const previous = this.params;
-    this.params = next;
-    this.writeURL(replace);
-    this.notify(this.onParamsCallbacks, this.params, previous, "params");
-    if (replace) {
-      this.notify(this.onReplaceCallbacks, this.params, previous, "params");
-    } else {
-      this.notify(this.onPushCallbacks, this.params, previous, "params");
-    }
-  }
-  mergeParams(params, replace = true) {
-    const merged = Object.fromEntries(Object.entries({ ...this.params, ...params || {} }).filter(([, v]) => v !== null));
-    if (eq(this.params, merged)) {
-      return;
-    }
-    this.setParams(merged, replace);
-  }
-  getParams() {
-    return { ...this.params };
-  }
-  onPath(callback, trigger = false) {
-    this.onPathCallbacks.push(callback);
-    if (trigger) {
-      callback(this.path, undefined, "path");
-    }
-    return () => {
-      this.onPathCallbacks = this.onPathCallbacks.filter((cb) => cb !== callback);
-    };
-  }
-  onHash(callback, trigger = false) {
-    this.onHashCallbacks.push(callback);
-    if (trigger) {
-      callback(this.hash, undefined, "hash");
-    }
-    return () => {
-      this.onHashCallbacks = this.onHashCallbacks.filter((cb) => cb !== callback);
-    };
-  }
-  onParams(callback, trigger = false) {
-    this.onParamsCallbacks.push(callback);
-    if (trigger) {
-      callback(this.params, undefined, "params");
-    }
-    return () => {
-      this.onParamsCallbacks = this.onParamsCallbacks.filter((cb) => cb !== callback);
-    };
-  }
-  onPush(callback, trigger = false) {
-    this.onPushCallbacks.push(callback);
-    if (trigger) {
-      callback(this.path, undefined, "path");
-    }
-    return () => {
-      this.onPushCallbacks = this.onPushCallbacks.filter((cb) => cb !== callback);
-    };
-  }
-  onReplace(callback, trigger = false) {
-    this.onReplaceCallbacks.push(callback);
-    if (trigger) {
-      callback(this.path, undefined, "path");
-    }
-    return () => {
-      this.onReplaceCallbacks = this.onReplaceCallbacks.filter((cb) => cb !== callback);
-    };
-  }
-}
 var extra = Object.freeze({
   bind,
   clsx,
@@ -2798,11 +2695,8 @@ var extra = Object.freeze({
   filter: filter2,
   drag,
   dragtarget,
-  HashSerializer,
   iclsx,
   Keyboard,
-  ParamsSerializer,
-  PathSerializer,
   route,
   Router,
   router,
@@ -2810,8 +2704,7 @@ var extra = Object.freeze({
   target,
   unbind,
   list,
-  unique,
-  URLHistory
+  unique
 });
 var select_extra_default = extra;
 
@@ -5869,12 +5762,12 @@ export {
   clsx,
   select_cells_default as cells,
   cell,
+  browser,
   bool,
   bind,
   autoresize,
   assign,
   access,
-  URLHistory,
   UIWebComponent,
   UITemplateSlot,
   UITemplate,
@@ -5891,12 +5784,9 @@ export {
   S,
   Router,
   Reactive,
-  PathSerializer,
-  ParamsSerializer,
   Keyboard,
   IconsContainer,
   IconSources,
-  HashSerializer,
   FastDOM,
   Dynamic,
   Disconnect,

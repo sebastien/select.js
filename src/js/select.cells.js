@@ -39,6 +39,48 @@ const logSelectCells = (level, scope, message, details = {}) => {
 	console[level](`[select.cells] ${scope}: ${message}, details`, details);
 };
 
+const isPlainObject = (value) =>
+	value !== null &&
+	value !== undefined &&
+	typeof value === "object" &&
+	Object.getPrototypeOf(value) === Object.prototype;
+
+const eq = (a, b) => {
+	if (Object.is(a, b)) {
+		return true;
+	}
+	if (Array.isArray(a) && Array.isArray(b)) {
+		if (a.length !== b.length) {
+			return false;
+		}
+		for (let i = 0; i < a.length; i++) {
+			if (!eq(a[i], b[i])) {
+				return false;
+			}
+		}
+		return true;
+	}
+	if (isPlainObject(a) && isPlainObject(b)) {
+		let n = 0;
+		for (const k in a) {
+			if (!Object.hasOwn(a, k)) {
+				continue;
+			}
+			n += 1;
+			if (!Object.hasOwn(b, k) || !eq(a[k], b[k])) {
+				return false;
+			}
+		}
+		for (const k in b) {
+			if (Object.hasOwn(b, k)) {
+				n -= 1;
+			}
+		}
+		return n === 0;
+	}
+	return false;
+};
+
 // ----------------------------------------------------------------------------
 //
 // SECTION: Path Utilities
@@ -179,11 +221,306 @@ const normpath = (path) => {
 		return null;
 	} else if (Array.isArray(path)) {
 		return path;
-	} else if (path !== undefined) {
+	} else if (path !== undefined && path !== null) {
 		return [path];
 	}
 	return null;
 };
+
+const parsePrimitive = (value) => {
+	if (value === "null") return null;
+	if (value === "true") return true;
+	if (value === "false") return false;
+	const num = Number(value);
+	if (!Number.isNaN(num) && value.trim() !== "") return num;
+	return value;
+};
+
+const formatPrimitive = (value) => {
+	if (value === null) return "null";
+	if (value === true) return "true";
+	if (value === false) return "false";
+	return `${value}`;
+};
+
+const UNSAFE_LOCATION_KEY = /^(?:__proto__|prototype|constructor)$/;
+
+const warnIssue = (warn, scope, message, details = {}) => {
+	if (typeof warn === "function") {
+		warn(scope, new Error(message), details);
+	}
+};
+
+const sanitizeLocationText = (value, warn, scope, details = {}) => {
+	const text = `${value ?? ""}`;
+	let sanitized = "";
+	for (let i = 0; i < text.length; i++) {
+		const code = text.charCodeAt(i);
+		if (
+			(code >= 0x00 && code <= 0x1f) ||
+			code === 0x7f ||
+			code === 0x2028 ||
+			code === 0x2029
+		) {
+			continue;
+		}
+		sanitized += text[i];
+	}
+	if (sanitized !== text) {
+		warnIssue(warn, scope, "control characters pruned", {
+			value: text,
+			sanitized,
+			...details,
+		});
+	}
+	return sanitized;
+};
+
+const sanitizeLocationKey = (key, warn, scope, details = {}) => {
+	const sanitized = sanitizeLocationText(key, warn, scope, details);
+	if (!sanitized || UNSAFE_LOCATION_KEY.test(sanitized) || sanitized.endsWith("[]")) {
+		warnIssue(warn, scope, "unsafe key pruned", {
+			key,
+			sanitized,
+			...details,
+		});
+		return undefined;
+	}
+	return sanitized;
+};
+
+const sanitizeLocationItem = (value, warn, scope, details = {}) => {
+	if (value === undefined) {
+		return undefined;
+	}
+	if (value === null || value === true || value === false) {
+		return value;
+	}
+	if (typeof value === "string") {
+		return sanitizeLocationText(value, warn, scope, details);
+	}
+	if (typeof value === "number") {
+		if (Number.isFinite(value)) {
+			return value;
+		}
+		warnIssue(warn, scope, "non-finite number pruned", { value, ...details });
+		return undefined;
+	}
+	warnIssue(warn, scope, "unsupported location value pruned", {
+		type: typeof value,
+		value,
+		...details,
+	});
+	return undefined;
+};
+
+const sanitizeLocationArray = (value, warn, scope, details = {}) => {
+	const res = [];
+	for (let i = 0; i < value.length; i++) {
+		const item = sanitizeLocationItem(value[i], warn, scope, {
+			...details,
+			index: i,
+		});
+		if (item !== undefined) {
+			res.push(item);
+		}
+	}
+	return res;
+};
+
+const sanitizeLocationRecord = (value, warn, scope) => {
+	if (!isPlainObject(value)) {
+		if (value !== undefined && value !== null) {
+			warnIssue(warn, scope, "unsupported location container pruned", {
+				type: typeof value,
+				value,
+			});
+		}
+		return {};
+	}
+	const res = {};
+	for (const key in value) {
+		if (!Object.hasOwn(value, key)) {
+			continue;
+		}
+		const safeKey = sanitizeLocationKey(key, warn, scope, { key });
+		if (safeKey === undefined) {
+			continue;
+		}
+		const item = value[key];
+		if (Array.isArray(item)) {
+			const safeArray = sanitizeLocationArray(item, warn, scope, { key: safeKey });
+			if (safeArray.length) {
+				res[safeKey] = safeArray;
+			}
+		} else {
+			const safeValue = sanitizeLocationItem(item, warn, scope, { key: safeKey });
+			if (safeValue !== undefined) {
+				res[safeKey] = safeValue;
+			}
+		}
+	}
+	return res;
+};
+
+const sanitizeQueryText = (value, warn, scope) => {
+	const text = sanitizeLocationText(value, warn, scope);
+	const normalized = text.replace(/^\?/, "");
+	const i = normalized.indexOf("#");
+	if (i >= 0) {
+		const pruned = normalized.slice(0, i);
+		warnIssue(warn, scope, "query hash fragment pruned", {
+			value: normalized,
+			sanitized: pruned,
+		});
+		return pruned;
+	}
+	return normalized;
+};
+
+const sanitizeHashText = (value, warn, scope) =>
+	sanitizeLocationText(`${value || ""}`.replace(/^#/, ""), warn, scope);
+
+const sanitizePathText = (value, warn, scope) => {
+	const text = sanitizeLocationText(value, warn, scope);
+	const normalized = text ? (text.startsWith("/") ? text : `/${text}`) : "/";
+	return normalized;
+};
+
+const formatPath = (value, warn) => {
+	const text = sanitizePathText(value, warn, "browser.path");
+	const segments = text.split("/");
+	for (let i = 0; i < segments.length; i++) {
+		segments[i] = encodeURIComponent(segments[i]);
+	}
+	return segments.join("/") || "/";
+};
+
+const parsePath = (value, warn) => {
+	const text = sanitizePathText(value, warn, "browser.path");
+	const segments = text.split("/");
+	for (let i = 0; i < segments.length; i++) {
+		try {
+			segments[i] = decodeURIComponent(segments[i]);
+		} catch (error) {
+			warnIssue(warn, "browser.path", "path segment decode failed", {
+				error,
+				segment: segments[i],
+				index: i,
+			});
+		}
+	}
+	const path = segments.join("/");
+	return path || "/";
+};
+
+const sanitizeValue = (value) => {
+	if (value === undefined) {
+		return undefined;
+	}
+	if (Array.isArray(value)) {
+		const res = [];
+		for (let i = 0; i < value.length; i++) {
+			const item = sanitizeValue(value[i]);
+			if (item !== undefined) {
+				res.push(item);
+			}
+		}
+		return res;
+	}
+	if (isPlainObject(value)) {
+		const res = {};
+		for (const k in value) {
+			if (!Object.hasOwn(value, k)) {
+				continue;
+			}
+			const item = sanitizeValue(value[k]);
+			if (item !== undefined) {
+				res[k] = item;
+			}
+		}
+		return res;
+	}
+	return value;
+};
+
+const mergePatch = (scope, path, value) => {
+	if (!path || path.length === 0) {
+		return value;
+	}
+	if (path.length === 1 && isPlainObject(scope) && isPlainObject(value)) {
+		const merged = { ...scope, ...value };
+		return sanitizeValue(merged);
+	}
+	return sanitizeValue(reassign(scope, path, value));
+};
+
+const QuerySerializer = {
+	parse(value) {
+		const result = {};
+		const search = `${value || ""}`.replace(/^[?#]/, "");
+		const entries = new URLSearchParams(search);
+		for (const [k, v] of entries.entries()) {
+			if (k.endsWith("[]")) {
+				const baseKey = k.slice(0, -2);
+				const existing = result[baseKey];
+				if (Array.isArray(existing)) {
+					existing.push(parsePrimitive(v));
+				} else if (existing !== undefined) {
+					result[baseKey] = [existing, parsePrimitive(v)];
+				} else {
+					result[baseKey] = [parsePrimitive(v)];
+				}
+			} else {
+				result[k] = parsePrimitive(v);
+			}
+		}
+		return result;
+	},
+	format(value) {
+		const search = new URLSearchParams();
+		const params = sanitizeValue(value) || {};
+		for (const k in params) {
+			if (!Object.hasOwn(params, k)) {
+				continue;
+			}
+			const v = params[k];
+			if (Array.isArray(v)) {
+				for (let i = 0; i < v.length; i++) {
+					search.append(`${k}[]`, formatPrimitive(v[i]));
+				}
+			} else if (v !== undefined) {
+				search.set(k, formatPrimitive(v));
+			}
+		}
+		return search.toString();
+	},
+};
+
+const JSONSerializer = {
+	parse(value) {
+		return JSON.parse(value);
+	},
+	format(value) {
+		return JSON.stringify(sanitizeValue(value));
+	},
+};
+
+const getBrowserWindow = () =>
+	typeof globalThis !== "undefined" && globalThis.window
+		? globalThis.window
+		: undefined;
+
+const getHistoryMode = (options, dflt = "replace") => {
+	if (options && typeof options === "object" && !Array.isArray(options)) {
+		return options.mode === "push" ? "push" : dflt;
+	}
+	return dflt;
+};
+
+const isForced = (options) =>
+	options === true ||
+	!!(options && typeof options === "object" && !Array.isArray(options) && options.force);
 
 // ----------------------------------------------------------------------------
 //
@@ -792,6 +1129,314 @@ class Derivation extends Reactive {
 
 // ----------------------------------------------------------------------------
 //
+// SECTION: Browser Cells
+//
+// ----------------------------------------------------------------------------
+
+class BrowserValueCell extends Cell {
+	constructor(value, options = {}) {
+		super(value);
+		this.mode = options.mode === "push" ? "push" : "replace";
+		this.merge = options.merge || false;
+		this.normalize = options.normalize;
+		this.writer = options.writer;
+	}
+
+	set(value, path = Nothing, options = false) {
+		const resolvedPath = normpath(path);
+		const force = isForced(options);
+		let next = this.merge
+			? mergePatch(this.value, resolvedPath, value)
+			: resolvedPath
+				? sanitizeValue(reassign(this.value, resolvedPath, value))
+				: value;
+		if (this.normalize) {
+			next = this.normalize(next);
+		}
+		if (!force && eq(this.value, next)) {
+			return this;
+		}
+		this._update(resolvedPath ? access(next, resolvedPath) : next, resolvedPath, force);
+		if (this.writer) {
+			this.writer(this.value, {
+				mode: getHistoryMode(options, this.mode),
+				path: resolvedPath,
+			});
+		}
+		return this;
+	}
+
+	sync(value) {
+		if (this.normalize) {
+			value = this.normalize(value);
+		}
+		this._update(value, Nothing, false);
+		return this;
+	}
+}
+
+class LocalStorageCell extends Cell {
+	constructor(key, value, options = {}) {
+		super(value);
+		this.key = key;
+		this.merge = options.merge || false;
+		this.writer = options.writer;
+	}
+
+	set(value, path = Nothing, options = false) {
+		const resolvedPath = normpath(path);
+		const force = isForced(options);
+		const next = this.merge
+			? mergePatch(this.value, resolvedPath, value)
+			: resolvedPath
+				? sanitizeValue(reassign(this.value, resolvedPath, value))
+				: value;
+		if (!force && eq(this.value, next)) {
+			return this;
+		}
+		this._update(resolvedPath ? access(next, resolvedPath) : next, resolvedPath, force);
+		if (this.writer) {
+			this.writer(this.value, { path: resolvedPath });
+		}
+		return this;
+	}
+
+	sync(value) {
+		this._update(value, Nothing, false);
+		return this;
+	}
+}
+
+// Function: browser
+// Creates browser-backed reactive cells for path, query, hash and local storage.
+//
+// Parameters:
+// - `options`: object? - serializers and write policy
+//
+// Returns: object - `{ path, query, hash, local }`
+function browser(options = {}) {
+	const win = getBrowserWindow();
+	const hasWindow = !!win?.location;
+	const hasHistory =
+		!!(hasWindow && win.history && typeof win.history.replaceState === "function");
+	const hasStorage = !!(hasWindow && win.localStorage);
+	const warn =
+		typeof options.warn === "function"
+			? options.warn
+			: (scope, error, details = {}) =>
+					logSelectCells(
+						"warn",
+						scope,
+						error?.message || "browser warning",
+						{ error, ...details },
+					);
+	const urlMode = options.mode === "push" ? "push" : "replace";
+	const querySerializer =
+		options.query &&
+		typeof options.query.parse === "function" &&
+		typeof options.query.format === "function"
+			? options.query
+			: QuerySerializer;
+	const hashSerializer =
+		options.hash &&
+		typeof options.hash.parse === "function" &&
+		typeof options.hash.format === "function"
+			? options.hash
+			: QuerySerializer;
+	const localSerializer =
+		options.local &&
+		typeof options.local.parse === "function" &&
+		typeof options.local.format === "function"
+			? options.local
+			: JSONSerializer;
+
+	const safeParse = (scope, serializer, text, fallback) => {
+		try {
+			return serializer.parse(text);
+		} catch (error) {
+			warn(scope, error, { text });
+			return fallback;
+		}
+	};
+
+	const parseLocationRecord = (scope, serializer, text, fallback) =>
+		sanitizeLocationRecord(safeParse(scope, serializer, text, fallback), warn, scope);
+
+	const formatLocationRecord = (scope, serializer, value) =>
+		serializer.format(sanitizeLocationRecord(value, warn, scope));
+
+	const formatURL = (pathValue, queryValue, hashValue) => {
+		const path = formatPath(pathValue, warn);
+		const search = sanitizeQueryText(
+			formatLocationRecord("browser.query", querySerializer, queryValue),
+			warn,
+			"browser.query",
+		);
+		const hash = sanitizeHashText(
+			formatLocationRecord("browser.hash", hashSerializer, hashValue),
+			warn,
+			"browser.hash",
+		);
+		return `${path}${search ? `?${search}` : ""}${hash ? `#${hash}` : ""}`;
+	};
+
+	const readPath = () =>
+		hasWindow
+			? parsePath(win.location.pathname, warn)
+			: sanitizePathText(options.path || "/", warn, "browser.path");
+	const readQuery = (fallback = {}) =>
+		hasWindow
+			? parseLocationRecord(
+					"browser.query",
+					querySerializer,
+					sanitizeQueryText(win.location.search, warn, "browser.query"),
+					fallback,
+				)
+			: fallback;
+	const readHash = (fallback = {}) =>
+		hasWindow
+			? parseLocationRecord(
+					"browser.hash",
+					hashSerializer,
+					sanitizeHashText(win.location.hash, warn, "browser.hash"),
+					fallback,
+				)
+			: fallback;
+
+	const writeURL = (mode = urlMode) => {
+		if (!hasHistory) {
+			return;
+		}
+		const url = formatURL(path.value, query.value, hash.value);
+		if (mode === "push" && typeof win.history.pushState === "function") {
+			win.history.pushState(null, "", url);
+		} else {
+			win.history.replaceState(null, "", url);
+		}
+	};
+
+	const path = new BrowserValueCell(readPath(), {
+		mode: urlMode,
+		normalize: (value) => parsePath(value, warn),
+		writer: (_value, settings) => writeURL(settings.mode),
+	});
+	const query = new BrowserValueCell(readQuery({}), {
+		mode: urlMode,
+		merge: true,
+		normalize: (value) =>
+			sanitizeLocationRecord(value, warn, "browser.query"),
+		writer: (_value, settings) => writeURL(settings.mode),
+	});
+	const hash = new BrowserValueCell(readHash({}), {
+		mode: urlMode,
+		merge: true,
+		normalize: (value) =>
+			sanitizeLocationRecord(value, warn, "browser.hash"),
+		writer: (_value, settings) => writeURL(settings.mode),
+	});
+
+	const syncFromLocation = () => {
+		const nextPath = readPath();
+		const nextQuery = readQuery(query.value || {});
+		const nextHash = readHash(hash.value || {});
+		if (!eq(path.value, nextPath)) {
+			path.sync(nextPath);
+		}
+		if (!eq(query.value, nextQuery)) {
+			query.sync(nextQuery);
+		}
+		if (!eq(hash.value, nextHash)) {
+			hash.sync(nextHash);
+		}
+	};
+
+	if (hasWindow && typeof win.addEventListener === "function") {
+		win.addEventListener("popstate", syncFromLocation);
+		win.addEventListener("hashchange", () => {
+			const nextHash = readHash(hash.value || {});
+			if (!eq(hash.value, nextHash)) {
+				hash.sync(nextHash);
+			}
+		});
+	}
+
+	const locals = new Map();
+	const writeLocal = (key, value, serializer) => {
+		if (!hasStorage) {
+			return;
+		}
+		if (value === undefined) {
+			win.localStorage.removeItem(key);
+			return;
+		}
+		const formatted = serializer.format(value);
+		if (formatted === undefined) {
+			win.localStorage.removeItem(key);
+		} else {
+			win.localStorage.setItem(key, formatted);
+		}
+	};
+
+	if (hasWindow && typeof win.addEventListener === "function") {
+		win.addEventListener("storage", (event) => {
+			if (!event.key || !locals.has(event.key)) {
+				return;
+			}
+			const entry = locals.get(event.key);
+			const fallback = entry.defaultValue;
+			const next =
+				event.newValue === null
+					? fallback
+					: safeParse(
+							`browser.local:${event.key}`,
+							entry.serializer,
+							event.newValue,
+							entry.cell.value ?? fallback,
+						);
+			if (!eq(entry.cell.value, next)) {
+				entry.cell.sync(next);
+			}
+		});
+	}
+
+	const local = (key, dflt, opts = {}) => {
+		if (locals.has(key)) {
+			return locals.get(key).cell;
+		}
+		const serializer =
+			opts &&
+			typeof opts.parse === "function" &&
+			typeof opts.format === "function"
+				? opts
+				: localSerializer;
+		const initial = hasStorage
+			? (() => {
+					const raw = win.localStorage.getItem(key);
+					return raw === null
+						? dflt
+						: safeParse(`browser.local:${key}`, serializer, raw, dflt);
+				})()
+			: dflt;
+		const cell = new LocalStorageCell(key, initial, {
+			merge: true,
+			writer: (value) => writeLocal(key, value, serializer),
+		});
+		locals.set(key, {
+			cell,
+			defaultValue: dflt,
+			serializer,
+		});
+		if (hasStorage && win.localStorage.getItem(key) === null && dflt !== undefined) {
+			writeLocal(key, initial, serializer);
+		}
+		return cell;
+	};
+
+	return { path, query, hash, local };
+}
+
+// ----------------------------------------------------------------------------
+//
 // SECTION: Factory Functions
 //
 // ----------------------------------------------------------------------------
@@ -863,6 +1508,7 @@ const expand = Reactive.Expand;
 export {
 	access,
 	assign,
+	browser,
 	Cell,
 	cell,
 	Deferred,
@@ -874,6 +1520,6 @@ export {
 	Selected,
 	walk,
 };
-export default Object.assign(cell, { deferred, derived, walk, expand });
+export default Object.assign(cell, { browser, deferred, derived, walk, expand });
 
 // EOF

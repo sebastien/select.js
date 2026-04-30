@@ -1,8 +1,7 @@
 # Select Extra Reference Guide
 
 Utility module with agnostic helpers for class-name composition, DOM event
-binding, dragging, textarea auto-resize, keyboard handling, route dispatch,
-and URL history state.
+binding, dragging, textarea auto-resize, keyboard handling, and route dispatch.
 
 ## Overview
 
@@ -12,7 +11,8 @@ in plain DOM scripts, custom elements, or alongside any rendering library.
 ## Quick Start
 
 ```javascript
-import { bind, clsx, Keyboard, router, URLHistory } from "./select.extra.js";
+import { bind, clsx, Keyboard, router } from "./select.extra.js";
+import { browser } from "./select.cells.js";
 
 const input = document.querySelector("input");
 
@@ -29,10 +29,10 @@ const routes = router({
   "/users/{id:number}": (_path, { id }) => console.log("user", Number(id)),
 });
 
-const history = new URLHistory();
-history.onPath((path) => {
-  routes.run(`/${path.join("/")}`);
-}, true);
+const state = browser();
+state.path.sub((path) => {
+  routes.run(path);
+});
 ```
 
 ## API Reference
@@ -240,61 +240,12 @@ Factory returning a callable dispatcher function:
 - call: `(path, ...args) => any`
 - props: `.router`, `.match(path)`
 
-### URL History
+### Browser state
 
-#### `PathSerializer`
+Browser-backed URL and storage state moved to `select.cells.js`.
 
-Default path serializer:
-
-- `parse("/a/b") -> ["a", "b"]`
-- `format(["a", "b"]) -> "/a/b"`
-
-#### `HashSerializer`
-
-Default hash serializer using hashformat semantics for structured values.
-
-- Hash structure: `{ path: string, ...rest }`
-- Example: `#users&tab="activity",page=2`
-
-#### `ParamsSerializer`
-
-Default query serializer using `URLSearchParams` and array notation (`key[]`).
-
-- parse: `?tag[]=a&tag[]=b&page=2`
-- format: `{ tag: ["a", "b"], page: 2 }`
-
-#### `class URLHistory`
-
-Browser URL/history wrapper with path/hash/params synchronization.
-
-Constructor:
-
-- `new URLHistory(pathSerializer?, hashSerializer?, paramsSerializer?)`
-
-State methods:
-
-- `getPath()`, `getHash()`, `getParams()`, `getTitle()`
-- `setPath(path, replace = true)`
-- `setHash(hash, replace = false)`
-- `setParams(params, replace = true)`
-- `setTitle(title, replace = false)`
-- `mergeHash(hash, replace = true)`
-- `mergeParams(params, replace = true)`
-
-Subscriptions:
-
-- `onPath(callback, trigger?)`
-- `onHash(callback, trigger?)`
-- `onParams(callback, trigger?)`
-- `onPush(callback, trigger?)`
-- `onReplace(callback, trigger?)`
-
-Lifecycle:
-
-- `syncFromURL()`
-- `destroy()`
-
-Notes:
-
-- Works in browser contexts (`window`/`document`).
-- Outside browser contexts, URL side effects are safely skipped.
+- `browser(options?)`: Returns `{ path, query, hash, local }`
+- `path`: `Cell<string>` bound to `location.pathname`
+- `query`: `Cell<object>` bound to `location.search`
+- `hash`: `Cell<object>` bound to `location.hash`
+- `local(key, dflt, opts?)`: `Cell<T>` backed by `localStorage`

@@ -93,6 +93,7 @@ state.set(2, "a.b");
 ### The `cell` module:
 
 - `cell(value?)`: Factory function to create a new `Cell` instance.
+- `browser(options?)`: Factory that returns browser-backed `path`, `query`, `hash`, and `local(key, dflt, opts?)` cells.
 - `deferred(value?, delay)`: Factory function to create a new `Deferred` cell instance for debounced updates.
 - `derived(template, processor?, initial?)`: Factory function to create a new `Derivation` instance. `template` can be a cell, an array of cells, or a function.
 - `access(context, path, offset?)`: Utility to read a nested value from a plain object/array by path.

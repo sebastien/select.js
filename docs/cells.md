@@ -9,6 +9,7 @@ and lightweight pub/sub.
 ### Primitives:
 
 - `cell(value?)`: Creates a mutable reactive `Cell` instance.
+- `browser(options?)`: Creates browser-backed cells for `path`, `query`, `hash`, and `localStorage`.
 - `deferred(value?, delay)`: Creates a mutable reactive `Deferred` cell that debounces updates by the given delay.
 - `derived(template, processor?, initial?)`: Creates a reactive derivation from a template containing cells.
 - `Cell` (class): The base class for mutable reactive values.
@@ -62,6 +63,19 @@ count.set(1)
 count.set(2)
 ```
 
+Browser-backed state example:
+
+```javascript
+import { browser } from "@./select.cells.js"
+
+const state = browser()
+const sidebar = state.query.select("sidebar")
+
+sidebar.set("open")
+const prefs = state.local("prefs", { theme: "light" })
+prefs.select("theme").set("dark")
+```
+
 Path-based selection example:
 
 ```javascript
@@ -92,6 +106,7 @@ export const counter = (initial = 0) => {
 ### The `cell` module:
 
 - `cell(value?)`: Creates a mutable reactive `Cell` instance.
+- `browser(options?)`: Creates `{ path, query, hash, local }` browser-backed reactive helpers.
 - `deferred(value?, delay)`: Creates a mutable reactive `Deferred` cell that debounces updates.
 - `derived(template, processor?, initial?)`: Creates a reactive derivation from a template containing cells.
 - `walk(value, path?)`: Iterates through nested values and yields `[reactive, path]` entries.

@@ -1,6 +1,6 @@
 # Select Extra (`select.extra.js`)
 
-## Agnostic helpers for interaction, routing, and history
+## Agnostic helpers for interaction and routing
 
 `select.extra.js` contains small, framework-agnostic helpers. It does not
 depend on `select.js` or `select.ui.js`, and can be used in plain DOM code.
@@ -43,29 +43,17 @@ Supported route slot forms:
 - `{name:string}`: alphanumeric, `_`, and `-`
 - `{name:<regexp>}`: custom regexp source
 
-### URL history helpers
+### Browser state
 
-- `URLHistory`: Browser history wrapper for path/hash/query state.
-- `PathSerializer`: Path serializer (`/a/b` <-> `['a', 'b']`).
-- `HashSerializer`: Hash serializer using hashformat semantics.
-- `ParamsSerializer`: Query-string serializer with array support (`key[]`).
-
-`URLHistory` tracks and updates:
-
-- `path` (array of chunks)
-- `hash` (object with `path` + structured values)
-- `params` (query key-value map)
-- `title`
-
-and exposes subscription APIs:
-
-- `onPath`, `onHash`, `onParams`
-- `onPush`, `onReplace`
+Browser URL and storage state now live in `select.cells.js` via
+`browser(options?)`, which returns reactive `path`, `query`, `hash`, and
+`local(key, dflt, opts?)` cells.
 
 ### Using
 
 ```javascript
-import { bind, clsx, drag, router, URLHistory } from "@./select.extra.js"
+import { bind, clsx, drag, router } from "@./select.extra.js"
+import { browser } from "@./select.cells.js"
 
 const button = document.querySelector("button")
 
@@ -88,10 +76,10 @@ const routes = router({
   "/users/{id:number}": (_path, { id }) => console.log("user", Number(id)),
 })
 
-const history = new URLHistory()
-history.onPath((path) => {
-  routes.run(`/${path.join("/")}`)
-}, true)
+const state = browser()
+state.path.sub((path) => {
+  routes.run(path)
+})
 ```
 
 ### API
@@ -146,17 +134,6 @@ Handler signature:
 - `(path, captured, ...args) => any`
 - `captured` is an object keyed by slot names.
 
-### URL History
+### Browser state
 
-- `new URLHistory(pathSerializer?, hashSerializer?, paramsSerializer?)`
-- `PathSerializer`: `{ parse(value), format(path) }`
-- `HashSerializer`: `{ parse(value), format(hash) }`
-- `ParamsSerializer`: `{ parse(value), format(params) }`
-
-`URLHistory` methods:
-
-- State reads: `getPath()`, `getHash()`, `getParams()`, `getTitle()`
-- State writes: `setPath(path, replace?)`, `setHash(hash, replace?)`, `setParams(params, replace?)`, `setTitle(title, replace?)`
-- Merge updates: `mergeHash(hash, replace?)`, `mergeParams(params, replace?)`
-- Hooks: `onPath(cb, trigger?)`, `onHash(cb, trigger?)`, `onParams(cb, trigger?)`, `onPush(cb, trigger?)`, `onReplace(cb, trigger?)`
-- Lifecycle: `syncFromURL()`, `destroy()`
+- `browser(options?)`: Imported from `@./select.cells.js`, returns browser-backed reactive cells.

@@ -538,8 +538,10 @@ const evaluateWhen = (mode, value) => {
 const evaluateWhenComparison = (left, operator, right) => {
 	switch (operator) {
 		case "=":
+			// biome-ignore lint/suspicious/noDoubleEquals: `=` keeps loose matching distinct from `==`
 			return left == right;
 		case "!=":
+			// biome-ignore lint/suspicious/noDoubleEquals: `!=` keeps loose matching distinct from `!==`
 			return left != right;
 		case "==":
 			return left === right;
