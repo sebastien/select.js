@@ -9,6 +9,115 @@
 
 // ----------------------------------------------------------------------------
 //
+// SEARCH/FILTER/RESULTS
+//
+// ----------------------------------------------------------------------------
+
+// --
+// Ensures the value is a boolean
+function bool(value) {
+	if (value == null) return false;
+	if (typeof value === "boolean") return value;
+	if (typeof value === "number") return value !== 0;
+	if (typeof value === "string") return value.length > 0;
+	// For objects and arrays, they are truthy unless null/undefined
+	return true;
+}
+
+// --
+// Compares two values, with optional extractor
+function cmp(a, b, extractorFunc) {
+	if (extractorFunc) {
+		const ext = extractor(extractorFunc);
+		a = ext(a);
+		b = ext(b);
+	}
+	if (a < b) return -1;
+	if (a > b) return 1;
+	return 0;
+}
+
+// --
+// Creates a predicate function from predicate or extractor
+function predicate(predicateOrExtractor) {
+	if (typeof predicateOrExtractor === "function") {
+		return predicateOrExtractor;
+	} else if (predicateOrExtractor == null) {
+		return (v) => bool(v);
+	} else {
+		const ext = extractor(predicateOrExtractor);
+		return (v) => bool(ext(v));
+	}
+}
+
+// --
+// Creates an extractor function from path/key or uses function directly
+function extractor(pathOrFunc) {
+	if (typeof pathOrFunc === "function") {
+		return pathOrFunc;
+	} else if (pathOrFunc == null) {
+		return (v) => v;
+	} else {
+		return (v) => get(v, pathOrFunc);
+	}
+}
+
+// --
+// Sorts values by comparing extracted values
+function sorted(values, extractorFunc) {
+	const arr = list(values);
+	if (extractorFunc) {
+		const ext = extractor(extractorFunc);
+		return arr.slice().sort((a, b) => cmp(ext(a), ext(b)));
+	}
+	return arr.slice().sort();
+}
+
+// --
+// Returns unique values based on extractor
+function unique(values, extractorFunc) {
+	const arr = list(values);
+	if (extractorFunc) {
+		const ext = extractor(extractorFunc);
+		const seen = new Set();
+		return arr.filter((v) => {
+			const key = ext(v);
+			if (seen.has(key)) return false;
+			seen.add(key);
+			return true;
+		});
+	}
+	return Array.from(new Set(arr));
+}
+
+// --
+// Filters values based on predicate
+function filter(values, predicateOrExtractor) {
+	const arr = list(values);
+	const pred = predicate(predicateOrExtractor);
+	return arr.filter(pred);
+}
+
+// --
+// Converts value to list (array)
+function list(value) {
+	if (value == null) return [];
+	switch (value?.constructor) {
+		case Array:
+			return value;
+		case Object:
+			return Object.values(value);
+		case Map:
+			return Array.from(value.values());
+		case Set:
+			return Array.from(value);
+		default:
+			return [value];
+	}
+}
+
+// ----------------------------------------------------------------------------
+//
 // SECTION: Classname Composition
 //
 // ----------------------------------------------------------------------------
@@ -842,7 +951,9 @@ const HashSerializer = {
 		if (first.includes("=")) {
 			return { path: "", ...asHashObject(parseHash(hashValue)) };
 		}
-		const restValue = rest.length ? asHashObject(parseHash(rest.join("&"))) : {};
+		const restValue = rest.length
+			? asHashObject(parseHash(rest.join("&")))
+			: {};
 		return { path: first || "", ...restValue };
 	},
 	format(hash) {
@@ -951,7 +1062,9 @@ class URLHistory {
 		}
 		this.path = this.pathSerializer.parse(globalThis.window.location.pathname);
 		this.hash = this.hashSerializer.parse(globalThis.window.location.hash);
-		this.params = this.paramsSerializer.parse(globalThis.window.location.search);
+		this.params = this.paramsSerializer.parse(
+			globalThis.window.location.search,
+		);
 		this.title = globalThis.document.title;
 	}
 
@@ -999,7 +1112,12 @@ class URLHistory {
 			this.notify(this.onHashCallbacks, this.hash, previousHash, "hash");
 		}
 		if (!eq(previousParams, this.params)) {
-			this.notify(this.onParamsCallbacks, this.params, previousParams, "params");
+			this.notify(
+				this.onParamsCallbacks,
+				this.params,
+				previousParams,
+				"params",
+			);
 		}
 	}
 
@@ -1032,7 +1150,8 @@ class URLHistory {
 	}
 
 	setPath(path, replace = true) {
-		const next = typeof path === "string" ? this.pathSerializer.parse(path) : path;
+		const next =
+			typeof path === "string" ? this.pathSerializer.parse(path) : path;
 		if (eq(this.path, next)) {
 			return;
 		}
@@ -1077,7 +1196,9 @@ class URLHistory {
 		const merged =
 			currentIsObject && nextIsObject
 				? Object.fromEntries(
-						Object.entries({ ...this.hash, ...hash }).filter(([, v]) => v !== null),
+						Object.entries({ ...this.hash, ...hash }).filter(
+							([, v]) => v !== null,
+						),
 					)
 				: hash;
 		if (eq(this.hash, merged)) {
@@ -1124,7 +1245,9 @@ class URLHistory {
 			callback(this.path, undefined, "path");
 		}
 		return () => {
-			this.onPathCallbacks = this.onPathCallbacks.filter((cb) => cb !== callback);
+			this.onPathCallbacks = this.onPathCallbacks.filter(
+				(cb) => cb !== callback,
+			);
 		};
 	}
 
@@ -1134,7 +1257,9 @@ class URLHistory {
 			callback(this.hash, undefined, "hash");
 		}
 		return () => {
-			this.onHashCallbacks = this.onHashCallbacks.filter((cb) => cb !== callback);
+			this.onHashCallbacks = this.onHashCallbacks.filter(
+				(cb) => cb !== callback,
+			);
 		};
 	}
 
@@ -1156,7 +1281,9 @@ class URLHistory {
 			callback(this.path, undefined, "path");
 		}
 		return () => {
-			this.onPushCallbacks = this.onPushCallbacks.filter((cb) => cb !== callback);
+			this.onPushCallbacks = this.onPushCallbacks.filter(
+				(cb) => cb !== callback,
+			);
 		};
 	}
 
@@ -1174,22 +1301,29 @@ class URLHistory {
 }
 
 const extra = Object.freeze({
-	autoresize,
 	bind,
 	clsx,
+	bool,
+	cmp,
+	predicate,
+	extractor,
+	sorted,
+	filter,
 	drag,
 	dragtarget,
+	HashSerializer,
 	iclsx,
 	Keyboard,
-	PathSerializer,
-	HashSerializer,
 	ParamsSerializer,
+	PathSerializer,
 	route,
 	Router,
 	router,
 	routed,
 	target,
 	unbind,
+	list,
+	unique,
 	URLHistory,
 });
 
@@ -1197,6 +1331,12 @@ export {
 	autoresize,
 	bind,
 	clsx,
+	bool,
+	cmp,
+	predicate,
+	extractor,
+	sorted,
+	filter,
 	drag,
 	dragtarget,
 	HashSerializer,
@@ -1210,6 +1350,8 @@ export {
 	routed,
 	target,
 	unbind,
+	unique,
+	list,
 	URLHistory,
 };
 export default extra;

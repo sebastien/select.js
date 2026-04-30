@@ -138,7 +138,6 @@ const reassign = (scope, path, value, merge = undefined, offset = 0) => {
 		return scope;
 	}
 
-	const rootKey = path[start];
 	const root = clone(scope);
 
 	let currentClone = root;
@@ -150,7 +149,6 @@ const reassign = (scope, path, value, merge = undefined, offset = 0) => {
 
 	for (let i = start; i < n - 1; i++) {
 		const key = path[i];
-		const nextKey = path[i + 1];
 		const originalChild = currentOriginal ? currentOriginal[key] : undefined;
 		const childClone = clone(originalChild);
 		// We pad any missing intermediate array items if key is a number

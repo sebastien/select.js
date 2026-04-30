@@ -118,6 +118,60 @@ const assign = (scope, path, value, merge = undefined, offset = 0) => {
 	return root;
 };
 
+const clone = (value, key) => {
+	return Array.isArray(value)
+		? value.slice()
+		: value && Object.getPrototypeOf(value) === Object.prototype
+			? { ...value }
+			: typeof key === "number"
+				? []
+				: {};
+};
+
+const reassign = (scope, path, value, merge = undefined, offset = 0) => {
+	const n = path.length;
+	if (n === 0) {
+		return merge ? merge(scope, value) : value;
+	}
+	const start = offset < 0 ? 0 : offset;
+	if (start >= n) {
+		return scope;
+	}
+
+	const root = clone(scope);
+
+	let currentClone = root;
+	let currentOriginal =
+		scope &&
+		(Array.isArray(scope) || Object.getPrototypeOf(scope) === Object.prototype)
+			? scope
+			: undefined;
+
+	for (let i = start; i < n - 1; i++) {
+		const key = path[i];
+		const originalChild = currentOriginal ? currentOriginal[key] : undefined;
+		const childClone = clone(originalChild);
+		// We pad any missing intermediate array items if key is a number
+		if (Array.isArray(currentClone) && typeof key === "number") {
+			while (currentClone.length <= key) {
+				currentClone.push(undefined);
+			}
+		}
+		currentClone[key] = childClone;
+		currentClone = childClone;
+		currentOriginal = originalChild;
+	}
+
+	const leafKey = path[n - 1];
+	if (Array.isArray(currentClone) && typeof leafKey === "number") {
+		while (currentClone.length <= leafKey) {
+			currentClone.push(undefined);
+		}
+	}
+	currentClone[leafKey] = merge ? merge(currentClone[leafKey], value) : value;
+	return root;
+};
+
 // Normalizes path to array form. Nothing becomes null, single values become
 // single-element arrays.
 const normpath = (path) => {
@@ -343,7 +397,7 @@ class Reactive {
 
 	// Must be implemented by subclasses to refresh derived values.
 	refresh() {
-		throw new Error(`${this.constructor.name}.refresh()} not implemented`);
+		throw new Error(`${this.constructor.name}.refresh() not implemented`);
 	}
 
 	// Returns length of value if array/object, 0 if empty, 1 for scalar.
@@ -462,7 +516,11 @@ class Selected extends Reactive {
 
 class Cell extends Reactive {
 	constructor(value = Nothing) {
-		super(value);
+		super();
+		this._promiseToken = 0;
+		if (value !== Nothing) {
+			this._update(value, Nothing, true);
+		}
 	}
 
 	// Internal update implementation. Applies value, updates selections,
@@ -470,11 +528,24 @@ class Cell extends Reactive {
 	_update(value, path, _force = false) {
 		// TODO: Maybe patch?
 		path = normpath(path);
+		if (!_force) {
+			if (path) {
+				const current = access(this.value, path);
+				if (Object.is(current, value)) {
+					return;
+				}
+			} else if (Object.is(this.value, value)) {
+				return;
+			}
+		}
 		// TODO: Check existing
-		const updated = path ? assign(this.value, path, value) : value;
+		const updated = path ? reassign(this.value, path, value) : value;
+		const pending =
+			path && value && typeof value.then === "function" ? value : updated;
+		const token = ++this._promiseToken;
 		this.previous = this.value;
 		this.value = updated;
-		this.isPending = !!(updated && typeof updated.then === "function");
+		this.isPending = !!(pending && typeof pending.then === "function");
 		this.revision++;
 		if (this.selections) {
 			for (const r of this.selections.iter(path)) {
@@ -482,6 +553,39 @@ class Cell extends Reactive {
 			}
 		}
 		this.pub(value, path, this);
+		if (pending && typeof pending.then === "function") {
+			pending.then(
+				(resolved) => {
+					if (token !== this._promiseToken) {
+						return;
+					}
+					this.previous = this.value;
+					this.value = path
+						? reassign(this.value, path, resolved)
+						: resolved;
+					this.isPending = false;
+					this.revision++;
+					if (this.selections) {
+						for (const r of this.selections.iter(path)) {
+							r.refresh();
+						}
+					}
+					this.pub(resolved, path, this);
+				},
+				(error) => {
+					if (token !== this._promiseToken) {
+						return;
+					}
+					this.isPending = false;
+					logSelectCells(
+						"error",
+						"Cell._update",
+						"cell promise rejected",
+						{ error, path },
+					);
+				},
+			);
+		}
 	}
 
 	// Sets value (at optional `path`). Creates nested structure as needed.
@@ -532,6 +636,7 @@ class Deferred extends Cell {
 			this._timer = null;
 			this._update(value, path, force);
 		}, this.delay);
+		return this;
 	}
 
 	// Clears pending update timer.
@@ -632,13 +737,16 @@ class Derivation extends Reactive {
 		for (const [cell, path] of Reactive.Walk(this.template)) {
 			const reactor = (value, sourcePath) => {
 				// NOTE: We way want to debounce the updates
+				if (value && typeof value.then === "function") {
+					return;
+				}
 				const fullPath =
 					sourcePath === undefined || sourcePath === null
 						? path
 						: Array.isArray(sourcePath)
 							? [...path, ...sourcePath]
 							: [...path, sourcePath];
-				this.expanded = assign(this.expanded, fullPath, value);
+				this.expanded = reassign(this.expanded, fullPath, value);
 				this._apply(this._compute());
 			};
 			cell.sub(reactor);

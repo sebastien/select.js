@@ -259,7 +259,7 @@ Web component API:
 - `in`: Binds a slot's input (e.g., value of an `<input>`) to instance data.
 - `inout`: Two-way binding between slot and instance data.
 - `on:<event>`: Binds a DOM event to an instance method or behavior handler.
-- `when`: Conditional rendering with shorthand predicates (no expression eval).
+- `when`: Conditional rendering with shorthand predicates and safe comparisons (no expression eval).
 - `ref`: Provides a reference to the DOM node in the instance's `self.ref`.
 - `slot`: Defines a named slot for content injection.
 
@@ -446,7 +446,7 @@ Bind event handlers with explicit event types using `on:<event>="handlerName"`.
 
 ### Conditional Slots (`when`)
 
-Show/hide elements with slot shorthand predicates.
+Show/hide elements with slot shorthand predicates and safe comparisons.
 
 Shorthand forms:
 
@@ -461,6 +461,23 @@ Processor forms are also supported:
 - `?slot|FormatterA|FormatterB`
 
 Processor resolution uses the same `ui.formats` registry as `out`.
+
+Comparison forms are also supported (`{slot}{op}{raw_value}`):
+
+- `slot=value` (non-strict equality, `==`)
+- `slot!=value` (non-strict inequality, `!=`)
+- `slot==value` (strict equality, `===`)
+- `slot!==value` (strict inequality, `!==`)
+- `slot>value`, `slot>=value`, `slot<value`, `slot<=value`
+- `slot~?value` (case-insensitive contains)
+
+Raw value parsing rules:
+
+- `true`/`false` -> booleans
+- `null` -> `null`
+- `undefined` -> `undefined`
+- numeric literals (including decimal/scientific notation) -> numbers
+- everything else -> string
 
 Key inference from `out` on the same element:
 
@@ -492,6 +509,18 @@ regular HTML attribute and an error is logged.
 
 <div when="status|isVisible" out="status">
   Visible when processed `status` value is truthy
+</div>
+
+<div when="status=ready">
+  Visible when `status == "ready"`
+</div>
+
+<div when="status==ready">
+  Visible when `status === "ready"`
+</div>
+
+<div when="status~?ready">
+  Visible when `status` contains "ready" (case-insensitive)
 </div>
 ```
 

@@ -214,6 +214,18 @@ const WHEN_MODE_FALSY = 2;
 const WHEN_MODE_DEFINED = 3;
 const WHEN_MODE_UNDEFINED = 4;
 
+const WHEN_COMPARATORS = [
+	"!==",
+	"==",
+	"!=",
+	">=",
+	"<=",
+	"~?",
+	"=",
+	">",
+	"<",
+];
+
 const parsePipedBinding = (expr, validateSource = false) => {
 	const source = typeof expr === "string" ? expr.trim() : "";
 	if (!source) {
@@ -360,7 +372,7 @@ const resolveTemplateTokens = (self, tokens, data) => {
 		}
 		if (token.type === "expr") {
 			const path = token.value.path;
-			let value = resolveDataPath(data, path);
+			const value = resolveDataPath(data, path);
 			if (value === undefined || value === null) {
 				continue;
 			}
@@ -383,7 +395,7 @@ const resolveTemplateTokens = (self, tokens, data) => {
 };
 
 const resolveDataPath = (data, path) => {
-	if (!path || !path.length) {
+	if (!path?.length) {
 		return data;
 	}
 	let value = data;
@@ -409,6 +421,66 @@ const resolveSourceValue = (data, sourceKey) => {
 
 const parseWhenShorthand = (expr) => {
 	const source = typeof expr === "string" ? expr.trim() : "";
+	const parseWhenLiteral = (raw) => {
+		const value = raw.trim();
+		if (!value.length) {
+			return "";
+		}
+		if (value === "true") {
+			return true;
+		}
+		if (value === "false") {
+			return false;
+		}
+		if (value === "null") {
+			return null;
+		}
+		if (value === "undefined") {
+			return undefined;
+		}
+		if (/^[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?$/.test(value)) {
+			const numeric = Number(value);
+			if (!Number.isNaN(numeric)) {
+				return numeric;
+			}
+		}
+		return value;
+	};
+	const parseWhenComparison = (text) => {
+		for (let i = 0; i < WHEN_COMPARATORS.length; i++) {
+			const operator = WHEN_COMPARATORS[i];
+			const at = text.indexOf(operator);
+			if (at <= 0) {
+				continue;
+			}
+			const left = text.slice(0, at).trim();
+			const right = text.slice(at + operator.length).trim();
+			if (!left || !right) {
+				return null;
+			}
+			const binding = parsePipedBinding(left, false);
+			if (!binding) {
+				return null;
+			}
+			const path = parseBindingPath(binding.sourceKey, true);
+			if (!path) {
+				return null;
+			}
+			return {
+				key: path.join("."),
+				processors: binding.processors,
+				mode: WHEN_MODE_TRUTHY,
+				operator,
+				rawValue: right,
+				value: parseWhenLiteral(right),
+			};
+		}
+		return null;
+	};
+	const comparison = parseWhenComparison(source);
+	if (comparison) {
+		return comparison;
+	}
 	let i = 0;
 	let negate = false;
 	let queryDefined = false;
@@ -445,7 +517,7 @@ const parseWhenShorthand = (expr) => {
 		: negate
 			? WHEN_MODE_FALSY
 			: WHEN_MODE_TRUTHY;
-	return { key, processors, mode };
+	return { key, processors, mode, operator: null, rawValue: null, value: undefined };
 };
 
 const evaluateWhen = (mode, value) => {
@@ -458,6 +530,40 @@ const evaluateWhen = (mode, value) => {
 			return value !== undefined;
 		case WHEN_MODE_UNDEFINED:
 			return value === undefined;
+		default:
+			return false;
+	}
+};
+
+const evaluateWhenComparison = (left, operator, right) => {
+	switch (operator) {
+		case "=":
+			return left == right;
+		case "!=":
+			return left != right;
+		case "==":
+			return left === right;
+		case "!==":
+			return left !== right;
+		case "~?": {
+			if (left === undefined || left === null) {
+				return false;
+			}
+			if (right === undefined || right === null) {
+				return false;
+			}
+			const l = String(left).toLowerCase();
+			const r = String(right).toLowerCase();
+			return l.includes(r);
+		}
+		case ">":
+			return left > right;
+		case ">=":
+			return left >= right;
+		case "<":
+			return left < right;
+		case "<=":
+			return left <= right;
 		default:
 			return false;
 	}
@@ -568,10 +674,13 @@ const applyNamedProcessors = (self, data, value, processors, sourceKey) => {
 };
 
 const createWhenPredicate =
-	(mode, key, processors = undefined) =>
+	(mode, key, processors = undefined, operator = null, comparisonValue = undefined) =>
 	(self, data) => {
 		const value = resolveWhenValue(self, data, key);
 		const resolved = applyNamedProcessors(self, data, value, processors, key);
+		if (operator) {
+			return evaluateWhenComparison(resolved, operator, comparisonValue);
+		}
 		return evaluateWhen(mode, resolved);
 	};
 
@@ -962,6 +1071,9 @@ class UITemplateSlot {
 			if (parsed) {
 				let whenKey = parsed.key;
 				const whenProcessors = parsed.processors || [];
+				const whenOperator = parsed.operator || null;
+				const whenComparisonValue = parsed.value;
+				const whenRawValue = parsed.rawValue || "";
 				if (!whenKey) {
 					const outKey = node.getAttribute("out")?.trim();
 					if (!outKey) {
@@ -1000,9 +1112,11 @@ class UITemplateSlot {
 					parsed.mode,
 					whenKey,
 					whenProcessors,
+					whenOperator,
+					whenComparisonValue,
 				);
 				slot.predicatePlaceholder = document.createComment(expr || "when");
-				const groupKey = `${parsed.mode}:${whenKey}:${whenProcessors.join("|")}`;
+				const groupKey = `${parsed.mode}:${whenKey}:${whenProcessors.join("|")}:${whenOperator || ""}:${whenRawValue}`;
 				if (res[groupKey] === undefined) {
 					res[groupKey] = [slot];
 				} else {
@@ -1021,6 +1135,15 @@ class UITemplateSlot {
 					'when="!slot"',
 					'when="?slot"',
 					'when="!?slot"',
+					'when="slot~?value"',
+					'when="slot=value"',
+					'when="slot==value"',
+					'when="slot!=value"',
+					'when="slot!==value"',
+					'when="slot>=value"',
+					'when="slot<=value"',
+					'when="slot>value"',
+					'when="slot<value"',
 					'when="slot|Formatter|Formatter"',
 				],
 			});

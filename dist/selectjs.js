@@ -1203,6 +1203,43 @@ var assign = (scope, path, value, merge = undefined, offset = 0) => {
   s[k] = merge ? merge(s[k], value) : value;
   return root;
 };
+var clone = (value, key) => {
+  return Array.isArray(value) ? value.slice() : value && Object.getPrototypeOf(value) === Object.prototype ? { ...value } : typeof key === "number" ? [] : {};
+};
+var reassign = (scope, path, value, merge = undefined, offset = 0) => {
+  const n = path.length;
+  if (n === 0) {
+    return merge ? merge(scope, value) : value;
+  }
+  const start = offset < 0 ? 0 : offset;
+  if (start >= n) {
+    return scope;
+  }
+  const root = clone(scope);
+  let currentClone = root;
+  let currentOriginal = scope && (Array.isArray(scope) || Object.getPrototypeOf(scope) === Object.prototype) ? scope : undefined;
+  for (let i = start;i < n - 1; i++) {
+    const key = path[i];
+    const originalChild = currentOriginal ? currentOriginal[key] : undefined;
+    const childClone = clone(originalChild);
+    if (Array.isArray(currentClone) && typeof key === "number") {
+      while (currentClone.length <= key) {
+        currentClone.push(undefined);
+      }
+    }
+    currentClone[key] = childClone;
+    currentClone = childClone;
+    currentOriginal = originalChild;
+  }
+  const leafKey = path[n - 1];
+  if (Array.isArray(currentClone) && typeof leafKey === "number") {
+    while (currentClone.length <= leafKey) {
+      currentClone.push(undefined);
+    }
+  }
+  currentClone[leafKey] = merge ? merge(currentClone[leafKey], value) : value;
+  return root;
+};
 var normpath = (path) => {
   if (path === Nothing) {
     return null;
@@ -1360,7 +1397,7 @@ class Reactive {
     return this;
   }
   refresh() {
-    throw new Error(`${this.constructor.name}.refresh()} not implemented`);
+    throw new Error(`${this.constructor.name}.refresh() not implemented`);
   }
   get length() {
     if (this.revision === -1 || this.value === null || this.value === undefined) {
@@ -1427,14 +1464,30 @@ class Selected extends Reactive {
 
 class Cell extends Reactive {
   constructor(value = Nothing) {
-    super(value);
+    super();
+    this._promiseToken = 0;
+    if (value !== Nothing) {
+      this._update(value, Nothing, true);
+    }
   }
   _update(value, path, _force = false) {
     path = normpath(path);
-    const updated = path ? assign(this.value, path, value) : value;
+    if (!_force) {
+      if (path) {
+        const current = access(this.value, path);
+        if (Object.is(current, value)) {
+          return;
+        }
+      } else if (Object.is(this.value, value)) {
+        return;
+      }
+    }
+    const updated = path ? reassign(this.value, path, value) : value;
+    const pending = path && value && typeof value.then === "function" ? value : updated;
+    const token = ++this._promiseToken;
     this.previous = this.value;
     this.value = updated;
-    this.isPending = !!(updated && typeof updated.then === "function");
+    this.isPending = !!(pending && typeof pending.then === "function");
     this.revision++;
     if (this.selections) {
       for (const r of this.selections.iter(path)) {
@@ -1442,6 +1495,29 @@ class Cell extends Reactive {
       }
     }
     this.pub(value, path, this);
+    if (pending && typeof pending.then === "function") {
+      pending.then((resolved) => {
+        if (token !== this._promiseToken) {
+          return;
+        }
+        this.previous = this.value;
+        this.value = path ? reassign(this.value, path, resolved) : resolved;
+        this.isPending = false;
+        this.revision++;
+        if (this.selections) {
+          for (const r of this.selections.iter(path)) {
+            r.refresh();
+          }
+        }
+        this.pub(resolved, path, this);
+      }, (error) => {
+        if (token !== this._promiseToken) {
+          return;
+        }
+        this.isPending = false;
+        logSelectCells("error", "Cell._update", "cell promise rejected", { error, path });
+      });
+    }
   }
   set(value, path = Nothing, force = false) {
     this._update(value, path, force);
@@ -1468,6 +1544,7 @@ class Deferred extends Cell {
       this._timer = null;
       this._update(value, path, force);
     }, this.delay);
+    return this;
   }
   dispose() {
     if (this._timer) {
@@ -1534,8 +1611,11 @@ class Derivation extends Reactive {
     this.isBound = true;
     for (const [cell, path] of Reactive.Walk(this.template)) {
       const reactor = (value, sourcePath) => {
+        if (value && typeof value.then === "function") {
+          return;
+        }
         const fullPath = sourcePath === undefined || sourcePath === null ? path : Array.isArray(sourcePath) ? [...path, ...sourcePath] : [...path, sourcePath];
-        this.expanded = assign(this.expanded, fullPath, value);
+        this.expanded = reassign(this.expanded, fullPath, value);
         this._apply(this._compute());
       };
       cell.sub(reactor);
@@ -1586,6 +1666,92 @@ var expand = Reactive.Expand;
 var select_cells_default = Object.assign(cell, { deferred, derived, walk, expand });
 
 // src/js/select.extra.js
+function bool(value) {
+  if (value == null)
+    return false;
+  if (typeof value === "boolean")
+    return value;
+  if (typeof value === "number")
+    return value !== 0;
+  if (typeof value === "string")
+    return value.length > 0;
+  return true;
+}
+function cmp(a, b, extractorFunc) {
+  if (extractorFunc) {
+    const ext = extractor(extractorFunc);
+    a = ext(a);
+    b = ext(b);
+  }
+  if (a < b)
+    return -1;
+  if (a > b)
+    return 1;
+  return 0;
+}
+function predicate(predicateOrExtractor) {
+  if (typeof predicateOrExtractor === "function") {
+    return predicateOrExtractor;
+  } else if (predicateOrExtractor == null) {
+    return (v) => bool(v);
+  } else {
+    const ext = extractor(predicateOrExtractor);
+    return (v) => bool(ext(v));
+  }
+}
+function extractor(pathOrFunc) {
+  if (typeof pathOrFunc === "function") {
+    return pathOrFunc;
+  } else if (pathOrFunc == null) {
+    return (v) => v;
+  } else {
+    return (v) => get(v, pathOrFunc);
+  }
+}
+function sorted(values, extractorFunc) {
+  const arr = list(values);
+  if (extractorFunc) {
+    const ext = extractor(extractorFunc);
+    return arr.slice().sort((a, b) => cmp(ext(a), ext(b)));
+  }
+  return arr.slice().sort();
+}
+function unique(values, extractorFunc) {
+  const arr = list(values);
+  if (extractorFunc) {
+    const ext = extractor(extractorFunc);
+    const seen = new Set;
+    return arr.filter((v) => {
+      const key = ext(v);
+      if (seen.has(key))
+        return false;
+      seen.add(key);
+      return true;
+    });
+  }
+  return Array.from(new Set(arr));
+}
+function filter2(values, predicateOrExtractor) {
+  const arr = list(values);
+  const pred = predicate(predicateOrExtractor);
+  return arr.filter(pred);
+}
+function list(value) {
+  if (value == null)
+    return [];
+  switch (value?.constructor) {
+    case Array:
+      return value;
+    case Object:
+      return Object.values(value);
+    case Map:
+      return Array.from(value.values());
+    case Set:
+      return Array.from(value);
+    default:
+      return [value];
+  }
+}
 function* iclsx(...args) {
   for (const value of args) {
     if (!value) {
@@ -1694,9 +1860,9 @@ var drag = (event, move, end) => {
   bind(scope, handlers);
   return doEnd;
 };
-var target = (node, predicate) => {
+var target = (node, predicate2) => {
   while (node && node.nodeType === Node.ELEMENT_NODE) {
-    if (predicate(node)) {
+    if (predicate2(node)) {
       return node;
     }
     node = node.parentNode;
@@ -1773,12 +1939,12 @@ var Keyboard = {
 };
 
 class RoutePattern {
-  constructor(regexp, extractor = undefined) {
+  constructor(regexp, extractor2 = undefined) {
     this.regexp = regexp;
-    this.extractor = extractor;
+    this.extractor = extractor2;
   }
 }
-var pattern = (regexp, extractor = undefined) => new RoutePattern(regexp, extractor);
+var pattern = (regexp, extractor2 = undefined) => new RoutePattern(regexp, extractor2);
 var ROUTE_PATTERNS = {
   chunk: pattern(/^[^/]+$/),
   number: pattern(/^[0-9]+$/),
@@ -2622,22 +2788,29 @@ class URLHistory {
   }
 }
 var extra = Object.freeze({
-  autoresize,
   bind,
   clsx,
+  bool,
+  cmp,
+  predicate,
+  extractor,
+  sorted,
+  filter: filter2,
   drag,
   dragtarget,
+  HashSerializer,
   iclsx,
   Keyboard,
-  PathSerializer,
-  HashSerializer,
   ParamsSerializer,
+  PathSerializer,
   route,
   Router,
   router,
   routed,
   target,
   unbind,
+  list,
+  unique,
   URLHistory
 });
 var select_extra_default = extra;
@@ -3102,7 +3275,7 @@ var scheduleRenderTask = (fn) => {
   }
 };
 var _templateRegistries = new WeakMap;
-var _templateKey = (value) => {
+var templateKey = (value) => {
   if (typeof value !== "string") {
     return null;
   }
@@ -3110,7 +3283,7 @@ var _templateKey = (value) => {
   const key = normalized.startsWith("#") ? normalized.slice(1) : normalized;
   return key.length ? key : null;
 };
-var _registerTemplateKey = (registry, key, template, scope) => {
+var registerTemplateKey = (registry, key, template, scope) => {
   if (!key) {
     return;
   }
@@ -3121,20 +3294,20 @@ var _registerTemplateKey = (registry, key, template, scope) => {
   }
   registry.set(key, template);
 };
-var _registerTemplateNode = (template, registry, scope) => {
+var registerTemplateNode = (template, registry, scope) => {
   if (!template || template.nodeName !== "TEMPLATE") {
     return;
   }
-  _registerTemplateKey(registry, template.id, template, scope);
-  _registerTemplateKey(registry, template.getAttribute("name"), template, scope);
+  registerTemplateKey(registry, template.id, template, scope);
+  registerTemplateKey(registry, template.getAttribute("name"), template, scope);
   if (!template.content?.querySelectorAll) {
     return;
   }
   for (const nested of template.content.querySelectorAll("template")) {
-    _registerTemplateNode(nested, registry, scope);
+    registerTemplateNode(nested, registry, scope);
   }
 };
-var _templateRegistryFor = (scope = document) => {
+var templateRegistryFor = (scope = document) => {
   let registry = _templateRegistries.get(scope);
   if (registry) {
     return registry;
@@ -3143,28 +3316,28 @@ var _templateRegistryFor = (scope = document) => {
   _templateRegistries.set(scope, registry);
   const isTemplate = scope?.nodeName === "TEMPLATE";
   if (isTemplate) {
-    _registerTemplateNode(scope, registry, scope);
+    registerTemplateNode(scope, registry, scope);
   } else if (scope?.querySelectorAll) {
     for (const template of scope.querySelectorAll("template")) {
-      _registerTemplateNode(template, registry, scope);
+      registerTemplateNode(template, registry, scope);
     }
   }
   return registry;
 };
-var _registerTemplatesInNodes = (nodes, registry, scope) => {
+var registerTemplatesInNodes = (nodes, registry, scope) => {
   for (let i = 0;i < nodes.length; i++) {
     const node = nodes[i];
     if (node?.nodeName === "TEMPLATE") {
-      _registerTemplateNode(node, registry, scope);
+      registerTemplateNode(node, registry, scope);
     }
     if (node?.querySelectorAll) {
       for (const template of node.querySelectorAll("template")) {
-        _registerTemplateNode(template, registry, scope);
+        registerTemplateNode(template, registry, scope);
       }
     }
   }
 };
-var _templateFormatterName = (template) => {
+var templateFormatterName = (template) => {
   if (template?.nodeName !== "TEMPLATE") {
     return null;
   }
@@ -3178,7 +3351,7 @@ var _templateFormatterName = (template) => {
   const id = typeof template.id === "string" ? template.id.trim() : "";
   return id.length ? id : null;
 };
-var _createComponent = (tmpl) => {
+var createComponent = (tmpl) => {
   const component = (...args) => tmpl.apply(...args);
   Object.assign(component, {
     isTemplate: true,
@@ -3216,7 +3389,18 @@ var WHEN_MODE_TRUTHY = 1;
 var WHEN_MODE_FALSY = 2;
 var WHEN_MODE_DEFINED = 3;
 var WHEN_MODE_UNDEFINED = 4;
-var _parsePipedBinding = (expr, validateSource = false) => {
+var WHEN_COMPARATORS = [
+  "!==",
+  "==",
+  "!=",
+  ">=",
+  "<=",
+  "~?",
+  "=",
+  ">",
+  "<"
+];
+var parsePipedBinding = (expr, validateSource = false) => {
   const source = typeof expr === "string" ? expr.trim() : "";
   if (!source) {
     return null;
@@ -3243,25 +3427,29 @@ var _parsePipedBinding = (expr, validateSource = false) => {
   }
   return { sourceKey, processors };
 };
-var _parseTemplatePath = (expr) => {
+var RE_BINDING_PATH = /^[A-Za-z_$][A-Za-z0-9_$-]*$/;
+var parseBindingPath = (expr, allowDotted = true) => {
   const source = typeof expr === "string" ? expr.trim() : "";
   if (!source) {
     return null;
   }
-  const parts = source.split(".");
+  const parts = allowDotted ? source.split(".") : [source];
   if (!parts.length) {
     return null;
   }
   for (let i = 0;i < parts.length; i++) {
     const part = parts[i].trim();
-    if (!part || !/^[A-Za-z_$][A-Za-z0-9_$-]*$/.test(part)) {
+    if (!part || !RE_BINDING_PATH.test(part)) {
       return null;
     }
     parts[i] = part;
   }
   return parts;
 };
-var _parseTemplatePlaceholder = (expr) => {
+var parseTemplatePath = (expr) => {
+  return parseBindingPath(expr, true);
+};
+var parseTemplatePlaceholder = (expr) => {
   const source = typeof expr === "string" ? expr.trim() : "";
   if (!source) {
     return null;
@@ -3273,7 +3461,7 @@ var _parseTemplatePlaceholder = (expr) => {
       return null;
     }
   }
-  const path = _parseTemplatePath(parts[0]);
+  const path = parseTemplatePath(parts[0]);
   if (!path) {
     return null;
   }
@@ -3287,12 +3475,12 @@ var _parseTemplatePlaceholder = (expr) => {
   }
   return { path, processors };
 };
-var _parseOutAttributeBinding = (expr) => {
+var parseOutAttributeBinding = (expr) => {
   const source = typeof expr === "string" ? expr : "";
   if (!source) {
     return {
       mode: "binding",
-      binding: _parsePipedBinding(source)
+      binding: parsePipedBinding(source)
     };
   }
   const tokens = [];
@@ -3316,7 +3504,7 @@ var _parseOutAttributeBinding = (expr) => {
       last = source.length;
       break;
     }
-    const placeholder = _parseTemplatePlaceholder(source.slice(start + 2, end));
+    const placeholder = parseTemplatePlaceholder(source.slice(start + 2, end));
     if (!placeholder) {
       tokens.push({ type: "invalid" });
       last = end + 1;
@@ -3333,10 +3521,10 @@ var _parseOutAttributeBinding = (expr) => {
   }
   return {
     mode: "binding",
-    binding: _parsePipedBinding(source)
+    binding: parsePipedBinding(source)
   };
 };
-var _resolveTemplateTokens = (self, tokens, data) => {
+var resolveTemplateTokens = (self, tokens, data) => {
   if (!tokens?.length) {
     return "";
   }
@@ -3351,21 +3539,14 @@ var _resolveTemplateTokens = (self, tokens, data) => {
       continue;
     }
     if (token.type === "expr") {
-      let value = data;
       const path = token.value.path;
-      for (let j = 0;j < path.length; j++) {
-        if (value === undefined || value === null) {
-          value = undefined;
-          break;
-        }
-        value = value[path[j]];
-      }
+      const value = resolveDataPath(data, path);
       if (value === undefined || value === null) {
         continue;
       }
       let resolved = expand(value);
       if (token.value.processors?.length) {
-        resolved = _applyNamedProcessors(self, data, resolved, token.value.processors, path.join("."));
+        resolved = applyNamedProcessors(self, data, resolved, token.value.processors, path.join("."));
       }
       if (resolved !== undefined && resolved !== null) {
         result += String(resolved);
@@ -3374,8 +3555,91 @@ var _resolveTemplateTokens = (self, tokens, data) => {
   }
   return result;
 };
-var _parseWhenShorthand = (expr) => {
+var resolveDataPath = (data, path) => {
+  if (!path?.length) {
+    return data;
+  }
+  let value = data;
+  for (let i = 0;i < path.length; i++) {
+    value = expand(value);
+    if (value === undefined || value === null) {
+      return;
+    }
+    value = value[path[i]];
+  }
+  return value;
+};
+var resolveSourceValue = (data, sourceKey) => {
+  if (!sourceKey) {
+    return;
+  }
+  if (!sourceKey.includes(".")) {
+    return data ? data[sourceKey] : undefined;
+  }
+  return resolveDataPath(data, sourceKey.split("."));
+};
+var parseWhenShorthand = (expr) => {
   const source = typeof expr === "string" ? expr.trim() : "";
+  const parseWhenLiteral = (raw) => {
+    const value = raw.trim();
+    if (!value.length) {
+      return "";
+    }
+    if (value === "true") {
+      return true;
+    }
+    if (value === "false") {
+      return false;
+    }
+    if (value === "null") {
+      return null;
+    }
+    if (value === "undefined") {
+      return;
+    }
+    if (/^[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?$/.test(value)) {
+      const numeric = Number(value);
+      if (!Number.isNaN(numeric)) {
+        return numeric;
+      }
+    }
+    return value;
+  };
+  const parseWhenComparison = (text) => {
+    for (let i2 = 0;i2 < WHEN_COMPARATORS.length; i2++) {
+      const operator = WHEN_COMPARATORS[i2];
+      const at = text.indexOf(operator);
+      if (at <= 0) {
+        continue;
+      }
+      const left = text.slice(0, at).trim();
+      const right = text.slice(at + operator.length).trim();
+      if (!left || !right) {
+        return null;
+      }
+      const binding = parsePipedBinding(left, false);
+      if (!binding) {
+        return null;
+      }
+      const path = parseBindingPath(binding.sourceKey, true);
+      if (!path) {
+        return null;
+      }
+      return {
+        key: path.join("."),
+        processors: binding.processors,
+        mode: WHEN_MODE_TRUTHY,
+        operator,
+        rawValue: right,
+        value: parseWhenLiteral(right)
+      };
+    }
+    return null;
+  };
+  const comparison = parseWhenComparison(source);
+  if (comparison) {
+    return comparison;
+  }
   let i = 0;
   let negate = false;
   let queryDefined = false;
@@ -3391,20 +3655,24 @@ var _parseWhenShorthand = (expr) => {
   let key;
   let processors = [];
   if (bindingExpr) {
-    const binding = _parsePipedBinding(bindingExpr, true);
+    const binding = parsePipedBinding(bindingExpr, false);
     if (!binding) {
       return null;
     }
-    key = binding.sourceKey;
+    const path = parseBindingPath(binding.sourceKey, true);
+    if (!path) {
+      return null;
+    }
+    key = path.join(".");
     processors = binding.processors;
   }
   if (!bindingExpr && source.length > 0 && i === 0) {
     return null;
   }
   const mode = queryDefined ? negate ? WHEN_MODE_UNDEFINED : WHEN_MODE_DEFINED : negate ? WHEN_MODE_FALSY : WHEN_MODE_TRUTHY;
-  return { key, processors, mode };
+  return { key, processors, mode, operator: null, rawValue: null, value: undefined };
 };
-var _evaluateWhen = (mode, value) => {
+var evaluateWhen = (mode, value) => {
   switch (mode) {
     case WHEN_MODE_TRUTHY:
       return !!value;
@@ -3418,19 +3686,50 @@ var _evaluateWhen = (mode, value) => {
       return false;
   }
 };
-var _resolveWhenValue = (self, data, key) => {
+var evaluateWhenComparison = (left, operator, right) => {
+  switch (operator) {
+    case "=":
+      return left == right;
+    case "!=":
+      return left != right;
+    case "==":
+      return left === right;
+    case "!==":
+      return left !== right;
+    case "~?": {
+      if (left === undefined || left === null) {
+        return false;
+      }
+      if (right === undefined || right === null) {
+        return false;
+      }
+      const l = String(left).toLowerCase();
+      const r = String(right).toLowerCase();
+      return l.includes(r);
+    }
+    case ">":
+      return left > right;
+    case ">=":
+      return left >= right;
+    case "<":
+      return left < right;
+    case "<=":
+      return left <= right;
+    default:
+      return false;
+  }
+};
+var resolveWhenValue = (self, data, key) => {
   const behavior = self?.template?.behavior;
   const b = behavior?.[key];
   if (b) {
     return b(self, data, null);
   }
-  if (data && key in data) {
-    return expand(data[key]);
-  }
-  return;
+  const value = resolveSourceValue(data, key);
+  return value === undefined ? undefined : expand(value);
 };
-var _isPascalCaseName = (name) => /^[A-Z][A-Za-z0-9_]*$/.test(name);
-var _resolveNamedProcessor = (self, name) => {
+var isPascalCaseName = (name) => /^[A-Z][A-Za-z0-9_]*$/.test(name);
+var resolveNamedProcessor = (self, name) => {
   if (!self?.template || !name) {
     return null;
   }
@@ -3450,7 +3749,7 @@ var _resolveNamedProcessor = (self, name) => {
     });
     return null;
   }
-  const isPascal = _isPascalCaseName(name);
+  const isPascal = isPascalCaseName(name);
   const isComponent = typeof registered === "function" && (registered?.isTemplate || typeof registered?.new === "function");
   if (isPascal && !isComponent) {
     logSelectUI("warn", "ui.formats", "PascalCase formatter is not a component", {
@@ -3474,14 +3773,14 @@ var _resolveNamedProcessor = (self, name) => {
   });
   return resolved;
 };
-var _applyNamedProcessors = (self, data, value, processors, sourceKey) => {
+var applyNamedProcessors = (self, data, value, processors, sourceKey) => {
   if (!processors || processors.length === 0) {
     return value;
   }
   let current = value;
   for (let i = 0;i < processors.length; i++) {
     const name = processors[i];
-    const processor = _resolveNamedProcessor(self, name);
+    const processor = resolveNamedProcessor(self, name);
     if (!processor) {
       const availableProcessors = Object.keys(_formatsStore).sort();
       logSelectUI("warn", "UIInstance.render", "processor not found", {
@@ -3508,23 +3807,26 @@ var _applyNamedProcessors = (self, data, value, processors, sourceKey) => {
   }
   return current;
 };
-var _createWhenPredicate = (mode, key, processors = undefined) => (self, data) => {
-  const value = _resolveWhenValue(self, data, key);
-  const resolved = _applyNamedProcessors(self, data, value, processors, key);
-  return _evaluateWhen(mode, resolved);
+var createWhenPredicate = (mode, key, processors = undefined, operator = null, comparisonValue = undefined) => (self, data) => {
+  const value = resolveWhenValue(self, data, key);
+  const resolved = applyNamedProcessors(self, data, value, processors, key);
+  if (operator) {
+    return evaluateWhenComparison(resolved, operator, comparisonValue);
+  }
+  return evaluateWhen(mode, resolved);
 };
 var SLOT_DEFAULT_KEY = "_";
-var _isPrunableWhitespaceText = (node) => node && node.nodeType === Node.TEXT_NODE && !/\S/.test(node.data) && /[\n\r\t]/.test(node.data);
-var _pruneTemplateWhitespace = (node) => {
+var isPrunableWhitespaceText = (node) => node && node.nodeType === Node.TEXT_NODE && !/\S/.test(node.data) && /[\n\r\t]/.test(node.data);
+var pruneTemplateWhitespace = (node) => {
   if (!node?.childNodes || node.childNodes.length === 0) {
     return;
   }
   for (let i = node.childNodes.length - 1;i >= 0; i--) {
     const child = node.childNodes[i];
-    if (_isPrunableWhitespaceText(child)) {
+    if (isPrunableWhitespaceText(child)) {
       node.removeChild(child);
     } else {
-      _pruneTemplateWhitespace(child);
+      pruneTemplateWhitespace(child);
     }
   }
 };
@@ -3648,7 +3950,7 @@ var setNodeText = (node, text) => {
   }
   return node;
 };
-var _createTrackingProxy = (data) => {
+var createTrackingProxy = (data) => {
   const accessed = new Set;
   return [
     new Proxy(data, {
@@ -3698,7 +4000,7 @@ class UITemplateSlot {
       node.removeAttribute(name);
       let v = new UITemplateSlot(node, parent, UITemplateSlot.Path(node, parent, [i]));
       if (name === "out") {
-        const parsed = _parsePipedBinding(k);
+        const parsed = parsePipedBinding(k);
         if (!parsed) {
           logSelectUI("warn", "UITemplate", "invalid [out] binding", {
             binding: k,
@@ -3738,11 +4040,14 @@ class UITemplateSlot {
     const selector = `[when]`;
     const add = (node, parent, i) => {
       const expr = node.getAttribute("when") || "";
-      const parsed = _parseWhenShorthand(expr);
+      const parsed = parseWhenShorthand(expr);
       const slot = new UITemplateSlot(node, parent, UITemplateSlot.Path(node, parent, [i]));
       if (parsed) {
         let whenKey = parsed.key;
         const whenProcessors = parsed.processors || [];
+        const whenOperator = parsed.operator || null;
+        const whenComparisonValue = parsed.value;
+        const whenRawValue = parsed.rawValue || "";
         if (!whenKey) {
           const outKey = node.getAttribute("out")?.trim();
           if (!outKey) {
@@ -3758,7 +4063,7 @@ class UITemplateSlot {
             });
             return;
           }
-          const outBinding = _parsePipedBinding(outKey);
+          const outBinding = parsePipedBinding(outKey);
           if (!outBinding?.sourceKey) {
             logSelectUI("error", "UITemplate", "unable to infer [when] key from [out] binding", { expression: expr, out: outKey, node });
             return;
@@ -3766,9 +4071,9 @@ class UITemplateSlot {
           whenKey = outBinding.sourceKey;
         }
         node.removeAttribute("when");
-        slot.predicate = _createWhenPredicate(parsed.mode, whenKey, whenProcessors);
+        slot.predicate = createWhenPredicate(parsed.mode, whenKey, whenProcessors, whenOperator, whenComparisonValue);
         slot.predicatePlaceholder = document.createComment(expr || "when");
-        const groupKey = `${parsed.mode}:${whenKey}:${whenProcessors.join("|")}`;
+        const groupKey = `${parsed.mode}:${whenKey}:${whenProcessors.join("|")}:${whenOperator || ""}:${whenRawValue}`;
         if (res[groupKey] === undefined) {
           res[groupKey] = [slot];
         } else {
@@ -3786,6 +4091,15 @@ class UITemplateSlot {
           'when="!slot"',
           'when="?slot"',
           'when="!?slot"',
+          'when="slot~?value"',
+          'when="slot=value"',
+          'when="slot==value"',
+          'when="slot!=value"',
+          'when="slot!==value"',
+          'when="slot>=value"',
+          'when="slot<=value"',
+          'when="slot>value"',
+          'when="slot<value"',
           'when="slot|Formatter|Formatter"'
         ]
       });
@@ -3821,7 +4135,7 @@ class UITemplateSlot {
     this.predicatePlaceholder = undefined;
     this.binding = undefined;
   }
-  _resolve(nodes) {
+  resolve(nodes) {
     let node = nodes[this.rootIndex];
     if (this.tailPath) {
       for (let i = 0;i < this.tailPath.length; i++) {
@@ -3831,7 +4145,7 @@ class UITemplateSlot {
     return node;
   }
   apply(nodes, parent, raw = false) {
-    const node = this._resolve(nodes);
+    const node = this.resolve(nodes);
     return node ? raw ? node : new UISlot(node, this, parent) : null;
   }
   static FindAttr(prefix, nodes) {
@@ -3848,7 +4162,7 @@ class UITemplateSlot {
           if (attr.name.startsWith(prefix)) {
             const attrName = attr.name.slice(prefix.length);
             const slotName = attr.value || attrName;
-            const parsed = _parseOutAttributeBinding(slotName);
+            const parsed = parseOutAttributeBinding(slotName);
             const binding = parsed.binding;
             const sourceKey = binding?.sourceKey ?? slotName;
             const processorsKey = binding?.processors?.join("|") || "";
@@ -3931,7 +4245,7 @@ class UIAttributeTemplateSlot {
     this.binding = parsed?.binding || null;
     this.template = parsed?.template || null;
   }
-  _resolve(nodes) {
+  resolve(nodes) {
     let node = nodes[this.rootIndex];
     if (this.tailPath) {
       for (let i = 0;i < this.tailPath.length; i++) {
@@ -3941,7 +4255,7 @@ class UIAttributeTemplateSlot {
     return node;
   }
   apply(nodes, parent) {
-    const node = this._resolve(nodes);
+    const node = this.resolve(nodes);
     return node ? new UIAttributeSlot(node, this, parent) : null;
   }
 }
@@ -4066,7 +4380,7 @@ class UIEventTemplateSlot {
     this.eventType = eventType;
     this.handlerName = handlerName;
   }
-  _resolve(nodes) {
+  resolve(nodes) {
     let node = nodes[this.rootIndex];
     if (this.tailPath) {
       for (let i = 0;i < this.tailPath.length; i++) {
@@ -4076,7 +4390,7 @@ class UIEventTemplateSlot {
     return node;
   }
   apply(nodes, parent) {
-    const node = this._resolve(nodes);
+    const node = this.resolve(nodes);
     return node ? new UIEventSlot(node, this, parent) : null;
   }
 }
@@ -4217,9 +4531,9 @@ class UISlot {
     const scan = (node) => {
       if (node.nodeType === Node.ELEMENT_NODE && node.hasAttribute("slot")) {
         const name = node.getAttribute("slot");
-        const clone = node.cloneNode(true);
-        clone.removeAttribute("slot");
-        slots[name] = clone;
+        const clone2 = node.cloneNode(true);
+        clone2.removeAttribute("slot");
+        slots[name] = clone2;
         hasSlots = true;
       }
       if (node.querySelectorAll) {
@@ -4681,7 +4995,7 @@ class UIInstance {
     }
     return refs;
   }
-  _syncReactiveDataSubs(data) {
+  syncReactiveDataSubs(data) {
     const refs = this._collectReactiveDataRefs(data);
     if (this._reactiveDataSubs === undefined) {
       this._reactiveDataSubs = new Map;
@@ -4904,9 +5218,11 @@ class UIInstance {
     return false;
   }
   send(event, data) {
+    console.warn(`[select.ui] Deprecation: send() is deprecated, use pub() instead`);
     return this.pub(event, data);
   }
   emit(event, data) {
+    console.warn(`[select.ui] Deprecation: emit() is deprecated, use pub() instead`);
     return this.pub(event, data);
   }
   pub(event, data) {
@@ -5062,7 +5378,7 @@ class UIInstance {
           }
           if (hasBehavior) {
             if (isGranular) {
-              const [trackedData, accessed] = _createTrackingProxy(data);
+              const [trackedData, accessed] = createTrackingProxy(data);
               v = hasBehavior(this, trackedData, null);
               if (!this._behaviorDeps) {
                 this._behaviorDeps = new Map;
@@ -5075,13 +5391,12 @@ class UIInstance {
             } else {
               v = hasBehavior(this, data, null);
             }
-          } else if (data && sourceKey in data) {
-            v = expand(data[sourceKey]);
           } else {
-            v = undefined;
+            v = resolveSourceValue(data, sourceKey);
+            v = v === undefined ? undefined : expand(v);
           }
           if (withProcessors && processors?.length) {
-            v = _applyNamedProcessors(this, data, v, processors, sourceKey);
+            v = applyNamedProcessors(this, data, v, processors, sourceKey);
           }
           for (const slot of slots) {
             slot.render(v);
@@ -5103,7 +5418,7 @@ class UIInstance {
       for (const k in this.outAttr) {
         if (k === "$template") {
           for (const slot of this.outAttr.$template) {
-            slot.render(_resolveTemplateTokens(this, slot.template.template?.tokens, data));
+            slot.render(resolveTemplateTokens(this, slot.template.template?.tokens, data));
           }
           continue;
         }
@@ -5118,16 +5433,17 @@ class UIInstance {
             const attrValue = slot.node.getAttribute(slot.attrName);
             v = hasBehavior(this, data, attrValue, slot.node);
             if (processors?.length) {
-              v = _applyNamedProcessors(this, data, v, processors, sourceKey);
+              v = applyNamedProcessors(this, data, v, processors, sourceKey);
             }
             slot.render(v);
           }
           continue;
         }
-        if (data && sourceKey in data) {
-          v = expand(data[sourceKey]);
+        v = resolveSourceValue(data, sourceKey);
+        if (v !== undefined) {
+          v = expand(v);
           if (processors?.length) {
-            v = _applyNamedProcessors(this, data, v, processors, sourceKey);
+            v = applyNamedProcessors(this, data, v, processors, sourceKey);
           }
         }
         for (const slot of slots) {
@@ -5141,7 +5457,7 @@ class UIInstance {
         }
       }
     }
-    this._syncReactiveDataSubs(data);
+    this.syncReactiveDataSubs(data);
     this.data = data;
     return this;
   }
@@ -5184,9 +5500,9 @@ var Disconnect = Symbol.for("Disconnect");
 var Adopted = Symbol.for("Adopted");
 var BaseHTMLElement = globalThis.HTMLElement || class {
 };
-var _wcToKebabCase = (value) => value.replace(/([a-z0-9])([A-Z])/g, "$1-$2").replace(/[_\s]+/g, "-").toLowerCase();
-var _wcToCamelCase = (value) => value.toLowerCase().replace(/-([a-z0-9])/g, (_, letter) => letter.toUpperCase());
-var _wcParseAttributeValue = (value) => {
+var wcToKebabCase = (value) => value.replace(/([a-z0-9])([A-Z])/g, "$1-$2").replace(/[_\s]+/g, "-").toLowerCase();
+var wcToCamelCase = (value) => value.toLowerCase().replace(/-([a-z0-9])/g, (_, letter) => letter.toUpperCase());
+var wcParseAttributeValue = (value) => {
   if (value === null) {
     return null;
   }
@@ -5201,7 +5517,7 @@ var _wcParseAttributeValue = (value) => {
   }
   return value;
 };
-var _wcCreateAttributeBindings = (initial, options) => {
+var wcCreateAttributeBindings = (initial, options) => {
   const bindings = new Map;
   const addBinding = (attribute, key) => {
     if (!attribute || !key) {
@@ -5213,7 +5529,7 @@ var _wcCreateAttributeBindings = (initial, options) => {
   if (initial && typeof initial === "object") {
     for (const key in initial) {
       addBinding(key, key);
-      addBinding(_wcToKebabCase(key), key);
+      addBinding(wcToKebabCase(key), key);
     }
   }
   if (isPlainObject2(options?.attributes)) {
@@ -5226,18 +5542,18 @@ var _wcCreateAttributeBindings = (initial, options) => {
       if (typeof attribute !== "string") {
         continue;
       }
-      const key = _wcToCamelCase(attribute);
+      const key = wcToCamelCase(attribute);
       addBinding(attribute, key);
     }
   }
   return bindings;
 };
-var _wcCollectObservedAttributes = (initial, bindings, options) => {
+var wcCollectObservedAttributes = (initial, bindings, options) => {
   const attributes = new Set;
   if (initial && typeof initial === "object") {
     for (const key in initial) {
       attributes.add(`${key}`.toLowerCase());
-      attributes.add(_wcToKebabCase(key));
+      attributes.add(wcToKebabCase(key));
     }
   }
   for (const key of bindings.keys()) {
@@ -5252,7 +5568,7 @@ var _wcCollectObservedAttributes = (initial, bindings, options) => {
   }
   return [...attributes];
 };
-var _wcAsNodes = (value, nodes = []) => {
+var wcAsNodes = (value, nodes = []) => {
   if (value === undefined || value === null || value === false) {
     return nodes;
   }
@@ -5262,13 +5578,13 @@ var _wcAsNodes = (value, nodes = []) => {
   }
   if (value instanceof NodeList || value instanceof HTMLCollection || value && typeof value === "object" && typeof value.length === "number" && value.length >= 0 && value.length % 1 === 0) {
     for (let i = 0;i < value.length; i++) {
-      _wcAsNodes(value[i], nodes);
+      wcAsNodes(value[i], nodes);
     }
     return nodes;
   }
   if (Array.isArray(value)) {
     for (let i = 0;i < value.length; i++) {
-      _wcAsNodes(value[i], nodes);
+      wcAsNodes(value[i], nodes);
     }
     return nodes;
   }
@@ -5296,8 +5612,8 @@ class UIWebComponent extends BaseHTMLElement {
     const data = {};
     for (const attribute of this.attributes) {
       const name = attribute.name.toLowerCase();
-      const key = this.attributeBindings.get(name) || _wcToCamelCase(name);
-      data[key] = _wcParseAttributeValue(attribute.value);
+      const key = this.attributeBindings.get(name) || wcToCamelCase(name);
+      data[key] = wcParseAttributeValue(attribute.value);
     }
     return data;
   }
@@ -5325,7 +5641,7 @@ class UIWebComponent extends BaseHTMLElement {
     }
     this._clearPureNodes();
     const output = this.componentFactory(this.data, this);
-    const nodes = _wcAsNodes(output);
+    const nodes = wcAsNodes(output);
     for (let i = 0;i < nodes.length; i++) {
       this.root.appendChild(nodes[i]);
     }
@@ -5378,8 +5694,8 @@ class UIWebComponent extends BaseHTMLElement {
       return;
     }
     const normalized = `${name}`.toLowerCase();
-    const key = this.attributeBindings.get(normalized) || _wcToCamelCase(normalized);
-    this.applyData({ [key]: _wcParseAttributeValue(current) });
+    const key = this.attributeBindings.get(normalized) || wcToCamelCase(normalized);
+    this.applyData({ [key]: wcParseAttributeValue(current) });
     this.trigger(name, previous, current);
   }
   trigger(name, previous, current) {
@@ -5405,8 +5721,8 @@ var webcomponent = (name, componentFactory, initial = undefined, options = undef
     return existing;
   }
   const initialData = initial && typeof initial === "object" ? { ...initial } : {};
-  const attributeBindings = _wcCreateAttributeBindings(initialData, options);
-  const observedAttributes = _wcCollectObservedAttributes(initialData, attributeBindings, options);
+  const attributeBindings = wcCreateAttributeBindings(initialData, options);
+  const observedAttributes = wcCollectObservedAttributes(initialData, attributeBindings, options);
   const WebComponent = class extends UIWebComponent {
     static observedAttributes = observedAttributes;
     constructor() {
@@ -5423,20 +5739,20 @@ var ui = (selection, scope = document) => {
   if (typeof selection === "string") {
     let nodes = [];
     let autoFormatName = null;
-    const templateRegistry = _templateRegistryFor(scope);
+    const templateRegistry = templateRegistryFor(scope);
     if (/^\s*</.test(selection)) {
       const doc = parser.parseFromString(selection, "text/html");
-      _pruneTemplateWhitespace(doc.body);
+      pruneTemplateWhitespace(doc.body);
       nodes = [...doc.body.childNodes];
       if (nodes.length === 1) {
-        autoFormatName = _templateFormatterName(nodes[0]);
+        autoFormatName = templateFormatterName(nodes[0]);
       }
-      _registerTemplatesInNodes(nodes, templateRegistry, scope);
+      registerTemplatesInNodes(nodes, templateRegistry, scope);
     } else {
-      const template = templateRegistry.get(_templateKey(selection));
+      const template = templateRegistry.get(templateKey(selection));
       if (template) {
         nodes = [...template.content.childNodes];
-        autoFormatName = _templateFormatterName(template);
+        autoFormatName = templateFormatterName(template);
       } else {
         let matchedTemplateCount = 0;
         let matchedTemplateName = null;
@@ -5444,8 +5760,8 @@ var ui = (selection, scope = document) => {
         for (const node of parent.querySelectorAll(selection)) {
           if (node.nodeName === "TEMPLATE") {
             matchedTemplateCount += 1;
-            matchedTemplateName = _templateFormatterName(node);
-            _registerTemplateNode(node, templateRegistry, scope);
+            matchedTemplateName = templateFormatterName(node);
+            registerTemplateNode(node, templateRegistry, scope);
             nodes = [...nodes, ...node.content.childNodes];
           } else {
             nodes.push(node);
@@ -5454,7 +5770,7 @@ var ui = (selection, scope = document) => {
         if (matchedTemplateCount === 1) {
           autoFormatName = matchedTemplateName;
         }
-        _registerTemplatesInNodes(nodes, templateRegistry, scope);
+        registerTemplatesInNodes(nodes, templateRegistry, scope);
       }
     }
     if (nodes.length === 0) {
@@ -5463,7 +5779,7 @@ var ui = (selection, scope = document) => {
         scope
       });
     }
-    const component = _createComponent(new UITemplate(nodes, scope));
+    const component = createComponent(new UITemplate(nodes, scope));
     if (autoFormatName) {
       ui.format(autoFormatName, component);
     }
@@ -5473,10 +5789,10 @@ var ui = (selection, scope = document) => {
     const nodes = selection instanceof Node ? [selection] : selection;
     let autoFormatName = null;
     if (nodes.length === 1) {
-      autoFormatName = _templateFormatterName(nodes[0]);
+      autoFormatName = templateFormatterName(nodes[0]);
     }
-    _registerTemplatesInNodes(nodes, _templateRegistryFor(scope), scope);
-    const component = _createComponent(new UITemplate([...nodes], scope));
+    registerTemplatesInNodes(nodes, templateRegistryFor(scope), scope);
+    const component = createComponent(new UITemplate([...nodes], scope));
     if (autoFormatName) {
       ui.format(autoFormatName, component);
     }
@@ -5517,10 +5833,12 @@ var select_ui_default = ui;
 export {
   webcomponent,
   walk,
+  unique,
   unbind,
   select_ui_default as ui,
   type,
   target,
+  sorted,
   select_default as select,
   router,
   routed,
@@ -5528,26 +5846,30 @@ export {
   remap,
   raf,
   query,
+  predicate,
   match,
   loadIcons,
   loadIcon,
+  list,
   len,
   lazy,
   install,
   select_icons_default as icons,
   icon,
   iclsx,
-  filter,
   select_fastdom_default as fastdom,
+  extractor,
   select_extra_default as extra,
   expand,
   dragtarget,
   drag,
   derived,
   deferred,
+  cmp,
   clsx,
   select_cells_default as cells,
   cell,
+  bool,
   bind,
   autoresize,
   assign,

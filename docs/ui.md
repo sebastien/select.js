@@ -199,7 +199,7 @@ Dynamic("Badge", { label: "Ready" })
 - `in`: Binds a slot's input (e.g., value of an `<input>`) to instance data.
 - `inout`: Two-way binding between slot and instance data.
 - `on:<event>`: Binds a DOM event to an instance method or behavior handler.
-- `when`: Conditional rendering with shorthand predicates (safe, non-eval).
+- `when`: Conditional rendering with shorthand predicates, safe comparisons, and processors (non-eval).
 - `ref`: Provides a reference to the DOM node in the instance's `self.ref`.
 - `out:<attr>`: Binds a specific DOM attribute to a data value.
   - Binding mode: `out:<attr>="slot|Formatter|Formatter"`
@@ -252,6 +252,23 @@ In template mode, placeholders support optional processor pipelines (`${path|For
 - `when="?slot|FormatterA|FormatterB"`
 
 `when` uses the same `ui.formats` registry as `out`.
+
+`when` also accepts safe comparison expressions in the form `{slot}{op}{raw_value}`:
+
+- `when="slot=value"`: non-strict equality (`==`)
+- `when="slot!=value"`: non-strict inequality (`!=`)
+- `when="slot==value"`: strict equality (`===`)
+- `when="slot!==value"`: strict inequality (`!==`)
+- `when="slot>value"`, `when="slot>=value"`, `when="slot<value"`, `when="slot<=value"`
+- `when="slot~?value"`: case-insensitive string contains
+
+Raw value parsing is literal and safe:
+
+- `true` / `false` -> booleans
+- `null` -> `null`
+- `undefined` -> `undefined`
+- numeric literals (including scientific notation) -> numbers
+- other values -> strings
 
 If the key is omitted, it is inferred from `out` on the same element:
 
