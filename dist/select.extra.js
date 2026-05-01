@@ -269,7 +269,7 @@ function b26(index) {
 
 function shortdict(text) {
 	const words =
-		text instanceof Array ? text : `${text ?? ""}`.match(RE_SHORTWORD) || [];
+		Array.isArray(text) ? text : `${text ?? ""}`.match(RE_SHORTWORD) || [];
 	const counts = new Map();
 	for (let i = 0; i < words.length; i++) {
 		const word = words[i];

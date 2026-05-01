@@ -1585,9 +1585,10 @@ class UIEventSlot {
 // - `behavior`: Object? - behavior methods map
 // - `subs`: Map? - event subscriptions map
 class UITemplate {
-	constructor(nodes, scope = document) {
+	constructor(nodes, scope = document, componentName = null) {
 		this.nodes = nodes;
 		this.scope = scope;
+		this.componentName = componentName;
 		this.on = UITemplateSlot.FindEvent("on:", nodes);
 		this.in = UITemplateSlot.Find("in", nodes);
 		this.when = UITemplateSlot.FindWhen(nodes);
@@ -2199,6 +2200,46 @@ class UIContentSlot {
 // - `_behaviorDeps`: Map? - behavior dependency tracking
 // - `_behaviorValues`: Map? - cached behavior results
 class UIInstance {
+	static _applyComponentRootClass(nodes, template) {
+		if (!ui.options.componentRootClass) {
+			return;
+		}
+		const componentName =
+			typeof template?.componentName === "string"
+				? template.componentName.trim()
+				: "";
+		if (!componentName) {
+			return;
+		}
+		if (/\s/.test(componentName)) {
+			logSelectUI(
+				"warn",
+				"UIInstance",
+				"component root class skipped because name contains whitespace",
+				{ componentName, template },
+			);
+			return;
+		}
+		for (let i = 0; i < nodes.length; i++) {
+			const node = nodes[i];
+			if (node?.nodeType === Node.ELEMENT_NODE) {
+				const existingClass = node.getAttribute("class") || "";
+				if (!existingClass) {
+					node.setAttribute("class", componentName);
+					continue;
+				}
+				const tokens = existingClass.split(/\s+/).filter(Boolean);
+				const reordered = [componentName];
+				for (let j = 0; j < tokens.length; j++) {
+					if (tokens[j] !== componentName) {
+						reordered.push(tokens[j]);
+					}
+				}
+				node.setAttribute("class", reordered.join(" "));
+			}
+		}
+	}
+
 	static _mergeReactiveTopLevel(base, incoming) {
 		if (!incoming || typeof incoming !== "object") {
 			return incoming;
@@ -2270,6 +2311,7 @@ class UIInstance {
 		for (let i = 0; i < template.nodes.length; i++) {
 			this.nodes[i] = template.nodes[i].cloneNode(true);
 		}
+		UIInstance._applyComponentRootClass(this.nodes, template);
 		this.in = compiled.in ? compiled.in(this.nodes, this) : null;
 		this.out = compiled.out ? compiled.out(this.nodes, this) : null;
 		this.inout = compiled.inout ? compiled.inout(this.nodes, this) : null;
@@ -3431,7 +3473,7 @@ const ui = (selection, scope = document) => {
 				scope,
 			});
 		}
-		const component = createComponent(new UITemplate(nodes, scope));
+		const component = createComponent(new UITemplate(nodes, scope, autoFormatName));
 		if (autoFormatName) {
 			ui.format(autoFormatName, component);
 		}
@@ -3445,7 +3487,9 @@ const ui = (selection, scope = document) => {
 			autoFormatName = templateFormatterName(nodes[0]);
 		}
 		registerTemplatesInNodes(nodes, templateRegistryFor(scope), scope);
-		const component = createComponent(new UITemplate([...nodes], scope));
+		const component = createComponent(
+			new UITemplate([...nodes], scope, autoFormatName),
+		);
 		if (autoFormatName) {
 			ui.format(autoFormatName, component);
 		}
@@ -3460,6 +3504,9 @@ const ui = (selection, scope = document) => {
 };
 
 ui.formats = _formatsProxy;
+ui.options = {
+	componentRootClass: true,
+};
 
 ui.format = (name, formatter) => {
 	if (typeof name !== "string" || !name.trim()) {

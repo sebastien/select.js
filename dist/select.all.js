@@ -1292,8 +1292,14 @@ var formatHashAtom = (value) => {
   if (value === undefined) {
     return "undefined";
   }
-  if (value === null || value === true || value === false) {
-    return `${value}`;
+  if (value === null) {
+    return "_";
+  }
+  if (value === true) {
+    return "T";
+  }
+  if (value === false) {
+    return "F";
   }
   if (typeof value === "number") {
     return Number.isFinite(value) ? `${value}` : "";
@@ -1320,7 +1326,7 @@ var iformatHash = function* (value, depth = 0) {
       }
     }
   } else if (isPlainObject(value)) {
-    const keys = Object.keys(value);
+    const keys = Object.keys(value).sort();
     for (let i = 0;i < keys.length; i++) {
       const key = keys[i];
       yield `${key}=`;
@@ -1367,16 +1373,16 @@ var parseHashAtom = (value) => {
   if (value === "") {
     return "";
   }
-  if (decode === "null") {
+  if (decode === "_" || decode === "null") {
     return null;
   }
   if (decode === "undefined") {
     return;
   }
-  if (decode === "true") {
+  if (decode === "T" || decode === "true") {
     return true;
   }
-  if (decode === "false") {
+  if (decode === "F" || decode === "false") {
     return false;
   }
   if (RE_HASH_NUMBER.test(decode)) {
@@ -2164,6 +2170,39 @@ class Derivation extends Reactive {
     this._apply(this._compute());
     return this;
   }
+  update(...inputs) {
+    let changed = false;
+    if (Array.isArray(this.template)) {
+      const current = Array.isArray(this.expanded) ? this.expanded : Reactive.Expand(this.template);
+      const next = current.slice();
+      const n = inputs.length < next.length ? inputs.length : next.length;
+      for (let i = 0;i < n; i++) {
+        const input = inputs[i];
+        const value = input instanceof Reactive ? input.value : input;
+        if (!Object.is(next[i], value)) {
+          next[i] = value;
+          changed = true;
+        }
+      }
+      if (changed) {
+        this.expanded = next;
+        this._apply(this._compute());
+      }
+      return this.value;
+    }
+    if (inputs.length > 0) {
+      const input = inputs.length === 1 ? inputs[0] : inputs;
+      const value = input instanceof Reactive ? input.value : input;
+      if (!Object.is(this.expanded, value)) {
+        this.expanded = value;
+        changed = true;
+      }
+    }
+    if (changed) {
+      this._apply(this._compute());
+    }
+    return this.value;
+  }
 }
 
 class BrowserValueCell extends Cell {
@@ -2570,7 +2609,7 @@ function b26(index) {
   return result;
 }
 function shortdict(text) {
-  const words = text instanceof Array ? text : `${text ?? ""}`.match(RE_SHORTWORD) || [];
+  const words = Array.isArray(text) ? text : `${text ?? ""}`.match(RE_SHORTWORD) || [];
   const counts = new Map;
   for (let i = 0;i < words.length; i++) {
     const word = words[i];
@@ -3801,6 +3840,7 @@ var resolveTemplateTokens = (self, tokens, data) => {
   if (!tokens?.length) {
     return "";
   }
+  const behavior = self?.template?.behavior;
   let result = "";
   for (let i = 0;i < tokens.length; i++) {
     const token = tokens[i];
@@ -3813,7 +3853,14 @@ var resolveTemplateTokens = (self, tokens, data) => {
     }
     if (token.type === "expr") {
       const path = token.value.path;
-      const value = resolveDataPath(data, path);
+      let value;
+      if (path?.length === 1) {
+        const key = path[0];
+        const slotBehavior = behavior?.[key];
+        value = typeof slotBehavior === "function" ? slotBehavior(self, data, null) : resolveDataPath(data, path);
+      } else {
+        value = resolveDataPath(data, path);
+      }
       if (value === undefined || value === null) {
         continue;
       }
@@ -4679,9 +4726,10 @@ class UIEventSlot {
 }
 
 class UITemplate {
-  constructor(nodes, scope = document) {
+  constructor(nodes, scope = document, componentName = null) {
     this.nodes = nodes;
     this.scope = scope;
+    this.componentName = componentName;
     this.on = UITemplateSlot.FindEvent("on:", nodes);
     this.in = UITemplateSlot.Find("in", nodes);
     this.when = UITemplateSlot.FindWhen(nodes);
@@ -5145,6 +5193,54 @@ class UIContentSlot {
 }
 
 class UIInstance {
+  static _applyComponentRootClass(nodes, template) {
+    if (!ui.options.componentRootClass) {
+      return;
+    }
+    const componentName = typeof template?.componentName === "string" ? template.componentName.trim() : "";
+    if (!componentName) {
+      return;
+    }
+    if (/\s/.test(componentName)) {
+      logSelectUI("warn", "UIInstance", "component root class skipped because name contains whitespace", { componentName, template });
+      return;
+    }
+    for (let i = 0;i < nodes.length; i++) {
+      const node = nodes[i];
+      if (node?.nodeType === Node.ELEMENT_NODE) {
+        const existingClass = node.getAttribute("class") || "";
+        if (!existingClass) {
+          node.setAttribute("class", componentName);
+          continue;
+        }
+        const tokens = existingClass.split(/\s+/).filter(Boolean);
+        const reordered = [componentName];
+        for (let j = 0;j < tokens.length; j++) {
+          if (tokens[j] !== componentName) {
+            reordered.push(tokens[j]);
+          }
+        }
+        node.setAttribute("class", reordered.join(" "));
+      }
+    }
+  }
+  static _mergeReactiveTopLevel(base, incoming) {
+    if (!incoming || typeof incoming !== "object") {
+      return incoming;
+    }
+    const merged = base && typeof base === "object" ? Object.assign({}, base) : {};
+    for (const key in incoming) {
+      const next2 = incoming[key];
+      const current = merged[key];
+      if (current?.isReactive && !next2?.isReactive) {
+        current.set(next2);
+        merged[key] = current;
+      } else {
+        merged[key] = next2;
+      }
+    }
+    return merged;
+  }
   static _compileSlotApplier(slots, rawSingle = false) {
     if (!slots) {
       return null;
@@ -5193,6 +5289,7 @@ class UIInstance {
     for (let i = 0;i < template.nodes.length; i++) {
       this.nodes[i] = template.nodes[i].cloneNode(true);
     }
+    UIInstance._applyComponentRootClass(this.nodes, template);
     this.in = compiled.in ? compiled.in(this.nodes, this) : null;
     this.out = compiled.out ? compiled.out(this.nodes, this) : null;
     this.inout = compiled.inout ? compiled.inout(this.nodes, this) : null;
@@ -5452,7 +5549,7 @@ class UIInstance {
   set(data, key = this.key) {
     this.key = key;
     if (this.initial && data !== null && data !== undefined && typeof data === "object" && Object.getPrototypeOf(data) === Object.prototype) {
-      this.render({ ...this.initial, ...data });
+      this.render(UIInstance._mergeReactiveTopLevel(this.initial, data));
     } else {
       this.render(data);
     }
@@ -5496,7 +5593,7 @@ class UIInstance {
       }
     }
     if (!same) {
-      const merged = this.data && typeof this.data === "object" ? Object.assign({}, this.data, data) : data;
+      const merged = this.data && typeof this.data === "object" ? UIInstance._mergeReactiveTopLevel(this.data, data) : data;
       this.render(merged, changedKeys);
     }
     return this;
@@ -6106,7 +6203,7 @@ var ui = (selection, scope = document) => {
         scope
       });
     }
-    const component = createComponent(new UITemplate(nodes, scope));
+    const component = createComponent(new UITemplate(nodes, scope, autoFormatName));
     if (autoFormatName) {
       ui.format(autoFormatName, component);
     }
@@ -6119,7 +6216,7 @@ var ui = (selection, scope = document) => {
       autoFormatName = templateFormatterName(nodes[0]);
     }
     registerTemplatesInNodes(nodes, templateRegistryFor(scope), scope);
-    const component = createComponent(new UITemplate([...nodes], scope));
+    const component = createComponent(new UITemplate([...nodes], scope, autoFormatName));
     if (autoFormatName) {
       ui.format(autoFormatName, component);
     }
@@ -6128,6 +6225,9 @@ var ui = (selection, scope = document) => {
   throw new Error(`ui() received an invalid selection type: ${typeof selection}. ` + `Expected a string (CSS selector or HTML), a DOM Node, or an array of DOM Nodes. ` + `Received: ${selection}`);
 };
 ui.formats = _formatsProxy;
+ui.options = {
+  componentRootClass: true
+};
 ui.format = (name, formatter) => {
   if (typeof name !== "string" || !name.trim()) {
     logSelectUI("error", "ui.formats", "invalid formatter name", {

@@ -22,6 +22,8 @@ For icon loading and `<ui-icon>` usage, see [`docs/icons.md`](./icons.md).
 - `ui.format(name, formatter)`: Registers a formatter in `ui.formats`.
 - `ui.unformat(name)`: Removes a formatter from `ui.formats`.
 - `ui.resolveFormat(name)`: Looks up a formatter in `ui.formats`.
+- `ui.options`: Global UI options.
+  - `componentRootClass` (default `true`): Adds the component name as a class on each component root element (`class="ComponentName ..."`, with the component class first).
 
 ### Template utilities:
 
@@ -163,6 +165,8 @@ Dynamic("Badge", { label: "Ready" })
 - `ui.format(name, formatter)`: Registers `formatter` in `ui.formats`.
 - `ui.unformat(name)`: Removes a formatter from `ui.formats`.
 - `ui.resolveFormat(name)`: Resolves a formatter from `ui.formats` by name.
+- `ui.options`: Global UI options.
+  - `ui.options.componentRootClass` (default `true`): Adds the component name as a class on each component root element when a component has a name (for example from `<template id="ComponentName">` or `<template name="ComponentName">`). The component class is inserted first in the class attribute.
 
 ### Template utilities:
 

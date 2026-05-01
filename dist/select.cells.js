@@ -234,8 +234,14 @@ const formatHashAtom = (value) => {
 	if (value === undefined) {
 		return "undefined";
 	}
-	if (value === null || value === true || value === false) {
-		return `${value}`;
+	if (value === null) {
+		return "_";
+	}
+	if (value === true) {
+		return "T";
+	}
+	if (value === false) {
+		return "F";
 	}
 	if (typeof value === "number") {
 		return Number.isFinite(value) ? `${value}` : "";
@@ -269,7 +275,7 @@ const iformatHash = function* (value, depth = 0) {
 			}
 		}
 	} else if (isPlainObject(value)) {
-		const keys = Object.keys(value);
+		const keys = Object.keys(value).sort();
 		for (let i = 0; i < keys.length; i++) {
 			const key = keys[i];
 			yield `${key}=`;
@@ -320,16 +326,16 @@ const parseHashAtom = (value) => {
 	if (value === "") {
 		return "";
 	}
-	if (decode === "null") {
+	if (decode === "_" || decode === "null") {
 		return null;
 	}
 	if (decode === "undefined") {
 		return undefined;
 	}
-	if (decode === "true") {
+	if (decode === "T" || decode === "true") {
 		return true;
 	}
-	if (decode === "false") {
+	if (decode === "F" || decode === "false") {
 		return false;
 	}
 	if (RE_HASH_NUMBER.test(decode)) {
@@ -472,7 +478,8 @@ const parseHash = (value) => {
 		break;
 	}
 
-	const result = stack[0][0] !== undefined && stack[0].length === 1 ? stack[0][0] : stack[0];
+	const result =
+		stack[0][0] !== undefined && stack[0].length === 1 ? stack[0][0] : stack[0];
 	if (Array.isArray(result) || isPlainObject(result)) {
 		return result;
 	}
@@ -714,7 +721,9 @@ const QuerySerializer = {
 		return {};
 	},
 	format(value) {
-		return formatHash(sanitizeLocationRecord(value, undefined, "browser.query"));
+		return formatHash(
+			sanitizeLocationRecord(value, undefined, "browser.query"),
+		);
 	},
 };
 
@@ -1381,6 +1390,47 @@ class Derivation extends Reactive {
 	refresh() {
 		this._apply(this._compute());
 		return this;
+	}
+
+	// Updates derivation inputs and recomputes only when they changed.
+	// Accepts reactive and non-reactive values.
+	update(...inputs) {
+		let changed = false;
+
+		if (Array.isArray(this.template)) {
+			const current = Array.isArray(this.expanded)
+				? this.expanded
+				: Reactive.Expand(this.template);
+			const next = current.slice();
+			const n = inputs.length < next.length ? inputs.length : next.length;
+			for (let i = 0; i < n; i++) {
+				const input = inputs[i];
+				const value = input instanceof Reactive ? input.value : input;
+				if (!Object.is(next[i], value)) {
+					next[i] = value;
+					changed = true;
+				}
+			}
+			if (changed) {
+				this.expanded = next;
+				this._apply(this._compute());
+			}
+			return this.value;
+		}
+
+		if (inputs.length > 0) {
+			const input = inputs.length === 1 ? inputs[0] : inputs;
+			const value = input instanceof Reactive ? input.value : input;
+			if (!Object.is(this.expanded, value)) {
+				this.expanded = value;
+				changed = true;
+			}
+		}
+
+		if (changed) {
+			this._apply(this._compute());
+		}
+		return this.value;
 	}
 }
 

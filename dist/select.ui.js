@@ -364,6 +364,7 @@ const resolveTemplateTokens = (self, tokens, data) => {
 	if (!tokens?.length) {
 		return "";
 	}
+	const behavior = self?.template?.behavior;
 	let result = "";
 	for (let i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
@@ -376,7 +377,17 @@ const resolveTemplateTokens = (self, tokens, data) => {
 		}
 		if (token.type === "expr") {
 			const path = token.value.path;
-			const value = resolveDataPath(data, path);
+			let value;
+			if (path?.length === 1) {
+				const key = path[0];
+				const slotBehavior = behavior?.[key];
+				value =
+					typeof slotBehavior === "function"
+						? slotBehavior(self, data, null)
+						: resolveDataPath(data, path);
+			} else {
+				value = resolveDataPath(data, path);
+			}
 			if (value === undefined || value === null) {
 				continue;
 			}
@@ -1574,9 +1585,10 @@ class UIEventSlot {
 // - `behavior`: Object? - behavior methods map
 // - `subs`: Map? - event subscriptions map
 class UITemplate {
-	constructor(nodes, scope = document) {
+	constructor(nodes, scope = document, componentName = null) {
 		this.nodes = nodes;
 		this.scope = scope;
+		this.componentName = componentName;
 		this.on = UITemplateSlot.FindEvent("on:", nodes);
 		this.in = UITemplateSlot.Find("in", nodes);
 		this.when = UITemplateSlot.FindWhen(nodes);
@@ -2188,6 +2200,65 @@ class UIContentSlot {
 // - `_behaviorDeps`: Map? - behavior dependency tracking
 // - `_behaviorValues`: Map? - cached behavior results
 class UIInstance {
+	static _applyComponentRootClass(nodes, template) {
+		if (!ui.options.componentRootClass) {
+			return;
+		}
+		const componentName =
+			typeof template?.componentName === "string"
+				? template.componentName.trim()
+				: "";
+		if (!componentName) {
+			return;
+		}
+		if (/\s/.test(componentName)) {
+			logSelectUI(
+				"warn",
+				"UIInstance",
+				"component root class skipped because name contains whitespace",
+				{ componentName, template },
+			);
+			return;
+		}
+		for (let i = 0; i < nodes.length; i++) {
+			const node = nodes[i];
+			if (node?.nodeType === Node.ELEMENT_NODE) {
+				const existingClass = node.getAttribute("class") || "";
+				if (!existingClass) {
+					node.setAttribute("class", componentName);
+					continue;
+				}
+				const tokens = existingClass.split(/\s+/).filter(Boolean);
+				const reordered = [componentName];
+				for (let j = 0; j < tokens.length; j++) {
+					if (tokens[j] !== componentName) {
+						reordered.push(tokens[j]);
+					}
+				}
+				node.setAttribute("class", reordered.join(" "));
+			}
+		}
+	}
+
+	static _mergeReactiveTopLevel(base, incoming) {
+		if (!incoming || typeof incoming !== "object") {
+			return incoming;
+		}
+		const merged =
+			base && typeof base === "object" ? Object.assign({}, base) : {};
+		for (const key in incoming) {
+			const next = incoming[key];
+			const current = merged[key];
+			if (current?.isReactive && !next?.isReactive) {
+				current.set(next);
+				merged[key] = current;
+			} else {
+				merged[key] = next;
+			}
+		}
+		return merged;
+	}
+
 	// Compiles slot definitions into efficient applier functions.
 	static _compileSlotApplier(slots, rawSingle = false) {
 		if (!slots) {
@@ -2240,6 +2311,7 @@ class UIInstance {
 		for (let i = 0; i < template.nodes.length; i++) {
 			this.nodes[i] = template.nodes[i].cloneNode(true);
 		}
+		UIInstance._applyComponentRootClass(this.nodes, template);
 		this.in = compiled.in ? compiled.in(this.nodes, this) : null;
 		this.out = compiled.out ? compiled.out(this.nodes, this) : null;
 		this.inout = compiled.inout ? compiled.inout(this.nodes, this) : null;
@@ -2539,7 +2611,7 @@ class UIInstance {
 			typeof data === "object" &&
 			Object.getPrototypeOf(data) === Object.prototype
 		) {
-			this.render({ ...this.initial, ...data });
+			this.render(UIInstance._mergeReactiveTopLevel(this.initial, data));
 		} else {
 			this.render(data);
 		}
@@ -2588,7 +2660,7 @@ class UIInstance {
 		if (!same) {
 			const merged =
 				this.data && typeof this.data === "object"
-					? Object.assign({}, this.data, data)
+					? UIInstance._mergeReactiveTopLevel(this.data, data)
 					: data;
 			this.render(merged, changedKeys);
 		}
@@ -3401,7 +3473,7 @@ const ui = (selection, scope = document) => {
 				scope,
 			});
 		}
-		const component = createComponent(new UITemplate(nodes, scope));
+		const component = createComponent(new UITemplate(nodes, scope, autoFormatName));
 		if (autoFormatName) {
 			ui.format(autoFormatName, component);
 		}
@@ -3415,7 +3487,9 @@ const ui = (selection, scope = document) => {
 			autoFormatName = templateFormatterName(nodes[0]);
 		}
 		registerTemplatesInNodes(nodes, templateRegistryFor(scope), scope);
-		const component = createComponent(new UITemplate([...nodes], scope));
+		const component = createComponent(
+			new UITemplate([...nodes], scope, autoFormatName),
+		);
 		if (autoFormatName) {
 			ui.format(autoFormatName, component);
 		}
@@ -3430,6 +3504,9 @@ const ui = (selection, scope = document) => {
 };
 
 ui.formats = _formatsProxy;
+ui.options = {
+	componentRootClass: true,
+};
 
 ui.format = (name, formatter) => {
 	if (typeof name !== "string" || !name.trim()) {

@@ -181,6 +181,18 @@ Returns a component function with these methods:
 - `ui.format(name, formatter)`: Register a formatter in `ui.formats`.
 - `ui.unformat(name)`: Remove a formatter from `ui.formats`.
 - `ui.resolveFormat(name)`: Resolve a formatter from `ui.formats`.
+- `ui.options`: Global UI options.
+  - `ui.options.componentRootClass` (default `true`): Adds the component name as a class on each component root element when available, with the component class first in `class`.
+
+Example:
+
+```javascript
+const Card = ui("#Card")
+// Renders root as class="Card ..."
+
+ui.options.componentRootClass = false
+// Disables automatic component root classes globally
+```
 
 ### Web Components
 
