@@ -364,6 +364,7 @@ const resolveTemplateTokens = (self, tokens, data) => {
 	if (!tokens?.length) {
 		return "";
 	}
+	const behavior = self?.template?.behavior;
 	let result = "";
 	for (let i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
@@ -376,7 +377,17 @@ const resolveTemplateTokens = (self, tokens, data) => {
 		}
 		if (token.type === "expr") {
 			const path = token.value.path;
-			const value = resolveDataPath(data, path);
+			let value;
+			if (path?.length === 1) {
+				const key = path[0];
+				const slotBehavior = behavior?.[key];
+				value =
+					typeof slotBehavior === "function"
+						? slotBehavior(self, data, null)
+						: resolveDataPath(data, path);
+			} else {
+				value = resolveDataPath(data, path);
+			}
 			if (value === undefined || value === null) {
 				continue;
 			}
