@@ -432,6 +432,12 @@ and rendered as child content.
 
 Capture user input. The handler receives the DOM event.
 
+If no handler is defined, `in` updates non-reactive state with
+`self.update({ [slot]: event.target.value })` and updates reactive slots with
+`slot.set(event.target.value)`.
+
+For `<details>`, the default input value is `event.target.open`.
+
 ```html
 <input in="search" placeholder="Search..." />
 ```
@@ -451,8 +457,12 @@ Capture user input. The handler receives the DOM event.
 
 Both display and capture data.
 
+If no handler is defined, `inout` uses the same default input behavior as `in`.
+
 ```html
 <input inout="value" type="text" />
+<input inout:value="value" type="text" />
+<details inout:open="isExpanded"><summary>Toggle</summary></details>
 ```
 
 ```javascript

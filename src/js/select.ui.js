@@ -897,10 +897,46 @@ const isInputNode = (node) => {
 		case "INPUT":
 		case "TEXTAREA":
 		case "SELECT":
+		case "DETAILS":
 			return true;
 		default:
 			return false;
 	}
+};
+
+const SKIP_INPUT_UPDATE = Symbol("skip-input-update");
+
+const getInputBindingProperty = (node, preferred = undefined) => {
+	if (preferred) {
+		return preferred;
+	}
+	if (node?.nodeName === "DETAILS") {
+		return "open";
+	}
+	return "value";
+};
+
+const getInputEventValue = (node, event, property = "value") => {
+	const target = event?.target;
+	if (!target) {
+		return undefined;
+	}
+	if (property === "open") {
+		return !!target.open;
+	}
+	if (property !== "value") {
+		return target[property];
+	}
+	if (node?.nodeName === "INPUT") {
+		const type = `${node.type || ""}`.toLowerCase();
+		if (type === "checkbox") {
+			return !!target.checked;
+		}
+		if (type === "radio") {
+			return target.checked ? target.value : SKIP_INPUT_UPDATE;
+		}
+	}
+	return target.value;
 };
 
 const setNodeText = (node, text) => {
@@ -912,7 +948,12 @@ const setNodeText = (node, text) => {
 			break;
 		case Node.ELEMENT_NODE:
 			if (isInputNode(node)) {
-				if (node.value !== text) {
+				if (node.nodeName === "DETAILS") {
+					const next = !!text;
+					if (node.open !== next) {
+						node.open = next;
+					}
+				} else if (node.value !== text) {
 					node.value = text;
 				}
 			} else {
@@ -1005,6 +1046,26 @@ class AppliedUITemplate {
 // - `predicate`: function? - conditional rendering predicate (for `when` slots)
 // - `predicatePlaceholder`: Comment? - placeholder when condition false
 class UITemplateSlot {
+	static MergeMaps(...maps) {
+		let count = 0;
+		const res = {};
+		for (let i = 0; i < maps.length; i++) {
+			const map = maps[i];
+			if (!map) {
+				continue;
+			}
+			for (const key in map) {
+				if (res[key] === undefined) {
+					res[key] = map[key].slice();
+				} else {
+					res[key].push(...map[key]);
+				}
+				count += map[key].length;
+			}
+		}
+		return count ? res : null;
+	}
+
 	// Computes path indices from `parent` to `node`.
 	static Path(node, parent, path) {
 		const res = [];
@@ -1316,6 +1377,54 @@ class UITemplateSlot {
 		}
 		return count ? res : null;
 	}
+
+	// Finds all inout prefixed attributes (currently `inout:value` and
+	// `inout:open`) in `nodes`.
+	// Returns map of slotName -> [UITemplateSlot, ...].
+	static FindInOutAttr(nodes) {
+		const res = {};
+		let count = 0;
+		for (let i = 0; i < nodes.length; i++) {
+			const parent = nodes[i];
+			const processNode = (node) => {
+				if (!node.attributes) {
+					return;
+				}
+				const toRemove = [];
+				for (const attr of node.attributes) {
+					if (attr.name !== "inout:value" && attr.name !== "inout:open") {
+						continue;
+					}
+					const inputProperty = attr.name.slice("inout:".length);
+					const defaultKey = inputProperty || "value";
+					const key = `${attr.value || defaultKey}`.trim() || defaultKey;
+					toRemove.push(attr.name);
+					const slot = new UITemplateSlot(
+						node,
+						parent,
+						UITemplateSlot.Path(node, parent, [i]),
+					);
+					slot.inputProperty = inputProperty;
+					if (res[key] === undefined) {
+						res[key] = [slot];
+					} else {
+						res[key].push(slot);
+					}
+					count++;
+				}
+				for (let j = 0; j < toRemove.length; j++) {
+					node.removeAttribute(toRemove[j]);
+				}
+			};
+			processNode(parent);
+			if (parent.querySelectorAll) {
+				for (const node of parent.querySelectorAll("*")) {
+					processNode(node);
+				}
+			}
+		}
+		return count ? res : null;
+	}
 }
 
 // ----------------------------------------------------------------------------
@@ -1593,7 +1702,10 @@ class UITemplate {
 		this.in = UITemplateSlot.Find("in", nodes);
 		this.when = UITemplateSlot.FindWhen(nodes);
 		this.out = UITemplateSlot.Find("out", nodes);
-		this.inout = UITemplateSlot.Find("inout", nodes);
+		this.inout = UITemplateSlot.MergeMaps(
+			UITemplateSlot.Find("inout", nodes),
+			UITemplateSlot.FindInOutAttr(nodes),
+		);
 		this.hasBindings = !!(this.on || this.in || this.inout);
 		this.ref = UITemplateSlot.Find("ref", nodes);
 		this.outAttr = UITemplateSlot.FindAttr("out:", nodes);
@@ -2558,11 +2670,18 @@ class UIInstance {
 	// Binds input slot with inferred event type.
 	_bindInput(name, target, handler = this.template.behavior?.[name]) {
 		let event;
+		const inputProperty = getInputBindingProperty(
+			target.node,
+			target.template?.inputProperty,
+		);
 		switch (target.node.nodeName) {
 			case "INPUT":
 			case "TEXTAREA":
 			case "SELECT":
 				event = "input";
+				break;
+			case "DETAILS":
+				event = "toggle";
 				break;
 			case "FORM":
 				event = "submit";
@@ -2573,6 +2692,10 @@ class UIInstance {
 		const listener = (event) => {
 			const data = this.data || {};
 			const slotValue = data[name];
+			const inputValue = getInputEventValue(target.node, event, inputProperty);
+			if (inputValue === SKIP_INPUT_UPDATE) {
+				return;
+			}
 			if (handler) {
 				const result = handler(this, data, event);
 				if (result && typeof result === "object" && !Array.isArray(result)) {
@@ -2586,7 +2709,9 @@ class UIInstance {
 					slotValue.set(result);
 				}
 			} else if (slotValue?.isReactive) {
-				slotValue.set(event?.target?.value);
+				slotValue.set(inputValue);
+			} else {
+				this.update({ [name]: inputValue });
 			}
 		};
 		target.node.addEventListener(event, listener);
