@@ -2188,6 +2188,25 @@ class UIContentSlot {
 // - `_behaviorDeps`: Map? - behavior dependency tracking
 // - `_behaviorValues`: Map? - cached behavior results
 class UIInstance {
+	static _mergeReactiveTopLevel(base, incoming) {
+		if (!incoming || typeof incoming !== "object") {
+			return incoming;
+		}
+		const merged =
+			base && typeof base === "object" ? Object.assign({}, base) : {};
+		for (const key in incoming) {
+			const next = incoming[key];
+			const current = merged[key];
+			if (current?.isReactive && !next?.isReactive) {
+				current.set(next);
+				merged[key] = current;
+			} else {
+				merged[key] = next;
+			}
+		}
+		return merged;
+	}
+
 	// Compiles slot definitions into efficient applier functions.
 	static _compileSlotApplier(slots, rawSingle = false) {
 		if (!slots) {
@@ -2539,7 +2558,7 @@ class UIInstance {
 			typeof data === "object" &&
 			Object.getPrototypeOf(data) === Object.prototype
 		) {
-			this.render({ ...this.initial, ...data });
+			this.render(UIInstance._mergeReactiveTopLevel(this.initial, data));
 		} else {
 			this.render(data);
 		}
@@ -2588,7 +2607,7 @@ class UIInstance {
 		if (!same) {
 			const merged =
 				this.data && typeof this.data === "object"
-					? Object.assign({}, this.data, data)
+					? UIInstance._mergeReactiveTopLevel(this.data, data)
 					: data;
 			this.render(merged, changedKeys);
 		}
