@@ -4244,10 +4244,43 @@ var isInputNode = (node) => {
     case "INPUT":
     case "TEXTAREA":
     case "SELECT":
+    case "DETAILS":
       return true;
     default:
       return false;
   }
+};
+var SKIP_INPUT_UPDATE = Symbol("skip-input-update");
+var getInputBindingProperty = (node, preferred = undefined) => {
+  if (preferred) {
+    return preferred;
+  }
+  if (node?.nodeName === "DETAILS") {
+    return "open";
+  }
+  return "value";
+};
+var getInputEventValue = (node, event, property = "value") => {
+  const target2 = event?.target;
+  if (!target2) {
+    return;
+  }
+  if (property === "open") {
+    return !!target2.open;
+  }
+  if (property !== "value") {
+    return target2[property];
+  }
+  if (node?.nodeName === "INPUT") {
+    const type2 = `${node.type || ""}`.toLowerCase();
+    if (type2 === "checkbox") {
+      return !!target2.checked;
+    }
+    if (type2 === "radio") {
+      return target2.checked ? target2.value : SKIP_INPUT_UPDATE;
+    }
+  }
+  return target2.value;
 };
 var setNodeText = (node, text) => {
   switch (node.nodeType) {
@@ -4258,7 +4291,12 @@ var setNodeText = (node, text) => {
       break;
     case Node.ELEMENT_NODE:
       if (isInputNode(node)) {
-        if (node.value !== text) {
+        if (node.nodeName === "DETAILS") {
+          const next2 = !!text;
+          if (node.open !== next2) {
+            node.open = next2;
+          }
+        } else if (node.value !== text) {
           node.value = text;
         }
       } else {
@@ -4303,6 +4341,25 @@ class AppliedUITemplate {
 }
 
 class UITemplateSlot {
+  static MergeMaps(...maps) {
+    let count = 0;
+    const res = {};
+    for (let i = 0;i < maps.length; i++) {
+      const map = maps[i];
+      if (!map) {
+        continue;
+      }
+      for (const key in map) {
+        if (res[key] === undefined) {
+          res[key] = map[key].slice();
+        } else {
+          res[key].push(...map[key]);
+        }
+        count += map[key].length;
+      }
+    }
+    return count ? res : null;
+  }
   static Path(node, parent, path) {
     const res = [];
     while (node !== parent) {
@@ -4549,6 +4606,46 @@ class UITemplateSlot {
     }
     return count ? res : null;
   }
+  static FindInOutAttr(nodes) {
+    const res = {};
+    let count = 0;
+    for (let i = 0;i < nodes.length; i++) {
+      const parent = nodes[i];
+      const processNode = (node) => {
+        if (!node.attributes) {
+          return;
+        }
+        const toRemove = [];
+        for (const attr of node.attributes) {
+          if (attr.name !== "inout:value" && attr.name !== "inout:open") {
+            continue;
+          }
+          const inputProperty = attr.name.slice("inout:".length);
+          const defaultKey = inputProperty || "value";
+          const key = `${attr.value || defaultKey}`.trim() || defaultKey;
+          toRemove.push(attr.name);
+          const slot = new UITemplateSlot(node, parent, UITemplateSlot.Path(node, parent, [i]));
+          slot.inputProperty = inputProperty;
+          if (res[key] === undefined) {
+            res[key] = [slot];
+          } else {
+            res[key].push(slot);
+          }
+          count++;
+        }
+        for (let j = 0;j < toRemove.length; j++) {
+          node.removeAttribute(toRemove[j]);
+        }
+      };
+      processNode(parent);
+      if (parent.querySelectorAll) {
+        for (const node of parent.querySelectorAll("*")) {
+          processNode(node);
+        }
+      }
+    }
+    return count ? res : null;
+  }
 }
 
 class UIAttributeTemplateSlot {
@@ -4734,7 +4831,7 @@ class UITemplate {
     this.in = UITemplateSlot.Find("in", nodes);
     this.when = UITemplateSlot.FindWhen(nodes);
     this.out = UITemplateSlot.Find("out", nodes);
-    this.inout = UITemplateSlot.Find("inout", nodes);
+    this.inout = UITemplateSlot.MergeMaps(UITemplateSlot.Find("inout", nodes), UITemplateSlot.FindInOutAttr(nodes));
     this.hasBindings = !!(this.on || this.in || this.inout);
     this.ref = UITemplateSlot.Find("ref", nodes);
     this.outAttr = UITemplateSlot.FindAttr("out:", nodes);
@@ -5508,11 +5605,15 @@ class UIInstance {
   }
   _bindInput(name, target2, handler = this.template.behavior?.[name]) {
     let event;
+    const inputProperty = getInputBindingProperty(target2.node, target2.template?.inputProperty);
     switch (target2.node.nodeName) {
       case "INPUT":
       case "TEXTAREA":
       case "SELECT":
         event = "input";
+        break;
+      case "DETAILS":
+        event = "toggle";
         break;
       case "FORM":
         event = "submit";
@@ -5523,6 +5624,10 @@ class UIInstance {
     const listener = (event2) => {
       const data = this.data || {};
       const slotValue = data[name];
+      const inputValue = getInputEventValue(target2.node, event2, inputProperty);
+      if (inputValue === SKIP_INPUT_UPDATE) {
+        return;
+      }
       if (handler) {
         const result = handler(this, data, event2);
         if (result && typeof result === "object" && !Array.isArray(result)) {
@@ -5536,7 +5641,9 @@ class UIInstance {
           slotValue.set(result);
         }
       } else if (slotValue?.isReactive) {
-        slotValue.set(event2?.target?.value);
+        slotValue.set(inputValue);
+      } else {
+        this.update({ [name]: inputValue });
       }
     };
     target2.node.addEventListener(event, listener);
@@ -5889,6 +5996,16 @@ class UIInstance {
 var _registry = new Map;
 var _formatsVersion = 0;
 var _formatsStore = Object.create(null);
+_formatsStore.key = (value) => {
+  if (value === undefined || value === null) {
+    return "";
+  }
+  const text = typeof value === "string" ? value : String(value);
+  if (!text) {
+    return "";
+  }
+  return text.trim().replace(/[^A-Za-z0-9_]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+};
 var _formatsProxy = new Proxy(_formatsStore, {
   set(target2, property, value) {
     target2[property] = value;

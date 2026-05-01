@@ -3163,6 +3163,20 @@ class UIInstance {
 const _registry = new Map();
 let _formatsVersion = 0;
 const _formatsStore = Object.create(null);
+_formatsStore.key = (value) => {
+	if (value === undefined || value === null) {
+		return "";
+	}
+	const text = typeof value === "string" ? value : String(value);
+	if (!text) {
+		return "";
+	}
+	return text
+		.trim()
+		.replace(/[^A-Za-z0-9_]+/g, "_")
+		.replace(/_+/g, "_")
+		.replace(/^_+|_+$/g, "");
+};
 const _formatsProxy = new Proxy(_formatsStore, {
 	set(target, property, value) {
 		target[property] = value;
