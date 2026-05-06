@@ -23,7 +23,7 @@ This gives access to all Iconify/Icônes families through a CDN endpoint.
 ## Basic usage
 
 ```javascript
-import { icon, install } from "@./select.icons.js"
+import { icon, install } from "@./icons.js"
 
 // Create SVG node directly
 const node = icon("home", { source: "lucide", size: "1.5em" })
@@ -47,7 +47,7 @@ You can pass a catalog to `install(..., { sources })` as:
 - a raw Iconify collections object
 
 ```javascript
-import { install } from "@./select.icons.js"
+import { install } from "@./icons.js"
 
 const catalog = await fetch("../src/js/select.icons.json").then((r) => r.json())
 install("ui-icon-local", { sources: catalog })

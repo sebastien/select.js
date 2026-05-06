@@ -6,7 +6,7 @@
 	<title>Select UI — Scoped Events</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<script type="importmap">
-		{"imports": {"@./": "../src/js/" } }
+		{"imports": {"@./": "../src/js/select/" } }
 	</script>
 	<style>
 		body {
@@ -111,7 +111,7 @@
 	</template>
 
 	<script type="module">
-		import { ui } from "@./select.ui.js"
+		import { ui } from "@./ui.js"
 
 		const Counter = ui("#Counter").does({
 			count: (_self, { count }) => count,

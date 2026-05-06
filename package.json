@@ -2,7 +2,7 @@
 	"name": "select",
 	"version": "0.7.1",
 	"description": "A small jQuery-like library for DOM+SVG manipulation",
-	"main": "src/select.js",
+	"main": "src/js/select/index.js",
 	"homepage": "https://github.com/sebastien/select.js#readme",
 	"repository": {
 		"type": "git",

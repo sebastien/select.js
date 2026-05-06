@@ -55,7 +55,7 @@ Attributes, classes, style, layout, events:
 
 ```html
 <script type="module">
-import $ from "@./select.js"
+import $ from "@./query.js"
 
 $("ul li").addClass("item")
 $("svg circle").attr("fill", "tomato")
@@ -67,7 +67,7 @@ $("svg circle").attr("fill", "tomato")
 You can add project-specific helpers by extending `Selection.prototype`:
 
 ```javascript
-import select from "@./select.js"
+import select from "@./query.js"
 
 select.Selection.prototype.flash = function () {
   return this.addClass("flash")

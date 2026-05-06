@@ -1,4 +1,4 @@
-# Select UI (`select.ui.js`)
+# Select UI (`select/ui.js`)
 
 ## A standalone, simple and performant UI rendering library
 
@@ -73,7 +73,7 @@ For icon loading and `<ui-icon>` usage, see [`docs/icons.md`](./icons.md).
 </template>
 
 <script type="module">
-import ui from "@./select.ui.js"
+import ui from "@./ui.js"
 
 const Counter = ui("#Counter").does({
   count: (self, { count }) => count ?? 0,
@@ -87,14 +87,14 @@ Counter.new().set({ count: 1 }).mount("#app")
 
 ### Web Components
 
-`select.ui.js` can register native custom elements through `webcomponent(...)`.
+`select/ui.js` can register native custom elements through `webcomponent(...)`.
 The component factory can be either:
 
 - a Select UI template (from `ui(...)`)
 - a pure render function returning `Node`, node lists, `Selection`, or text
 
 ```javascript
-import ui, { webcomponent } from "@./select.ui.js"
+import ui, { webcomponent } from "@./ui.js"
 
 const Counter = ui(`
   <section>
@@ -120,7 +120,7 @@ webcomponent("x-counter", Counter, { title: "Counter", count: 0 })
 For a pure renderer:
 
 ```javascript
-import { webcomponent } from "@./select.ui.js"
+import { webcomponent } from "@./ui.js"
 
 const Badge = ({ label, tone }) => {
   const node = document.createElement("span")
@@ -140,7 +140,7 @@ UI is designed for composition: create reusable templates, register them for
 dynamic resolution, and combine them with behavior maps.
 
 ```javascript
-import ui, { Dynamic } from "@./select.ui.js"
+import ui, { Dynamic } from "@./ui.js"
 
 const Badge = ui("<span out=\"label\"></span>").does({
   label: (self, { label }) => label,

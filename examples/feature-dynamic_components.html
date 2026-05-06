@@ -6,7 +6,7 @@
 	<title>Select UI — Dynamic Components</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<script type="importmap">
-		{"imports": {"@./": "../src/js/" } }
+		{"imports": {"@./": "../src/js/select/" } }
 	</script>
 	<style>
 		body {
@@ -166,7 +166,7 @@
 	</template>
 
 	<script type="module">
-		import { Dynamic, ui } from "@./select.ui.js"
+		import { Dynamic, ui } from "@./ui.js"
 
 		const HeadingBlock = ui("#HeadingBlock").does({
 			text: (_self, { text }) => text,

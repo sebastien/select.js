@@ -1,9 +1,12 @@
-# Select Extra (`select.extra.js`)
+# Select Utils/Interaction/Routing
 
 ## Agnostic helpers for interaction and routing
 
-`select.extra.js` contains small, framework-agnostic helpers. It does not
-depend on `select.js` or `select.ui.js`, and can be used in plain DOM code.
+Helpers are now split across dedicated modules:
+
+- `select/utils.js`: generic data, text, class, and collection helpers
+- `select/interaction.js`: DOM interaction and keyboard helpers
+- `select/routing.js`: route parsing and dispatch
 
 ### Class helpers
 
@@ -61,15 +64,17 @@ Supported route slot forms:
 
 ### Browser state
 
-Browser URL and storage state now live in `select.cells.js` via
+Browser URL and storage state now live in `select/browser.js` via
 `browser(options?)`, which returns reactive `path`, `query`, `hash`, and
 `local(key, dflt, opts?)` cells.
 
 ### Using
 
 ```javascript
-import { add, bind, clsx, drag, next, router, toggle } from "@./select.extra.js"
-import { browser } from "@./select.cells.js"
+import { add, clsx, next, toggle } from "@./utils.js"
+import { bind, drag } from "@./interaction.js"
+import { router } from "@./routing.js"
+import { browser } from "@./browser.js"
 
 const button = document.querySelector("button")
 
@@ -175,4 +180,4 @@ Handler signature:
 
 ### Browser state
 
-- `browser(options?)`: Imported from `@./select.cells.js`, returns browser-backed reactive cells.
+- `browser(options?)`: Imported from `@./browser.js`, returns browser-backed reactive cells.

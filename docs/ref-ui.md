@@ -13,7 +13,7 @@ state and rendering.
 ## Quick Start
 
 ```javascript
-import ui from "./select.ui.js";
+import ui from "./ui.js";
 
 // Create a component from HTML
 const Hello = ui(`<div out="message">Loading...</div>`).does({
@@ -199,7 +199,7 @@ ui.options.componentRootClass = false
 Select UI can register native custom elements through `webcomponent(...)`.
 
 ```javascript
-import ui, { webcomponent } from "./select.ui.js";
+import ui, { webcomponent } from "./ui.js";
 
 const Counter = ui(`
   <section>
@@ -225,7 +225,7 @@ webcomponent("x-counter", Counter, { title: "Counter", count: 0 });
 `webcomponent` also accepts pure render functions:
 
 ```javascript
-import { webcomponent } from "./select.ui.js";
+import { webcomponent } from "./ui.js";
 
 const Badge = ({ label, tone }) => {
   const node = document.createElement("span");
@@ -369,7 +369,7 @@ const List = ui("#List")
 Define initial state, useful with reactive cells.
 
 ```javascript
-import cell, { derived } from "./select.cells.js";
+import cell, { derived } from "./cells.js";
 
 const ColorPicker = ui("#ColorPicker").init(() => {
   const red = cell(100);
@@ -766,7 +766,7 @@ const List = ui(`<ul out="items"></ul>`)
 Returns the type of a value as a constant.
 
 ```javascript
-import { type } from "./select.ui.js";
+import { type } from "./ui.js";
 
 type(null); // type.Null
 type(42); // type.Number
@@ -792,7 +792,7 @@ Type constants:
 Returns the length/size of a value.
 
 ```javascript
-import { len } from "./select.ui.js";
+import { len } from "./ui.js";
 
 len(null); // 0
 len([1, 2, 3]); // 3
@@ -807,7 +807,7 @@ len(new Set([1, 2])); // 2
 Maps over arrays, objects, Maps, or Sets uniformly.
 
 ```javascript
-import { remap } from "./select.ui.js";
+import { remap } from "./ui.js";
 
 remap([1, 2, 3], (v) => v * 2); // [2, 4, 6]
 remap({ a: 1, b: 2 }, (v, k) => v * 2); // { a: 2, b: 4 }
@@ -913,7 +913,7 @@ const inspect = (value) => {
 ### Reactive State with Cells
 
 ```javascript
-import cell, { derived } from "./select.cells.js";
+import cell, { derived } from "./cells.js";
 
 const Counter = ui(`
   <div>

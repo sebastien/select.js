@@ -1,4 +1,4 @@
-import { remap, ui } from "../../../src/js/select.ui.js";
+import { remap, ui } from "../../../src/js/select/ui.js";
 
 const getType = (value) =>
 	value === undefined || value === null

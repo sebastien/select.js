@@ -6,7 +6,7 @@
 	<title>Select Icons — CDN + Catalog Sources</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<script type="importmap">
-		{"imports": {"@./": "../src/js/" } }
+		{"imports": {"@./": "../src/js/select/" } }
 	</script>
 	<style>
 		:root {
@@ -183,9 +183,9 @@
 	</template>
 
 	<script type="module">
-		import { cell, derived } from "@./select.cells.js"
-		import { icon, install } from "@./select.icons.js"
-		import ui from "@./select.ui.js"
+		import { cell, derived } from "@./cells.js"
+		import { icon, install } from "@./icons.js"
+		import ui from "@./ui.js"
 
 		install("ui-icon")
 		const catalog = await fetch("../src/js/select.icons.json").then((r) => r.json())

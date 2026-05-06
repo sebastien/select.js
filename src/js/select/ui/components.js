@@ -3,970 +3,31 @@
 // License: MIT
 // Created: 2024-01-01
 
-// Module: select.ui
-// A standalone, simple and performant UI rendering library designed for
-// quickly creating interactive UIs and visualizations. Templates are defined
-// with HTML and bound to reactive data cells.
-//
-// Templates use special attributes for data binding: `out` for output,
-// `in` for input, `inout` for bidirectional, `on:event` for event handlers,
-// `ref` for element references, `when` for conditional rendering, and
-// `out:attr` for attribute binding.
-//
-// Example:
-// ```javascript
-// import { ui, cell } from "./select.ui.js"
-//
-// const Counter = ui(`
-//   <div>
-//     <span out:text="count">0</span>
-//     <button on:click="increment">+</button>
-//   </div>
-// `).does({
-//   increment: (self, data) => data.count.set(data.count.get() + 1)
-// })
-//
-// const instance = Counter.new().mount(document.body)
-// instance.set({ count: cell(0) })
-// ```
+// Module: select/ui/components
+// Core component engine: template slots, reactive instances, rendering
+// pipeline, and web component wrappers.
 
-import { expand } from "./select.cells.js";
+import { asText, eq, expand, isObject, remap, shallowEq } from "../utils.js";
 
-// ----------------------------------------------------------------------------
-//
-// SECTION: Utility Functions
-//
-// ----------------------------------------------------------------------------
+import {
+	AppliedUITemplate,
+	createWhenPredicate,
+	getInputBindingProperty,
+	getInputEventValue,
+	logSelectUI,
+	resolveSourceValue,
+	resolveTemplateTokens,
+	scheduleRenderTask,
+	setNodeText,
+	SKIP_INPUT_UPDATE,
+	SLOT_DEFAULT_KEY,
+	TemplateParser,
+	UIEvent,
+	applyNamedProcessors,
+	isInputNode,
+} from "./html.js";
 
-// Function: len
-// Returns the "length" of a value. Returns 0 for null/undefined, length for
-// arrays/strings, size for Map/Set, key count for plain objects, 1 for others.
-//
-// Parameters:
-// - `v`: any - value to measure
-//
-// Returns: number
-
-const len = (v) => {
-	if (v === undefined || v === null) {
-		return 0;
-	} else if (Array.isArray(v)) {
-		return v.length;
-	} else if (typeof v === "string") {
-		return v.length;
-	} else if (v instanceof Map || v instanceof Set) {
-		return v.size;
-	} else if (Object.getPrototypeOf(v) === Object.prototype) {
-		return Object.keys(v).length;
-	}
-	return 1;
-};
-
-const parser = new DOMParser();
-
-const queueMicro =
-	typeof globalThis.queueMicrotask === "function"
-		? globalThis.queueMicrotask.bind(globalThis)
-		: (fn) => Promise.resolve().then(fn);
-
-const scheduleRenderTask = (fn) => {
-	const mutate = globalThis.fastdom?.mutate;
-	if (typeof mutate === "function") {
-		mutate(fn);
-	} else {
-		queueMicro(fn);
-	}
-};
-
-const _templateRegistries = new WeakMap();
-
-const templateKey = (value) => {
-	if (typeof value !== "string") {
-		return null;
-	}
-	const normalized = value.trim();
-	const key = normalized.startsWith("#") ? normalized.slice(1) : normalized;
-	return key.length ? key : null;
-};
-
-const registerTemplateKey = (registry, key, template, scope) => {
-	if (!key) {
-		return;
-	}
-	const existing = registry.get(key);
-	if (existing && existing !== template) {
-		logSelectUI(
-			"warn",
-			"ui",
-			"duplicate template key, keeping first registration",
-			{ key, scope, existing, ignored: template },
-		);
-		return;
-	}
-	registry.set(key, template);
-};
-
-const registerTemplateNode = (template, registry, scope) => {
-	if (!template || template.nodeName !== "TEMPLATE") {
-		return;
-	}
-	registerTemplateKey(registry, template.id, template, scope);
-	registerTemplateKey(
-		registry,
-		template.getAttribute("name"),
-		template,
-		scope,
-	);
-	if (!template.content?.querySelectorAll) {
-		return;
-	}
-	for (const nested of template.content.querySelectorAll("template")) {
-		registerTemplateNode(nested, registry, scope);
-	}
-};
-
-const templateRegistryFor = (scope = document) => {
-	let registry = _templateRegistries.get(scope);
-	if (registry) {
-		return registry;
-	}
-	registry = new Map();
-	_templateRegistries.set(scope, registry);
-	const isTemplate = scope?.nodeName === "TEMPLATE";
-	if (isTemplate) {
-		registerTemplateNode(scope, registry, scope);
-	} else if (scope?.querySelectorAll) {
-		for (const template of scope.querySelectorAll("template")) {
-			registerTemplateNode(template, registry, scope);
-		}
-	}
-	return registry;
-};
-
-const registerTemplatesInNodes = (nodes, registry, scope) => {
-	for (let i = 0; i < nodes.length; i++) {
-		const node = nodes[i];
-		if (node?.nodeName === "TEMPLATE") {
-			registerTemplateNode(node, registry, scope);
-		}
-		if (node?.querySelectorAll) {
-			for (const template of node.querySelectorAll("template")) {
-				registerTemplateNode(template, registry, scope);
-			}
-		}
-	}
-};
-
-const templateFormatterName = (template) => {
-	if (template?.nodeName !== "TEMPLATE") {
-		return null;
-	}
-	const name = template.getAttribute("name");
-	if (typeof name === "string") {
-		const normalizedName = name.trim();
-		if (normalizedName.length) {
-			return normalizedName;
-		}
-	}
-	const id = typeof template.id === "string" ? template.id.trim() : "";
-	return id.length ? id : null;
-};
-
-const createComponent = (tmpl) => {
-	const component = (...args) => tmpl.apply(...args);
-	Object.assign(component, {
-		isTemplate: true,
-		template: tmpl,
-		new: (...args) => tmpl.new(...args),
-		init: (...args) => {
-			tmpl.init(...args);
-			return component;
-		},
-		map: (...args) => {
-			return tmpl.map(...args);
-		},
-		apply: (...args) => {
-			return tmpl.apply(...args);
-		},
-		does: (...args) => {
-			tmpl.does(...args);
-			return component;
-		},
-		on: (...args) => {
-			tmpl.sub(...args);
-			return component;
-		},
-		sub: (...args) => {
-			tmpl.sub(...args);
-			return component;
-		},
-		cleanup: (...args) => {
-			tmpl.cleanup(...args);
-			return component;
-		},
-	});
-	return component;
-};
-
-const logSelectUI = (level, scope, message, details = {}) => {
-	console[level](`[select.ui] ${scope}: ${message}, details`, details);
-};
-
-// TODO: This should be moved closer to where it is defined
-const WHEN_MODE_TRUTHY = 1;
-const WHEN_MODE_FALSY = 2;
-const WHEN_MODE_DEFINED = 3;
-const WHEN_MODE_UNDEFINED = 4;
-
-const WHEN_COMPARATORS = [
-	"!==",
-	"==",
-	"!=",
-	">=",
-	"<=",
-	"~?",
-	"=",
-	">",
-	"<",
-];
-
-const parsePipedBinding = (expr, validateSource = false) => {
-	const source = typeof expr === "string" ? expr.trim() : "";
-	if (!source) {
-		return null;
-	}
-	const parts = source.split("|");
-	for (let i = 0; i < parts.length; i++) {
-		parts[i] = parts[i].trim();
-		if (!parts[i]) {
-			return null;
-		}
-	}
-	const sourceKey = parts[0];
-	if (!sourceKey) {
-		return null;
-	}
-	if (validateSource && !/^[A-Za-z0-9_$-]+$/.test(sourceKey)) {
-		return null;
-	}
-	const processors = parts.length > 1 ? parts.slice(1) : [];
-	for (let i = 0; i < processors.length; i++) {
-		if (/\s/.test(processors[i])) {
-			return null;
-		}
-	}
-	return { sourceKey, processors };
-};
-
-const RE_BINDING_PATH = /^[A-Za-z_$][A-Za-z0-9_$-]*$/;
-
-const parseBindingPath = (expr, allowDotted = true) => {
-	const source = typeof expr === "string" ? expr.trim() : "";
-	if (!source) {
-		return null;
-	}
-	const parts = allowDotted ? source.split(".") : [source];
-	if (!parts.length) {
-		return null;
-	}
-	for (let i = 0; i < parts.length; i++) {
-		const part = parts[i].trim();
-		if (!part || !RE_BINDING_PATH.test(part)) {
-			return null;
-		}
-		parts[i] = part;
-	}
-	return parts;
-};
-
-const parseTemplatePath = (expr) => {
-	return parseBindingPath(expr, true);
-};
-
-const parseTemplatePlaceholder = (expr) => {
-	const source = typeof expr === "string" ? expr.trim() : "";
-	if (!source) {
-		return null;
-	}
-	const parts = source.split("|");
-	for (let i = 0; i < parts.length; i++) {
-		parts[i] = parts[i].trim();
-		if (!parts[i]) {
-			return null;
-		}
-	}
-	const path = parseTemplatePath(parts[0]);
-	if (!path) {
-		return null;
-	}
-	const processors = parts.length > 1 ? parts.slice(1) : null;
-	if (processors) {
-		for (let i = 0; i < processors.length; i++) {
-			if (/\s/.test(processors[i])) {
-				return null;
-			}
-		}
-	}
-	return { path, processors };
-};
-
-const parseOutAttributeBinding = (expr) => {
-	const source = typeof expr === "string" ? expr : "";
-	if (!source) {
-		return {
-			mode: "binding",
-			binding: parsePipedBinding(source),
-		};
-	}
-	const tokens = [];
-	let last = 0;
-	let hasTemplate = false;
-	while (last < source.length) {
-		const start = source.indexOf("${", last);
-		if (start === -1) {
-			if (last < source.length) {
-				tokens.push({ type: "text", value: source.slice(last) });
-			}
-			break;
-		}
-		hasTemplate = true;
-		if (start > last) {
-			tokens.push({ type: "text", value: source.slice(last, start) });
-		}
-		const end = source.indexOf("}", start + 2);
-		if (end === -1) {
-			tokens.push({ type: "invalid" });
-			last = source.length;
-			break;
-		}
-		const placeholder = parseTemplatePlaceholder(source.slice(start + 2, end));
-		if (!placeholder) {
-			tokens.push({ type: "invalid" });
-			last = end + 1;
-			continue;
-		}
-		tokens.push({ type: "expr", value: placeholder });
-		last = end + 1;
-	}
-	if (hasTemplate) {
-		return {
-			mode: "template",
-			template: { tokens },
-		};
-	}
-	return {
-		mode: "binding",
-		binding: parsePipedBinding(source),
-	};
-};
-
-const resolveTemplateTokens = (self, tokens, data) => {
-	if (!tokens?.length) {
-		return "";
-	}
-	const behavior = self?.template?.behavior;
-	let result = "";
-	for (let i = 0; i < tokens.length; i++) {
-		const token = tokens[i];
-		if (token.type === "text") {
-			result += token.value;
-			continue;
-		}
-		if (token.type === "invalid") {
-			continue;
-		}
-		if (token.type === "expr") {
-			const path = token.value.path;
-			let value;
-			if (path?.length === 1) {
-				const key = path[0];
-				const slotBehavior = behavior?.[key];
-				value =
-					typeof slotBehavior === "function"
-						? slotBehavior(self, data, null)
-						: resolveDataPath(data, path);
-			} else {
-				value = resolveDataPath(data, path);
-			}
-			if (value === undefined || value === null) {
-				continue;
-			}
-			let resolved = expand(value);
-			if (token.value.processors?.length) {
-				resolved = applyNamedProcessors(
-					self,
-					data,
-					resolved,
-					token.value.processors,
-					path.join("."),
-				);
-			}
-			if (resolved !== undefined && resolved !== null) {
-				result += String(resolved);
-			}
-		}
-	}
-	return result;
-};
-
-const resolveDataPath = (data, path) => {
-	if (!path?.length) {
-		return data;
-	}
-	let value = data;
-	for (let i = 0; i < path.length; i++) {
-		value = expand(value);
-		if (value === undefined || value === null) {
-			return undefined;
-		}
-		value = value[path[i]];
-	}
-	return value;
-};
-
-const resolveSourceValue = (data, sourceKey) => {
-	if (!sourceKey) {
-		return undefined;
-	}
-	if (!sourceKey.includes(".")) {
-		return data ? data[sourceKey] : undefined;
-	}
-	return resolveDataPath(data, sourceKey.split("."));
-};
-
-const parseWhenShorthand = (expr) => {
-	const source = typeof expr === "string" ? expr.trim() : "";
-	const parseWhenLiteral = (raw) => {
-		const value = raw.trim();
-		if (!value.length) {
-			return "";
-		}
-		if (value === "true") {
-			return true;
-		}
-		if (value === "false") {
-			return false;
-		}
-		if (value === "null") {
-			return null;
-		}
-		if (value === "undefined") {
-			return undefined;
-		}
-		if (/^[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?$/.test(value)) {
-			const numeric = Number(value);
-			if (!Number.isNaN(numeric)) {
-				return numeric;
-			}
-		}
-		return value;
-	};
-	const parseWhenComparison = (text) => {
-		for (let i = 0; i < WHEN_COMPARATORS.length; i++) {
-			const operator = WHEN_COMPARATORS[i];
-			const at = text.indexOf(operator);
-			if (at <= 0) {
-				continue;
-			}
-			const left = text.slice(0, at).trim();
-			const right = text.slice(at + operator.length).trim();
-			if (!left || !right) {
-				return null;
-			}
-			const binding = parsePipedBinding(left, false);
-			if (!binding) {
-				return null;
-			}
-			const path = parseBindingPath(binding.sourceKey, true);
-			if (!path) {
-				return null;
-			}
-			return {
-				key: path.join("."),
-				processors: binding.processors,
-				mode: WHEN_MODE_TRUTHY,
-				operator,
-				rawValue: right,
-				value: parseWhenLiteral(right),
-			};
-		}
-		return null;
-	};
-	const comparison = parseWhenComparison(source);
-	if (comparison) {
-		return comparison;
-	}
-	let i = 0;
-	let negate = false;
-	let queryDefined = false;
-	if (source[i] === "!") {
-		negate = true;
-		i++;
-	}
-	if (source[i] === "?") {
-		queryDefined = true;
-		i++;
-	}
-	const bindingExpr = source.slice(i).trim();
-	let key;
-	let processors = [];
-	if (bindingExpr) {
-		const binding = parsePipedBinding(bindingExpr, false);
-		if (!binding) {
-			return null;
-		}
-		const path = parseBindingPath(binding.sourceKey, true);
-		if (!path) {
-			return null;
-		}
-		key = path.join(".");
-		processors = binding.processors;
-	}
-	if (!bindingExpr && source.length > 0 && i === 0) {
-		return null;
-	}
-	const mode = queryDefined
-		? negate
-			? WHEN_MODE_UNDEFINED
-			: WHEN_MODE_DEFINED
-		: negate
-			? WHEN_MODE_FALSY
-			: WHEN_MODE_TRUTHY;
-	return { key, processors, mode, operator: null, rawValue: null, value: undefined };
-};
-
-const evaluateWhen = (mode, value) => {
-	switch (mode) {
-		case WHEN_MODE_TRUTHY:
-			return !!value;
-		case WHEN_MODE_FALSY:
-			return !value;
-		case WHEN_MODE_DEFINED:
-			return value !== undefined;
-		case WHEN_MODE_UNDEFINED:
-			return value === undefined;
-		default:
-			return false;
-	}
-};
-
-const evaluateWhenComparison = (left, operator, right) => {
-	switch (operator) {
-		case "=":
-			// biome-ignore lint/suspicious/noDoubleEquals: `=` keeps loose matching distinct from `==`
-			return left == right;
-		case "!=":
-			// biome-ignore lint/suspicious/noDoubleEquals: `!=` keeps loose matching distinct from `!==`
-			return left != right;
-		case "==":
-			return left === right;
-		case "!==":
-			return left !== right;
-		case "~?": {
-			if (left === undefined || left === null) {
-				return false;
-			}
-			if (right === undefined || right === null) {
-				return false;
-			}
-			const l = String(left).toLowerCase();
-			const r = String(right).toLowerCase();
-			return l.includes(r);
-		}
-		case ">":
-			return left > right;
-		case ">=":
-			return left >= right;
-		case "<":
-			return left < right;
-		case "<=":
-			return left <= right;
-		default:
-			return false;
-	}
-};
-
-const resolveWhenValue = (self, data, key) => {
-	const behavior = self?.template?.behavior;
-	const b = behavior?.[key];
-	if (b) {
-		return b(self, data, null);
-	}
-	const value = resolveSourceValue(data, key);
-	return value === undefined ? undefined : expand(value);
-};
-
-const isPascalCaseName = (name) => /^[A-Z][A-Za-z0-9_]*$/.test(name);
-
-const resolveNamedProcessor = (self, name) => {
-	if (!self?.template || !name) {
-		return null;
-	}
-	const template = self.template;
-	if (!template._processorCache) {
-		template._processorCache = new Map();
-	}
-	const cached = template._processorCache.get(name);
-	if (cached && cached.version === _formatsVersion) {
-		return cached.value;
-	}
-	const registered = ui.formats?.[name];
-	if (!registered) {
-		template._processorCache.set(name, {
-			version: _formatsVersion,
-			value: null,
-		});
-		return null;
-	}
-	const isPascal = isPascalCaseName(name);
-	const isComponent =
-		typeof registered === "function" &&
-		(registered?.isTemplate || typeof registered?.new === "function");
-	if (isPascal && !isComponent) {
-		logSelectUI(
-			"warn",
-			"ui.formats",
-			"PascalCase formatter is not a component",
-			{
-				name,
-				formatter: registered,
-			},
-		);
-	}
-	if (!isPascal && isComponent) {
-		logSelectUI(
-			"warn",
-			"ui.formats",
-			"component formatter should use PascalCase",
-			{
-				name,
-				formatter: registered,
-			},
-		);
-	}
-	const resolved = {
-		type: isComponent ? "component" : "function",
-		value: registered,
-	};
-	template._processorCache.set(name, {
-		version: _formatsVersion,
-		value: resolved,
-	});
-	return resolved;
-};
-
-const applyNamedProcessors = (self, data, value, processors, sourceKey) => {
-	if (!processors || processors.length === 0) {
-		return value;
-	}
-	let current = value;
-	for (let i = 0; i < processors.length; i++) {
-		const name = processors[i];
-		const processor = resolveNamedProcessor(self, name);
-		if (!processor) {
-			const availableProcessors = Object.keys(_formatsStore).sort();
-			logSelectUI("warn", "UIInstance.render", "processor not found", {
-				processor: name,
-				sourceKey,
-				availableProcessors,
-				instance: self,
-			});
-			continue;
-		}
-		if (processor.type === "component") {
-			const component = processor.value;
-			if (current === undefined || current === null) {
-				continue;
-			}
-			if (typeof component?.apply === "function" && component?.isTemplate) {
-				current = component(current);
-			} else if (typeof component === "function") {
-				current = component(current, self, data);
-			}
-		} else {
-			current = processor.value(current, self, data, sourceKey, name);
-		}
-	}
-	return current;
-};
-
-const createWhenPredicate =
-	(mode, key, processors = undefined, operator = null, comparisonValue = undefined) =>
-	(self, data) => {
-		const value = resolveWhenValue(self, data, key);
-		const resolved = applyNamedProcessors(self, data, value, processors, key);
-		if (operator) {
-			return evaluateWhenComparison(resolved, operator, comparisonValue);
-		}
-		return evaluateWhen(mode, resolved);
-	};
-
-const SLOT_DEFAULT_KEY = "_";
-
-const isPrunableWhitespaceText = (node) =>
-	node &&
-	node.nodeType === Node.TEXT_NODE &&
-	!/\S/.test(node.data) &&
-	/[\n\r\t]/.test(node.data);
-
-const pruneTemplateWhitespace = (node) => {
-	if (!node?.childNodes || node.childNodes.length === 0) {
-		return;
-	}
-	for (let i = node.childNodes.length - 1; i >= 0; i--) {
-		const child = node.childNodes[i];
-		if (isPrunableWhitespaceText(child)) {
-			node.removeChild(child);
-		} else {
-			pruneTemplateWhitespace(child);
-		}
-	}
-};
-
-// ----------------------------------------------------------------------------
-//
-// SECTION: Type System
-//
-// ----------------------------------------------------------------------------
-
-// Type: TypeCode
-// Numeric type codes for runtime type checking.
-// - Null: 1
-// - Number: 2
-// - Boolean: 3
-// - String: 4
-// - Object: 5
-// - List: 10
-// - Dict: 11
-
-// Function: type
-// Returns the type code for `value`.
-//
-// Parameters:
-// - `value`: any - value to classify
-//
-// Returns: TypeCode
-
-const type = Object.assign(
-	(value) =>
-		value === undefined || value === null
-			? type.Null
-			: Array.isArray(value)
-				? type.List
-				: Object.getPrototypeOf(value) === Object.prototype
-					? type.Dict
-					: typeof value === "number"
-						? type.Number
-						: typeof value === "string"
-							? type.String
-							: typeof value === "boolean"
-								? type.Boolean
-								: type.Object,
-	{
-		Null: 1,
-		Number: 2,
-		Boolean: 3,
-		String: 4,
-		Object: 5,
-		List: 10,
-		Dict: 11,
-	},
-);
-
-// Function: remap
-// Maps `f` over all values in `value` (array, Map, Set, or object).
-// Returns same container type with transformed values.
-//
-// Parameters:
-// - `value`: any - container to map over
-// - `f`: function - transform function(value, key) => newValue
-//
-// Returns: any - container of same type with mapped values
-
-const remap = (value, f) => {
-	if (
-		value === null ||
-		value === undefined ||
-		typeof value === "number" ||
-		typeof value === "string"
-	) {
-		return value;
-	} else if (Array.isArray(value)) {
-		const n = value.length;
-		const res = new Array(n);
-		for (let i = 0; i < n; i++) {
-			res[i] = f(value[i], i);
-		}
-		return res;
-	} else if (value instanceof Map) {
-		const res = new Map();
-		for (const [k, v] of value.entries()) {
-			res.set(k, f(v, k));
-		}
-		return res;
-	} else if (value instanceof Set) {
-		const res = new Set();
-		for (const v of value) {
-			res.add(f(v, undefined));
-		}
-		return res;
-	} else {
-		const res = {};
-		for (const k in value) {
-			res[k] = f(value[k], k);
-		}
-		return res;
-	}
-};
-
-const isPlainObject = (v) =>
-	v !== null &&
-	v !== undefined &&
-	typeof v === "object" &&
-	Object.getPrototypeOf(v) === Object.prototype;
-
-const eq = (a, b) => {
-	if (a === b) {
-		return true;
-	}
-	if (isPlainObject(a) && isPlainObject(b)) {
-		return shallowEq(a, b);
-	}
-	if (Array.isArray(a) && Array.isArray(b)) {
-		if (a.length !== b.length) {
-			return false;
-		}
-		for (let i = 0; i < a.length; i++) {
-			if (a[i] !== b[i]) {
-				return false;
-			}
-		}
-		return true;
-	}
-	return false;
-};
-
-const shallowEq = (a, b) => {
-	if (a === b) {
-		return true;
-	}
-	if (
-		a === null ||
-		a === undefined ||
-		b === null ||
-		b === undefined ||
-		typeof a !== "object" ||
-		typeof b !== "object" ||
-		Array.isArray(a) ||
-		Array.isArray(b)
-	) {
-		return false;
-	}
-	let count = 0;
-	for (const k in a) {
-		if (!Object.hasOwn(a, k)) {
-			continue;
-		}
-		count++;
-		if (!Object.hasOwn(b, k) || a[k] !== b[k]) {
-			return false;
-		}
-	}
-	let countB = 0;
-	for (const k in b) {
-		if (Object.hasOwn(b, k)) {
-			countB++;
-		}
-	}
-	return count === countB;
-};
-
-const asText = (value) => {
-	value = expand(value);
-	return value === null || value === undefined
-		? ""
-		: typeof value === "number"
-			? `${value}`
-			: typeof value === "string"
-				? value
-				: JSON.stringify(value);
-};
-
-const isInputNode = (node) => {
-	switch (node.nodeName) {
-		case "INPUT":
-		case "TEXTAREA":
-		case "SELECT":
-		case "DETAILS":
-			return true;
-		default:
-			return false;
-	}
-};
-
-const SKIP_INPUT_UPDATE = Symbol("skip-input-update");
-
-const getInputBindingProperty = (node, preferred = undefined) => {
-	if (preferred) {
-		return preferred;
-	}
-	if (node?.nodeName === "DETAILS") {
-		return "open";
-	}
-	return "value";
-};
-
-const getInputEventValue = (node, event, property = "value") => {
-	const target = event?.target;
-	if (!target) {
-		return undefined;
-	}
-	if (property === "open") {
-		return !!target.open;
-	}
-	if (property !== "value") {
-		return target[property];
-	}
-	if (node?.nodeName === "INPUT") {
-		const type = `${node.type || ""}`.toLowerCase();
-		if (type === "checkbox") {
-			return !!target.checked;
-		}
-		if (type === "radio") {
-			return target.checked ? target.value : SKIP_INPUT_UPDATE;
-		}
-	}
-	return target.value;
-};
-
-const setNodeText = (node, text) => {
-	switch (node.nodeType) {
-		case Node.TEXT_NODE:
-			if (node.data !== text) {
-				node.data = text;
-			}
-			break;
-		case Node.ELEMENT_NODE:
-			if (isInputNode(node)) {
-				if (node.nodeName === "DETAILS") {
-					const next = !!text;
-					if (node.open !== next) {
-						node.open = next;
-					}
-				} else if (node.value !== text) {
-					node.value = text;
-				}
-			} else {
-				if (node.textContent !== text) {
-					node.textContent = text;
-				}
-			}
-			break;
-	}
-	return node;
-};
-
-const createTrackingProxy = (data) => {
+function createTrackingProxy(data) {
 	const accessed = new Set();
 	return [
 		new Proxy(data, {
@@ -977,74 +38,21 @@ const createTrackingProxy = (data) => {
 		}),
 		accessed,
 	];
+}
+
+// ----------------------------------------------------------------------------
+//
+// COMPONENT REGISTRY
+//
+// ----------------------------------------------------------------------------
+
+const COMPONENT_REGISTRY = new Map();
+
+// Module-level options used by UIInstance
+const uiOptions = {
+	componentRootClass: true,
 };
 
-// ----------------------------------------------------------------------------
-//
-// SECTION: UI Event System
-//
-// ----------------------------------------------------------------------------
-
-// Class: UIEvent
-// Event object passed to UI event handlers. Contains event name, data,
-// origin (emitting instance), and current (instance handling event).
-//
-// Attributes:
-// - `name`: string - event type name
-// - `data`: any - event payload
-// - `origin`: UIInstance - component that emitted the event
-// - `current`: UIInstance - component currently handling the event
-class UIEvent {
-	constructor(name, data, origin) {
-		this.name = name;
-		this.data = data;
-		this.origin = origin;
-		this.current = undefined;
-	}
-
-	// Stops event propagation when returned from handler.
-	stopPropagation() {
-		return null;
-	}
-}
-
-// ----------------------------------------------------------------------------
-//
-// SECTION: Template Application
-//
-// ----------------------------------------------------------------------------
-
-// Class: AppliedUITemplate
-// Represents a template bound to specific data. Returned by `UITemplate.apply()`.
-//
-// Attributes:
-// - `template`: UITemplate - the template being applied
-// - `data`: any - data to bind to the template
-class AppliedUITemplate {
-	constructor(template, data) {
-		this.template = template;
-		this.data = data;
-	}
-}
-
-// ----------------------------------------------------------------------------
-//
-// SECTION: Template Slots
-//
-// ----------------------------------------------------------------------------
-
-// Class: UITemplateSlot
-// Defines a slot in a template - a location where dynamic content will be
-// rendered. Found by searching for `[slotname]` attributes in template nodes.
-//
-// Attributes:
-// - `node`: Node - the slot node
-// - `parent`: Node - parent container of the slot
-// - `path`: Array<number> - path indices from parent to node
-// - `rootIndex`: number - index in root nodes array
-// - `tailPath`: Array<number>? - child indices beyond root
-// - `predicate`: function? - conditional rendering predicate (for `when` slots)
-// - `predicatePlaceholder`: Comment? - placeholder when condition false
 class UITemplateSlot {
 	static MergeMaps(...maps) {
 		let count = 0;
@@ -1096,7 +104,7 @@ class UITemplateSlot {
 				UITemplateSlot.Path(node, parent, [i]),
 			);
 			if (name === "out") {
-				const parsed = parsePipedBinding(k);
+				const parsed = TemplateParser.parsePipedBinding(k);
 				if (!parsed) {
 					logSelectUI("warn", "UITemplate", "invalid [out] binding", {
 						binding: k,
@@ -1139,7 +147,7 @@ class UITemplateSlot {
 		const selector = `[when]`;
 		const add = (node, parent, i) => {
 			const expr = node.getAttribute("when") || "";
-			const parsed = parseWhenShorthand(expr);
+			const parsed = TemplateParser.parseWhenShorthand(expr);
 			const slot = new UITemplateSlot(
 				node,
 				parent,
@@ -1172,7 +180,7 @@ class UITemplateSlot {
 						);
 						return;
 					}
-					const outBinding = parsePipedBinding(outKey);
+					const outBinding = TemplateParser.parsePipedBinding(outKey);
 					if (!outBinding?.sourceKey) {
 						logSelectUI(
 							"error",
@@ -1292,7 +300,7 @@ class UITemplateSlot {
 					if (attr.name.startsWith(prefix)) {
 						const attrName = attr.name.slice(prefix.length);
 						const slotName = attr.value || attrName;
-						const parsed = parseOutAttributeBinding(slotName);
+						const parsed = TemplateParser.parseOutAttributeBinding(slotName);
 						const binding = parsed.binding;
 						const sourceKey = binding?.sourceKey ?? slotName;
 						const processorsKey = binding?.processors?.join("|") || "";
@@ -1426,13 +434,6 @@ class UITemplateSlot {
 		return count ? res : null;
 	}
 }
-
-// ----------------------------------------------------------------------------
-//
-// SECTION: Attribute Slots
-//
-// ----------------------------------------------------------------------------
-
 // Class: UIAttributeTemplateSlot
 // Template slot for attribute binding (e.g., out:style, out:class).
 //
@@ -1475,20 +476,6 @@ class UIAttributeTemplateSlot {
 		return node ? new UIAttributeSlot(node, this, parent) : null;
 	}
 }
-
-// Class: UIAttributeSlot
-// Live attribute binding slot in a mounted instance. Handles class/style
-// additive behavior (preserves template classes/styles).
-//
-// Attributes:
-// - `node`: Node - target element
-// - `template`: UIAttributeTemplateSlot - template definition
-// - `parent`: UIInstance - owning component
-// - `attrName`: string - attribute being bound
-// - `originalClasses`: Set? - original class names from template
-// - `originalStyle`: string? - original inline style from template
-// - `appliedClasses`: Set - classes added via binding
-// - `appliedStyles`: Map - style properties added via binding
 class UIAttributeSlot {
 	constructor(node, template, parent) {
 		this.node = node;
@@ -1605,13 +592,6 @@ class UIAttributeSlot {
 		}
 	}
 }
-
-// ----------------------------------------------------------------------------
-//
-// SECTION: Event Slots
-//
-// ----------------------------------------------------------------------------
-
 // Class: UIEventTemplateSlot
 // Template slot for event binding (e.g., on:click).
 //
@@ -1649,16 +629,6 @@ class UIEventTemplateSlot {
 		return node ? new UIEventSlot(node, this, parent) : null;
 	}
 }
-
-// Class: UIEventSlot
-// Live event binding slot in a mounted instance.
-//
-// Attributes:
-// - `node`: Node - target element
-// - `template`: UIEventTemplateSlot - template definition
-// - `parent`: UIInstance - owning component
-// - `eventType`: string - DOM event type
-// - `handlerName`: string - behavior method name
 class UIEventSlot {
 	constructor(node, template, parent) {
 		this.node = node;
@@ -1668,13 +638,6 @@ class UIEventSlot {
 		this.handlerName = template.handlerName;
 	}
 }
-
-// ----------------------------------------------------------------------------
-//
-// SECTION: Template Definition
-//
-// ----------------------------------------------------------------------------
-
 // Class: UITemplate
 // Defines a reusable UI template parsed from HTML. Discovers slots, bindings,
 // and content slots. Provides factory methods for creating instances.
@@ -1810,13 +773,6 @@ class UITemplate {
 		return this;
 	}
 }
-
-// ----------------------------------------------------------------------------
-//
-// SECTION: Content Slot
-//
-// ----------------------------------------------------------------------------
-
 // Class: UISlot
 // Manages dynamic content rendering in an output slot. Handles lists,
 // dictionaries, applied templates, and plain values.
@@ -2134,13 +1090,6 @@ class UISlot {
 		return this;
 	}
 }
-
-// ----------------------------------------------------------------------------
-//
-// SECTION: Named Content Slots
-//
-// ----------------------------------------------------------------------------
-
 // Class: UIContentSlot
 // Manages a named <slot> element's content, handling fallback and provided
 // content with efficient diffing.
@@ -2278,13 +1227,6 @@ class UIContentSlot {
 		this._lastContentType = 0;
 	}
 }
-
-// ----------------------------------------------------------------------------
-//
-// SECTION: Component Instance
-//
-// ----------------------------------------------------------------------------
-
 // Class: UIInstance
 // A mounted instance of a UITemplate. Manages data binding, event handling,
 // lifecycle, and rendering.
@@ -2313,7 +1255,7 @@ class UIContentSlot {
 // - `_behaviorValues`: Map? - cached behavior results
 class UIInstance {
 	static _applyComponentRootClass(nodes, template) {
-		if (!ui.options.componentRootClass) {
+		if (!uiOptions.componentRootClass) {
 			return;
 		}
 		const componentName =
@@ -2582,7 +1524,7 @@ class UIInstance {
 	}
 
 	// ============================================================================
-	// SUBSECTION: Context (Provider/Inject)
+	// SUBContext (Provider/Inject)
 	// ============================================================================
 
 	// Provides `value` as `key` to child components. Returns this for chaining.
@@ -2619,7 +1561,7 @@ class UIInstance {
 	}
 
 	// ============================================================================
-	// SUBSECTION: Event Binding
+	// SUBEvent Binding
 	// ============================================================================
 
 	// Binds all event handlers for on:, in, and inout slots.
@@ -2723,7 +1665,7 @@ class UIInstance {
 	}
 
 	// ============================================================================
-	// SUBSECTION: Data/State
+	// SUBData/State
 	// ============================================================================
 
 	// Sets data and renders. Updates key for list rendering.
@@ -2839,21 +1781,25 @@ class UIInstance {
 	}
 
 	// ============================================================================
-	// SUBSECTION: Pub/Sub Events
+	// SUBPub/Sub Events
 	// ============================================================================
 
 	// FIXME: Remove, use pub() instead
 	send(event, data) {
-		console.warn(
-			`[select.ui] Deprecation: send() is deprecated, use pub() instead`,
+		logSelectUI(
+			"warn",
+			"UIInstance",
+			"send() is deprecated, use pub() instead",
 		);
 		return this.pub(event, data);
 	}
 
 	// FIXME: Remove, use pub() instead
 	emit(event, data) {
-		console.warn(
-			`[select.ui] Deprecation: emit() is deprecated, use pub() instead`,
+		logSelectUI(
+			"warn",
+			"UIInstance",
+			"emit() is deprecated, use pub() instead",
 		);
 		return this.pub(event, data);
 	}
@@ -2930,7 +1876,7 @@ class UIInstance {
 	}
 
 	// ============================================================================
-	// SUBSECTION: Rendering
+	// SUBRendering
 	// ============================================================================
 
 	// Mounts this instance into `node` (selector string or Node). Optionally
@@ -3061,9 +2007,11 @@ class UIInstance {
 						}
 					}
 
+					// TODO: What does it mean has behavior, and what do we
+					// do with the tracking proxy
 					if (hasBehavior) {
 						if (isGranular) {
-						const [trackedData, accessed] = createTrackingProxy(data);
+							const [trackedData, accessed] = createTrackingProxy(data);
 							v = hasBehavior(this, trackedData, null);
 							if (!this._behaviorDeps) {
 								this._behaviorDeps = new Map();
@@ -3153,68 +2101,11 @@ class UIInstance {
 		return this;
 	}
 }
-
-// ----------------------------------------------------------------------------
-//
-// SECTION: Component Registry
-//
-// ----------------------------------------------------------------------------
-
-const _registry = new Map();
-let _formatsVersion = 0;
-const _formatsStore = Object.create(null);
-_formatsStore.key = (value) => {
-	if (value === undefined || value === null) {
-		return "";
-	}
-	const text = typeof value === "string" ? value : String(value);
-	if (!text) {
-		return "";
-	}
-	return text
-		.trim()
-		.replace(/[^A-Za-z0-9_]+/g, "_")
-		.replace(/_+/g, "_")
-		.replace(/^_+|_+$/g, "");
-};
-const _formatsProxy = new Proxy(_formatsStore, {
-	set(target, property, value) {
-		target[property] = value;
-		_formatsVersion++;
-		return true;
-	},
-	deleteProperty(target, property) {
-		if (property in target) {
-			delete target[property];
-			_formatsVersion++;
-		}
-		return true;
-	},
-});
-
-// Function: Dynamic
-// Creates a component by type from the registry.
-//
-// Parameters:
-// - `type`: string|function - registered component name or component function
-// - `props`: Object? - properties to pass to component
-//
-// Returns: UIInstance|null
-
 const Dynamic = (type, props = {}) => {
-	const component = typeof type === "string" ? _registry.get(type) : type;
+	const component =
+		typeof type === "string" ? COMPONENT_REGISTRY.get(type) : type;
 	return component ? component(props) : null;
 };
-
-// Function: lazy
-// Creates a lazy-loading component wrapper.
-//
-// Parameters:
-// - `loader`: function - async function returning component module
-// - `placeholder`: any? - content to show while loading
-//
-// Returns: function - component factory that loads on first call
-
 const lazy = (loader, placeholder = null) => {
 	let tmpl = null;
 	let loading = false;
@@ -3228,13 +2119,6 @@ const lazy = (loader, placeholder = null) => {
 		return tmpl ? tmpl(data) : placeholder;
 	};
 };
-
-// ----------------------------------------------------------------------------
-//
-// SECTION: Web Components
-//
-// ----------------------------------------------------------------------------
-
 const Disconnect = Symbol.for("Disconnect");
 const Adopted = Symbol.for("Adopted");
 const BaseHTMLElement = globalThis.HTMLElement || class {};
@@ -3283,7 +2167,7 @@ const wcCreateAttributeBindings = (initial, options) => {
 		}
 	}
 
-	if (isPlainObject(options?.attributes)) {
+	if (isObject(options?.attributes)) {
 		for (const attribute in options.attributes) {
 			addBinding(attribute, options.attributes[attribute]);
 		}
@@ -3533,174 +2417,15 @@ const webcomponent = (
 	return WebComponent;
 };
 
-// ----------------------------------------------------------------------------
-//
-// SECTION: Factory Function
-//
-// ----------------------------------------------------------------------------
-
-// Function: ui
-// Factory that creates a component template from HTML or DOM nodes.
-// Accepts CSS selectors (queries document), HTML strings (parses), or nodes.
-//
-// Parameters:
-// - `selection`: string|Node|Array<Node> - HTML string, selector, or nodes
-// - `scope`: Node? - scope for selector queries (default: document)
-//
-// Returns: function - component factory function with template methods
-//
-// Example:
-// ```javascript
-// const Button = ui("<button out:text='label'></button>")
-//   .does({
-//     click: (self, data, event) => console.log("Clicked:", data.label)
-//   })
-//
-// const instance = Button({ label: "Click Me" }).mount(document.body)
-// ```
-
-const ui = (selection, scope = document) => {
-	if (selection === null || selection === undefined) {
-		throw new Error(
-			`ui() received ${selection === null ? "null" : "undefined"} as selection. ` +
-				`Expected a CSS selector string, an HTML string starting with "<", ` +
-				`a DOM Node, or an array of DOM Nodes. ` +
-				`Example: ui("#container") or ui("<div>Hello</div>")`,
-		);
-	}
-
-	if (typeof selection === "string") {
-		let nodes = [];
-		let autoFormatName = null;
-		const templateRegistry = templateRegistryFor(scope);
-		if (/^\s*</.test(selection)) {
-			const doc = parser.parseFromString(selection, "text/html");
-			pruneTemplateWhitespace(doc.body);
-			nodes = [...doc.body.childNodes];
-			if (nodes.length === 1) {
-				autoFormatName = templateFormatterName(nodes[0]);
-			}
-			registerTemplatesInNodes(nodes, templateRegistry, scope);
-		} else {
-			const template = templateRegistry.get(templateKey(selection));
-			if (template) {
-				nodes = [...template.content.childNodes];
-				autoFormatName = templateFormatterName(template);
-			} else {
-				let matchedTemplateCount = 0;
-				let matchedTemplateName = null;
-				const parent = scope?.querySelectorAll ? scope : document;
-				for (const node of parent.querySelectorAll(selection)) {
-					if (node.nodeName === "TEMPLATE") {
-						matchedTemplateCount += 1;
-						matchedTemplateName = templateFormatterName(node);
-						registerTemplateNode(node, templateRegistry, scope);
-						nodes = [...nodes, ...node.content.childNodes];
-					} else {
-						nodes.push(node);
-					}
-				}
-				if (matchedTemplateCount === 1) {
-					autoFormatName = matchedTemplateName;
-				}
-				registerTemplatesInNodes(nodes, templateRegistry, scope);
-			}
-		}
-		if (nodes.length === 0) {
-			logSelectUI("warn", "ui", "selector did not match any elements", {
-				selector: selection,
-				scope,
-			});
-		}
-		const component = createComponent(new UITemplate(nodes, scope, autoFormatName));
-		if (autoFormatName) {
-			ui.format(autoFormatName, component);
-		}
-		return component;
-	}
-
-	if (selection instanceof Node || Array.isArray(selection)) {
-		const nodes = selection instanceof Node ? [selection] : selection;
-		let autoFormatName = null;
-		if (nodes.length === 1) {
-			autoFormatName = templateFormatterName(nodes[0]);
-		}
-		registerTemplatesInNodes(nodes, templateRegistryFor(scope), scope);
-		const component = createComponent(
-			new UITemplate([...nodes], scope, autoFormatName),
-		);
-		if (autoFormatName) {
-			ui.format(autoFormatName, component);
-		}
-		return component;
-	}
-
-	throw new Error(
-		`ui() received an invalid selection type: ${typeof selection}. ` +
-			`Expected a string (CSS selector or HTML), a DOM Node, or an array of DOM Nodes. ` +
-			`Received: ${selection}`,
-	);
-};
-
-ui.formats = _formatsProxy;
-ui.options = {
-	componentRootClass: true,
-};
-
-ui.format = (name, formatter) => {
-	if (typeof name !== "string" || !name.trim()) {
-		logSelectUI("error", "ui.formats", "invalid formatter name", {
-			name,
-			formatter,
-		});
-		return ui;
-	}
-	ui.formats[name.trim()] = formatter;
-	return ui;
-};
-
-ui.unformat = (name) => {
-	if (typeof name === "string" && name.trim()) {
-		delete ui.formats[name.trim()];
-	}
-	return ui;
-};
-
-ui.resolveFormat = (name) => {
-	if (typeof name !== "string") {
-		return undefined;
-	}
-	return ui.formats[name.trim()];
-};
-
-// Registers `component` as `name` for Dynamic() resolution.
-ui.register = (name, component) => {
-	_registry.set(name, component);
-	return ui;
-};
-
-// Resolves registered component by `name`.
-ui.resolve = (name) => _registry.get(name);
-
-// ----------------------------------------------------------------------------
-//
-// SECTION: Exports
-//
-// ----------------------------------------------------------------------------
-
 export {
 	Adopted,
-	AppliedUITemplate,
+	COMPONENT_REGISTRY,
 	Disconnect,
 	Dynamic,
 	lazy,
-	len,
-	remap,
-	type,
 	UIAttributeSlot,
 	UIAttributeTemplateSlot,
 	UIContentSlot,
-	UIEvent,
 	UIEventSlot,
 	UIEventTemplateSlot,
 	UIInstance,
@@ -3708,9 +2433,8 @@ export {
 	UITemplate,
 	UITemplateSlot,
 	UIWebComponent,
-	ui,
 	webcomponent,
+	uiOptions,
 };
-export default ui;
 
 // EOF

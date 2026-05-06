@@ -12,7 +12,7 @@ Select Cells revolves around the concept of "cells"—reactive containers for da
 A `Cell` is a mutable reactive value. You can get its current value via `.value` and update it via `.set(value)`.
 
 ```javascript
-import { cell } from "./select.cells.js";
+import { cell } from "./cells.js";
 const count = cell(0);
 console.log(count.value); // 0
 count.set(1);
@@ -22,7 +22,7 @@ count.set(1);
 A `Derivation` is a reactive value computed from one or more source cells. It recomputes automatically when its dependencies change.
 
 ```javascript
-import { cell, derived } from "./select.cells.js";
+import { cell, derived } from "./cells.js";
 const count = cell(10);
 const doubled = derived([count], (val) => val * 2);
 console.log(doubled.value); // 20
@@ -32,7 +32,7 @@ console.log(doubled.value); // 20
 A `Deferred` cell is a mutable reactive value that delays its update by a specified amount of time. If multiple updates occur within that delay, only the last one is applied (debouncing).
 
 ```javascript
-import { deferred } from "./select.cells.js";
+import { deferred } from "./cells.js";
 const query = deferred("", 300);
 query.sub((val) => console.log("Searching for:", val));
 

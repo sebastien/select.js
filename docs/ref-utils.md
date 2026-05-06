@@ -1,4 +1,4 @@
-# Select Extra Reference Guide
+# Select Utils/Interaction/Routing Reference Guide
 
 Utility module with agnostic helpers for class-name composition, DOM event
 binding, selection list operations, dragging, textarea auto-resize, keyboard
@@ -6,14 +6,16 @@ handling, and route dispatch.
 
 ## Overview
 
-`select.extra.js` is intentionally independent from Select UI internals. Use it
-in plain DOM scripts, custom elements, or alongside any rendering library.
+Helpers are split across `select/utils.js`, `select/interaction.js`, and
+`select/routing.js` for clearer boundaries.
 
 ## Quick Start
 
 ```javascript
-import { add, bind, clsx, Keyboard, next, router, toggle } from "./select.extra.js";
-import { browser } from "./select.cells.js";
+import { add, clsx, next, toggle } from "./utils.js";
+import { bind, Keyboard } from "./interaction.js";
+import { router } from "./routing.js";
+import { browser } from "./browser.js";
 
 const input = document.querySelector("input");
 

@@ -42,14 +42,14 @@ make clean
 ### Imports
 ```javascript
 // Good - ES6 named imports
-import { walk, expand, cell, derived } from "./select.cells.js"
+import { walk, expand, cell, derived } from "./select/cells.js"
 
 // Good - Default imports with aliases
 import S from "../js/select.js"
-import ui from "@./select.ui.js"
+import ui from "@./ui.js"
 
 // Good - Multiple exports
-import { ui, remap } from "@./select.ui.js"
+import { ui, remap } from "@./select/ui.js"
 
 // HTML import map setup
 <script type="importmap">
@@ -165,7 +165,7 @@ export { {{name}} }
 #### Example
 
 ```javascript
-// Project: LittleMake
+// Project: Select.js
 // Author:  Sebastien Pierre
 // License: MIT
 // Created: 2024-01-01
@@ -248,20 +248,6 @@ Biome config is in `biome.jsonc`.
 - Manual testing via HTML files in `examples/` and `src/html/`
 - Run `make run` to start server and test in browser
 - Open `examples/todo.html`, `examples/ui-javascript.html`, etc.
-
-## Architecture
-
-Three main modules that work independently:
-1. **select.js** - Core DOM/SVG manipulation (jQuery-like API)
-2. **select.cells.js** - Reactive state management (cells/derivations)
-3. **select.ui.js** - UI templating library
-
-## Distribution
-
-Built files go to `/dist/` as both regular and minified versions:
-- `select.js` / `select.min.js`
-- `select.cells.js` / `select.cells.min.js`
-- `select.ui.js` / `select.ui.min.js`
 
 ## Important
 - DO NOT use version control, let the user manage commits

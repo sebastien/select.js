@@ -1,5 +1,11 @@
 // SEE: https://observablehq.com/@sebastien/icons
+import { logger } from "./utils.js";
+
 const SVG = "http://www.w3.org/2000/svg";
+const _iconsLogger = logger("select.icons");
+const logIcons = (level, scope, message, details = {}) => {
+	_iconsLogger[level](`${scope}: ${message}, details`, details);
+};
 const ICON_NAME = "__ICON_NAME__";
 const ICON_SOURCE = "__ICON_SOURCE__";
 const IconContainer = Object.entries({
@@ -114,16 +120,18 @@ function load(
 				const icon = symbol.firstChild;
 				// TODO: Typically the main SVG node has `width`, `height` and
 				// `viewBox`, which we should use to get the ideal size.
-				if (icon && icon.attributes) {
-					["stroke-width", "fill", "stroke"].forEach(
-						(_) => icon.hasAttribute(_) && icon.setAttribute(_, ""),
-					);
+				if (icon?.attributes) {
+					["stroke-width", "fill", "stroke"].forEach((_) => {
+						if (icon.hasAttribute(_)) {
+							icon.setAttribute(_, "");
+						}
+					});
 				} else {
-					console.error(`Icon "${name}" should have a content, got:`, text);
+					logIcons("error", "icons.load", "icon should have content", { name, text });
 				}
-				Object.entries(source.style ?? {}).forEach(([k, v]) =>
-					icon.setAttribute(k, `${v}`),
-				);
+				Object.entries(source.style ?? {}).forEach(([k, v]) => {
+					icon.setAttribute(k, `${v}`);
+				});
 				if (!container.parentElement) {
 					document.body.appendChild(container);
 				}
@@ -131,11 +139,7 @@ function load(
 				return symbol;
 			})
 			.catch((reason) => {
-				console.warn(
-					"icons",
-					`Could not load icon "${name}" from <${url}>: ${reason}`,
-					symbol,
-				);
+				logIcons("warn", "icons.load", `could not load icon from <${url}>`, { name, reason, symbol });
 			});
 		cache.set(url, res);
 		return res;
@@ -163,23 +167,17 @@ function icon(
 	);
 	const icon = load(name, source, container).then((symbol) => {
 		if (!symbol) {
-			console.warn(
-				`[select.icons] Icon missing from source '${source}:${name}`,
-				{ name, source },
-			);
+			logIcons("warn", "icons.icon", "icon missing from source", { name, source });
 		} else {
 			["viewBox"].forEach((_) => {
 				const icon = symbol.firstChild;
-				if (icon && icon.getAttribute) {
+				if (icon?.getAttribute) {
 					const viewBox = icon.getAttribute("viewBox");
 					if (viewBox) {
 						node.setAttribute("viewBox", viewBox);
 					}
 				} else {
-					console.warn(
-						`[select.icons] Could not load icons '${source}:${name}`,
-						{ symbol, name, source },
-					);
+					logIcons("warn", "icons.icon", "could not load icon viewBox", { symbol, name, source });
 				}
 			});
 		}
@@ -212,13 +210,14 @@ function icon(
 				node.classList.remove("loading");
 			});
 			return node;
-		default:
+		default: {
 			const use = document.createElementNS(SVG, "use");
 			use.classList.add(className);
 			Object.assign(node.style, style);
 			use.setAttribute("href", `#icon-${name}-${source}`);
 			node.appendChild(use);
 			return node;
+		}
 	}
 }
 

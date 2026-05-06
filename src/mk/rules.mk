@@ -58,32 +58,32 @@ ci:
 	fi
 	@echo "[CI] OK"
 
-dist/%.js: src/js/%.js
+dist/select/%.js: src/js/select/%.js
 	@mkdir -p $(dir $@); true
-	cat src/js/$*.js > "$@"
+	cat src/js/select/$*.js > "$@"
 	echo "[DIST] $$(du -hs $@)"
 
-dist/select.all.js: src/js/select.all.js $(SOURCES_JS)
+dist/select/index.js: src/js/select/index.js $(SOURCES_JS)
 	@mkdir -p $(dir $@); true
 	@$(CMD) bun build --bundle --format=esm --outfile="$@" "$<"
 	echo "[DIST] $$(du -hs $@)"
 
-dist/%.min.js: dist/%.js
+dist/select/%.min.js: dist/select/%.js
 	@mkdir -p $(dir $@); true
 	@$(CMD) bun build --minify --outfile="$@" "$<"
 	echo "[DIST] $$(du -hs $@)"
 
-dist/select.all.min.js: src/js/select.all.js $(SOURCES_JS)
+dist/select/index.min.js: src/js/select/index.js $(SOURCES_JS)
 	@mkdir -p $(dir $@); true
 	@$(CMD) bun build --bundle --format=esm --minify --outfile="$@" "$<"
 	echo "[DIST] $$(du -hs $@)"
 
-dist/selectjs.js: src/js/select.all.js $(SOURCES_JS)
+dist/selectjs.js: src/js/select/index.js $(SOURCES_JS)
 	@mkdir -p $(dir $@); true
 	@$(CMD) bun build --bundle --format=esm --outfile="$@" "$<"
 	echo "[DIST] $$(du -hs $@)"
 
-dist/selectjs.min.js: src/js/select.all.js $(SOURCES_JS)
+dist/selectjs.min.js: src/js/select/index.js $(SOURCES_JS)
 	@mkdir -p $(dir $@); true
 	@$(CMD) bun build --bundle --format=esm --minify --outfile="$@" "$<"
 	echo "[DIST] $$(du -hs $@)"

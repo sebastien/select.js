@@ -1,8 +1,8 @@
-# Select Cells (`select.cells.js`)
+# Select Cells (`select/cells.js`)
 
 ## Fine-grained reactive values and derivations
 
-Select Cells provides minimal reactive primitives used by `select.ui.js` and
+Select Cells provides minimal reactive primitives used by `select/ui.js` and
 usable on their own. It focuses on explicit updates, path-based selection,
 and lightweight pub/sub.
 
@@ -51,7 +51,7 @@ and lightweight pub/sub.
 ### Using
 
 ```javascript
-import cell, { derived } from "@./select.cells.js"
+import cell, { derived } from "@./cells.js"
 
 const count = cell(0)
 const doubled = derived([count], (n) => n * 2)
@@ -67,7 +67,7 @@ count.set(2)
 Browser-backed state example:
 
 ```javascript
-import { browser } from "@./select.cells.js"
+import { browser } from "@./browser.js"
 
 const state = browser()
 const sidebar = state.query.select("sidebar")
@@ -99,7 +99,7 @@ Cells are designed to stay small. Prefer extension by composition:
 wrap `cell()` and `derived()` in module-specific helpers for domain state.
 
 ```javascript
-import cell, { derived } from "@./select.cells.js"
+import cell, { derived } from "@./cells.js"
 
 export const counter = (initial = 0) => {
   const value = cell(initial)
