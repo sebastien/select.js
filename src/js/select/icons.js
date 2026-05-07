@@ -131,7 +131,10 @@ function load(
 						}
 					});
 				} else {
-					log.error("icons.load: icon should have content, details", { name, text });
+					log.error("icons.load: icon should have content, details", {
+						name,
+						text,
+					});
 				}
 				Object.entries(source.style ?? {}).forEach(([k, v]) => {
 					icon.setAttribute(k, `${v}`);
@@ -175,7 +178,10 @@ function icon(
 	);
 	const icon = load(name, source, container).then((symbol) => {
 		if (!symbol) {
-			log.warn("icons.icon: icon missing from source, details", { name, source });
+			log.warn("icons.icon: icon missing from source, details", {
+				name,
+				source,
+			});
 		} else {
 			["viewBox"].forEach((_) => {
 				const icon = symbol.firstChild;
@@ -195,12 +201,16 @@ function icon(
 		}
 		return symbol;
 	});
+	const classes = (className || "")
+		.trim()
+		.split(" ")
+		.map((_) => _.trim())
+		.filter((_) => _.length);
 	switch (mode) {
 		// We support an inline mode, which is necessary for web components.
 		case "inline":
 			Object.assign(node.style, style);
-			node.classList.add(className);
-			node.classList.add("loading");
+			classes.forEach((_) => node.classList.add(_));
 			icon.then((symbol) => {
 				if (!symbol) {
 					node.classList.add("missing");
@@ -224,7 +234,7 @@ function icon(
 			return node;
 		default: {
 			const use = document.createElementNS(SVG, "use");
-			use.classList.add(className);
+			use.classList.forEach((_) => node.classList.add(_));
 			Object.assign(node.style, style);
 			use.setAttribute("href", `#icon-${name}-${source}`);
 			node.appendChild(use);
