@@ -30,10 +30,7 @@
 // instance.set({ count: cell(0) })
 // ```
 
-import {
-	len,
-	remap,
-} from "../utils.js";
+import { len } from "../utils.js";
 
 import {
 	FORMATS_PROXY,
@@ -208,6 +205,42 @@ const ui = (selection, scope = document) => {
 const formats = FORMATS_PROXY;
 const options = uiOptions;
 
+// Maps `f` over collection entries while preserving the original container.
+function remap(value, f) {
+	if (
+		value === null ||
+		value === undefined ||
+		typeof value === "number" ||
+		typeof value === "string"
+	) {
+		return value;
+	} else if (Array.isArray(value)) {
+		const n = value.length;
+		const res = new Array(n);
+		for (let i = 0; i < n; i++) {
+			res[i] = f(value[i], i);
+		}
+		return res;
+	} else if (value instanceof Map) {
+		const res = new Map();
+		for (const [k, v] of value.entries()) {
+			res.set(k, f(v, k));
+		}
+		return res;
+	} else if (value instanceof Set) {
+		const res = new Set();
+		for (const v of value) {
+			res.add(f(v, undefined));
+		}
+		return res;
+	}
+	const res = {};
+	for (const k in value) {
+		res[k] = f(value[k], k);
+	}
+	return res;
+}
+
 function format(name, formatter) {
 	if (typeof name !== "string" || !name.trim()) {
 		logSelectUI("error", "ui.formats", "invalid formatter name", {
@@ -234,6 +267,10 @@ function formatter(name) {
 	return ui.formats[name.trim()];
 };
 
+function resolveFormat(name) {
+	return formatter(name);
+}
+
 // Registers `component` as `name` for Dynamic() resolution.
 function register (name, component) {
 	COMPONENT_REGISTRY.set(name, component);
@@ -243,7 +280,16 @@ function register (name, component) {
 // Resolves registered component by `name`.
 function resolve (name){return COMPONENT_REGISTRY.get(name)};
 
-Object.assign(ui, {formats, options, format, unformat, formatter, register, resolve});
+Object.assign(ui, {
+	formats,
+	options,
+	format,
+	unformat,
+	formatter,
+	resolveFormat,
+	register,
+	resolve,
+});
 
 // ----------------------------------------------------------------------------
 //

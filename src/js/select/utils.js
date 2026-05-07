@@ -189,10 +189,6 @@ function eq(a, b, limit = undefined) {
 	return false;
 }
 
-function shallowEq(a, b) {
-	return eq(a, b, 1);
-}
-
 function len(v) {
 	if (v === undefined || v === null) {
 		return 0;
@@ -609,7 +605,6 @@ export {
 	bool,
 	clsx,
 	cmp,
-	createTrackingProxy,
 	expand,
 	eq,
 	extractor,
@@ -633,7 +628,6 @@ export {
 	remap,
 	remove,
 	sanitizeValue,
-	shallowEq,
 	shortdict,
 	shortword,
 	sorted,

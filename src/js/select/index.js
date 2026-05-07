@@ -6,26 +6,25 @@
 // Module: select/index
 // Aggregates the core and companion modules into a single import surface.
 
-import select from "./query.js"
-import cells from "./cells.js"
-import fastdom from "./fastdom.js"
-import icons from "./icons.js"
-import ui from "./ui/index.js"
-import * as interaction from "./interaction.js"
-import * as routing from "./routing.js"
-import * as browser from "./browser.js"
-import * as utils from "./utils.js"
+import select from "./query.js";
+import cells from "./cells.js";
+import fastdom from "./fastdom.js";
+import icons from "./icons.js";
+import ui from "./ui/index.js";
+import * as interaction from "./interaction.js";
+import * as routing from "./routing.js";
+import * as utils from "./utils.js";
 
-export * from "./query.js"
-export * from "./cells.js"
-export * from "./fastdom.js"
-export * from "./icons.js"
-export * from "./ui/index.js"
-export * from "./interaction.js"
-export * from "./routing.js"
-export * from "./browser.js"
-export * from "./utils.js"
+export * from "./query.js";
+export * from "./cells.js";
+export * from "./fastdom.js";
+export * from "./icons.js";
+export * from "./ui/index.js";
+export * from "./interaction.js";
+export * from "./routing.js";
+export * from "./browser.js";
+export * from "./utils.js";
 
-export { browser, cells, fastdom, icons, interaction, routing, select, ui, utils }
+export { cells, fastdom, icons, interaction, routing, select, ui, utils };
 
 // EOF

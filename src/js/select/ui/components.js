@@ -7,7 +7,7 @@
 // Core component engine: template slots, reactive instances, rendering
 // pipeline, and web component wrappers.
 
-import { asText, eq, expand, isObject, remap, shallowEq } from "../utils.js";
+import { asText, eq, expand, isObject } from "../utils.js";
 
 import {
 	AppliedUITemplate,
@@ -51,6 +51,42 @@ const COMPONENT_REGISTRY = new Map();
 // Module-level options used by UIInstance
 const uiOptions = {
 	componentRootClass: true,
+};
+
+// Maps `f` over the entries of `value` while preserving container shape.
+const remapCollection = (value, f) => {
+	if (
+		value === null ||
+		value === undefined ||
+		typeof value === "number" ||
+		typeof value === "string"
+	) {
+		return value;
+	} else if (Array.isArray(value)) {
+		const n = value.length;
+		const res = new Array(n);
+		for (let i = 0; i < n; i++) {
+			res[i] = f(value[i], i);
+		}
+		return res;
+	} else if (value instanceof Map) {
+		const res = new Map();
+		for (const [k, v] of value.entries()) {
+			res.set(k, f(v, k));
+		}
+		return res;
+	} else if (value instanceof Set) {
+		const res = new Set();
+		for (const v of value) {
+			res.add(f(v, undefined));
+		}
+		return res;
+	}
+	const res = {};
+	for (const k in value) {
+		res[k] = f(value[k], k);
+	}
+	return res;
 };
 
 class UITemplateSlot {
@@ -498,6 +534,16 @@ class UIAttributeSlot {
 			this._renderClass(value);
 		} else if (this.attrName === "style") {
 			this._renderStyle(value);
+		} else if (this.attrName === "text") {
+			this._renderText(value);
+		} else if (this.attrName === "value") {
+			this._renderValue(value);
+		} else if (
+			this.attrName === "open" ||
+			this.attrName === "checked" ||
+			this.attrName === "selected"
+		) {
+			this._renderBooleanProperty(value);
 		} else {
 			this._renderAttr(value);
 		}
@@ -579,6 +625,35 @@ class UIAttributeSlot {
 				this.node.style.setProperty(prop, val);
 				this.appliedStyles.set(prop, val);
 			}
+		}
+	}
+
+	_renderText(value) {
+		setNodeText(this.node, asText(value));
+	}
+
+	_renderValue(value) {
+		const next = value == null ? "" : String(value);
+		if ("value" in this.node && this.node.value !== next) {
+			this.node.value = next;
+		}
+		if (
+			this.node.nodeType === Node.ELEMENT_NODE &&
+			this.node.getAttribute("value") !== next
+		) {
+			this.node.setAttribute("value", next);
+		}
+	}
+
+	_renderBooleanProperty(value) {
+		const next = !!value;
+		if (this.attrName in this.node && this.node[this.attrName] !== next) {
+			this.node[this.attrName] = next;
+		}
+		if (next) {
+			this.node.setAttribute(this.attrName, "");
+		} else {
+			this.node.removeAttribute(this.attrName);
 		}
 	}
 
@@ -728,7 +803,7 @@ class UITemplate {
 
 	// Maps `data` through this template, returning array of AppliedUITemplate.
 	map(data) {
-		return remap(data, (v) => new AppliedUITemplate(this, v));
+		return remapCollection(data, (v) => new AppliedUITemplate(this, v));
 	}
 
 	// Sets the state initializer function. Called as `init()` returning state.
@@ -1151,7 +1226,7 @@ class UIContentSlot {
 			if (
 				this.content instanceof UIInstance &&
 				this.content.template === content.template &&
-				shallowEq(this._lastContent, content.data)
+				eq(this._lastContent, content.data, 1)
 			) {
 				this._lastWasFallback = false;
 				this._lastContent = content.data;

@@ -504,10 +504,19 @@ const resolveSourceValue = (data, sourceKey) => {
 	if (!sourceKey) {
 		return undefined;
 	}
-	if (!sourceKey.includes(".")) {
-		return data ? data[sourceKey] : undefined;
+	const normalizedKey =
+		sourceKey === "data"
+			? ""
+			: sourceKey.startsWith("data.")
+				? sourceKey.slice(5)
+				: sourceKey;
+	if (!normalizedKey) {
+		return data;
 	}
-	return resolveDataPath(data, sourceKey.split("."));
+	if (!normalizedKey.includes(".")) {
+		return data ? data[normalizedKey] : undefined;
+	}
+	return resolveDataPath(data, normalizedKey.split("."));
 };
 
 const resolveTemplateTokens = (self, tokens, data) => {
