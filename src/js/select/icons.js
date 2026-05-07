@@ -1,11 +1,15 @@
+// Project: Select.js
+// Author:  Sebastien Pierre
+// License: MIT
+// Created: 2024-01-01
+
+// Module: select/icons
+// SVG icon registry and loader utilities.
 // SEE: https://observablehq.com/@sebastien/icons
 import { logger } from "./utils.js";
 
 const SVG = "http://www.w3.org/2000/svg";
-const _iconsLogger = logger("select.icons");
-const logIcons = (level, scope, message, details = {}) => {
-	_iconsLogger[level](`${scope}: ${message}, details`, details);
-};
+const log = logger("select.icons");
 const ICON_NAME = "__ICON_NAME__";
 const ICON_SOURCE = "__ICON_SOURCE__";
 const IconContainer = Object.entries({
@@ -127,7 +131,7 @@ function load(
 						}
 					});
 				} else {
-					logIcons("error", "icons.load", "icon should have content", { name, text });
+					log.error("icons.load: icon should have content, details", { name, text });
 				}
 				Object.entries(source.style ?? {}).forEach(([k, v]) => {
 					icon.setAttribute(k, `${v}`);
@@ -139,7 +143,11 @@ function load(
 				return symbol;
 			})
 			.catch((reason) => {
-				logIcons("warn", "icons.load", `could not load icon from <${url}>`, { name, reason, symbol });
+				log.warn(`icons.load: could not load icon from <${url}>, details`, {
+					name,
+					reason,
+					symbol,
+				});
 			});
 		cache.set(url, res);
 		return res;
@@ -167,7 +175,7 @@ function icon(
 	);
 	const icon = load(name, source, container).then((symbol) => {
 		if (!symbol) {
-			logIcons("warn", "icons.icon", "icon missing from source", { name, source });
+			log.warn("icons.icon: icon missing from source, details", { name, source });
 		} else {
 			["viewBox"].forEach((_) => {
 				const icon = symbol.firstChild;
@@ -177,7 +185,11 @@ function icon(
 						node.setAttribute("viewBox", viewBox);
 					}
 				} else {
-					logIcons("warn", "icons.icon", "could not load icon viewBox", { symbol, name, source });
+					log.warn("icons.icon: could not load icon viewBox, details", {
+						symbol,
+						name,
+						source,
+					});
 				}
 			});
 		}

@@ -230,6 +230,6 @@ export {
 	routed,
 	router,
 	splitPath,
-}
+};
 
 // EOF

@@ -32,15 +32,14 @@
 import {
 	access,
 	expand as expandValue,
+	logger,
 	Nothing,
 	path as pathify,
 	reassign,
 	Something,
 } from "./utils.js";
 
-const logSelectCells = (level, scope, message, details = {}) => {
-	console[level](`[select.cells] ${scope}: ${message}, details`, details);
-};
+const log = logger("select.cells");
 
 // ----------------------------------------------------------------------------
 //
@@ -460,7 +459,7 @@ class Cell extends Reactive {
 						return;
 					}
 					this.isPending = false;
-					logSelectCells("error", "Cell._update", "cell promise rejected", {
+					log.error("Cell._update: cell promise rejected, details", {
 						error,
 						path,
 					});
@@ -598,12 +597,9 @@ class Derivation extends Reactive {
 						return;
 					}
 					this.isPending = false;
-					logSelectCells(
-						"error",
-						"Derivation._apply",
-						"derived promise rejected",
-						{ error },
-					);
+					log.error("Derivation._apply: derived promise rejected, details", {
+						error,
+					});
 				},
 			);
 		}

@@ -127,27 +127,123 @@ function reassign(scope, p, value, merge = undefined, offset = 0) {
 	return root;
 }
 
-function sanitizeValue(value) {
-	if (value === undefined) return undefined;
-	if (Array.isArray(value)) {
+class Sanitizer {
+	constructor(options = {}) {
+		this.dropUndefined = options.dropUndefined !== false;
+		this.compactArrays = options.compactArrays !== false;
+		this.keepNonPlainObjects = options.keepNonPlainObjects !== false;
+		this.sanitizeTextHook =
+			typeof options.sanitizeText === "function"
+				? options.sanitizeText
+				: undefined;
+		this.sanitizeKeyHook =
+			typeof options.sanitizeKey === "function"
+				? options.sanitizeKey
+				: undefined;
+		this.sanitizeScalarHook =
+			typeof options.sanitizeScalar === "function"
+				? options.sanitizeScalar
+				: undefined;
+		this.onDrop =
+			typeof options.onDrop === "function" ? options.onDrop : undefined;
+	}
+
+	notify(reason, details = undefined) {
+		if (this.onDrop) this.onDrop(reason, details);
+	}
+
+	sanitize(value) {
+		return this.sanitizeAny(value, undefined, undefined);
+	}
+
+	sanitizeAny(value, key, parent) {
+		if (value === undefined && this.dropUndefined) {
+			this.notify("undefined", { key, parent, value });
+			return undefined;
+		}
+		if (Array.isArray(value)) return this.sanitizeArray(value);
+		if (isObject(value)) return this.sanitizeObject(value);
+		if (
+			value !== null &&
+			typeof value === "object" &&
+			!this.keepNonPlainObjects
+		) {
+			this.notify("unsupported-object", { key, parent, value });
+			return undefined;
+		}
+		if (typeof value === "string") return this.sanitizeText(value, key, parent);
+		return this.sanitizeScalar(value, key, parent);
+	}
+
+	sanitizeText(value, key, parent) {
+		return this.sanitizeTextHook
+			? this.sanitizeTextHook(value, { key, parent, sanitizer: this })
+			: value;
+	}
+
+	sanitizeKey(key, value, parent) {
+		if (!this.sanitizeKeyHook) return key;
+		return this.sanitizeKeyHook(key, {
+			value,
+			parent,
+			sanitizer: this,
+		});
+	}
+
+	sanitizeScalar(value, key, parent) {
+		return this.sanitizeScalarHook
+			? this.sanitizeScalarHook(value, { key, parent, sanitizer: this })
+			: value;
+	}
+
+	sanitizeArray(value) {
 		const res = [];
 		for (let i = 0; i < value.length; i++) {
-			const item = sanitizeValue(value[i]);
-			if (item !== undefined) res.push(item);
+			const item = this.sanitizeAny(value[i], i, value);
+			if (item === undefined && this.dropUndefined) {
+				if (!this.compactArrays) res.push(undefined);
+				continue;
+			}
+			res.push(item);
 		}
 		return res;
 	}
-	if (isObject(value)) {
+
+	sanitizeObject(value) {
 		const res = {};
 		for (const k in value) {
 			if (!Object.hasOwn(value, k)) continue;
-			const item = sanitizeValue(value[k]);
-			if (item !== undefined) res[k] = item;
+			const safeKey = this.sanitizeKey(k, value[k], value);
+			if (safeKey === undefined || safeKey === null || safeKey === "") {
+				this.notify("key", { key: k, value: value[k], parent: value });
+				continue;
+			}
+			const item = this.sanitizeAny(value[k], safeKey, value);
+			if (item === undefined && this.dropUndefined) continue;
+			res[safeKey] = item;
 		}
 		return res;
 	}
-	return value;
 }
+
+const DEFAULT_SANITIZER = new Sanitizer();
+const SANITIZER_BY_OPTIONS = new WeakMap();
+
+function sanitizer(options = undefined) {
+	if (!options) return DEFAULT_SANITIZER;
+	if (options instanceof Sanitizer) return options;
+	let cached = SANITIZER_BY_OPTIONS.get(options);
+	if (!cached) {
+		cached = new Sanitizer(options);
+		SANITIZER_BY_OPTIONS.set(options, cached);
+	}
+	return cached;
+}
+
+function sanitize(value, options = undefined) {
+	return sanitizer(options).sanitize(value);
+}
+sanitize.value = (value, options = undefined) => sanitize(value, options);
 
 function eq(a, b, limit = undefined) {
 	if (Object.is(a, b)) {
@@ -204,7 +300,7 @@ function len(v) {
 	return 1;
 }
 
-const queueMicro =
+const microtask =
 	typeof globalThis.queueMicrotask === "function"
 		? globalThis.queueMicrotask.bind(globalThis)
 		: (fn) => Promise.resolve().then(fn);
@@ -623,11 +719,13 @@ export {
 	next,
 	path,
 	predicate,
-	queueMicro,
+	microtask,
 	reassign,
 	remap,
 	remove,
-	sanitizeValue,
+	sanitize,
+	sanitizer,
+	Sanitizer,
 	shortdict,
 	shortword,
 	sorted,

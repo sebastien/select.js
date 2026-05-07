@@ -1,6 +1,6 @@
-// Project: select.js
+// Project: Select.js
 // Author:  Sebastien Pierre
-// License: BSD-3-Clause
+// License: MIT
 // Created: 2026-04-29
 
 // Module: select/index

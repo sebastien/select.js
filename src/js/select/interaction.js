@@ -155,6 +155,6 @@ const Keyboard = {
 	},
 }
 
-export { Keyboard, autoresize, bind, drag, dragtarget, target, unbind }
+export { Keyboard, autoresize, bind, drag, dragtarget, target, unbind };
 
 // EOF

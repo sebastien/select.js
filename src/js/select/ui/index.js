@@ -35,7 +35,7 @@ import { len } from "../utils.js";
 import {
 	FORMATS_PROXY,
 	HTML,
-	logSelectUI,
+	log,
 	pruneTemplateWhitespace,
 	TemplateRegistry,
 	type,
@@ -159,7 +159,7 @@ const ui = (selection, scope = document) => {
 			}
 		}
 		if (nodes.length === 0) {
-			logSelectUI("warn", "ui", "selector did not match any elements", {
+			log.warn("ui: selector did not match any elements, details", {
 				selector: selection,
 				scope,
 			});
@@ -243,7 +243,7 @@ function remap(value, f) {
 
 function format(name, formatter) {
 	if (typeof name !== "string" || !name.trim()) {
-		logSelectUI("error", "ui.formats", "invalid formatter name", {
+		log.error("ui.formats: invalid formatter name, details", {
 			name,
 			formatter,
 		});

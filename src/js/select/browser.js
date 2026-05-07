@@ -11,15 +11,14 @@ import {
 	access,
 	eq,
 	isObject,
+	logger,
 	Nothing,
 	path as pathify,
 	reassign,
-	sanitizeValue,
+	sanitize,
 } from "./utils.js";
 
-const logSelectBrowser = (level, scope, message, details = {}) => {
-	console[level](`[select.browser] ${scope}: ${message}, details`, details);
-};
+const log = logger("select.browser");
 
 class RecordFormat {
 	static UNSAFE_LOCATION_KEY = /^(?:__proto__|prototype|constructor)$/;
@@ -515,7 +514,7 @@ const JSONSerializer = {
 		return JSON.parse(value);
 	},
 	format(value) {
-		return JSON.stringify(sanitizeValue(value));
+		return JSON.stringify(sanitize(value));
 	},
 };
 
@@ -554,9 +553,9 @@ class LocationValueCell extends Cell {
 	static mergeAtPath(scope, p, value) {
 		if (!p || p.length === 0) return value;
 		if (p.length === 1 && isObject(scope) && isObject(value)) {
-			return sanitizeValue({ ...scope, ...value });
+			return sanitize({ ...scope, ...value });
 		}
-		return sanitizeValue(reassign(scope, p, value));
+		return sanitize(reassign(scope, p, value));
 	}
 
 	set(value, p = Nothing, options = false) {
@@ -565,7 +564,7 @@ class LocationValueCell extends Cell {
 		let next = this.merge
 			? LocationValueCell.mergeAtPath(this.value, resolvedPath, value)
 			: resolvedPath
-				? sanitizeValue(reassign(this.value, resolvedPath, value))
+				? sanitize(reassign(this.value, resolvedPath, value))
 				: value;
 		if (this.normalize) next = this.normalize(next);
 		if (!force && eq(this.value, next)) return this;
@@ -603,15 +602,10 @@ class LocationState {
 			typeof options.warn === "function"
 				? options.warn
 				: (scope, error, details = {}) =>
-						logSelectBrowser(
-							"warn",
-							scope,
-							error?.message || "browser warning",
-							{
-								error,
-								...details,
-							},
-						);
+						log.warn(`${scope}: ${error?.message || "browser warning"}, details`, {
+							error,
+							...details,
+						});
 		this.mode = options.mode === "push" ? "push" : "replace";
 		const querySerializer =
 			options.query &&
@@ -741,7 +735,7 @@ class LocalStorageCell extends Cell {
 		const next = this.merge
 			? LocationValueCell.mergeAtPath(this.value, resolvedPath, value)
 			: resolvedPath
-				? sanitizeValue(reassign(this.value, resolvedPath, value))
+				? sanitize(reassign(this.value, resolvedPath, value))
 				: value;
 		if (!force && eq(this.value, next)) return this;
 		this._update(

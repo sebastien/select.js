@@ -14,7 +14,7 @@ import {
 	createWhenPredicate,
 	getInputBindingProperty,
 	getInputEventValue,
-	logSelectUI,
+	log,
 	resolveSourceValue,
 	resolveTemplateTokens,
 	scheduleRenderTask,
@@ -142,7 +142,7 @@ class UITemplateSlot {
 			if (name === "out") {
 				const parsed = TemplateParser.parsePipedBinding(k);
 				if (!parsed) {
-					logSelectUI("warn", "UITemplate", "invalid [out] binding", {
+					log.warn("UITemplate: invalid [out] binding, details", {
 						binding: k,
 						node,
 						example: 'out="slot|Formatter|Formatter"',
@@ -199,29 +199,22 @@ class UITemplateSlot {
 				if (!whenKey) {
 					const outKey = node.getAttribute("out")?.trim();
 					if (!outKey) {
-						logSelectUI(
-							"error",
-							"UITemplate",
-							"unable to infer [when] key from [out]",
-							{
-								expression: expr,
-								node,
-								supported: [
-									'when out="slot"',
-									'when="?" out="slot"',
-									'when="!" out="slot"',
-									'when="!?" out="slot"',
-								],
-							},
-						);
+						log.error("UITemplate: unable to infer [when] key from [out], details", {
+							expression: expr,
+							node,
+							supported: [
+								'when out="slot"',
+								'when="?" out="slot"',
+								'when="!" out="slot"',
+								'when="!?" out="slot"',
+							],
+						});
 						return;
 					}
 					const outBinding = TemplateParser.parsePipedBinding(outKey);
 					if (!outBinding?.sourceKey) {
-						logSelectUI(
-							"error",
-							"UITemplate",
-							"unable to infer [when] key from [out] binding",
+						log.error(
+							"UITemplate: unable to infer [when] key from [out] binding, details",
 							{ expression: expr, out: outKey, node },
 						);
 						return;
@@ -249,7 +242,7 @@ class UITemplateSlot {
 			}
 
 			node.removeAttribute("when");
-			logSelectUI("error", "UITemplate", "unsafe [when] expression blocked", {
+			log.error("UITemplate: unsafe [when] expression blocked, details", {
 				expression: expr,
 				node,
 				supported: [
@@ -1341,10 +1334,8 @@ class UIInstance {
 			return;
 		}
 		if (/\s/.test(componentName)) {
-			logSelectUI(
-				"warn",
-				"UIInstance",
-				"component root class skipped because name contains whitespace",
+			log.warn(
+				"UIInstance: component root class skipped because name contains whitespace, details",
 				{ componentName, template },
 			);
 			return;
@@ -1485,6 +1476,7 @@ class UIInstance {
 		this._renderQueued = false;
 		this._reactiveDataSubs = undefined;
 		this._domListeners = undefined;
+		this._hasRendered = false;
 		if (template.initializer) {
 			const state = template.initializer();
 			if (state) {
@@ -1568,7 +1560,7 @@ class UIInstance {
 			try {
 				this.template.doCleanup(this, this.data || {});
 			} catch (err) {
-				logSelectUI("error", "UIInstance.dispose", "cleanup threw", {
+				log.error("UIInstance.dispose: cleanup threw, details", {
 					error: err,
 					instance: this,
 				});
@@ -1861,21 +1853,13 @@ class UIInstance {
 
 	// FIXME: Remove, use pub() instead
 	send(event, data) {
-		logSelectUI(
-			"warn",
-			"UIInstance",
-			"send() is deprecated, use pub() instead",
-		);
+		log.warn("UIInstance: send() is deprecated, use pub() instead");
 		return this.pub(event, data);
 	}
 
 	// FIXME: Remove, use pub() instead
 	emit(event, data) {
-		logSelectUI(
-			"warn",
-			"UIInstance",
-			"emit() is deprecated, use pub() instead",
-		);
+		log.warn("UIInstance: emit() is deprecated, use pub() instead");
 		return this.pub(event, data);
 	}
 
@@ -1960,10 +1944,8 @@ class UIInstance {
 		if (typeof node === "string") {
 			const n = document.querySelector(node);
 			if (!n) {
-				logSelectUI(
-					"error",
-					"UIInstance.mount",
-					"selector did not match, cannot mount component",
+				log.error(
+					"UIInstance.mount: selector did not match, cannot mount component, details",
 					{ selector: node, component: this.template },
 				);
 				return this;
@@ -1984,20 +1966,21 @@ class UIInstance {
 					}
 				}
 			} else {
-				logSelectUI("warn", "UIInstance.mount", "already mounted", {
+				log.warn("UIInstance.mount: already mounted, details", {
 					nodes: this.nodes,
 				});
 			}
 		} else {
-			logSelectUI(
-				"warn",
-				"UIInstance.mount",
-				"unable to mount as node is undefined",
-				{ node, self: this },
-			);
+			log.warn("UIInstance.mount: unable to mount as node is undefined, details", {
+				node,
+				self: this,
+			});
 			for (const node of this.nodes) {
 				node.parentNode?.removeChild(node);
 			}
+		}
+		if (node && !this._hasRendered) {
+			this.render();
 		}
 
 		return this;
@@ -2019,10 +2002,8 @@ class UIInstance {
 	// TODO: Should take a "changes" and know which behaviour should be updated
 	render(data = this.data, changedKeys = null) {
 		if (!this.template) {
-			logSelectUI(
-				"error",
-				"UIInstance.render",
-				"called on instance with undefined template",
+			log.error(
+				"UIInstance.render: called on instance with undefined template, details",
 				{ instance: this },
 			);
 			return this;
@@ -2173,6 +2154,7 @@ class UIInstance {
 		}
 		this.syncReactiveDataSubs(data);
 		this.data = data;
+		this._hasRendered = true;
 		return this;
 	}
 }
@@ -2392,7 +2374,7 @@ class UIWebComponent extends BaseHTMLElement {
 		} else if (typeof this.componentFactory === "function") {
 			this._renderPureComponent();
 		} else {
-			logSelectUI("error", "UIWebComponent", "invalid component factory", {
+			log.error("UIWebComponent: invalid component factory, details", {
 				componentFactory: this.componentFactory,
 				host: this,
 			});

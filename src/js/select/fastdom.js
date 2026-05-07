@@ -1,9 +1,9 @@
-// Project: ui.js
+// Project: Select.js
 // Author:  Sebastien Pierre
 // License: MIT
 // Created: 2024-01-01
 
-// Module: utils/fastdom
+// Module: select/fastdom
 // Batches DOM reads and writes to reduce layout thrashing. This module is a
 // FastDOM scheduling pattern that exposes a shared instance for queueing
 // measurement and mutation work.

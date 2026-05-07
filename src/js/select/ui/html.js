@@ -8,12 +8,7 @@
 // library. Provides template discovery, expression parsing, and shared
 // helpers used by the component engine.
 
-import {
-	expand,
-	isPascalCaseName,
-	logger,
-	queueMicro,
-} from "../utils.js";
+import { expand, isPascalCaseName, logger, microtask } from "../utils.js";
 
 // ----------------------------------------------------------------------------
 //
@@ -28,7 +23,7 @@ const scheduleRenderTask = (fn) => {
 	if (typeof mutate === "function") {
 		mutate(fn);
 	} else {
-		queueMicro(fn);
+		microtask(fn);
 	}
 };
 
@@ -52,11 +47,14 @@ class TemplateRegistry {
 		}
 		const existing = registry.get(key);
 		if (existing && existing !== template) {
-			logSelectUI(
-				"warn",
-				"ui",
-				"duplicate template key, keeping first registration",
-				{ key, scope, existing, ignored: template },
+			log.warn(
+				"ui: duplicate template key, keeping first registration, details",
+				{
+					key,
+					scope,
+					existing,
+					ignored: template,
+				},
 			);
 			return;
 		}
@@ -130,10 +128,7 @@ class TemplateRegistry {
 	}
 }
 
-const _uiLogger = logger("select.ui");
-const logSelectUI = (level, scope, message, details = {}) => {
-	_uiLogger[level](`${scope}: ${message}, details`, details);
-};
+const log = logger("select.ui");
 
 // TODO: This should be moved closer to where it is defined
 // Class: TemplateParser
@@ -603,26 +598,16 @@ const resolveNamedProcessor = (self, name) => {
 		typeof registered === "function" &&
 		(registered?.isTemplate || typeof registered?.new === "function");
 	if (isPascal && !isComponent) {
-		logSelectUI(
-			"warn",
-			"ui.formats",
-			"PascalCase formatter is not a component",
-			{
-				name,
-				formatter: registered,
-			},
-		);
+		log.warn("ui.formats: PascalCase formatter is not a component, details", {
+			name,
+			formatter: registered,
+		});
 	}
 	if (!isPascal && isComponent) {
-		logSelectUI(
-			"warn",
-			"ui.formats",
-			"component formatter should use PascalCase",
-			{
-				name,
-				formatter: registered,
-			},
-		);
+		log.warn("ui.formats: component formatter should use PascalCase, details", {
+			name,
+			formatter: registered,
+		});
 	}
 	const resolved = {
 		type: isComponent ? "component" : "function",
@@ -645,7 +630,7 @@ const applyNamedProcessors = (self, data, value, processors, sourceKey) => {
 		const processor = resolveNamedProcessor(self, name);
 		if (!processor) {
 			const availableProcessors = Object.keys(_formatsStore).sort();
-			logSelectUI("warn", "UIInstance.render", "processor not found", {
+			log.warn("UIInstance.render: processor not found, details", {
 				processor: name,
 				sourceKey,
 				availableProcessors,
@@ -682,7 +667,11 @@ const createWhenPredicate =
 		const value = resolveWhenValue(self, data, key);
 		const resolved = applyNamedProcessors(self, data, value, processors, key);
 		if (operator) {
-			return TemplateParser.evaluateWhenComparison(resolved, operator, comparisonValue);
+			return TemplateParser.evaluateWhenComparison(
+				resolved,
+				operator,
+				comparisonValue,
+			);
 		}
 		return TemplateParser.evaluateWhen(mode, resolved);
 	};
@@ -863,7 +852,7 @@ export {
 	FORMATS_PROXY,
 	AppliedUITemplate,
 	HTML,
-	logSelectUI,
+	log,
 	pruneTemplateWhitespace,
 	resolveNamedProcessor,
 	resolveSourceValue,
@@ -883,6 +872,6 @@ export {
 	isInputNode,
 	isPrunableWhitespaceText,
 	type,
-}
+};
 
 // EOF
