@@ -40,6 +40,12 @@ function createTrackingProxy(data) {
 	];
 }
 
+const isThenable = (value) =>
+	value !== null &&
+	value !== undefined &&
+	(typeof value === "object" || typeof value === "function") &&
+	typeof value.then === "function";
+
 // ----------------------------------------------------------------------------
 //
 // COMPONENT REGISTRY
@@ -1476,6 +1482,7 @@ class UIInstance {
 		this._renderQueued = false;
 		this._reactiveDataSubs = undefined;
 		this._domListeners = undefined;
+		this._asyncBehaviorTokens = new Map();
 		this._hasRendered = false;
 		if (template.initializer) {
 			const state = template.initializer();
@@ -1811,6 +1818,24 @@ class UIInstance {
 		return false;
 	}
 
+	_trackAsyncBehaviorValue(key, value, onResolved) {
+		if (!isThenable(value)) {
+			return false;
+		}
+		const token = (this._asyncBehaviorTokens.get(key) || 0) + 1;
+		this._asyncBehaviorTokens.set(key, token);
+		value.then(
+			(resolved) => {
+				if (this._isDisposed || this._asyncBehaviorTokens.get(key) !== token) {
+					return;
+				}
+				onResolved(resolved);
+			},
+			() => undefined,
+		);
+		return true;
+	}
+
 	_applyEagerBehaviorResult(entryKey, result, data) {
 		if (result === undefined) {
 			return data;
@@ -2085,10 +2110,29 @@ class UIInstance {
 						v = v === undefined ? undefined : expand(v);
 					}
 
+					if (
+						hasBehavior &&
+						this._trackAsyncBehaviorValue(k, v, (resolved) => {
+							let next = resolved;
+							if (withProcessors && processors?.length) {
+								next = applyNamedProcessors(
+									this,
+									data,
+									next,
+									processors,
+									sourceKey,
+								);
+							}
+							for (const slot of slots) {
+								slot.render(next);
+							}
+						})
+					) {
+						continue;
+					}
 					if (withProcessors && processors?.length) {
 						v = applyNamedProcessors(this, data, v, processors, sourceKey);
 					}
-
 					for (const slot of slots) {
 						slot.render(v);
 					}
@@ -2127,6 +2171,27 @@ class UIInstance {
 					for (const slot of slots) {
 						const attrValue = slot.node.getAttribute(slot.attrName);
 						v = hasBehavior(this, data, attrValue, slot.node);
+						if (
+							this._trackAsyncBehaviorValue(
+								`${k}:${slot.attrName}`,
+								v,
+								(resolved) => {
+									let next = resolved;
+									if (processors?.length) {
+										next = applyNamedProcessors(
+											this,
+											data,
+											next,
+											processors,
+											sourceKey,
+										);
+									}
+									slot.render(next);
+								},
+							)
+						) {
+							continue;
+						}
 						if (processors?.length) {
 							v = applyNamedProcessors(this, data, v, processors, sourceKey);
 						}

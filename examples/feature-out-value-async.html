@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI — Async out:value</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/select/" } }
+	</script>
+	<style>
+		body {
+			font-family: system-ui, sans-serif;
+			padding: 20px;
+			max-width: 760px;
+			margin: 0 auto;
+		}
+
+		.panel {
+			border: 1px solid #ddd;
+			border-radius: 8px;
+			padding: 16px;
+			background: #fff;
+		}
+
+		.row {
+			margin: 10px 0;
+		}
+
+		input {
+			width: 100%;
+			padding: 8px;
+			box-sizing: border-box;
+			font: inherit;
+		}
+
+		.note {
+			color: #666;
+			font-size: 14px;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Async <code>out:value</code></h1>
+	<p>Shows that <code>does({ delayedValue: async ... })</code> updates a bound <code>out:value</code> input when the promise fulfills.</p>
+
+	<div id="ui"></div>
+
+	<template id="App">
+		<div class="panel">
+			<div class="row">
+				<label>Type source text:</label>
+				<input inout="source" placeholder="Type here" />
+			</div>
+			<div class="row">
+				<label>Async target (bound with <code>out:value</code>):</label>
+				<input out:value="delayedValue" readonly />
+			</div>
+			<div class="row note" out:text="status">Waiting…</div>
+		</div>
+	</template>
+
+	<script type="module">
+		import ui from "@./ui.js"
+
+		const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+		const App = ui("#App").init(() => ({
+			source: "select.js",
+			seq: 0,
+		})).does({
+			source: (_self, {source}, event) => event ? event.target.value : source,
+			delayedValue: async (_self, {source}) => {
+				const text = `${source ?? ""}`.trim()
+				if (!text) {
+					return ""
+				}
+				await wait(500)
+				return `resolved: ${text.toUpperCase()}`
+			},
+			status: (_self, {source}) =>
+				source && `${source}`.trim()
+					? "Waiting 500ms after each edit, then out:value updates"
+					: "Type something to trigger async update",
+		})
+
+		App.new().mount("#ui")
+	</script>
+</body>
+
+</html>
