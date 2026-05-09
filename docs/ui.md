@@ -201,6 +201,7 @@ Dynamic("Badge", { label: "Ready" })
 ### Slot attributes:
 
 - `out`: Binds a slot's content to a data value (output).
+- `out-replace`: Same as `out`, but replaces the host element itself with the rendered content.
 - `out` with processors: `out="slot|Formatter|Formatter"` pipes the slot value through processors.
 - `in`: Binds a slot's input (e.g., value of an `<input>`) to instance data.
 - `inout`: Two-way binding between slot and instance data.
@@ -211,15 +212,25 @@ Dynamic("Badge", { label: "Ready" })
   - Binding mode: `out:<attr>="slot|Formatter|Formatter"`
   - Template mode: `out:<attr>="prefix-${path.to.value}-suffix"`
   - Modes are exclusive: use either whole-attribute binding pipelines or template interpolation.
-- `slot`: Defines a named slot for content injection.
+- `slot`: Defines a named slot for content injection (content projection), not data output binding.
 
 ### `out` processors and `when` shorthand
 
 `out` accepts processor pipelines:
 
 - `out="slot"`: render slot value directly
+- `out-replace="slot"`: render slot value in place of the bound node
 - `out="slot|Formatter"`: pass `slot` through one processor
 - `out="slot|FormatterA|FormatterB"`: chain processors left-to-right
+
+`out-replace` uses the same binding and processor pipeline as `out`, but mounts
+its result between anchors at the original node position. This is useful when
+the wrapper element should not remain in the final DOM.
+
+When the `out-replace` host element has classes, styles, or attributes, they are
+merged into rendered element node(s). For multi-node results, each rendered
+element inherits them. Class/style are merged as union additions, while regular
+attributes are only applied when not already set on the rendered node.
 
 Processor lookup is global via `ui.formats`.
 

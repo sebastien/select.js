@@ -28,8 +28,9 @@ const IconContainer = Object.entries({
 const IconDefaults = {
 	url: `https://api.iconify.design/${ICON_SOURCE}/${ICON_NAME}.svg`,
 	source: undefined,
+	size: [24, 24],
 	style: {
-		stroke: "var(--color-icon,currentColor)",
+		stroke: "var(--color-icon,var(--color-text),currentColor)",
 		"stroke-width": "1.5px",
 		"vector-effect": "non-scaling-stroke",
 		fill: "none",
@@ -38,45 +39,19 @@ const IconDefaults = {
 
 const IconSources = {
 	devicons: {
-		url: `https://unpkg.com/devicons@1.8.0/!SVG/${ICON_NAME}.svg`,
 		size: [32, 32],
-		style: {
-			stroke: "transparent",
-			fill: "var(--color-icon)",
-		},
-	},
-	iconoir: {
-		url: `https://unpkg.com/iconoir@7.8.0/icons/regular/${ICON_NAME}.svg`,
-		size: [24, 24],
-		style: {
-			fill: "none",
-			stroke: "var(--color-icon)",
-			"stroke-width": "1.5px",
-			"vector-effect": "non-scaling-stroke",
-		},
-	},
-	"iconoir-solid": {
-		url: `https://unpkg.com/iconoir@7.0.2/icons/solid/${ICON_NAME}.svg`,
-		size: [24, 24],
-		style: {
-			fill: "none",
-			stroke: "var(--color-icon)",
-			"stroke-width": "1.5px",
-			"vector-effect": "non-scaling-stroke",
-		},
 	},
 	"eva-outline": {
-		url: `https://unpkg.com/eva-icons@1.1.3/outline/svg/${ICON_NAME}.svg`,
-		style: { stroke: "transparent", fill: "var(--color-icon)" },
+		style: {
+			stroke: "transparent",
+			fill: IconDefaults.style.stroke,
+		},
 	},
 	"eva-fill": {
-		url: `https://unpkg.com/eva-icons@1.1.3/fill/svg/${ICON_NAME}.svg`,
-		style: { stroke: "transparent", fill: "var(--color-icon)" },
+		style: { stroke: "transparent", fill: IconDefaults.style.stroke },
 	},
-	// SEE: https://lucide.dev/guide/packages/lucide-static
 	lucide: {
-		url: `https://unpkg.com/lucide-static@0.441.0/icons/${ICON_NAME}.svg`,
-		style: { stroke: "transparent", fill: "var(--color-icon)" },
+		style: { stroke: "transparent", fill: IconDefaults.style.stroke },
 	},
 };
 

@@ -267,6 +267,7 @@ Web component API:
 ### Slot Attributes
 
 - `out`: Binds a slot's content to a data value (output).
+- `out-replace`: Binds like `out`, but replaces the host element in the DOM with rendered content.
 - `out` processors: `out="slot|Formatter|Formatter"` transforms slot values through named processors.
 - `out:<attr>`: Binds a specific DOM attribute to a data value (e.g., `out:class`, `out:style`, `out:disabled`).
 - `in`: Binds a slot's input (e.g., value of an `<input>`) to instance data.
@@ -427,6 +428,23 @@ ui.format("asCurrency", (value) => `$${Number(value ?? 0).toFixed(2)}`)
 
 When a processor resolves to a UI component/template, the value is applied to it
 and rendered as child content.
+
+### Replacing Output Slots (`out-replace`)
+
+`out-replace` uses the same binding syntax and processors as `out`, but removes
+the bound node and inserts rendered content at that exact position.
+
+```html
+<div out-replace="content"></div>
+```
+
+Use this when you need the output to be the actual rendered node(s), not wrapped
+by a container element.
+
+If the replaced host element defines classes, inline styles, or attributes, they
+are merged into rendered element node(s). With multiple rendered roots, each
+element receives the merge. Classes/styles are added as unions; regular
+attributes are only set when the target element does not already define them.
 
 ### Input Slots (`in`)
 

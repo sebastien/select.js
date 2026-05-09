@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI - out-replace merge</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/select/" } }
+	</script>
+	<style>
+		body {
+			font-family: system-ui, sans-serif;
+			padding: 20px;
+			max-width: 900px;
+			margin: 0 auto;
+			line-height: 1.4;
+		}
+
+		.card {
+			border: 1px solid #ddd;
+			border-radius: 8px;
+			padding: 12px;
+			margin-bottom: 16px;
+			background: #fff;
+		}
+
+		.stack {
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+		}
+
+		.badge {
+			display: inline-block;
+			padding: 2px 8px;
+			border-radius: 999px;
+			background: #eef6ff;
+			font-size: 12px;
+		}
+
+		.base {
+			border: 2px dashed #aac;
+			padding: 8px;
+		}
+
+		.base-style {
+			color: #235;
+		}
+
+		.child {
+			padding: 6px;
+			border-radius: 6px;
+		}
+
+		.child-a {
+			background: #f8fbff;
+		}
+
+		.child-b {
+			background: #fffaf5;
+		}
+
+		pre {
+			margin: 0;
+			padding: 8px;
+			background: #fafafa;
+			border: 1px solid #eee;
+			border-radius: 6px;
+			overflow: auto;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>out-replace merge semantics</h1>
+	<p>This page verifies that host classes/styles/attributes are merged into rendered element node(s).</p>
+
+	<div id="app"></div>
+
+	<template id="SingleCard">
+		<div class="card">
+			<h2>Single rendered element</h2>
+			<div class="stack">
+				<div
+					class="base base-style"
+					style="font-weight: 700; border-color: #4a7"
+					data-host="single"
+					data-kind="default"
+					id="single-shared-id"
+					out-replace="content">
+				</div>
+			</div>
+		</div>
+	</template>
+
+	<template id="MultiCard">
+		<div class="card">
+			<h2>Multiple rendered roots</h2>
+			<div class="stack">
+				<div
+					class="base"
+					style="font-weight: 700; border-color: #a66"
+					data-host="multi"
+					id="multi-shared-id"
+					out-replace="content">
+				</div>
+			</div>
+		</div>
+	</template>
+
+	<template id="OneChild">
+		<article
+			class="child child-a"
+			style="border-color: #2b8; color: #163"
+			data-kind="child"
+			out="label">
+			placeholder
+		</article>
+	</template>
+
+	<template id="TwoChildren">
+		<section class="child child-a" style="border-color: #39b" out="left">left</section>
+		<section class="child child-b" style="border-color: #c73" out="right">right</section>
+	</template>
+
+	<template id="Root">
+		<div>
+			<div out="single"></div>
+			<div out="multi"></div>
+			<div class="card">
+				<h2>Live inspection</h2>
+				<pre out="inspect"></pre>
+			</div>
+		</div>
+	</template>
+
+	<script type="module">
+		import ui from "@./ui.js"
+
+		const OneChild = ui("#OneChild")
+		const TwoChildren = ui("#TwoChildren")
+		const SingleCard = ui("#SingleCard")
+		const MultiCard = ui("#MultiCard")
+
+		const describe = (root, selector) => {
+			const nodes = root.querySelectorAll(selector)
+			const lines = []
+			for (let i = 0; i < nodes.length; i++) {
+				const n = nodes[i]
+				lines.push([
+					`${n.tagName.toLowerCase()}#${n.id || "-"}`,
+					`class=${n.getAttribute("class") || ""}`,
+					`style=${n.getAttribute("style") || ""}`,
+					`data-host=${n.getAttribute("data-host") || "-"}`,
+					`data-kind=${n.getAttribute("data-kind") || "-"}`,
+				].join(" | "))
+			}
+			return lines.join("\n")
+		}
+
+		const Root = ui("#Root").does({
+			single: () => SingleCard({
+				content: OneChild({ label: "Single node keeps own style and data-kind" })
+			}),
+			multi: () => MultiCard({
+				content: TwoChildren({ left: "First", right: "Second" })
+			}),
+			inspect: () => {
+				const app = document.querySelector("#app")
+				if (!app) {
+					return ""
+				}
+				const single = describe(app, "article.child")
+				const multi = describe(app, "section.child")
+				return [
+					"Expected:",
+					"- class union includes host and child classes",
+					"- style union keeps child values when already set",
+					"- attributes copied only when missing (data-kind stays child on article)",
+					"- multi-root inherits host attrs/classes/styles on each root (including id)",
+					"",
+					"Single:",
+					single,
+					"",
+					"Multi:",
+					multi,
+				].join("\n")
+			},
+		})
+
+		Root.new().mount("#app")
+	</script>
+</body>
+
+</html>
