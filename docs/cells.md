@@ -37,7 +37,8 @@ and lightweight pub/sub.
 - `sub(handler)`: Subscribes a handler to receive updates `(value, path, origin)`.
 - `unsub(handler)`: Unsubscribes a previously registered handler.
 - `pub(value, path?, origin?)`: Manually publishes an update to all subscribers.
-- `push(value)`: Appends a value to the underlying array (`Cell` only).
+- `merge(value)`: Merges or replaces the current value (`Cell` and `Selected`).
+- `push(value)`: Appends a value to the underlying array (`Cell` and `Selected`).
 - `refresh()`: Re-evaluates the value from the source (`Selected` and `Derivation` only).
 - `dispose()`: Releases resources for lifecycle-aware reactive instances (`Selected`, `Deferred`, `Derivation`).
 
@@ -134,9 +135,12 @@ export const counter = (initial = 0) => {
 - `reactive.map(functor)`: Convenience helper to map over collection values.
 - `reactive.get(key?)`: Retrieves a value or child value.
 - `cell.set(value, path?, force?)`: Updates the cell value (optionally under a path) and publishes changes.
+- `cell.merge(value)`: Merges arrays/objects, or replaces with `value`.
 - `cell.push(value)`: Appends a value to an underlying array cell.
 - `selected.refresh()`: Re-evaluates the selected path against parent state and publishes updates.
 - `selected.set(value, path?, force?)`: Updates the parent cell through this selection.
+- `selected.merge(value)`: Merges arrays/objects at the selected path, or replaces with `value`.
+- `selected.push(value)`: Appends a value at the selected path (coercing non-arrays as needed).
 - `selected.dispose()`: Unregisters this selection from its parent cell.
 - `derivation.refresh()`: Forces re-computation of a derived value.
 - `derivation.unbind()`: Unsubscribes from all source cells.

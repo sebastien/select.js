@@ -738,7 +738,18 @@ class UITemplate {
 		this.on = UITemplateSlot.FindEvent("on:", nodes);
 		this.in = UITemplateSlot.Find("in", nodes);
 		this.when = UITemplateSlot.FindWhen(nodes);
-		this.out = UITemplateSlot.Find("out", nodes);
+		this.out = UITemplateSlot.MergeMaps(
+			UITemplateSlot.Find("out", nodes),
+			UITemplateSlot.Find("out-replace", nodes, (slot, key) => {
+				const parsed = TemplateParser.parsePipedBinding(key);
+				slot.binding = parsed || {
+					sourceKey: `${key || ""}`.trim(),
+					processors: [],
+				};
+				slot.replaceNode = true;
+				return slot;
+			}),
+		);
 		this.inout = UITemplateSlot.MergeMaps(
 			UITemplateSlot.Find("inout", nodes),
 			UITemplateSlot.FindInOutAttr(nodes),
@@ -865,6 +876,45 @@ class UISlot {
 	constructor(node, template, parent) {
 		this.parent = parent;
 		this.node = node;
+		this.replaceNode = template.replaceNode === true;
+		this.replaceNodeMerge = null;
+		this.replaceStart = null;
+		this.replaceEnd = null;
+		if (this.replaceNode && this.node?.nodeType === Node.ELEMENT_NODE) {
+			const attrs = [];
+			for (const attr of this.node.attributes) {
+				const name = attr.name;
+				if (
+					name === "out-replace" ||
+					name === "out" ||
+					name === "in" ||
+					name === "inout" ||
+					name === "ref" ||
+					name === "when" ||
+					name.startsWith("out:") ||
+					name.startsWith("on:")
+				) {
+					continue;
+				}
+				attrs.push([name, attr.value]);
+			}
+			const classes = [];
+			for (const cls of this.node.classList) {
+				classes.push(cls);
+			}
+			const styles = [];
+			for (const prop of this.node.style) {
+				styles.push([prop, this.node.style.getPropertyValue(prop)]);
+			}
+			this.replaceNodeMerge = { attrs, classes, styles };
+		}
+		if (this.replaceNode && this.node.parentNode) {
+			this.replaceStart = document.createComment("out-replace:start");
+			this.replaceEnd = document.createComment("out-replace:end");
+			this.node.parentNode.insertBefore(this.replaceStart, this.node);
+			this.node.parentNode.insertBefore(this.replaceEnd, this.node.nextSibling);
+			this.node.parentNode.removeChild(this.node);
+		}
 		this.isInput = isInputNode(node);
 		this.mapping = new Map();
 		this.placeholder =
@@ -880,16 +930,63 @@ class UISlot {
 		this.template = template;
 	}
 
+	_mergeReplaceNodeDecorations(node) {
+		if (
+			!this.replaceNode ||
+			!this.replaceNodeMerge ||
+			node?.nodeType !== Node.ELEMENT_NODE
+		) {
+			return;
+		}
+		const { attrs, classes, styles } = this.replaceNodeMerge;
+		for (let i = 0; i < classes.length; i++) {
+			node.classList.add(classes[i]);
+		}
+		for (let i = 0; i < styles.length; i++) {
+			const [prop, value] = styles[i];
+			if (!node.style.getPropertyValue(prop)) {
+				node.style.setProperty(prop, value);
+			}
+		}
+		for (let i = 0; i < attrs.length; i++) {
+			const [name, value] = attrs[i];
+			if (!node.hasAttribute(name)) {
+				node.setAttribute(name, value);
+			}
+		}
+	}
+
+	_mergeReplaceNodeDecorationsInNodes(nodes) {
+		if (!this.replaceNode || !this.replaceNodeMerge || !nodes) {
+			return;
+		}
+		for (let i = 0; i < nodes.length; i++) {
+			this._mergeReplaceNodeDecorations(nodes[i]);
+		}
+	}
+
 	// Mounts `instance` at `nextNode` position within this.node.
 	_mountInstance(instance, nextNode) {
+		this._mergeReplaceNodeDecorationsInNodes(instance.nodes);
 		const fragment = document.createDocumentFragment();
 		for (let i = 0; i < instance.nodes.length; i++) {
 			fragment.appendChild(instance.nodes[i]);
 		}
-		if (nextNode && nextNode.parentNode === this.node) {
-			this.node.insertBefore(fragment, nextNode);
+		const parentNode =
+			this.replaceNode && this.replaceEnd?.parentNode
+				? this.replaceEnd.parentNode
+				: this.node;
+		if (!parentNode) {
+			return;
+		}
+		if (nextNode && nextNode.parentNode === parentNode) {
+			parentNode.insertBefore(fragment, nextNode);
 		} else {
-			this.node.appendChild(fragment);
+			if (this.replaceNode && this.replaceEnd?.parentNode === parentNode) {
+				parentNode.insertBefore(fragment, this.replaceEnd);
+			} else {
+				parentNode.appendChild(fragment);
+			}
 		}
 	}
 
@@ -988,18 +1085,20 @@ class UISlot {
 				const data = this._mergeSlots(item);
 				r = item.template.new(this.parent);
 				r.set(data, k).mount(this.node, previous);
+				this._mergeReplaceNodeDecorationsInNodes(r.nodes);
 				previous = r.nodes[r.nodes.length - 1];
 			} else if (this.isInput) {
 				setNodeText(this.node, asText(item));
 				r = this.node;
 			} else if (item instanceof Node) {
+				this._mergeReplaceNodeDecorations(item);
 				// TODO: Insert after previous
-				this.node.appendChild(item);
+				this._mountInstance({ nodes: [item] }, null);
 				r = item;
 			} else {
 				r = document.createTextNode(asText(item));
 				// TODO: Use mount and sibling
-				this.node.appendChild(r);
+				this._mountInstance({ nodes: [r] }, null);
 				previous = r;
 			}
 			this.mapping.set(k, r);
@@ -1085,9 +1184,18 @@ class UISlot {
 
 		if (isEmpty) {
 			if (this.placeholder && !this.placeholder[0]?.parentNode) {
-				let previous = this.node.childNodes[0];
+				const parentNode =
+					this.replaceNode && this.replaceEnd?.parentNode
+						? this.replaceEnd.parentNode
+						: this.node;
+				let previous = this.replaceNode ? this.replaceStart : this.node.childNodes[0];
 				for (const node of this.placeholder) {
-					if (!previous?.nextSibling) {
+					if (!parentNode) {
+						break;
+					}
+					if (this.replaceNode) {
+						parentNode.insertBefore(node, this.replaceEnd);
+					} else if (!previous?.nextSibling) {
 						this.node.appendChild(node);
 					} else {
 						this.node.insertBefore(node, previous.nextSibling);
@@ -1481,6 +1589,7 @@ class UIInstance {
 		this._renderer = undefined;
 		this._renderQueued = false;
 		this._reactiveDataSubs = undefined;
+		this._reactiveDataRefs = undefined;
 		this._domListeners = undefined;
 		this._asyncBehaviorTokens = new Map();
 		this._hasRendered = false;
@@ -1526,6 +1635,27 @@ class UIInstance {
 		return refs;
 	}
 
+	_acquireReactiveRef(cell) {
+		if (!cell?.isReactive || typeof cell.acquire !== "function") {
+			return;
+		}
+		this._reactiveDataRefs = this._reactiveDataRefs ?? new Set();
+		if (!this._reactiveDataRefs.has(cell)) {
+			cell.acquire();
+			this._reactiveDataRefs.add(cell);
+		}
+	}
+
+	_releaseReactiveRef(cell) {
+		if (!cell?.isReactive || typeof cell.release !== "function") {
+			return;
+		}
+		if (this._reactiveDataRefs?.has(cell)) {
+			cell.release();
+			this._reactiveDataRefs.delete(cell);
+		}
+	}
+
 	syncReactiveDataSubs(data) {
 		const refs = this._collectReactiveDataRefs(data);
 		if (this._reactiveDataSubs === undefined) {
@@ -1535,12 +1665,14 @@ class UIInstance {
 		for (const cell of this._reactiveDataSubs.keys()) {
 			if (!refs.has(cell)) {
 				cell.unsub(renderer);
+				this._releaseReactiveRef(cell);
 				this._reactiveDataSubs.delete(cell);
 			}
 		}
 		for (const cell of refs) {
 			if (!this._reactiveDataSubs.has(cell)) {
 				cell.sub(renderer);
+				this._acquireReactiveRef(cell);
 				this._reactiveDataSubs.set(cell, true);
 			}
 		}
@@ -1552,8 +1684,12 @@ class UIInstance {
 		}
 		for (const cell of this._reactiveDataSubs.keys()) {
 			cell.unsub(this._renderer);
+			this._releaseReactiveRef(cell);
 		}
 		this._reactiveDataSubs.clear();
+		if (this._reactiveDataRefs) {
+			this._reactiveDataRefs.clear();
+		}
 	}
 
 	// Cleans up subscriptions, recursively disposes children, removes from parent.
@@ -1783,18 +1919,11 @@ class UIInstance {
 				const existing = this.data[k];
 				const updated = data[k];
 				if (!eq(existing, updated)) {
-					const renderer = this._getRenderer();
 					same = false;
 					if (!changedKeys) {
 						changedKeys = new Set();
 					}
 					changedKeys.add(k);
-					if (existing?.isReactive) {
-						existing.unsub(renderer);
-					}
-					if (updated?.isReactive) {
-						updated.sub(renderer);
-					}
 				}
 			}
 		}

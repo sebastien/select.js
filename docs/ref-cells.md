@@ -111,7 +111,8 @@ state.set(2, "a.b");
 - `.unsub(handler)`: Removes a previously registered subscriber.
 - `.pub(value, path?, origin?)`: Manually publishes an update notification.
 - `.map(functor)`: Creates a new array by mapping over the cell's current value (if it's an array).
-- `.push(value)`: Appends an item to the cell's value (only if it's an array).
+- `.merge(value)`: Merges arrays/objects when possible, otherwise replaces with `value`.
+- `.push(value)`: Appends an item to the current value (`Cell` and `Selected` support this).
 - `.refresh()`: Forces the reactive value to re-evaluate its state.
 - `.dispose()`: Releases subscriptions/resources for reactive helpers that support lifecycle (`Selected`, `Deferred`, `Derivation`).
 

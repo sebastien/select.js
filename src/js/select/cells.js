@@ -47,6 +47,26 @@ const log = logger("select.cells");
 //
 // ----------------------------------------------------------------------------
 
+const normalizeSelectionPath = (path) =>
+	path === undefined || path === null
+		? []
+		: Array.isArray(path)
+			? path
+			: [path]
+
+const selectionPathKey = (path) => {
+	if (!path || path.length === 0) {
+		return ""
+	}
+	let key = ""
+	for (let i = 0; i < path.length; i++) {
+		if (i) {
+			key += "/"
+		}
+		key += `${typeof path[i]}:${path[i]}`
+	}
+	return key
+}
 
 // ----------------------------------------------------------------------------
 //
@@ -204,11 +224,36 @@ class Reactive {
 		this.revision = value === Nothing ? -1 : 0;
 		this.subs = [];
 		this.selections = undefined;
+		this._selectionCache = new Map();
 	}
 
 	// Creates a `Selected` view at `path` within this cell's value.
 	select(path) {
-		return new Selected(this, path);
+		const nextPath = normalizeSelectionPath(path);
+		const pathKey = selectionPathKey(nextPath);
+		let selected = this._selectionCache.get(pathKey);
+		if (!selected) {
+			selected = new Selected(this, nextPath, pathKey);
+			this._selectionCache.set(pathKey, selected);
+		}
+		return selected.acquire();
+	}
+
+	// Releases a selected value acquired from this reactive.
+	release(pathOrSelected) {
+		if (pathOrSelected instanceof Selected) {
+			if (pathOrSelected.parent === this) {
+				pathOrSelected.release();
+			}
+			return this;
+		}
+		const nextPath = normalizeSelectionPath(pathOrSelected);
+		const pathKey = selectionPathKey(nextPath);
+		const selected = this._selectionCache.get(pathKey);
+		if (selected) {
+			selected.release();
+		}
+		return this;
 	}
 
 	// Subscribes `handler` to value changes. Handler receives (value, path, origin).
@@ -301,46 +346,53 @@ class Reactive {
 // - `parent`: Cell - the parent cell this selection belongs to
 // - `path`: Array<string|number> - path to selected property within parent
 class Selected extends Reactive {
-	constructor(parent, path) {
+	constructor(parent, path, pathKey = undefined) {
 		super();
 		this.parent = undefined;
 		this.path = undefined;
-		this.select(parent, path);
+		this._pathKey = undefined;
+		this._refs = 0;
+		this.select(parent, path, pathKey);
 	}
 
-	select(parent, path) {
-		const nextPath =
-			path === undefined || path === null
-				? []
-				: Array.isArray(path)
-					? path
-					: [path];
+	acquire() {
+		this._refs += 1;
+		return this;
+	}
 
-		let samePath = this.path === nextPath;
-		if (!samePath && this.path && this.path.length === nextPath.length) {
-			samePath = true;
-			for (let i = 0; i < nextPath.length; i++) {
-				if (this.path[i] !== nextPath[i]) {
-					samePath = false;
-					break;
-				}
-			}
+	release() {
+		if (this._refs > 0) {
+			this._refs -= 1;
 		}
+		if (this._refs === 0) {
+			this.dispose();
+		}
+		return this;
+	}
 
-		if (this.parent === parent && samePath) {
+	select(parent, path, pathKey = undefined) {
+		const nextPath = normalizeSelectionPath(path);
+		const nextPathKey = pathKey ?? selectionPathKey(nextPath);
+
+		if (this.parent === parent && this._pathKey === nextPathKey) {
 			return this;
 		}
 
 		if (this.parent?.selections && this.path) {
 			this.parent.selections.remove(this.path, this);
 		}
+		if (this.parent?._selectionCache?.get(this._pathKey) === this) {
+			this.parent._selectionCache.delete(this._pathKey);
+		}
 
 		this.parent = parent;
 		this.path = nextPath;
+		this._pathKey = nextPathKey;
 
 		if (parent instanceof Reactive) {
 			parent.selections = parent.selections ?? new Selections();
 			parent.selections.add(nextPath, this);
+			parent._selectionCache?.set(nextPathKey, this);
 			this.value = access(parent.value, nextPath);
 		} else {
 			this.value = parent ? access(parent, nextPath) : undefined;
@@ -351,9 +403,13 @@ class Selected extends Reactive {
 
 	// Disposes this selection and removes it from parent registry.
 	dispose() {
+		if (this.parent?._selectionCache?.get(this._pathKey) === this) {
+			this.parent._selectionCache.delete(this._pathKey);
+		}
 		this.parent?.selections?.remove(this.path, this);
-		this.parent = undefined;
-		this.path = undefined;
+		// Keep `parent`/`path` intact so async handlers that still hold this
+		// selection can safely read/write after a render releases it.
+		this._refs = 0;
 		this.subs.length = 0;
 		return this;
 	}
@@ -378,6 +434,35 @@ class Selected extends Reactive {
 			path ? [...this.path, ...path] : this.path,
 			force,
 		);
+	}
+
+	// Merges `value` into current selected value.
+	merge(value) {
+		if (this.revision === -1) {
+			this.set(value);
+		} else if (Array.isArray(this.value) && Array.isArray(value)) {
+			this.set([...this.value, ...value]);
+		} else if (
+			Object.getPrototypeOf(this.value) === Object.prototype &&
+			Object.getPrototypeOf(value) === Object.prototype
+		) {
+			this.set({ ...this.value, ...value });
+		} else {
+			this.set(value);
+		}
+		return this;
+	}
+
+	// Appends value to selected array. Converts non-array to array first.
+	push(value) {
+		const updated =
+			this.revision === -1
+				? [value]
+				: Array.isArray(this.value)
+					? [...this.value, value]
+					: [this.value, value];
+		this.set(updated);
+		return this;
 	}
 }
 
@@ -473,6 +558,21 @@ class Cell extends Reactive {
 		// TODO: Should detect a change
 		this._update(value, path, force);
 		return this;
+	}
+
+	merge(value) {
+		if (this.revision === -1) {
+			this._update(value, Nothing);
+		} else if (Array.isArray(this.value) && Array.isArray(value)) {
+			this._update([...this.value, ...value], Nothing);
+		} else if (
+			Object.getPrototypeOf(this.value) === Object.prototype &&
+			Object.getPrototypeOf(value) === Object.prototype
+		) {
+			this._update({ ...this.value, ...value }, Nothing);
+		} else {
+			this._update(value, Nothing);
+		}
 	}
 
 	// Appends value to array. Converts non-array to array first.
@@ -796,9 +896,9 @@ export {
 	walk,
 };
 export default Object.assign(cell, {
-	deferred,
-	derived,
-	selected,
+	defer: deferred,
+	derive: derived,
+	select: selected,
 	walk,
 	expand,
 });
