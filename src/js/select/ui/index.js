@@ -74,6 +74,7 @@ const createComponent = (tmpl) => {
 	Object.assign(component, {
 		isTemplate: true,
 		template: tmpl,
+		singleton: null,
 		new: (...args) => tmpl.new(...args),
 		init: (...args) => {
 			tmpl.init(...args);
@@ -123,6 +124,9 @@ const ui = (selection, scope = document) => {
 
 	if (typeof selection === "string") {
 		let nodes = [];
+		let defaultData = null;
+		let sourceMode = "default";
+		let sourceHosts = null;
 		let autoFormatName = null;
 		const templateRegistry = TemplateRegistry.for(scope);
 		if (/^\s*</.test(selection)) {
@@ -141,15 +145,72 @@ const ui = (selection, scope = document) => {
 			} else {
 				let matchedTemplateCount = 0;
 				let matchedTemplateName = null;
+				const matchedNodes = [];
 				const parent = scope?.querySelectorAll ? scope : document;
-				for (const node of parent.querySelectorAll(selection)) {
+				let query = selection;
+				let queried = [];
+				try {
+					queried = [...parent.querySelectorAll(query)];
+				} catch (_error) {
+					queried = [];
+				}
+				if (
+					queried.length === 0 &&
+					!selection.includes("#") &&
+					!selection.includes(".") &&
+					!selection.includes("[") &&
+					!selection.includes(":") &&
+					!/\s/.test(selection)
+				) {
+					query = `#${selection}`;
+					try {
+						queried = [...parent.querySelectorAll(query)];
+					} catch (_error) {
+						queried = [];
+					}
+				}
+				for (const node of queried) {
 					if (node.nodeName === "TEMPLATE") {
 						matchedTemplateCount += 1;
 						matchedTemplateName = TemplateRegistry.formatterName(node);
 						TemplateRegistry.registerNode(node, templateRegistry, scope);
 						nodes = [...nodes, ...node.content.childNodes];
 					} else {
-						nodes.push(node);
+						matchedNodes.push(node);
+					}
+				}
+				if (matchedTemplateCount === 0 && matchedNodes.length > 0) {
+					sourceMode = "fallback-node-template";
+					sourceHosts = matchedNodes;
+					let hasDefaultData = false;
+					defaultData = {};
+					for (const node of matchedNodes) {
+						nodes.push(node.cloneNode(true));
+						const payload = node.getAttribute?.("data");
+						if (payload !== null && payload !== undefined && payload !== "") {
+							let parsed;
+							try {
+								parsed = JSON.parse(payload);
+							} catch (_error) {
+								throw new Error(
+									`ui(): invalid JSON in [data] attribute for selector "${selection}"`,
+								);
+							}
+							if (
+								parsed === null ||
+								typeof parsed !== "object" ||
+								Array.isArray(parsed)
+							) {
+								throw new Error(
+									`ui(): [data] attribute JSON for selector "${selection}" must be an object`,
+								);
+							}
+							Object.assign(defaultData, parsed);
+							hasDefaultData = true;
+						}
+					}
+					if (!hasDefaultData) {
+						defaultData = null;
 					}
 				}
 				if (matchedTemplateCount === 1) {
@@ -164,9 +225,14 @@ const ui = (selection, scope = document) => {
 				scope,
 			});
 		}
-		const component = createComponent(
-			new UITemplate(nodes, scope, autoFormatName),
-		);
+		const template = new UITemplate(nodes, scope, autoFormatName);
+		if (sourceMode === "fallback-node-template") {
+			template.sourceMode = sourceMode;
+			template.sourceSelector = selection;
+			template.sourceHosts = sourceHosts;
+			template.defaultData = defaultData;
+		}
+		const component = createComponent(template);
 		if (autoFormatName) {
 			ui.format(autoFormatName, component);
 		}
@@ -239,7 +305,7 @@ function remap(value, f) {
 		res[k] = f(value[k], k);
 	}
 	return res;
-}
+};
 
 function format(name, formatter) {
 	if (typeof name !== "string" || !name.trim()) {
@@ -265,7 +331,7 @@ function formatter(name) {
 		return undefined;
 	}
 	return ui.formats[name.trim()];
-};
+}
 
 function resolveFormat(name) {
 	return formatter(name);

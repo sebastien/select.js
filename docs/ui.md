@@ -24,6 +24,9 @@ For icon loading and `<ui-icon>` usage, see [`docs/icons.md`](./icons.md).
 - `ui.resolveFormat(name)`: Looks up a formatter in `ui.formats`.
 - `ui.options`: Global UI options.
   - `componentRootClass` (default `true`): Adds the component name as a class on each component root element (`class="ComponentName ..."`, with the component class first).
+- Fallback selector mode: if `ui(selector)` does not resolve any `<template>` but matches regular DOM nodes, those nodes are cloned and used as template source.
+  - In this mode, `data='{"...": ...}'` on matched source nodes is parsed as JSON object and used as default instance payload.
+  - Invalid JSON throws immediately.
 
 ### Template utilities:
 
@@ -34,6 +37,7 @@ For icon loading and `<ui-icon>` usage, see [`docs/icons.md`](./icons.md).
 ### Template API (returned by `ui(...)`):
 
 - `Component(data)`: Applied template creator.
+- `singleton`: Optional public slot for caller-managed singleton instance (`Component.singleton = Component.new()`).
 - `new(parent?)`: Instance factory.
 - `does(behavior)`: Behavior definition.
 - `on(event, handler)` / `sub(event, handler)`: Event subscription.
@@ -47,6 +51,8 @@ For icon loading and `<ui-icon>` usage, see [`docs/icons.md`](./icons.md).
 - `set(data, key?)`: Direct state updates.
 - `update(data, force?)`: Reactive partial updates.
 - `mount(target, previous?)`: DOM attachment.
+  - `mount(target, true)`: replace-host mode. Mounts rendered nodes at `target` position, then removes the original host node.
+  - Fallback shorthand: in fallback selector mode with exactly one original host, `mount()` (no args) auto-applies replace-host behavior. If host count is not exactly one, it throws and requires explicit `mount(selector, true)`.
 - `unmount()`: DOM detachment.
 - `dispose()`: Releases instance listeners/subscriptions and child instances.
 - `render(data?)`: Rendering engine access.

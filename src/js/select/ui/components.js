@@ -1086,7 +1086,7 @@ class UISlot {
 					r = item.template.new(this.parent);
 					r.set(data, k);
 					const nextNode =
-						previous && previous.parentNode
+						previous?.parentNode
 							? previous.nextSibling
 							: this.replaceNode
 								? this.replaceEnd
@@ -1606,6 +1606,9 @@ class UIInstance {
 			}
 			this.set(state);
 		}
+		if (template.defaultData) {
+			this.set(template.defaultData);
+		}
 	}
 
 	_getRenderer() {
@@ -2026,7 +2029,7 @@ class UIInstance {
 	// Publishes event up the component tree. Returns UIEvent.
 	pub(event, data) {
 		const res = new UIEvent(event, data, this);
-		this.parent?.onPub(res);
+		this.onPub(res);
 		return res;
 	}
 
@@ -2063,12 +2066,16 @@ class UIInstance {
 	// Stops propagation if handler returns `false`, stops bubbling on `null`.
 	onPub(event) {
 		event.current = this;
+		if (this.data === undefined || this.data === null) {
+			this.data = {};
+		}
+		const data = this.data;
 		let propagate = true;
 		if (this._runtimeSubs) {
 			const rl = this._runtimeSubs.get(event.name);
 			if (rl) {
 				for (const h of rl) {
-					const c = h(this, this.data, event);
+					const c = h(this, data, event);
 					if (c === false) {
 						return event;
 					} else if (c === null) {
@@ -2081,7 +2088,7 @@ class UIInstance {
 			const hl = this.template.subs.get(event.name);
 			if (hl) {
 				for (const h of hl) {
-					const c = h(this, this.data, event);
+					const c = h(this, data, event);
 					if (c === false) {
 						return event;
 					} else if (c === null) {
@@ -2101,6 +2108,22 @@ class UIInstance {
 	// Mounts this instance into `node` (selector string or Node). Optionally
 	// inserts after `previous` node.
 	mount(node, previous) {
+		if (
+			node === undefined &&
+			previous === undefined &&
+			this.template?.sourceMode === "fallback-node-template"
+		) {
+			const hosts = this.template.sourceHosts;
+			const count = Array.isArray(hosts) ? hosts.length : 0;
+			if (count !== 1) {
+				throw new Error(
+					`UIInstance.mount: fallback template "${this.template?.sourceSelector ?? ""}" matched ${count} host nodes. Use .mount(selector, true) explicitly.`,
+				);
+			}
+			node = hosts[0];
+			previous = true;
+		}
+		const replaceHost = previous === true;
 		if (typeof node === "string") {
 			const n = document.querySelector(node);
 			if (!n) {
@@ -2114,7 +2137,22 @@ class UIInstance {
 			}
 		}
 		if (node) {
-			if (this.nodes[0].parentNode !== node) {
+			if (replaceHost) {
+				const parent = node.parentNode;
+				if (!parent) {
+					log.warn("UIInstance.mount: replace-host target has no parent, details", {
+						node,
+						self: this,
+					});
+				} else {
+					let previousSibling = node;
+					for (const n of this.nodes) {
+						parent.insertBefore(n, previousSibling.nextSibling);
+						previousSibling = n;
+					}
+					parent.removeChild(node);
+				}
+			} else if (this.nodes[0].parentNode !== node) {
 				if (previous && previous.parentNode === node) {
 					for (const n of this.nodes) {
 						node.insertBefore(n, previous.nextSibling);

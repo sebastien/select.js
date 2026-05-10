@@ -48,6 +48,12 @@ const Button = ui(`<button out="label">Click me</button>`);
 const Button = ui("#Button");
 ```
 
+If `ui(selector)` does not resolve a registered `<template>` and the selector
+matches regular DOM nodes, Select UI falls back to cloning those matched nodes
+as template source. In this fallback mode, a `data='{"...": ...}'` attribute on
+the source node is parsed as JSON and used as default instance data. Invalid
+JSON throws an error.
+
 ### Slot Attributes
 
 | Attribute      | Purpose                                  |
@@ -65,6 +71,9 @@ const Button = ui("#Button");
 ```
 ui(template) → .init(state?) → .does(behavior) → .cleanup(handler?) → .new() → .set(data) → .mount(target)
 ```
+
+`component.singleton` is an optional public slot for caller-managed singleton
+instances. It is never auto-created by `ui(...)` or `.does(...)`.
 
 ### List Rendering
 
@@ -255,6 +264,8 @@ Web component API:
 - `set(data, key?)`: Replaces the instance data and triggers a re-render.
 - `update(data, force?)`: Merges partial data updates and re-renders only if tracked dependencies changed.
 - `mount(target, previous?)`: Attaches the instance's nodes to the DOM at the specified target.
+- `mount(target, true)`: Replace-host mode. Inserts rendered nodes at the host position, then removes the original host node.
+- `mount()`: In fallback-node-template mode only, auto-replaces the original host when exactly one host was matched. Otherwise throws and requires explicit `mount(selector, true)`.
 - `unmount()`: Removes the instance's nodes from the DOM.
 - `dispose()`: Releases instance resources (runtime listeners, reactive/context subscriptions, child instances) without removing nodes directly.
 - `render(data?)`: Forces a re-render of the instance, optionally with new data.
