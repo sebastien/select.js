@@ -1077,17 +1077,23 @@ class UISlot {
 		this._listLength = 0;
 	}
 
-	_renderMapped(k, item, previous) {
-		const existing = this.mapping.get(k);
-		if (existing === undefined) {
-			let r;
-			if (item instanceof AppliedUITemplate) {
-				const data = this._mergeSlots(item);
-				r = item.template.new(this.parent);
-				r.set(data, k).mount(this.node, previous);
-				this._mergeReplaceNodeDecorationsInNodes(r.nodes);
-				previous = r.nodes[r.nodes.length - 1];
-			} else if (this.isInput) {
+		_renderMapped(k, item, previous) {
+			const existing = this.mapping.get(k);
+			if (existing === undefined) {
+				let r;
+				if (item instanceof AppliedUITemplate) {
+					const data = this._mergeSlots(item);
+					r = item.template.new(this.parent);
+					r.set(data, k);
+					const nextNode =
+						previous && previous.parentNode
+							? previous.nextSibling
+							: this.replaceNode
+								? this.replaceEnd
+								: null;
+					this._mountInstance(r, nextNode);
+					previous = r.nodes[r.nodes.length - 1];
+				} else if (this.isInput) {
 				setNodeText(this.node, asText(item));
 				r = this.node;
 			} else if (item instanceof Node) {
