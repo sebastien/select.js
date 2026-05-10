@@ -569,12 +569,13 @@ Raw value parsing rules:
 - numeric literals (including decimal/scientific notation) -> numbers
 - everything else -> string
 
-Key inference from `out` on the same element:
+Key inference from `out`/`out:*` on the same element:
 
 - `when` or `when=""` + `out="slot"` => `when="slot"`
 - `when="?"` + `out="slot"` => `when="?slot"`
 - `when="!"` + `out="slot"` => `when="!slot"`
 - `when="!?"` + `out="slot"` => `when="!?slot"`
+- `when` + `out:href="mailto:${.}"` => `when="."`
 
 If key inference is requested but no `out` slot exists, `when` stays as a
 regular HTML attribute and an error is logged.
@@ -647,6 +648,13 @@ Template mode supports placeholder pipelines too, such as
 `${column.width|em}` and `${name|TitleCase}`. Placeholder expressions are data
 path lookups with optional processors (no JavaScript evaluation). Missing or
 invalid placeholders are rendered as empty strings.
+
+Root data can be referenced explicitly with `data`/`data.path`, or using `.`
+and `.path`:
+
+- `out=".|ListItem"`
+- `out:href="mailto:${.}"`
+- `out:title="${.name}"`
 
 ```html
 <!-- Uses "disabled" as the behavior name -->

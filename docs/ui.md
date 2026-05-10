@@ -259,6 +259,15 @@ When a processor resolves to a UI component/template, it is applied to the curre
 - `out:style="width:${width}px; height:${height}px"`
 - `out:title="${name} (${role})"`
 - `out:style="width:${column.width|em}"`
+- `out:href="mailto:${.}"`
+- `out:href="/users/${.id}"`
+
+`data` can be referenced explicitly with `data`/`data.path`, or with the root
+alias `.`/`.path`:
+
+- `out=".|ListItem"` (pass full data to formatter/component)
+- `${.}` (full data in template interpolation)
+- `${.email}` (nested path from root data)
 
 In template mode, placeholders support optional processor pipelines (`${path|Formatter|Formatter}`), with no expression evaluation. Missing or invalid placeholders render as empty strings.
 
@@ -293,12 +302,13 @@ Raw value parsing is literal and safe:
 - numeric literals (including scientific notation) -> numbers
 - other values -> strings
 
-If the key is omitted, it is inferred from `out` on the same element:
+If the key is omitted, it is inferred from `out`/`out:*` on the same element:
 
 - `when` or `when=""` + `out="slot"` => `when="slot"`
 - `when="?"` + `out="slot"` => `when="?slot"`
 - `when="!"` + `out="slot"` => `when="!slot"`
 - `when="!?"` + `out="slot"` => `when="!?slot"`
+- `when` + `out:href="mailto:${.}"` => `when="."`
 
 If key inference is requested but no `out` slot is available, `when` is left as a
 regular HTML attribute and an error is logged.

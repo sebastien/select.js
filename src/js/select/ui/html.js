@@ -186,6 +186,27 @@ class TemplateParser {
 		if (!source) {
 			return null;
 		}
+		if (allowDotted && source === ".") {
+			return ["."];
+		}
+		if (allowDotted && source.startsWith(".")) {
+			const tail = source.slice(1);
+			if (!tail) {
+				return ["."];
+			}
+			const parts = tail.split(".");
+			if (!parts.length) {
+				return null;
+			}
+			for (let i = 0; i < parts.length; i++) {
+				const part = parts[i].trim();
+				if (!part || !TemplateParser.#RE_BINDING_PATH.test(part)) {
+					return null;
+				}
+				parts[i] = part;
+			}
+			return [".", ...parts];
+		}
 		const parts = allowDotted ? source.split(".") : [source];
 		if (!parts.length) {
 			return null;
@@ -449,9 +470,10 @@ class TemplateParser {
 //
 // ----------------------------------------------------------------------------
 
-let _formatsVersion = 0;
-const _formatsStore = Object.create(null);
-_formatsStore.key = (value) => {
+// FIXME: This looks overly complicated
+let FORMATS_STORE_VERSION = 0;
+const FORMATS_STORE = Object.create(null);
+FORMATS_STORE.key = (value) => {
 	if (value === undefined || value === null) {
 		return "";
 	}
@@ -465,16 +487,16 @@ _formatsStore.key = (value) => {
 		.replace(/_+/g, "_")
 		.replace(/^_+|_+$/g, "");
 };
-const FORMATS_PROXY = new Proxy(_formatsStore, {
+const FORMATS_PROXY = new Proxy(FORMATS_STORE, {
 	set(target, property, value) {
 		target[property] = value;
-		_formatsVersion++;
+		FORMATS_STORE_VERSION++;
 		return true;
 	},
 	deleteProperty(target, property) {
 		if (property in target) {
 			delete target[property];
-			_formatsVersion++;
+			FORMATS_STORE_VERSION++;
 		}
 		return true;
 	},
@@ -495,16 +517,24 @@ const resolveDataPath = (data, path) => {
 	return value;
 };
 
+const normalizeSourceKey = (sourceKey) => {
+	if (sourceKey === "data" || sourceKey === ".") {
+		return "";
+	}
+	if (sourceKey.startsWith("data.")) {
+		return sourceKey.slice(5);
+	}
+	if (sourceKey.startsWith(".")) {
+		return sourceKey.slice(1);
+	}
+	return sourceKey;
+};
+
 const resolveSourceValue = (data, sourceKey) => {
 	if (!sourceKey) {
 		return undefined;
 	}
-	const normalizedKey =
-		sourceKey === "data"
-			? ""
-			: sourceKey.startsWith("data.")
-				? sourceKey.slice(5)
-				: sourceKey;
+	const normalizedKey = normalizeSourceKey(sourceKey);
 	if (!normalizedKey) {
 		return data;
 	}
@@ -530,7 +560,13 @@ const resolveTemplateTokens = (self, tokens, data) => {
 			continue;
 		}
 		if (token.type === "expr") {
-			const path = token.value.path;
+			const rawPath = token.value.path;
+			const path =
+				rawPath?.[0] === "."
+					? rawPath.length > 1
+						? rawPath.slice(1)
+						: []
+					: rawPath;
 			let value;
 			if (path?.length === 1) {
 				const key = path[0];
@@ -582,13 +618,13 @@ const resolveNamedProcessor = (self, name) => {
 		template._processorCache = new Map();
 	}
 	const cached = template._processorCache.get(name);
-	if (cached && cached.version === _formatsVersion) {
+	if (cached && cached.version === FORMATS_STORE_VERSION) {
 		return cached.value;
 	}
-	const registered = _formatsStore[name];
+	const registered = FORMATS_STORE[name];
 	if (!registered) {
 		template._processorCache.set(name, {
-			version: _formatsVersion,
+			version: FORMATS_STORE_VERSION,
 			value: null,
 		});
 		return null;
@@ -614,7 +650,7 @@ const resolveNamedProcessor = (self, name) => {
 		value: registered,
 	};
 	template._processorCache.set(name, {
-		version: _formatsVersion,
+		version: FORMATS_STORE_VERSION,
 		value: resolved,
 	});
 	return resolved;
@@ -629,7 +665,7 @@ const applyNamedProcessors = (self, data, value, processors, sourceKey) => {
 		const name = processors[i];
 		const processor = resolveNamedProcessor(self, name);
 		if (!processor) {
-			const availableProcessors = Object.keys(_formatsStore).sort();
+			const availableProcessors = Object.keys(FORMATS_STORE).sort();
 			log.warn("UIInstance.render: processor not found, details", {
 				processor: name,
 				sourceKey,

@@ -145,8 +145,8 @@ function icon(
 ) {
 	style = Object.assign({}, IconDefaults.style, source?.style, style);
 	const node = Object.entries({ width: size, height: size }).reduce(
-		(r, [k, v]) => {
-			r.setAttribute(k, v);
+		(r, [k, v], i) => {
+			r.setAttribute(k, v instanceof Array ? v[i] : v);
 			return r;
 		},
 		document.createElementNS(SVG, "svg"),

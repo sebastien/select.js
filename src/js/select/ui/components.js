@@ -187,6 +187,50 @@ class UITemplateSlot {
 		const res = {};
 		let count = 0;
 		const selector = `[when]`;
+		const pathToSourceKey = (path) => {
+			if (!path?.length) {
+				return null;
+			}
+			if (path[0] === ".") {
+				return path.length > 1 ? `.${path.slice(1).join(".")}` : ".";
+			}
+			return path.join(".");
+		};
+		const inferWhenKeyFromOutAttr = (node) => {
+			const outKey = node.getAttribute("out")?.trim();
+			if (outKey) {
+				const outBinding = TemplateParser.parsePipedBinding(outKey);
+				if (outBinding?.sourceKey) {
+					return outBinding.sourceKey;
+				}
+			}
+			const inferred = new Set();
+			for (const attr of node.attributes || []) {
+				if (!attr.name.startsWith("out:")) {
+					continue;
+				}
+				const parsedOut = TemplateParser.parseOutAttributeBinding(attr.value || "");
+				if (parsedOut.mode === "binding") {
+					const key = parsedOut.binding?.sourceKey;
+					if (key) {
+						inferred.add(key);
+					}
+					continue;
+				}
+				const tokens = parsedOut.template?.tokens || [];
+				for (let i = 0; i < tokens.length; i++) {
+					const token = tokens[i];
+					if (token.type !== "expr") {
+						continue;
+					}
+					const key = pathToSourceKey(token.value?.path);
+					if (key) {
+						inferred.add(key);
+					}
+				}
+			}
+			return inferred.size === 1 ? inferred.values().next().value : null;
+		};
 		const add = (node, parent, i) => {
 			const expr = node.getAttribute("when") || "";
 			const parsed = TemplateParser.parseWhenShorthand(expr);
@@ -203,13 +247,15 @@ class UITemplateSlot {
 				const whenComparisonValue = parsed.value;
 				const whenRawValue = parsed.rawValue || "";
 				if (!whenKey) {
-					const outKey = node.getAttribute("out")?.trim();
-					if (!outKey) {
+					whenKey = inferWhenKeyFromOutAttr(node);
+					if (!whenKey) {
 						log.error("UITemplate: unable to infer [when] key from [out], details", {
 							expression: expr,
 							node,
 							supported: [
 								'when out="slot"',
+								'when out:attr="slot"',
+								'when out:attr="template-expression"',
 								'when="?" out="slot"',
 								'when="!" out="slot"',
 								'when="!?" out="slot"',
@@ -217,15 +263,6 @@ class UITemplateSlot {
 						});
 						return;
 					}
-					const outBinding = TemplateParser.parsePipedBinding(outKey);
-					if (!outBinding?.sourceKey) {
-						log.error(
-							"UITemplate: unable to infer [when] key from [out] binding, details",
-							{ expression: expr, out: outKey, node },
-						);
-						return;
-					}
-					whenKey = outBinding.sourceKey;
 				}
 
 				node.removeAttribute("when");
