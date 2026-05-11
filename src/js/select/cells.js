@@ -31,11 +31,11 @@
 
 import {
 	access,
-	expand as expandValue,
 	logger,
 	Nothing,
 	path as pathify,
 	reassign,
+	remap,
 	Something,
 } from "./utils.js";
 
@@ -189,6 +189,17 @@ class Selections {
 // - `subs`: Array<function> - subscriber callbacks
 // - `selections`: Selections? - registry for nested property selections
 class Reactive {
+	static resolveValue(value) {
+		if (value instanceof Reactive) {
+			if (value.isPending) {
+				return undefined;
+			}
+			const next = value.value;
+			return next && typeof next.then === "function" ? undefined : next;
+		}
+		return value;
+	}
+
 	// Generator that yields `[reactive, path]` tuples for all reactive values
 	// nested within `value` at `path`.
 	static *Walk(value, path = []) {
@@ -213,7 +224,10 @@ class Reactive {
 
 	// Recursively expands `value` by replacing reactive cells with their values.
 	static Expand(value) {
-		return expandValue(value);
+		return remap(value, (v) => Reactive.resolveValue(v), {
+			deep: true,
+			descend: (v) => !(v?.isReactive === true),
+		});
 	}
 
 	constructor(value = Nothing) {
@@ -436,19 +450,21 @@ class Selected extends Reactive {
 		);
 	}
 
-	// Merges `value` into current selected value.
-	merge(value) {
-		if (this.revision === -1) {
-			this.set(value);
-		} else if (Array.isArray(this.value) && Array.isArray(value)) {
-			this.set([...this.value, ...value]);
+	// Merges `value` into current selected value at optional `path`.
+	merge(value, path = Nothing) {
+		path = pathify(path, Nothing);
+		const current = path ? access(this.value, path) : this.value;
+		if (current === undefined) {
+			this.set(value, path);
+		} else if (Array.isArray(current) && Array.isArray(value)) {
+			this.set([...current, ...value], path);
 		} else if (
-			Object.getPrototypeOf(this.value) === Object.prototype &&
+			Object.getPrototypeOf(current) === Object.prototype &&
 			Object.getPrototypeOf(value) === Object.prototype
 		) {
-			this.set({ ...this.value, ...value });
+			this.set({ ...current, ...value }, path);
 		} else {
-			this.set(value);
+			this.set(value, path);
 		}
 		return this;
 	}
@@ -560,19 +576,22 @@ class Cell extends Reactive {
 		return this;
 	}
 
-	merge(value) {
-		if (this.revision === -1) {
-			this._update(value, Nothing);
-		} else if (Array.isArray(this.value) && Array.isArray(value)) {
-			this._update([...this.value, ...value], Nothing);
+	merge(value, path = Nothing) {
+		path = pathify(path, Nothing);
+		const current = path ? access(this.value, path) : this.value;
+		if (current === undefined) {
+			this._update(value, path);
+		} else if (Array.isArray(current) && Array.isArray(value)) {
+			this._update([...current, ...value], path);
 		} else if (
-			Object.getPrototypeOf(this.value) === Object.prototype &&
+			Object.getPrototypeOf(current) === Object.prototype &&
 			Object.getPrototypeOf(value) === Object.prototype
 		) {
-			this._update({ ...this.value, ...value }, Nothing);
+			this._update({ ...current, ...value }, path);
 		} else {
-			this._update(value, Nothing);
+			this._update(value, path);
 		}
+		return this;
 	}
 
 	// Appends value to array. Converts non-array to array first.
@@ -673,14 +692,13 @@ class Derivation extends Reactive {
 
 	_apply(value, publish = true) {
 		const token = ++this._promiseToken;
-		this.previous = this.value;
-		this.value = value;
-		this.isPending = !!(value && typeof value.then === "function");
-		if (publish) {
-			this.revision++;
-			this.pub();
-		}
-		if (value && typeof value.then === "function") {
+		const isPromise = !!(value && typeof value.then === "function");
+		if (isPromise) {
+			this.isPending = true;
+			if (publish) {
+				this.revision++;
+				this.pub();
+			}
 			value.then(
 				(resolved) => {
 					if (token !== this._promiseToken) {
@@ -702,6 +720,14 @@ class Derivation extends Reactive {
 					});
 				},
 			);
+			return;
+		}
+		this.previous = this.value;
+		this.value = value;
+		this.isPending = false;
+		if (publish) {
+			this.revision++;
+			this.pub();
 		}
 	}
 
@@ -779,7 +805,7 @@ class Derivation extends Reactive {
 			const n = inputs.length < next.length ? inputs.length : next.length;
 			for (let i = 0; i < n; i++) {
 				const input = inputs[i];
-				const value = input instanceof Reactive ? input.value : input;
+				const value = Reactive.resolveValue(input);
 				if (!Object.is(next[i], value)) {
 					next[i] = value;
 					changed = true;
@@ -794,7 +820,7 @@ class Derivation extends Reactive {
 
 		if (inputs.length > 0) {
 			const input = inputs.length === 1 ? inputs[0] : inputs;
-			const value = input instanceof Reactive ? input.value : input;
+			const value = Reactive.resolveValue(input);
 			if (!Object.is(this.expanded, value)) {
 				this.expanded = value;
 				changed = true;
