@@ -614,6 +614,13 @@ const resolveNamedProcessor = (self, name) => {
 		return null;
 	}
 	const template = self.template;
+	const localTemplate = template.localTemplates?.get(name);
+	if (localTemplate) {
+		return {
+			type: "component",
+			value: localTemplate,
+		};
+	}
 	if (!template._processorCache) {
 		template._processorCache = new Map();
 	}

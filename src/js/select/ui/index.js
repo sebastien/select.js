@@ -71,6 +71,7 @@ import {
 
 const createComponent = (tmpl) => {
 	const component = (...args) => tmpl.apply(...args);
+	tmpl.component = component;
 	Object.assign(component, {
 		isTemplate: true,
 		template: tmpl,
@@ -103,6 +104,40 @@ const createComponent = (tmpl) => {
 			return component;
 		},
 	});
+	const localTemplates = new Map();
+	const registerLocalTemplate = (templateNode) => {
+		if (!templateNode || templateNode.nodeName !== "TEMPLATE") {
+			return;
+		}
+		const name = TemplateRegistry.formatterName(templateNode);
+		if (name && !localTemplates.has(name)) {
+			const childNodes = [...templateNode.content.childNodes];
+			const childTemplate = new UITemplate(childNodes, tmpl.scope, name);
+			const childComponent = createComponent(childTemplate);
+			component[name] = childComponent;
+			localTemplates.set(name, childComponent);
+		}
+		if (!templateNode.content?.querySelectorAll) {
+			return;
+		}
+		for (const nested of templateNode.content.querySelectorAll("template")) {
+			registerLocalTemplate(nested);
+		}
+	};
+	for (let i = 0; i < tmpl.nodes.length; i++) {
+		const node = tmpl.nodes[i];
+		if (node?.nodeName === "TEMPLATE") {
+			registerLocalTemplate(node);
+		}
+		if (node?.querySelectorAll) {
+			for (const nested of node.querySelectorAll("template")) {
+				registerLocalTemplate(nested);
+			}
+		}
+	}
+	if (localTemplates.size) {
+		tmpl.localTemplates = localTemplates;
+	}
 	return component;
 };
 

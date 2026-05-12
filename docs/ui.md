@@ -37,6 +37,7 @@ For icon loading and `<ui-icon>` usage, see [`docs/icons.md`](./icons.md).
 ### Template API (returned by `ui(...)`):
 
 - `Component(data)`: Applied template creator.
+- `Component.ChildName`: Nested named template exposed as a child component when `<template name="ChildName">` (or `<template id="ChildName">`) is declared inside the component template.
 - `singleton`: Optional public slot for caller-managed singleton instance (`Component.singleton = Component.new()`).
 - `new(parent?)`: Instance factory.
 - `does(behavior)`: Behavior definition.
@@ -238,7 +239,10 @@ merged into rendered element node(s). For multi-node results, each rendered
 element inherits them. Class/style are merged as union additions, while regular
 attributes are only applied when not already set on the rendered node.
 
-Processor lookup is global via `ui.formats`.
+Processor lookup order is:
+
+1. component-local nested templates (`Component.Name`, defined by nested `<template name="Name">`/`id="Name">`)
+2. global registry (`ui.formats`)
 
 Naming convention:
 
@@ -251,6 +255,29 @@ Registering processors:
 ui.format("ClientItem", ClientItem)
 ui.format("asCurrency", (value) => `$${Number(value ?? 0).toFixed(2)}`)
 ```
+
+Using nested component-local processors:
+
+```html
+<template id="CardList">
+  <ul out="items|Item"></ul>
+  <template name="Item">
+    <li out="label"></li>
+  </template>
+</template>
+```
+
+```javascript
+const CardList = ui("#CardList")
+CardList.Item.does({
+  label: (_self, { label }) => label,
+})
+CardList.does({
+  items: (_self, { items }) => items,
+})
+```
+
+In this case, `|Item` resolves to `CardList.Item` first, even if `ui.format("Item", ...)` exists globally.
 
 When a processor resolves to a UI component/template, it is applied to the current value and rendered as child content (`out="client|ClientItem"`).
 

@@ -122,17 +122,23 @@ When using `<template>` elements in your HTML, you can nest them to organize you
 </template>
 ```
 
-To use the nested template, you simply select it by its ID. Select UI will find it even if it's inside another template's content.
+Nested named templates are also exposed directly on the parent component as `Parent.Name`.
+You can still select them by ID/name globally, but `Parent.Name` keeps composition local.
 
 ```javascript
-const TodoItem = ui("#TodoItem").does({
-  label: (self, { label }) => label,
-});
+const TodoList = ui("#TodoList")
+const TodoItem = TodoList.TodoItem
 
-const TodoList = ui("#TodoList").does({
+TodoList.TodoItem.does({
+  label: (self, { label }) => label,
+})
+TodoList.does({
   items: (self, { items }) => items.map(TodoItem),
-});
+})
 ```
+
+For processor pipelines (for example `out="items|TodoItem"` or `when="value|TodoItem"`),
+resolution checks `TodoList.TodoItem` first, then falls back to global `ui.formats.TodoItem`.
 
 #### Composition with Applied Templates
 
