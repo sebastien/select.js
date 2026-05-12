@@ -432,7 +432,19 @@ class UITemplateSlot {
 				for (const attr of node.attributes) {
 					if (attr.name.startsWith(prefix)) {
 						const eventType = attr.name.slice(prefix.length);
-						const handlerName = attr.value || eventType;
+						const parsed = TemplateParser.parseEventEffect(attr.value, eventType);
+						if (!parsed) {
+							log.warn("UITemplateSlot.FindEvent: invalid event effect, details", {
+								eventType,
+								effect: attr.value,
+							});
+							toRemove.push(attr.name);
+							continue;
+						}
+						const handlerName =
+							parsed.mode === "handler"
+								? parsed.handlerName || eventType
+								: `!${parsed.publishEvent}:${parsed.binding?.sourceKey || "data"}`;
 						toRemove.push(attr.name);
 
 						const slot = new UIEventTemplateSlot(
@@ -441,6 +453,9 @@ class UITemplateSlot {
 							UITemplateSlot.Path(node, parent, [i]),
 							eventType,
 							handlerName,
+							parsed.mode,
+							parsed.publishEvent,
+							parsed.binding,
 						);
 
 						if (!res[handlerName]) res[handlerName] = [];
@@ -715,7 +730,16 @@ class UIAttributeSlot {
 // - `eventType`: string - DOM event type (e.g., "click")
 // - `handlerName`: string - behavior method name to call
 class UIEventTemplateSlot {
-	constructor(node, parent, path, eventType, handlerName) {
+	constructor(
+		node,
+		parent,
+		path,
+		eventType,
+		handlerName,
+		mode = "handler",
+		publishEvent = null,
+		binding = null,
+	) {
 		this.node = node;
 		this.parent = parent;
 		this.path = path;
@@ -723,6 +747,9 @@ class UIEventTemplateSlot {
 		this.tailPath = path.length > 1 ? path.slice(1) : null;
 		this.eventType = eventType;
 		this.handlerName = handlerName;
+		this.mode = mode;
+		this.publishEvent = publishEvent;
+		this.binding = binding;
 	}
 
 	resolve(nodes) {
@@ -747,6 +774,9 @@ class UIEventSlot {
 		this.parent = parent;
 		this.eventType = template.eventType;
 		this.handlerName = template.handlerName;
+		this.mode = template.mode;
+		this.publishEvent = template.publishEvent;
+		this.binding = template.binding;
 	}
 }
 // Class: UITemplate
@@ -1844,6 +1874,32 @@ class UIInstance {
 
 	// Binds event slot with explicit event type.
 	_bindEvent(name, target, handler = this.template.behavior?.[name]) {
+		if (target.mode === "publish" && target.publishEvent) {
+			const listener = (_event) => {
+				const data = this.data || {};
+				let payload = data;
+				if (target.binding?.sourceKey) {
+					payload = expand(resolveSourceValue(data, target.binding.sourceKey));
+					if (target.binding.processors?.length) {
+						payload = applyNamedProcessors(
+							this,
+							data,
+							payload,
+							target.binding.processors,
+							target.binding.sourceKey,
+						);
+					}
+				}
+				this.pub(target.publishEvent, payload);
+			};
+			target.node.addEventListener(target.eventType, listener);
+			this._domListeners.push({
+				node: target.node,
+				type: target.eventType,
+				handler: listener,
+			});
+			return;
+		}
 		if (handler) {
 			const listener = (event) => {
 				const result = handler(this, this.data || {}, event);

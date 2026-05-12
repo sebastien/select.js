@@ -146,7 +146,7 @@ function icon(
 	style = Object.assign({}, IconDefaults.style, source?.style, style);
 	const node = Object.entries({ width: size, height: size }).reduce(
 		(r, [k, v], i) => {
-			r.setAttribute(k, v instanceof Array ? v[i] : v);
+			r.setAttribute(k, Array.isArray(v) ? v[i] : v);
 			return r;
 		},
 		document.createElementNS(SVG, "svg"),
@@ -185,7 +185,9 @@ function icon(
 		// We support an inline mode, which is necessary for web components.
 		case "inline":
 			Object.assign(node.style, style);
-			classes.forEach((_) => node.classList.add(_));
+			classes.forEach((_) => {
+				node.classList.add(_);
+			});
 			icon.then((symbol) => {
 				if (!symbol) {
 					node.classList.add("missing");
@@ -209,7 +211,9 @@ function icon(
 			return node;
 		default: {
 			const use = document.createElementNS(SVG, "use");
-			use.classList.forEach((_) => node.classList.add(_));
+			use.classList.forEach((_) => {
+				node.classList.add(_);
+			});
 			Object.assign(node.style, style);
 			use.setAttribute("href", `#icon-${name}-${source}`);
 			node.appendChild(use);

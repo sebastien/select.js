@@ -521,7 +521,16 @@ If no handler is defined, `inout` uses the same default input behavior as `in`.
 
 ### Event Slots (`on:<event>`)
 
-Bind event handlers with explicit event types using `on:<event>="handlerName"`.
+`on:<event>` supports two modes:
+
+- handler mode: `on:<event>="handlerName"` (or `on:<event>` to default to the event type)
+- publish/effect mode: `on:<event>="effectExpr!EventName"`
+
+Effect expression forms:
+
+- `!EventName`: publish event only, payload defaults to current data
+- `path.to.value!EventName`: publish event with payload from data path
+- `path.to.value|processorA|processorB!EventName`: publish event with payload transformed by processors
 
 ```html
 <!-- Click event with "save" handler -->
@@ -529,6 +538,15 @@ Bind event handlers with explicit event types using `on:<event>="handlerName"`.
 
 <!-- Handler name defaults to event type if omitted -->
 <button on:click>Click me</button>
+
+<!-- Publish-only effect -->
+<button on:click="!Clicked">Click me</button>
+
+<!-- Publish payload from data path -->
+<button on:click="item.id!Select">Select</button>
+
+<!-- Publish payload with processors -->
+<button on:click="item.total|asCurrency!CheckoutTotal">Checkout</button>
 
 <!-- Form submit -->
 <form on:submit="handleSubmit">...</form>
@@ -544,6 +562,10 @@ Bind event handlers with explicit event types using `on:<event>="handlerName"`.
   },
   click: (self, data, event) => {
     console.log("Clicked!");
+  },
+  // Receives published events from effect mode
+  onCheckoutTotal: (self, data, evt) => {
+    console.log(evt.type, evt.data);
   },
   highlight: (self, data, event) => {
     event.target.classList.add("highlighted");

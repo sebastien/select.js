@@ -343,6 +343,12 @@ function remap(value, f) {
 };
 
 function format(name, formatter) {
+	if (name && typeof name === "object" && !Array.isArray(name)) {
+		for (const key in name) {
+			format(key, name[key]);
+		}
+		return ui;
+	}
 	if (typeof name !== "string" || !name.trim()) {
 		log.error("ui.formats: invalid formatter name, details", {
 			name,

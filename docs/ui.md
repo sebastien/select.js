@@ -212,7 +212,7 @@ Dynamic("Badge", { label: "Ready" })
 - `out` with processors: `out="slot|Formatter|Formatter"` pipes the slot value through processors.
 - `in`: Binds a slot's input (e.g., value of an `<input>`) to instance data.
 - `inout`: Two-way binding between slot and instance data.
-- `on:<event>`: Binds a DOM event to an instance method or behavior handler.
+- `on:<event>`: Binds a DOM event to a handler (`on:click="save"`) or an effect publish expression (`on:click="item.id!Selected"`).
 - `when`: Conditional rendering with shorthand predicates, safe comparisons, and processors (non-eval).
 - `ref`: Provides a reference to the DOM node in the instance's `self.ref`.
 - `out:<attr>`: Binds a specific DOM attribute to a data value.
@@ -258,7 +258,21 @@ Registering processors:
 ```javascript
 ui.format("ClientItem", ClientItem)
 ui.format("asCurrency", (value) => `$${Number(value ?? 0).toFixed(2)}`)
+ui.format({
+	asPercent: (value) => `${Math.round(Number(value ?? 0) * 100)}%`,
+	asLabel: (value) => `${value ?? ""}`,
+})
 ```
+
+### `on:<event>` effects (`!Event`)
+
+Event bindings support handler mode and publish/effect mode:
+
+- `on:click="save"`: call behavior handler `save(self, data, event)`
+- `on:click`: same as `on:click="click"`
+- `on:click="!Clicked"`: publish `Clicked` with current component data as payload
+- `on:click="path.to.value!Selected"`: publish `Selected` with payload from data path
+- `on:click="path.to.value|processorA|processorB!Selected"`: same, after processors
 
 Using nested component-local processors:
 

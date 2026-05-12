@@ -252,6 +252,57 @@ class TemplateParser {
 		return { path, processors };
 	}
 
+	static parseEventEffect(expr, eventType = "") {
+		const source = typeof expr === "string" ? expr.trim() : "";
+		if (!source) {
+			return { mode: "handler", handlerName: eventType };
+		}
+		const separator = source.lastIndexOf("!");
+		if (separator === -1) {
+			return { mode: "handler", handlerName: source };
+		}
+		const publishEvent = source.slice(separator + 1).trim();
+		if (!publishEvent || /\s/.test(publishEvent)) {
+			return null;
+		}
+		const payloadExpr = source.slice(0, separator).trim();
+		if (!payloadExpr) {
+			return {
+				mode: "publish",
+				publishEvent,
+				binding: null,
+			};
+		}
+		const parts = payloadExpr.split("|");
+		for (let i = 0; i < parts.length; i++) {
+			parts[i] = parts[i].trim();
+			if (!parts[i]) {
+				return null;
+			}
+		}
+		const path = TemplateParser.parseTemplatePath(parts[0]);
+		if (!path) {
+			return null;
+		}
+		const processors = parts.length > 1 ? parts.slice(1) : [];
+		for (let i = 0; i < processors.length; i++) {
+			if (/\s/.test(processors[i])) {
+				return null;
+			}
+		}
+		const sourceKey =
+			path[0] === "."
+				? path.length === 1
+					? "."
+					: `.${path.slice(1).join(".")}`
+				: path.join(".");
+		return {
+			mode: "publish",
+			publishEvent,
+			binding: { sourceKey, processors },
+		};
+	}
+
 	static parseOutAttributeBinding(expr) {
 		const source = typeof expr === "string" ? expr : "";
 		if (!source) {
