@@ -229,6 +229,7 @@ Dynamic("Badge", { label: "Ready" })
 - `out-replace="slot"`: render slot value in place of the bound node
 - `out="slot|Formatter"`: pass `slot` through one processor
 - `out="slot|FormatterA|FormatterB"`: chain processors left-to-right
+- `out="collection|*Formatter"`: apply `Formatter` to each item of `collection` (preserving array/map/set/object shape)
 
 `out-replace` uses the same binding and processor pipeline as `out`, but mounts
 its result between anchors at the original node position. This is useful when
@@ -243,6 +244,9 @@ Processor lookup order is:
 
 1. component-local nested templates (`Component.Name`, defined by nested `<template name="Name">`/`id="Name">`)
 2. global registry (`ui.formats`)
+
+The same lookup order applies to starred processors too (`*Item`, `*asCurrency`):
+local nested template first, then global `ui.formats`.
 
 Naming convention:
 
@@ -280,6 +284,8 @@ CardList.does({
 In this case, `|Item` resolves to `CardList.Item` first, even if `ui.format("Item", ...)` exists globally.
 
 When a processor resolves to a UI component/template, it is applied to the current value and rendered as child content (`out="client|ClientItem"`).
+With `*`, the processor is applied per item, including template processors
+(`out="clients|*ClientItem"`).
 
 `out:<attr>` also supports template interpolation for all attributes:
 

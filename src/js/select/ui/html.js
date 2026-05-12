@@ -663,6 +663,71 @@ const resolveNamedProcessor = (self, name) => {
 	return resolved;
 };
 
+const mapProcessorCollection = (value, f) => {
+	if (
+		value === null ||
+		value === undefined ||
+		typeof value === "number" ||
+		typeof value === "string"
+	) {
+		return value;
+	}
+	if (Array.isArray(value)) {
+		const n = value.length;
+		const res = new Array(n);
+		for (let i = 0; i < n; i++) {
+			res[i] = f(value[i], i);
+		}
+		return res;
+	}
+	if (value instanceof Map) {
+		const res = new Map();
+		for (const [k, v] of value.entries()) {
+			res.set(k, f(v, k));
+		}
+		return res;
+	}
+	if (value instanceof Set) {
+		const res = new Set();
+		for (const v of value) {
+			res.add(f(v, undefined));
+		}
+		return res;
+	}
+	if (typeof value === "object") {
+		const res = {};
+		for (const k in value) {
+			res[k] = f(value[k], k);
+		}
+		return res;
+	}
+	return value;
+};
+
+const applyNamedProcessor = (processor, current, self, data, sourceKey, name) => {
+	if (processor.type === "component") {
+		const component = processor.value;
+		if (current === undefined || current === null) {
+			return current;
+		}
+		if (
+			component?.isTemplate &&
+			typeof component?.apply === "function" &&
+			typeof component !== "function"
+		) {
+			return component.apply(current, self, data, sourceKey, name);
+		}
+		if (typeof component?.apply === "function" && component?.isTemplate) {
+			return component(current);
+		}
+		if (typeof component === "function") {
+			return component(current, self, data);
+		}
+		return current;
+	}
+	return processor.value(current, self, data, sourceKey, name);
+};
+
 const applyNamedProcessors = (self, data, value, processors, sourceKey) => {
 	if (!processors || processors.length === 0) {
 		return value;
@@ -670,30 +735,33 @@ const applyNamedProcessors = (self, data, value, processors, sourceKey) => {
 	let current = value;
 	for (let i = 0; i < processors.length; i++) {
 		const name = processors[i];
-		const processor = resolveNamedProcessor(self, name);
+		const each = name.startsWith("*");
+		const processorName = each ? name.slice(1) : name;
+		const processor = resolveNamedProcessor(self, processorName);
 		if (!processor) {
 			const availableProcessors = Object.keys(FORMATS_STORE).sort();
 			log.warn("UIInstance.render: processor not found, details", {
-				processor: name,
+				processor: processorName,
 				sourceKey,
 				availableProcessors,
 				instance: self,
 			});
 			continue;
 		}
-		if (processor.type === "component") {
-			const component = processor.value;
-			if (current === undefined || current === null) {
-				continue;
-			}
-			if (typeof component?.apply === "function" && component?.isTemplate) {
-				current = component(current);
-			} else if (typeof component === "function") {
-				current = component(current, self, data);
-			}
-		} else {
-			current = processor.value(current, self, data, sourceKey, name);
+		if (each) {
+			current = mapProcessorCollection(current, (item) =>
+				applyNamedProcessor(processor, item, self, data, sourceKey, processorName),
+			);
+			continue;
 		}
+		current = applyNamedProcessor(
+			processor,
+			current,
+			self,
+			data,
+			sourceKey,
+			processorName,
+		);
 	}
 	return current;
 };

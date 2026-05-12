@@ -431,7 +431,16 @@ Render data to the DOM. Content can be text, HTML, or nested components.
 <li out="client|ClientItem"></li>
 ```
 
+Use `*` to apply a processor to each item of a collection:
+
+```html
+<ul out="clients|*ClientItem"></ul>
+<span out="prices|*asCurrency"></span>
+```
+
 Processors are looked up by name in `ui.formats`.
+For both `Name` and `*Name`, resolution checks component-local nested templates
+first, then global `ui.formats`.
 
 Naming convention:
 
@@ -445,6 +454,8 @@ ui.format("asCurrency", (value) => `$${Number(value ?? 0).toFixed(2)}`)
 
 When a processor resolves to a UI component/template, the value is applied to it
 and rendered as child content.
+With `*`, template/function processors are applied item-by-item while preserving
+the input collection shape (Array, Map, Set, plain object).
 
 ### Replacing Output Slots (`out-replace`)
 
@@ -649,6 +660,10 @@ Bind behavior outputs directly to element attributes. Use `out:<attr>` where
 
 - binding mode: `out:<attr>="slot|Formatter|Formatter"`
 - template mode: `out:<attr>="prefix-${path.to.value}-suffix"`
+
+Binding mode also supports collection iteration via `*`:
+
+- `out:<attr>="items|*Formatter"`
 
 Template mode supports placeholder pipelines too, such as
 `${column.width|em}` and `${name|TitleCase}`. Placeholder expressions are data
