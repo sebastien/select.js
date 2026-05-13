@@ -602,10 +602,13 @@ class LocationState {
 			typeof options.warn === "function"
 				? options.warn
 				: (scope, error, details = {}) =>
-						log.warn(`${scope}: ${error?.message || "browser warning"}, details`, {
-							error,
-							...details,
-						});
+						log.warn(
+							`${scope}: ${error?.message || "browser warning"}, details`,
+							{
+								error,
+								...details,
+							},
+						);
 		this.mode = options.mode === "push" ? "push" : "replace";
 		const querySerializer =
 			options.query &&
@@ -834,7 +837,12 @@ function browser(options = {}) {
 	};
 }
 
+function get(options = {}) {
+	if (!get.SINGLETON) get.SINGLETON = browser(options);
+	return get.SINGLETON;
+}
+
 export { browser };
-export default browser;
+export default get;
 
 // EOF
