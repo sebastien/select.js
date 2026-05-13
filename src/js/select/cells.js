@@ -52,21 +52,21 @@ const normalizeSelectionPath = (path) =>
 		? []
 		: Array.isArray(path)
 			? path
-			: [path]
+			: [path];
 
 const selectionPathKey = (path) => {
 	if (!path || path.length === 0) {
-		return ""
+		return "";
 	}
-	let key = ""
+	let key = "";
 	for (let i = 0; i < path.length; i++) {
 		if (i) {
-			key += "/"
+			key += "/";
 		}
-		key += `${typeof path[i]}:${path[i]}`
+		key += `${typeof path[i]}:${path[i]}`;
 	}
-	return key
-}
+	return key;
+};
 
 // ----------------------------------------------------------------------------
 //
@@ -256,7 +256,10 @@ class Reactive {
 	// If `defaultValue` is provided and current path is undefined, initializes it.
 	select(path, defaultValue = Nothing) {
 		const nextPath = normalizeSelectionPath(path);
-		if (defaultValue !== Nothing && access(this.value, nextPath) === undefined) {
+		if (
+			defaultValue !== Nothing &&
+			access(this.value, nextPath) === undefined
+		) {
 			this.set(defaultValue, nextPath);
 		}
 		const pathKey = selectionPathKey(nextPath);
@@ -286,8 +289,11 @@ class Reactive {
 	}
 
 	// Subscribes `handler` to value changes. Handler receives (value, path, origin).
-	sub(handler) {
+	sub(handler, trigger = false) {
 		this.subs.push(handler);
+		if (trigger) {
+			handler(this.value, Nothing, this);
+		}
 		return this;
 	}
 
@@ -426,7 +432,7 @@ class Selected extends Reactive {
 
 	select(parent, path = Nothing, pathKey = undefined) {
 		// Overload: select(path, defaultValue?) from a Selected value.
-		if (!(parent instanceof Reactive) && arguments.length <= 2) {
+		if (!(parent instanceof Reactive) && pathKey === undefined) {
 			const nestedPath = parent;
 			const defaultValue = path;
 			const nextPath = normalizeSelectionPath(nestedPath);
@@ -777,23 +783,23 @@ class Derivation extends Reactive {
 	_apply(value, publish = true) {
 		const token = ++this._promiseToken;
 		const isPromise = !!(value && typeof value.then === "function");
-		if (isPromise) {
-			this.isPending = true;
-			if (publish) {
-				this.revision++;
-				this.pub();
-			}
-			value.then(
-				(resolved) => {
-					if (token !== this._promiseToken) {
-						return;
-					}
-					this.previous = this.value;
-					this.value = resolved;
-					this.isPending = false;
+			if (isPromise) {
+				this.isPending = true;
+				if (publish) {
 					this.revision++;
-					this.pub();
-				},
+					this.pub(value, Nothing, this);
+				}
+				value.then(
+					(resolved) => {
+						if (token !== this._promiseToken) {
+							return;
+					}
+						this.previous = this.value;
+						this.value = resolved;
+						this.isPending = false;
+						this.revision++;
+						this.pub(resolved, Nothing, this);
+					},
 				(error) => {
 					if (token !== this._promiseToken) {
 						return;
@@ -809,11 +815,11 @@ class Derivation extends Reactive {
 		this.previous = this.value;
 		this.value = value;
 		this.isPending = false;
-		if (publish) {
-			this.revision++;
-			this.pub();
+			if (publish) {
+				this.revision++;
+				this.pub(value, Nothing, this);
+			}
 		}
-	}
 
 	// Subscribes to all reactive cells in template.
 	bind() {
