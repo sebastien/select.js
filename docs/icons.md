@@ -1,6 +1,7 @@
 # Select Icons (`select.icons.js`)
 
-`select.icons.js` provides a small icon loader built on top of SVG symbols and CDN sources.
+`select.icons.js` provides a small icon loader built on top of SVG symbols and CDN sources
+(by default [Iconify.design](https://icon-sets.iconify.design)).
 
 It supports:
 

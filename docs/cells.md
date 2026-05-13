@@ -13,6 +13,7 @@ and lightweight pub/sub.
 	- Query and hash use the same hashformat serializer by default (`a=1,b=(2,3)`).
 - `deferred(value?, delay)`: Creates a mutable reactive `Deferred` cell that debounces updates by the given delay.
 - `derived(template, processor?, initial?)`: Creates a reactive derivation from a template containing cells.
+- `effect(inputs, effector)`: Subscribes to all reactives in `inputs`, runs `effector(expanded, path, origin)`, returns disposer.
 - `Cell` (class): The base class for mutable reactive values.
 - `Deferred` (class): A cell that delays and debounces its updates.
 - `Selected` (class): A reactive value linked to a specific path within a parent reactive value.
@@ -36,6 +37,7 @@ and lightweight pub/sub.
 - `select(path)`: Returns a `Selected` instance linked to the specified path.
 - `sub(handler)`: Subscribes a handler to receive updates `(value, path, origin)`.
 - `unsub(handler)`: Unsubscribes a previously registered handler.
+- `effect(handler)`: Subscribes `handler` and returns an idempotent unsubscriber callback.
 - `pub(value, path?, origin?)`: Manually publishes an update to all subscribers.
 - `merge(value)`: Merges or replaces the current value (`Cell` and `Selected`).
 - `push(value)`: Appends a value to the underlying array (`Cell` and `Selected`).

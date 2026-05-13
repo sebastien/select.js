@@ -97,6 +97,7 @@ state.set(2, "a.b");
 	- Default `query`/`hash` serialization uses hashformat syntax (for example `a=1,b=(2,3)`).
 - `deferred(value?, delay)`: Factory function to create a new `Deferred` cell instance for debounced updates.
 - `derived(template, processor?, initial?)`: Factory function to create a new `Derivation` instance. `template` can be a cell, an array of cells, or a function.
+- `effect(inputs, effector)`: Factory helper that subscribes to all reactives in `inputs`, runs `effector(expanded, path, origin)`, and returns an idempotent disposer.
 - `access(context, path, offset?)`: Utility to read a nested value from a plain object/array by path.
 - `assign(scope, path, value, merge?, offset?)`: Utility to write a nested value by path into a plain object/array.
 - `walk(value, path?)`: Iterates through a structure and yields `[reactive, path]` for every reactive value found.
@@ -109,6 +110,7 @@ state.set(2, "a.b");
 - `.select(path)`: Returns a `Selected` instance linked to a specific path in the current cell.
 - `.sub(handler)`: Subscribes a handler function `(value, path, origin) => ...` to updates.
 - `.unsub(handler)`: Removes a previously registered subscriber.
+- `.effect(handler)`: Subscribes `handler` and returns an idempotent unsubscriber callback.
 - `.pub(value, path?, origin?)`: Manually publishes an update notification.
 - `.map(functor)`: Creates a new array by mapping over the cell's current value (if it's an array).
 - `.merge(value)`: Merges arrays/objects when possible, otherwise replaces with `value`.

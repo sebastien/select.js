@@ -1664,6 +1664,7 @@ class UIInstance {
 		this._reactiveDataSubs = undefined;
 		this._reactiveDataRefs = undefined;
 		this._domListeners = undefined;
+		this._effectTeardowns = undefined;
 		this._asyncBehaviorTokens = new Map();
 		this._hasRendered = false;
 		if (template.initializer) {
@@ -1696,6 +1697,19 @@ class UIInstance {
 				this.render();
 			}
 		});
+	}
+
+	// Runs `setup(this)` and tracks returned teardown for disposal.
+	effect(setup) {
+		if (this._isDisposed || typeof setup !== "function") {
+			return this;
+		}
+		const teardown = setup(this);
+		if (typeof teardown === "function") {
+			this._effectTeardowns = this._effectTeardowns ?? [];
+			this._effectTeardowns.push(teardown);
+		}
+		return this;
 	}
 
 	_collectReactiveDataRefs(data) {
@@ -1784,6 +1798,20 @@ class UIInstance {
 					instance: this,
 				});
 			}
+		}
+		if (this._effectTeardowns) {
+			for (const teardown of this._effectTeardowns) {
+				try {
+					teardown();
+				} catch (err) {
+					log.error("UIInstance.dispose: effect teardown threw, details", {
+						error: err,
+						instance: this,
+					});
+				}
+			}
+			this._effectTeardowns.length = 0;
+			this._effectTeardowns = undefined;
 		}
 		if (this._domListeners) {
 			for (const listener of this._domListeners) {

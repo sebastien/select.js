@@ -239,11 +239,26 @@ class Reactive {
 		this.subs = [];
 		this.selections = undefined;
 		this._selectionCache = new Map();
+		this._normalizer = undefined;
+	}
+
+	// Sets a root-value normalizer for this reactive and returns self.
+	normalize(fn) {
+		this._normalizer = typeof fn === "function" ? fn : undefined;
+		return this;
+	}
+
+	normalizeValue(value, path = Nothing) {
+		return !path && this._normalizer ? this._normalizer(value) : value;
 	}
 
 	// Creates a `Selected` view at `path` within this cell's value.
-	select(path) {
+	// If `defaultValue` is provided and current path is undefined, initializes it.
+	select(path, defaultValue = Nothing) {
 		const nextPath = normalizeSelectionPath(path);
+		if (defaultValue !== Nothing && access(this.value, nextPath) === undefined) {
+			this.set(defaultValue, nextPath);
+		}
 		const pathKey = selectionPathKey(nextPath);
 		let selected = this._selectionCache.get(pathKey);
 		if (!selected) {
@@ -283,6 +298,20 @@ class Reactive {
 			this.subs.splice(i, 1);
 		}
 		return this;
+	}
+
+	// Registers `handler` and returns an idempotent unsubscriber callback.
+	effect(handler) {
+		this.sub(handler);
+		let active = true;
+		return () => {
+			if (!active) {
+				return false;
+			}
+			active = false;
+			this.unsub(handler);
+			return true;
+		};
 	}
 
 	// Notifies all subscribers of change. Called with (value, path, origin).
@@ -384,7 +413,31 @@ class Selected extends Reactive {
 		return this;
 	}
 
-	select(parent, path, pathKey = undefined) {
+	reselect(path) {
+		if (!(this.parent instanceof Reactive)) {
+			return this;
+		}
+		const nextPath = normalizeSelectionPath(path);
+		const nextPathKey = selectionPathKey(nextPath);
+		this.select(this.parent, nextPath, nextPathKey);
+		this.refresh();
+		return this;
+	}
+
+	select(parent, path = Nothing, pathKey = undefined) {
+		// Overload: select(path, defaultValue?) from a Selected value.
+		if (!(parent instanceof Reactive) && arguments.length <= 2) {
+			const nestedPath = parent;
+			const defaultValue = path;
+			const nextPath = normalizeSelectionPath(nestedPath);
+			if (
+				defaultValue !== Nothing &&
+				access(this.value, nextPath) === undefined
+			) {
+				this.set(defaultValue, nextPath);
+			}
+			return Reactive.prototype.select.call(this, nextPath);
+		}
 		const nextPath = normalizeSelectionPath(path);
 		const nextPathKey = pathKey ?? selectionPathKey(nextPath);
 
@@ -437,6 +490,15 @@ class Selected extends Reactive {
 		this.value = value;
 		this.isPending = !!(value && typeof value.then === "function");
 		this.revision++;
+		if (this.selections) {
+			const seen = new Set();
+			for (const selection of this.selections.iter([])) {
+				if (selection !== this && !seen.has(selection)) {
+					seen.add(selection);
+					selection.refresh();
+				}
+			}
+		}
 		this.pub(value, this.path, this.parent);
 	}
 
@@ -508,11 +570,41 @@ class Cell extends Reactive {
 		}
 	}
 
+	_refreshSelections(path) {
+		if (!this.selections) {
+			return;
+		}
+		const seen = new Set();
+		const refresh = (selection) => {
+			if (!seen.has(selection)) {
+				seen.add(selection);
+				selection.refresh();
+			}
+		};
+		// Refresh exact path + descendants first.
+		for (const selection of this.selections.iter(path)) {
+			refresh(selection);
+		}
+		// Then refresh ancestors (including root selection).
+		if (path?.length) {
+			for (let i = path.length - 1; i >= 0; i--) {
+				const ancestorPath = i === 0 ? [] : path.slice(0, i);
+				const ancestors = this.selections.get(ancestorPath);
+				if (ancestors) {
+					for (const selection of ancestors) {
+						refresh(selection);
+					}
+				}
+			}
+		}
+	}
+
 	// Internal update implementation. Applies value, updates selections,
 	// notifies subscribers.
 	_update(value, path, _force = false) {
 		// TODO: Maybe patch?
 		path = pathify(path, Nothing);
+		value = this.normalizeValue(value, path);
 		if (!_force) {
 			if (path) {
 				const current = access(this.value, path);
@@ -532,11 +624,7 @@ class Cell extends Reactive {
 		this.value = updated;
 		this.isPending = !!(pending && typeof pending.then === "function");
 		this.revision++;
-		if (this.selections) {
-			for (const r of this.selections.iter(path)) {
-				r.refresh();
-			}
-		}
+		this._refreshSelections(path);
 		this.pub(value, path, this);
 		if (pending && typeof pending.then === "function") {
 			pending.then(
@@ -548,11 +636,7 @@ class Cell extends Reactive {
 					this.value = path ? reassign(this.value, path, resolved) : resolved;
 					this.isPending = false;
 					this.revision++;
-					if (this.selections) {
-						for (const r of this.selections.iter(path)) {
-							r.refresh();
-						}
-					}
+					this._refreshSelections(path);
 					this.pub(resolved, path, this);
 				},
 				(error) => {
@@ -899,6 +983,72 @@ function selected(parent, path) {
 	return new Selected(parent, path);
 }
 
+// Function: effect
+// Subscribes `effector` to all reactive values found in `inputs`.
+// Runs once immediately with expanded values, then on each source update.
+// Returns an idempotent disposer that unsubscribes all sources and runs the
+// latest cleanup returned by `effector`.
+function effect(inputs, effector) {
+	let active = true;
+	let cleanup;
+	const sources = [];
+	const reactors = [];
+	const acquired = [];
+
+	const run = (path = undefined, origin = undefined) => {
+		if (!active || typeof effector !== "function") {
+			return;
+		}
+		if (typeof cleanup === "function") {
+			cleanup();
+			cleanup = undefined;
+		}
+		cleanup = effector(Reactive.Expand(inputs), path, origin);
+	};
+
+	for (const [cell, path] of Reactive.Walk(inputs)) {
+		const reactor = (_value, sourcePath, origin) => {
+			const fullPath =
+				sourcePath === undefined || sourcePath === null
+					? path
+					: Array.isArray(sourcePath)
+						? [...path, ...sourcePath]
+						: [...path, sourcePath];
+			run(fullPath, origin || cell);
+		};
+		cell.sub(reactor);
+		if (cell?.isReactive && typeof cell.acquire === "function") {
+			cell.acquire();
+			acquired.push(cell);
+		}
+		sources.push(cell);
+		reactors.push(reactor);
+	}
+
+	run();
+
+	return () => {
+		if (!active) {
+			return false;
+		}
+		active = false;
+		if (typeof cleanup === "function") {
+			cleanup();
+			cleanup = undefined;
+		}
+		for (let i = 0; i < sources.length; i++) {
+			sources[i].unsub(reactors[i]);
+		}
+		for (let i = 0; i < acquired.length; i++) {
+			acquired[i].release();
+		}
+		sources.length = 0;
+		reactors.length = 0;
+		acquired.length = 0;
+		return true;
+	};
+}
+
 // ----------------------------------------------------------------------------
 //
 // SECTION: Exports
@@ -916,6 +1066,7 @@ export {
 	Derivation,
 	deferred,
 	derived,
+	effect,
 	expand,
 	Reactive,
 	Selected,
@@ -924,6 +1075,7 @@ export {
 export default Object.assign(cell, {
 	defer: deferred,
 	derive: derived,
+	effect,
 	select: selected,
 	walk,
 	expand,

@@ -56,6 +56,7 @@ For icon loading and `<ui-icon>` usage, see [`docs/icons.md`](./icons.md).
   - Fallback shorthand: in fallback selector mode with exactly one original host, `mount()` (no args) auto-applies replace-host behavior. If host count is not exactly one, it throws and requires explicit `mount(selector, true)`.
 - `unmount()`: DOM detachment.
 - `dispose()`: Releases instance listeners/subscriptions and child instances.
+- `effect(setup)`: Runs `setup(self)` and auto-runs returned teardown on dispose.
 - `render(data?)`: Rendering engine access.
 - `pub(event, data)`: Publishes an event upward through the component tree.
 - `on(event, handler)` / `off(event, handler)`: Dynamic event binding.
@@ -199,6 +200,7 @@ Dynamic("Badge", { label: "Ready" })
 - `instance.mount(target, previous?)`: Attaches the instance's nodes to the DOM at the specified target.
 - `instance.unmount()`: Removes the instance's nodes from the DOM.
 - `instance.dispose()`: Releases runtime listeners/subscriptions and child instances.
+- `instance.effect(setup)`: Runs `setup(self)` and registers returned teardown for disposal.
 - `instance.render(data?)`: Forces a re-render of the instance, optionally with new data.
 - `instance.pub(event, data)`: Publishes an event upward through the component tree.
 - `instance.on(event, handler)` / `instance.off(event, handler)`: Adds or removes runtime event listeners on the instance.
@@ -390,4 +392,32 @@ const Feed = ui(`<div out="channel"></div>`)
   .cleanup((self) => {
     self._sub?.off?.()
   })
+```
+
+For local reactive subscriptions, prefer `instance.effect(...)`:
+
+```javascript
+const Counter = ui(`<p out="count"></p>`)
+  .does({
+    init: (self, data) => {
+      self.effect(() =>
+        data.count.effect(() => {
+          self.render()
+        }),
+      )
+    },
+    count: (self, { count }) => count?.value ?? count ?? 0,
+  })
+```
+
+You can also compose multiple reactive inputs with Cells helper:
+
+```javascript
+import { effect } from "@./cells.js"
+
+self.effect(() =>
+  effect({ count: data.count, filter: data.filter }, ({ count, filter }) => {
+    self.render({ count: count?.value ?? count, filter: filter?.value ?? filter })
+  }),
+)
 ```

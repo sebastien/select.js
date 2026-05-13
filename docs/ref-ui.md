@@ -274,6 +274,7 @@ Web component API:
 - `mount()`: In fallback-node-template mode only, auto-replaces the original host when exactly one host was matched. Otherwise throws and requires explicit `mount(selector, true)`.
 - `unmount()`: Removes the instance's nodes from the DOM.
 - `dispose()`: Releases instance resources (runtime listeners, reactive/context subscriptions, child instances) without removing nodes directly.
+- `effect(setup)`: Runs `setup(self)` immediately and stores the returned teardown callback (if any) for `dispose()`/`unmount()`.
 - `render(data?)`: Forces a re-render of the instance, optionally with new data.
 - `pub(event, data)`: Publishes an event upward through the component tree.
 - `on(event, handler)` / `off(event, handler)`: Adds or removes runtime event listeners on the instance.
@@ -356,6 +357,27 @@ Registers a teardown callback invoked when the instance is disposed or unmounted
 - `self` - The component instance
 - `data` - Last rendered component data
 - Typical use: unsubscribe listeners, release external resources created by eager effects.
+
+#### `instance.effect(setup)`
+
+Registers lifecycle-managed runtime effects.
+
+- `setup(self)` runs immediately.
+- If `setup` returns a function, it is called once during `dispose()`/`unmount()`.
+- Typical use: bind/unbind reactive subscriptions without manual `.cleanup(...)` wiring.
+
+```javascript
+const Counter = ui(`<p out="count"></p>`).does({
+  init: (self, data) => {
+    self.effect(() =>
+      data.count.effect(() => {
+        self.render()
+      }),
+    )
+  },
+  count: (self, { count }) => count?.value ?? count ?? 0,
+})
+```
 
 ### Event Subscription
 

@@ -523,7 +523,7 @@ class LocationValueCell extends Cell {
 		super(value);
 		this.mode = options.mode === "push" ? "push" : "replace";
 		this.merge = options.merge || false;
-		this.normalize = options.normalize;
+		this._valueNormalizer = options.normalize;
 		this.writer = options.writer;
 	}
 
@@ -566,7 +566,7 @@ class LocationValueCell extends Cell {
 			: resolvedPath
 				? sanitize(reassign(this.value, resolvedPath, value))
 				: value;
-		if (this.normalize) next = this.normalize(next);
+		if (this._valueNormalizer) next = this._valueNormalizer(next);
 		if (!force && eq(this.value, next)) return this;
 		this._update(
 			resolvedPath ? access(next, resolvedPath) : next,
@@ -583,7 +583,7 @@ class LocationValueCell extends Cell {
 	}
 
 	sync(value) {
-		if (this.normalize) value = this.normalize(value);
+		if (this._valueNormalizer) value = this._valueNormalizer(value);
 		this._update(value, Nothing, false);
 		return this;
 	}
@@ -726,10 +726,16 @@ class LocationState {
 
 class LocalStorageCell extends Cell {
 	constructor(key, value, options = {}) {
-		super(value);
+		const normalizer =
+			typeof options.normalizer === "function" ? options.normalizer : undefined;
+		const initial = normalizer ? normalizer(value) : value;
+		super(initial);
 		this.key = key;
 		this.merge = options.merge || false;
 		this.writer = options.writer;
+		if (normalizer) {
+			this.normalize(normalizer);
+		}
 	}
 
 	set(value, p = Nothing, options = false) {
@@ -798,15 +804,33 @@ function browser(options = {}) {
 		});
 	}
 
-	const local = (key, dflt, opts = {}) => {
+	const local = (key, dflt, normalizer = undefined, opts = {}) => {
 		if (locals.has(key)) return locals.get(key).cell;
+		const normalized =
+			typeof normalizer === "function"
+				? normalizer
+				: typeof opts === "function"
+					? opts
+					: undefined;
+		const serializerOptions =
+			normalizer &&
+			typeof normalizer === "object" &&
+			typeof normalizer.parse === "function" &&
+			typeof normalizer.format === "function"
+				? normalizer
+				: opts &&
+					  typeof opts === "object" &&
+					  typeof opts.parse === "function" &&
+					  typeof opts.format === "function"
+					? opts
+					: {};
 		const serializer =
-			opts &&
-			typeof opts.parse === "function" &&
-			typeof opts.format === "function"
-				? opts
+			serializerOptions &&
+			typeof serializerOptions.parse === "function" &&
+			typeof serializerOptions.format === "function"
+				? serializerOptions
 				: localSerializer;
-		const initial = hasStorage
+		const loaded = hasStorage
 			? (() => {
 					const raw = win.localStorage.getItem(key);
 					return raw === null
@@ -814,17 +838,19 @@ function browser(options = {}) {
 						: location.safeParse(`browser.local:${key}`, serializer, raw, dflt);
 				})()
 			: dflt;
-		const cell = new LocalStorageCell(key, initial, {
+		const normalizedDefault = normalized ? normalized(dflt) : dflt;
+		const cell = new LocalStorageCell(key, loaded, {
 			merge: true,
+			normalizer: normalized,
 			writer: (value) => writeLocal(key, value, serializer),
 		});
-		locals.set(key, { cell, defaultValue: dflt, serializer });
+		locals.set(key, { cell, defaultValue: normalizedDefault, serializer });
 		if (
 			hasStorage &&
-			win.localStorage.getItem(key) === null &&
-			dflt !== undefined
+			((win.localStorage.getItem(key) === null && normalizedDefault !== undefined) ||
+				!eq(loaded, cell.value))
 		) {
-			writeLocal(key, initial, serializer);
+			writeLocal(key, cell.value, serializer);
 		}
 		return cell;
 	};
