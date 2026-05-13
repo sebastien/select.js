@@ -69,7 +69,25 @@ import {
 //
 // ----------------------------------------------------------------------------
 
-const createComponent = (tmpl) => {
+const stripTemplateNodes = (nodes) => {
+	const res = [];
+	for (let i = 0; i < nodes.length; i++) {
+		const node = nodes[i];
+		if (!node || node.nodeName === "TEMPLATE") {
+			continue;
+		}
+		const clone = node.cloneNode(true);
+		if (clone.querySelectorAll) {
+			for (const nested of clone.querySelectorAll("template")) {
+				nested.remove();
+			}
+		}
+		res.push(clone);
+	}
+	return res;
+};
+
+const createComponent = (tmpl, localTemplateNodes = tmpl.nodes) => {
 	const component = (...args) => tmpl.apply(...args);
 	tmpl.component = component;
 	Object.assign(component, {
@@ -124,8 +142,8 @@ const createComponent = (tmpl) => {
 			registerLocalTemplate(nested);
 		}
 	};
-	for (let i = 0; i < tmpl.nodes.length; i++) {
-		const node = tmpl.nodes[i];
+	for (let i = 0; i < localTemplateNodes.length; i++) {
+		const node = localTemplateNodes[i];
 		if (node?.nodeName === "TEMPLATE") {
 			registerLocalTemplate(node);
 		}
@@ -260,14 +278,15 @@ const ui = (selection, scope = document) => {
 				scope,
 			});
 		}
-		const template = new UITemplate(nodes, scope, autoFormatName);
+		const templateNodes = stripTemplateNodes(nodes);
+		const template = new UITemplate(templateNodes, scope, autoFormatName);
 		if (sourceMode === "fallback-node-template") {
 			template.sourceMode = sourceMode;
 			template.sourceSelector = selection;
 			template.sourceHosts = sourceHosts;
 			template.defaultData = defaultData;
 		}
-		const component = createComponent(template);
+		const component = createComponent(template, nodes);
 		if (autoFormatName) {
 			ui.format(autoFormatName, component);
 		}
@@ -282,7 +301,8 @@ const ui = (selection, scope = document) => {
 		}
 		TemplateRegistry.registerNodes(nodes, TemplateRegistry.for(scope), scope);
 		const component = createComponent(
-			new UITemplate([...nodes], scope, autoFormatName),
+			new UITemplate(stripTemplateNodes(nodes), scope, autoFormatName),
+			nodes,
 		);
 		if (autoFormatName) {
 			ui.format(autoFormatName, component);
