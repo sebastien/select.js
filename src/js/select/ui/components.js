@@ -40,6 +40,20 @@ function createTrackingProxy(data) {
 	];
 }
 
+function snapshotReactiveDependencyRevisions(data, deps) {
+	if (!data || !deps || deps.size === 0) {
+		return null;
+	}
+	const revisions = new Map();
+	for (const dep of deps) {
+		const value = data[dep];
+		if (value?.isReactive === true && Number.isFinite(value.revision)) {
+			revisions.set(dep, value.revision);
+		}
+	}
+	return revisions.size > 0 ? revisions : null;
+}
+
 const isThenable = (value) =>
 	value !== null &&
 	value !== undefined &&
@@ -1666,6 +1680,9 @@ class UIInstance {
 		this._domListeners = undefined;
 		this._effectTeardowns = undefined;
 		this._asyncBehaviorTokens = new Map();
+		this._behaviorDeps = undefined;
+		this._behaviorValues = undefined;
+		this._behaviorDepRevisions = undefined;
 		this._hasRendered = false;
 		if (template.initializer) {
 			const state = template.initializer();
@@ -1835,6 +1852,9 @@ class UIInstance {
 			this.children = undefined;
 		}
 		this.parent?.children?.delete(this);
+		this._behaviorDeps = undefined;
+		this._behaviorValues = undefined;
+		this._behaviorDepRevisions = undefined;
 	}
 
 	// ============================================================================
@@ -2071,6 +2091,22 @@ class UIInstance {
 	_depsChanged(deps, changedKeys) {
 		for (const key of deps) {
 			if (changedKeys.has(key)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	_reactiveDepsChanged(depRevisions, data) {
+		if (!depRevisions || depRevisions.size === 0 || !data) {
+			return false;
+		}
+		for (const [key, revision] of depRevisions.entries()) {
+			const value = data[key];
+			if (value?.isReactive !== true || !Number.isFinite(value.revision)) {
+				return true;
+			}
+			if (value.revision !== revision) {
 				return true;
 			}
 		}
@@ -2373,7 +2409,12 @@ class UIInstance {
 
 					if (isGranular && this._behaviorDeps && this._behaviorValues) {
 						const deps = this._behaviorDeps.get(k);
-						if (deps && !this._depsChanged(deps, changedKeys)) {
+						const depRevisions = this._behaviorDepRevisions?.get(k);
+						if (
+							deps &&
+							!this._depsChanged(deps, changedKeys) &&
+							!this._reactiveDepsChanged(depRevisions, data)
+						) {
 							v = this._behaviorValues.get(k);
 							for (const slot of slots) {
 								slot.render(v);
@@ -2396,6 +2437,13 @@ class UIInstance {
 								this._behaviorValues = new Map();
 							}
 							this._behaviorValues.set(k, v);
+							if (!this._behaviorDepRevisions) {
+								this._behaviorDepRevisions = new Map();
+							}
+							this._behaviorDepRevisions.set(
+								k,
+								snapshotReactiveDependencyRevisions(data, accessed),
+							);
 						} else {
 							v = hasBehavior(this, data, null);
 						}
