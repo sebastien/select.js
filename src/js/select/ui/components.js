@@ -47,11 +47,32 @@ function snapshotReactiveDependencyRevisions(data, deps) {
 	const revisions = new Map();
 	for (const dep of deps) {
 		const value = data[dep];
+		// Granular updates only track top-level changed keys. For behaviors
+		// that depend on reactive cells, we also snapshot cell revisions so
+		// nested cell updates can invalidate stale cached behavior output.
 		if (value?.isReactive === true && Number.isFinite(value.revision)) {
 			revisions.set(dep, value.revision);
 		}
 	}
 	return revisions.size > 0 ? revisions : null;
+}
+
+function hasTrackedNonReactiveObjectDeps(data, deps) {
+	if (!data || !deps || deps.size === 0) {
+		return false;
+	}
+	for (const dep of deps) {
+		const value = data[dep];
+		if (
+			value &&
+			value.isReactive !== true &&
+			typeof value === "object" &&
+			(value.constructor === Object || Array.isArray(value))
+		) {
+			return true;
+		}
+	}
+	return false;
 }
 
 const isThenable = (value) =>
@@ -2103,9 +2124,14 @@ class UIInstance {
 		}
 		for (const [key, revision] of depRevisions.entries()) {
 			const value = data[key];
+			// If the dependency stopped being reactive (or has no revision),
+			// invalidate so we don't reuse behavior values computed from an
+			// incompatible dependency shape.
 			if (value?.isReactive !== true || !Number.isFinite(value.revision)) {
 				return true;
 			}
+			// Guard against stale behavior cache when nested reactive updates
+			// occur without changing parent plain-object keys.
 			if (value.revision !== revision) {
 				return true;
 			}
@@ -2147,8 +2173,8 @@ class UIInstance {
 		if (!data || typeof data !== "object") {
 			return data;
 		}
-		data[stateKey] = result;
-		return data;
+		// Avoid mutating caller-owned plain object payloads in place.
+		return { ...data, [stateKey]: result };
 	}
 
 	_runEagerBehaviors(data) {
@@ -2413,7 +2439,8 @@ class UIInstance {
 						if (
 							deps &&
 							!this._depsChanged(deps, changedKeys) &&
-							!this._reactiveDepsChanged(depRevisions, data)
+							!this._reactiveDepsChanged(depRevisions, data) &&
+							!hasTrackedNonReactiveObjectDeps(data, deps)
 						) {
 							v = this._behaviorValues.get(k);
 							for (const slot of slots) {
