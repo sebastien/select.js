@@ -35,6 +35,17 @@ global.fetch = (url, ...args) => {
 				Promise.resolve(JSON.parse(fs.readFileSync(filePath, "utf-8"))),
 		});
 	}
+	if (typeof url === "string" && url.startsWith("./")) {
+		const filePath = path.join(
+			ROOT,
+			"benchmarks/inspector",
+			url.replace(/^\.\//, ""),
+		);
+		return Promise.resolve({
+			json: () =>
+				Promise.resolve(JSON.parse(fs.readFileSync(filePath, "utf-8"))),
+		});
+	}
 	return originalFetch(url, ...args);
 };
 

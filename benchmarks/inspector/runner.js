@@ -12,6 +12,18 @@ const mean = (values) =>
 		? values.reduce((total, value) => total + value, 0) / values.length
 		: 0;
 
+const percentile = (values, ratio) => {
+	if (!values.length) {
+		return 0;
+	}
+	const sorted = [...values].sort((a, b) => a - b);
+	const index = Math.min(
+		sorted.length - 1,
+		Math.max(0, Math.ceil(sorted.length * ratio) - 1),
+	);
+	return sorted[index];
+};
+
 const measureUpdate = async (update, nextValue) => {
 	const startedAt = performance.now();
 	update(nextValue);
@@ -67,6 +79,14 @@ export const createBenchmarkRunner = ({ framework, root, createApp }) => ({
 					0,
 				),
 				meanDuration: mean(operationResults.map((_) => _.duration)),
+				p50Duration: percentile(
+					operationResults.map((_) => _.duration),
+					0.5,
+				),
+				p95Duration: percentile(
+					operationResults.map((_) => _.duration),
+					0.95,
+				),
 				operations: operationResults,
 			});
 		}
@@ -108,6 +128,8 @@ export const formatBenchmarkResult = (result) =>
 				name: phase.name,
 				totalMs: Number(phase.totalDuration.toFixed(2)),
 				meanMs: Number(phase.meanDuration.toFixed(2)),
+				p50Ms: Number(phase.p50Duration.toFixed(2)),
+				p95Ms: Number(phase.p95Duration.toFixed(2)),
 				operations: phase.operations.map((operation) => ({
 					name: operation.name,
 					ms: Number(operation.duration.toFixed(2)),

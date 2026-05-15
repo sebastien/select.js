@@ -1,4 +1,4 @@
-import { remap, ui } from "../../../src/js/select/ui.js";
+import { remap, ui } from "../../../src/js/select/ui.js"
 
 const getType = (value) =>
 	value === undefined || value === null
@@ -7,79 +7,76 @@ const getType = (value) =>
 			? "map"
 			: Array.isArray(value)
 				? "array"
-				: typeof value;
+				: typeof value
 
-const createKeyNode = (key) => {
-	const node = document.createElement("span");
-	node.className = "mono dim small";
-	node.textContent = `${key}:`;
-	return node;
-};
+const withPath = (path, key) => `${path}.${key}`
 
-const Item = ui(`<li class="pl-2" out="content"></li>`).does({
-	content: (_self, { key, value }) => [
-		createKeyNode(key),
-		" ",
-		InspectValue(value),
-	],
-});
+const Item = ui(`<li class="pl-2"><span class="mono dim small" out="label"></span> <span out="value"></span></li>`).does({
+	label: (_self, { key }) => `${key}:`,
+	value: (_self, { value, path }) => InspectValue({ value, path }),
+})
 
-const InspectList = ui(
-	`<ul class="comma brackets dim-ab" out="items"></ul>`,
-).does({
-	items: (_self, { value }) =>
-		remap(value, (v, i) => Item({ key: `#${i}`, value: v })),
-});
+const InspectList = ui(`<ul class="comma brackets dim-ab" out="items"></ul>`).does({
+	items: (_self, { value, path }) =>
+		remap(value, (entry, index) => {
+			const itemPath = withPath(path, index)
+			return Item({
+				key: `#${index}`,
+				path: itemPath,
+				value: entry,
+				$key: index,
+			})
+		}),
+})
 
-const InspectDict = ui(
-	`<ul class="comma curlies dim-ab" out="items"></ul>`,
-).does({
-	items: (_self, { value }) =>
-		remap(value, (v, k) => Item({ key: k, value: v })),
-});
+const InspectDict = ui(`<ul class="comma curlies dim-ab" out="items"></ul>`).does({
+	items: (_self, { value, path }) =>
+		remap(value, (entry, key) => {
+			const itemPath = withPath(path, key)
+			return Item({
+				key,
+				path: itemPath,
+				value: entry,
+				$key: itemPath,
+			})
+		}),
+})
 
 const InspectScalar = ui(`<span out="text"></span>`).does({
 	text: (_self, { value }) => `${value}`,
-});
+})
 
-const InspectValue = (value) => {
-	switch (getType(value)) {
-		case "object":
-		case "map":
-			return InspectDict({ value });
-		case "array":
-			return InspectList({ value });
-		default:
-			return InspectScalar({ value });
-	}
-};
+const InspectBranch = ui(`<span out="value"></span>`).does({
+	value: (_self, { kind, value, path }) => {
+		switch (kind) {
+			case "object":
+			case "map":
+				return InspectDict({ value, path })
+			case "array":
+				return InspectList({ value, path })
+			default:
+				return InspectScalar({ value })
+		}
+	},
+})
 
-const _Inspector = ui(`<div out="content"></div>`).does({
-	content: (_self, { value }) => InspectValue(value),
-});
+const InspectValue = ({ value, path = "$" }) => {
+	return InspectBranch({ kind: getType(value), value, path, $key: path })
+}
 
-const asMountedInstance = (root, applied) => {
-	const instance = applied.template.new();
-	instance.set(applied.data).mount(root);
-	return instance;
-};
+const InspectorRoot = ui(`<div out="content"></div>`).does({
+	content: (_self, { value }) => InspectValue({ value, path: "$" }),
+})
 
 export const createApp = async (root, initialValue) => {
-	let current = InspectValue(initialValue);
-	let instance = asMountedInstance(root, current);
+	const instance = InspectorRoot.new()
+	instance.set({ value: initialValue }).mount(root)
 	return {
 		update(nextValue) {
-			const next = InspectValue(nextValue);
-			if (next.template === current.template) {
-				instance.update(next.data);
-			} else {
-				instance.unmount();
-				instance = asMountedInstance(root, next);
-			}
-			current = next;
+			instance.update({ value: nextValue })
 		},
 		dispose() {
-			instance.unmount();
+			instance.unmount()
 		},
-	};
-};
+	}
+}

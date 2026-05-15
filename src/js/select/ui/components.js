@@ -1423,6 +1423,22 @@ class UISlot {
 		}
 		this.mapping.clear();
 		this._listLength = 0;
+		this._listKeys = null;
+		this._listItems = null;
+	}
+
+	_resolveCollectionItemKey(item, fallbackKey) {
+		if (
+			item instanceof AppliedUITemplate &&
+			item.data &&
+			typeof item.data === "object"
+		) {
+			const keyed = item.data.$key;
+			if (keyed !== undefined && keyed !== null) {
+				return keyed;
+			}
+		}
+		return fallbackKey;
 	}
 
 	_renderMapped(k, item, previous) {
@@ -1571,19 +1587,76 @@ class UISlot {
 		let previous = null;
 
 		if (isList) {
-			for (let i = 0; i < data.length; i++) {
-				previous = this._renderMapped(i, data[i], previous);
-			}
 			const previousLength = this._listLength || 0;
-			for (let i = data.length; i < previousLength; i++) {
-				const v = this.mapping.get(i);
-				if (v !== undefined) {
-					this._removeMappedValue(v);
-					this.mapping.delete(i);
+			if (this._listKeyMode === undefined) {
+				this._listKeyMode = "index";
+			}
+			if (
+				this._listKeyMode === "index" &&
+				previousLength > 0 &&
+				data.length !== previousLength
+			) {
+				this._listKeyMode = "stable";
+				const previousEntries = Array.from(this.mapping.entries());
+				this.mapping.clear();
+				for (let i = 0; i < previousEntries.length; i++) {
+					const [indexKey, mapped] = previousEntries[i];
+					const previousData = this._listItems?.[indexKey];
+					const stableKey = this._resolveCollectionItemKey(previousData, indexKey);
+					this.mapping.set(stableKey, mapped);
+				}
+				if (this._listKeys) {
+					for (let i = 0; i < this._listKeys.length; i++) {
+						const previousIndex = this._listKeys[i];
+						const previousData = this._listItems?.[previousIndex];
+						this._listKeys[i] = this._resolveCollectionItemKey(
+							previousData,
+							previousIndex,
+						);
+					}
 				}
 			}
+			const nextKeys = new Array(data.length);
+			const stableKeys = this._listKeyMode === "stable";
+			for (let i = 0; i < data.length; i++) {
+				const item = data[i];
+				const key = stableKeys
+					? this._resolveCollectionItemKey(item, i)
+					: i;
+				nextKeys[i] = key;
+				previous = this._renderMapped(key, item, previous);
+			}
+			const previousKeys = this._listKeys;
+			if (previousKeys) {
+				const nextKeySet = new Set(nextKeys);
+				for (let i = 0; i < previousKeys.length; i++) {
+					const key = previousKeys[i];
+					if (nextKeySet.has(key)) {
+						continue;
+					}
+					const v = this.mapping.get(key);
+					if (v !== undefined) {
+						this._removeMappedValue(v);
+						this.mapping.delete(key);
+					}
+				}
+			} else {
+				const previousLength = this._listLength || 0;
+				for (let i = data.length; i < previousLength; i++) {
+					const v = this.mapping.get(i);
+					if (v !== undefined) {
+						this._removeMappedValue(v);
+						this.mapping.delete(i);
+					}
+				}
+			}
+			this._listKeys = nextKeys;
 			this._listLength = data.length;
+			this._listItems = data;
 		} else if (isDict) {
+			this._listKeys = null;
+			this._listKeyMode = undefined;
+			this._listItems = null;
 			for (const k in data) {
 				previous = this._renderMapped(k, data[k], previous);
 			}
@@ -1595,6 +1668,9 @@ class UISlot {
 			}
 			this._listLength = 0;
 		} else {
+			this._listKeys = null;
+			this._listKeyMode = undefined;
+			this._listItems = null;
 			previous = this._renderMapped(SLOT_DEFAULT_KEY, data, previous);
 			for (const [k, v] of this.mapping.entries()) {
 				if (k !== SLOT_DEFAULT_KEY) {
