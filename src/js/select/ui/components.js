@@ -244,7 +244,9 @@ class UITemplateSlot {
 				if (!attr.name.startsWith("out:")) {
 					continue;
 				}
-				const parsedOut = TemplateParser.parseOutAttributeBinding(attr.value || "");
+				const parsedOut = TemplateParser.parseOutAttributeBinding(
+					attr.value || "",
+				);
 				if (parsedOut.mode === "binding") {
 					const key = parsedOut.binding?.sourceKey;
 					if (key) {
@@ -284,18 +286,21 @@ class UITemplateSlot {
 				if (!whenKey) {
 					whenKey = inferWhenKeyFromOutAttr(node);
 					if (!whenKey) {
-						log.error("UITemplate: unable to infer [when] key from [out], details", {
-							expression: expr,
-							node,
-							supported: [
-								'when out="slot"',
-								'when out:attr="slot"',
-								'when out:attr="template-expression"',
-								'when="?" out="slot"',
-								'when="!" out="slot"',
-								'when="!?" out="slot"',
-							],
-						});
+						log.error(
+							"UITemplate: unable to infer [when] key from [out], details",
+							{
+								expression: expr,
+								node,
+								supported: [
+									'when out="slot"',
+									'when out:attr="slot"',
+									'when out:attr="template-expression"',
+									'when="?" out="slot"',
+									'when="!" out="slot"',
+									'when="!?" out="slot"',
+								],
+							},
+						);
 						return;
 					}
 				}
@@ -467,12 +472,18 @@ class UITemplateSlot {
 				for (const attr of node.attributes) {
 					if (attr.name.startsWith(prefix)) {
 						const eventType = attr.name.slice(prefix.length);
-						const parsed = TemplateParser.parseEventEffect(attr.value, eventType);
+						const parsed = TemplateParser.parseEventEffect(
+							attr.value,
+							eventType,
+						);
 						if (!parsed) {
-							log.warn("UITemplateSlot.FindEvent: invalid event effect, details", {
-								eventType,
-								effect: attr.value,
-							});
+							log.warn(
+								"UITemplateSlot.FindEvent: invalid event effect, details",
+								{
+									eventType,
+									effect: attr.value,
+								},
+							);
 							toRemove.push(attr.name);
 							continue;
 						}
@@ -1179,23 +1190,22 @@ class UISlot {
 		this._listLength = 0;
 	}
 
-		_renderMapped(k, item, previous) {
-			const existing = this.mapping.get(k);
-			if (existing === undefined) {
-				let r;
-				if (item instanceof AppliedUITemplate) {
-					const data = this._mergeSlots(item);
-					r = item.template.new(this.parent);
-					r.set(data, k);
-					const nextNode =
-						previous?.parentNode
-							? previous.nextSibling
-							: this.replaceNode
-								? this.replaceEnd
-								: null;
-					this._mountInstance(r, nextNode);
-					previous = r.nodes[r.nodes.length - 1];
-				} else if (this.isInput) {
+	_renderMapped(k, item, previous) {
+		const existing = this.mapping.get(k);
+		if (existing === undefined) {
+			let r;
+			if (item instanceof AppliedUITemplate) {
+				const data = this._mergeSlots(item);
+				r = item.template.new(this.parent);
+				r.set(data, k);
+				const nextNode = previous?.parentNode
+					? previous.nextSibling
+					: this.replaceNode
+						? this.replaceEnd
+						: null;
+				this._mountInstance(r, nextNode);
+				previous = r.nodes[r.nodes.length - 1];
+			} else if (this.isInput) {
 				setNodeText(this.node, asText(item));
 				r = this.node;
 			} else if (item instanceof Node) {
@@ -1296,7 +1306,9 @@ class UISlot {
 					this.replaceNode && this.replaceEnd?.parentNode
 						? this.replaceEnd.parentNode
 						: this.node;
-				let previous = this.replaceNode ? this.replaceStart : this.node.childNodes[0];
+				let previous = this.replaceNode
+					? this.replaceStart
+					: this.node.childNodes[0];
 				for (const node of this.placeholder) {
 					if (!parentNode) {
 						break;
@@ -2210,9 +2222,9 @@ class UIInstance {
 	}
 
 	// Publishes event up the component tree. Returns UIEvent.
-	pub(event, data) {
+	pub(event, data, self = true) {
 		const res = new UIEvent(event, data, this);
-		this.onPub(res);
+		this.onPub(res, self);
 		return res;
 	}
 
@@ -2247,14 +2259,14 @@ class UIInstance {
 
 	// Handles published event. Checks runtime subs, then template subs.
 	// Stops propagation if handler returns `false`, stops bubbling on `null`.
-	onPub(event) {
+	onPub(event, self = true) {
 		event.current = this;
 		if (this.data === undefined || this.data === null) {
 			this.data = {};
 		}
 		const data = this.data;
 		let propagate = true;
-		if (this._runtimeSubs) {
+		if (self && this._runtimeSubs) {
 			const rl = this._runtimeSubs.get(event.name);
 			if (rl) {
 				for (const h of rl) {
@@ -2267,7 +2279,7 @@ class UIInstance {
 				}
 			}
 		}
-		if (propagate && this.template.subs) {
+		if (self && propagate && this.template.subs) {
 			const hl = this.template.subs.get(event.name);
 			if (hl) {
 				for (const h of hl) {
@@ -2280,7 +2292,7 @@ class UIInstance {
 				}
 			}
 		}
-		propagate && this.parent?.onPub(event);
+		propagate && this.parent?.onPub(event, true);
 		return event;
 	}
 
@@ -2323,10 +2335,13 @@ class UIInstance {
 			if (replaceHost) {
 				const parent = node.parentNode;
 				if (!parent) {
-					log.warn("UIInstance.mount: replace-host target has no parent, details", {
-						node,
-						self: this,
-					});
+					log.warn(
+						"UIInstance.mount: replace-host target has no parent, details",
+						{
+							node,
+							self: this,
+						},
+					);
 				} else {
 					let previousSibling = node;
 					for (const n of this.nodes) {
@@ -2352,10 +2367,13 @@ class UIInstance {
 				});
 			}
 		} else {
-			log.warn("UIInstance.mount: unable to mount as node is undefined, details", {
-				node,
-				self: this,
-			});
+			log.warn(
+				"UIInstance.mount: unable to mount as node is undefined, details",
+				{
+					node,
+					self: this,
+				},
+			);
 			for (const node of this.nodes) {
 				node.parentNode?.removeChild(node);
 			}

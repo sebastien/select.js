@@ -10,26 +10,26 @@ const bind = (node, handlers) => {
 	if (handlers) {
 		for (const [name, handler] of Object.entries(handlers)) {
 			for (const target of Array.isArray(node) ? node : [node]) {
-				target.addEventListener(name, handler)
+				target.addEventListener(name, handler);
 			}
 		}
 	}
-	return node
-}
+	return node;
+};
 
 const unbind = (node, handlers) => {
 	if (handlers) {
 		for (const [name, handler] of Object.entries(handlers)) {
 			for (const target of Array.isArray(node) ? node : [node]) {
-				target.removeEventListener(name, handler)
+				target.removeEventListener(name, handler);
 			}
 		}
 	}
-	return node
-}
+	return node;
+};
 
 const drag = (event, move, end) => {
-	const context = {}
+	const context = {};
 	const dragging = {
 		node: event.target,
 		ox: event.pageX,
@@ -42,71 +42,71 @@ const drag = (event, move, end) => {
 		step: 0,
 		dx: 0,
 		dy: 0,
-	}
-	const data = Object.create(dragging)
-	const scope = globalThis.window
+	};
+	const data = Object.create(dragging);
+	const scope = globalThis.window;
 	const onEnd = (ev) => {
-		dragging.node.style.pointerEvents = dragging.pointerEvents
-		dragging.node.style.userSelect = dragging.userSelect
-		unbind(scope, handlers)
-		data.dx = ev.pageX - dragging.ox
-		data.dy = ev.pageY - dragging.oy
-		data.isLast = true
-		end?.(ev, data)
-	}
+		dragging.node.style.pointerEvents = dragging.pointerEvents;
+		dragging.node.style.userSelect = dragging.userSelect;
+		unbind(scope, handlers);
+		data.dx = ev.pageX - dragging.ox;
+		data.dy = ev.pageY - dragging.oy;
+		data.isLast = true;
+		end?.(ev, data);
+	};
 	const handlers = {
 		mousemove: (ev) => {
-			data.dx = ev.pageX - dragging.ox
-			data.dy = ev.pageY - dragging.oy
-			data.isFirst = dragging.step === 0
-			dragging.step += 1
-			const result = move?.(ev, data)
+			data.dx = ev.pageX - dragging.ox;
+			data.dy = ev.pageY - dragging.oy;
+			data.isFirst = dragging.step === 0;
+			dragging.step += 1;
+			const result = move?.(ev, data);
 			switch (result) {
 				case null:
-					ev.preventDefault()
-					ev.stopPropagation()
-					break
+					ev.preventDefault();
+					ev.stopPropagation();
+					break;
 				case false:
-					doEnd()
+					doEnd();
 			}
 		},
 		mouseup: onEnd,
 		mouseleave: onEnd,
-	}
-	event.target.style.userSelect = "none"
-	const doEnd = () => unbind(scope, handlers)
-	bind(scope, handlers)
-	return doEnd
-}
+	};
+	event.target.style.userSelect = "none";
+	const doEnd = () => unbind(scope, handlers);
+	bind(scope, handlers);
+	return doEnd;
+};
 
 const target = (node, pred) => {
 	while (node && node.nodeType === Node.ELEMENT_NODE) {
-		if (pred(node)) return node
-		node = node.parentNode
+		if (pred(node)) return node;
+		node = node.parentNode;
 	}
-	return undefined
-}
+	return undefined;
+};
 
 const dragtarget = (node, name) => {
 	while (node && node.nodeType === Node.ELEMENT_NODE) {
-		const element = node
-		if (!name && element.hasAttribute("data-drag")) return element
-		if (name && element.getAttribute("data-drag") === name) return element
-		node = element.parentNode
+		const element = node;
+		if (!name && element.hasAttribute("data-drag")) return element;
+		if (name && element.getAttribute("data-drag") === name) return element;
+		node = element.parentNode;
 	}
-	return node?.nodeType === Node.ELEMENT_NODE ? node : undefined
-}
+	return node?.nodeType === Node.ELEMENT_NODE ? node : undefined;
+};
 
-drag.target = dragtarget
+drag.target = dragtarget;
 
 const autoresize = (event) => {
-	const node = event.target
-	node.style.height = "auto"
-	const style = globalThis.window.getComputedStyle(node)
+	const node = event.target;
+	node.style.height = "auto";
+	const style = globalThis.window.getComputedStyle(node);
 	const border =
-		parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth)
-	node.style.height = `${border + node.scrollHeight}px`
-}
+		parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+	node.style.height = `${border + node.scrollHeight}px`;
+};
 
 const Keyboard = {
 	Down: "keydown",
@@ -137,24 +137,25 @@ const Keyboard = {
 		META_R: 92,
 	},
 	Key(event) {
-		return event ? (event.key ?? event.keyIdentifier ?? null) : null
+		return event ? (event.key ?? event.keyIdentifier ?? null) : null;
 	},
 	Code(event) {
-		return event ? (event.keyCode ?? null) : null
+		return event ? (event.keyCode ?? null) : null;
 	},
 	Char(event) {
-		const key = Keyboard.Key(event)
-		return !key ? null : key.length === 1 ? key : key === "Enter" ? "\n" : null
+		const key = Keyboard.Key(event);
+		return !key ? null : key.length === 1 ? key : key === "Enter" ? "\n" : null;
 	},
 	IsControl(event) {
-		const key = Keyboard.Key(event)
-		return !!(key && key.length > 1)
+		const key = Keyboard.Key(event);
+		return !!(key && key.length > 1);
 	},
 	HasModifier(event) {
-		return !!(event && (event.altKey || event.ctrlKey))
+		return !!(event && (event.altKey || event.ctrlKey));
 	},
-}
+};
 
 export { Keyboard, autoresize, bind, drag, dragtarget, target, unbind };
+export default { Keyboard, autoresize, bind, drag, dragtarget, target, unbind };
 
 // EOF
