@@ -109,8 +109,8 @@
 </head>
 
 <body>
-	<h1>Icons: CDN collections + JSON catalog</h1>
-	<p class="muted">This example demonstrates live icon updates powered by <code>ui(...)</code> and <code>cell(...)</code>, with both default CDN discovery and a local catalog.</p>
+		<h1>Icons: direct Iconify collections</h1>
+		<p class="muted">This example demonstrates live icon updates powered by <code>ui(...)</code> and <code>cell(...)</code>, using direct CDN/Iconify sources only.</p>
 
 	<div id="ui"></div>
 
@@ -160,14 +160,14 @@
 					<div class="muted">No explicit <code>sources</code> passed. Collections are fetched from CDN.</div>
 				</article>
 
-				<article class="preview">
-					<h3>Local JSON catalog <code>&lt;ui-icon-local&gt;</code></h3>
-					<div class="icon-row">
-						<ui-icon-local out:icon="qualified" out:size="size"></ui-icon-local>
-						<span out="qualified"></span>
-					</div>
-					<div class="muted">Created with <code>install("ui-icon-local", { sources: ../src/js/select.icons.json })</code>. Catalog entries: <span out="catalogCount"></span>.</div>
-				</article>
+					<article class="preview">
+						<h3>Explicit source <code>&lt;ui-icon-cdn&gt;</code></h3>
+						<div class="icon-row">
+							<ui-icon-cdn out:icon="qualified" out:size="size"></ui-icon-cdn>
+							<span out="qualified"></span>
+						</div>
+						<div class="muted">Uses <code>install("ui-icon-cdn", { source: "https://api.iconify.design" })</code>.</div>
+					</article>
 			</section>
 
 			<section class="panel">
@@ -187,9 +187,8 @@
 		import { icon, install } from "@./icons.js"
 		import ui from "@./ui.js"
 
-		install("ui-icon")
-		const catalog = await fetch("../src/js/select.icons.json").then((r) => r.json())
-		install("ui-icon-local", { sources: catalog })
+			install("ui-icon")
+			install("ui-icon-cdn", { source: "https://api.iconify.design" })
 
 		const App = ui("#App").init(() => {
 			const source = cell("lucide")
@@ -199,9 +198,8 @@
 				const normalized = `${iconName ?? ""}`.trim() || "home"
 				return `${src}:${normalized}`
 			})
-			const catalogCount = cell(catalog?.count || Object.keys(catalog?.sources || {}).length || 0)
-			return { source, name, size, qualified, catalogCount }
-		}).does({
+				return { source, name, size, qualified }
+			}).does({
 			source: (_self, { source }) => source.value,
 			name: (_self, { name }, event) =>
 				event ? name.set(event.target.value) : name.value,
@@ -209,8 +207,7 @@
 			setSource: (_self, { source }, event) => source.set(event.target.value),
 			setSize: (_self, { size }, event) => size.set(event.target.value),
 			qualified: (_self, { qualified }) => qualified.value,
-			catalogCount: (_self, { catalogCount }) => catalogCount.value,
-			programmatic: (_self, { source, size, qualified }) => {
+				programmatic: (_self, { source, size, qualified }) => {
 				const node = document.createElement("span")
 				node.className = "icon-row"
 				node.appendChild(icon(qualified.value.split(":")[1], {

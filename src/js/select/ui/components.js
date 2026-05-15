@@ -7,25 +7,190 @@
 // Core component engine: template slots, reactive instances, rendering
 // pipeline, and web component wrappers.
 
-import { asText, eq, expand, isObject } from "../utils.js";
+import { asText, eq, expand, isPascalCaseName, microtask } from "../utils.js";
+import { FORMATS } from "./formatters.js";
 
 import {
-	AppliedUITemplate,
-	createWhenPredicate,
 	getInputBindingProperty,
 	getInputEventValue,
 	log,
 	resolveSourceValue,
-	resolveTemplateTokens,
-	scheduleRenderTask,
 	setNodeText,
 	SKIP_INPUT_UPDATE,
 	SLOT_DEFAULT_KEY,
 	TemplateParser,
-	UIEvent,
-	applyNamedProcessors,
 	isInputNode,
-} from "./html.js";
+} from "./templates.js";
+
+const scheduleRenderTask = (fn) => {
+	const mutate = globalThis.fastdom?.mutate;
+	if (typeof mutate === "function") {
+		mutate(fn);
+	} else {
+		microtask(fn);
+	}
+};
+
+class UIEvent {
+	constructor(name, data, origin) {
+		this.name = name;
+		this.data = data;
+		this.origin = origin;
+		this.current = undefined;
+	}
+	stopPropagation() {
+		return null;
+	}
+}
+
+class AppliedUITemplate {
+	constructor(template, data) {
+		this.template = template;
+		this.data = data;
+	}
+}
+
+const resolveWhenValue = (self, data, key) => {
+	const behavior = self?.template?.behavior;
+	const b = behavior?.[key];
+	if (b) return b(self, data, null);
+	const value = resolveSourceValue(data, key);
+	return value === undefined ? undefined : expand(value);
+};
+
+const resolveDataPath = (data, path) => {
+	if (!path?.length) return data;
+	let value = data;
+	for (let i = 0; i < path.length; i++) {
+		value = expand(value);
+		if (value === undefined || value === null) return undefined;
+		value = value[path[i]];
+	}
+	return value;
+};
+
+const mapProcessorCollection = (value, f) => {
+	if (value === null || value === undefined || typeof value === "number" || typeof value === "string") return value;
+	if (Array.isArray(value)) {
+		const n = value.length;
+		const res = new Array(n);
+		for (let i = 0; i < n; i++) res[i] = f(value[i], i);
+		return res;
+	}
+	if (value instanceof Map) {
+		const res = new Map();
+		for (const [k, v] of value.entries()) res.set(k, f(v, k));
+		return res;
+	}
+	if (value instanceof Set) {
+		const res = new Set();
+		for (const v of value) res.add(f(v, undefined));
+		return res;
+	}
+	if (typeof value === "object") {
+		const res = {};
+		for (const k in value) res[k] = f(value[k], k);
+		return res;
+	}
+	return value;
+};
+
+const resolveNamedProcessor = (self, name) => {
+	if (!self?.template || !name) return null;
+	const template = self.template;
+	const localTemplate = template.localTemplates?.get(name);
+	if (localTemplate) return { type: "component", value: localTemplate };
+	const registered = FORMATS[name];
+	if (!registered) {
+		return null;
+	}
+	const isPascal = isPascalCaseName(name);
+	const isComponent =
+		typeof registered === "function" &&
+		(registered?.isTemplate || typeof registered?.new === "function");
+	if (isPascal && !isComponent) log.warn("ui.formats: PascalCase formatter is not a component, details", { name, formatter: registered });
+	if (!isPascal && isComponent) log.warn("ui.formats: component formatter should use PascalCase, details", { name, formatter: registered });
+	return { type: isComponent ? "component" : "function", value: registered };
+};
+
+const applyNamedProcessor = (processor, current, self, data, sourceKey, name) => {
+	if (processor.type === "component") {
+		const component = processor.value;
+		if (current === undefined || current === null) return current;
+		if (component?.isTemplate && typeof component?.apply === "function" && typeof component !== "function") {
+			return component.apply(current, self, data, sourceKey, name);
+		}
+		if (typeof component?.apply === "function" && component?.isTemplate) return component(current);
+		if (typeof component === "function") return component(current, self, data);
+		return current;
+	}
+	return processor.value(current, self, data, sourceKey, name);
+};
+
+const applyNamedProcessors = (self, data, value, processors, sourceKey) => {
+	if (!processors || processors.length === 0) return value;
+	let current = value;
+	for (let i = 0; i < processors.length; i++) {
+		const name = processors[i];
+		const each = name.startsWith("*");
+		const processorName = each ? name.slice(1) : name;
+		const processor = resolveNamedProcessor(self, processorName);
+		if (!processor) {
+			const availableProcessors = Object.keys(FORMATS).sort();
+			log.warn("UIInstance.render: processor not found, details", { processor: processorName, sourceKey, availableProcessors, instance: self });
+			continue;
+		}
+		if (each) {
+			current = mapProcessorCollection(current, (item) =>
+				applyNamedProcessor(processor, item, self, data, sourceKey, processorName),
+			);
+			continue;
+		}
+		current = applyNamedProcessor(processor, current, self, data, sourceKey, processorName);
+	}
+	return current;
+};
+
+const resolveTemplateTokens = (self, tokens, data) => {
+	if (!tokens?.length) return "";
+	const behavior = self?.template?.behavior;
+	let result = "";
+	for (let i = 0; i < tokens.length; i++) {
+		const token = tokens[i];
+		if (token.type === "text") {
+			result += token.value;
+			continue;
+		}
+		if (token.type === "invalid") continue;
+		if (token.type === "expr") {
+			const rawPath = token.value.path;
+			const path = rawPath?.[0] === "." ? (rawPath.length > 1 ? rawPath.slice(1) : []) : rawPath;
+			let value;
+			if (path?.length === 1) {
+				const key = path[0];
+				const slotBehavior = behavior?.[key];
+				value = typeof slotBehavior === "function" ? slotBehavior(self, data, null) : resolveDataPath(data, path);
+			} else {
+				value = resolveDataPath(data, path);
+			}
+			if (value === undefined || value === null) continue;
+			let resolved = expand(value);
+			if (token.value.processors?.length) {
+				resolved = applyNamedProcessors(self, data, resolved, token.value.processors, path.join("."));
+			}
+			if (resolved !== undefined && resolved !== null) result += String(resolved);
+		}
+	}
+	return result;
+};
+
+const createWhenPredicate = (mode, key, processors = undefined, operator = null, comparisonValue = undefined) =>
+	(self, data) => {
+		const value = resolveWhenValue(self, data, key);
+		const resolved = applyNamedProcessors(self, data, value, processors, key);
+		if (operator) return TemplateParser.EvaluateWhenComparison(resolved, operator, comparisonValue);
+		return TemplateParser.EvaluateWhen(mode, resolved);
+	};
 
 function createTrackingProxy(data) {
 	const accessed = new Set();
@@ -47,9 +212,6 @@ function snapshotReactiveDependencyRevisions(data, deps) {
 	const revisions = new Map();
 	for (const dep of deps) {
 		const value = data[dep];
-		// Granular updates only track top-level changed keys. For behaviors
-		// that depend on reactive cells, we also snapshot cell revisions so
-		// nested cell updates can invalidate stale cached behavior output.
 		if (value?.isReactive === true && Number.isFinite(value.revision)) {
 			revisions.set(dep, value.revision);
 		}
@@ -87,7 +249,27 @@ const isThenable = (value) =>
 //
 // ----------------------------------------------------------------------------
 
-const COMPONENT_REGISTRY = new Map();
+const COMPONENTS = Object.create(null);
+function component(name, ...value) {
+	if (name && typeof name === "object" && !Array.isArray(name)) {
+		for (const key in name) {
+			COMPONENTS[key] = name[key];
+		}
+		return COMPONENTS;
+	}
+	if (typeof name !== "string") {
+		return undefined;
+	}
+	const key = name.trim();
+	if (!key) {
+		return undefined;
+	}
+	if (value.length) {
+		COMPONENTS[key] = value[0];
+		return value[0];
+	}
+	return COMPONENTS[key];
+}
 
 // Module-level options used by UIInstance
 const uiOptions = {
@@ -181,7 +363,7 @@ class UITemplateSlot {
 				UITemplateSlot.Path(node, parent, [i]),
 			);
 			if (name === "out") {
-				const parsed = TemplateParser.parsePipedBinding(k);
+				const parsed = TemplateParser.ParsePipedBinding(k);
 				if (!parsed) {
 					log.warn("UITemplate: invalid [out] binding, details", {
 						binding: k,
@@ -234,7 +416,7 @@ class UITemplateSlot {
 		const inferWhenKeyFromOutAttr = (node) => {
 			const outKey = node.getAttribute("out")?.trim();
 			if (outKey) {
-				const outBinding = TemplateParser.parsePipedBinding(outKey);
+				const outBinding = TemplateParser.ParsePipedBinding(outKey);
 				if (outBinding?.sourceKey) {
 					return outBinding.sourceKey;
 				}
@@ -244,7 +426,7 @@ class UITemplateSlot {
 				if (!attr.name.startsWith("out:")) {
 					continue;
 				}
-				const parsedOut = TemplateParser.parseOutAttributeBinding(
+				const parsedOut = TemplateParser.ParseOutAttributeBinding(
 					attr.value || "",
 				);
 				if (parsedOut.mode === "binding") {
@@ -270,7 +452,7 @@ class UITemplateSlot {
 		};
 		const add = (node, parent, i) => {
 			const expr = node.getAttribute("when") || "";
-			const parsed = TemplateParser.parseWhenShorthand(expr);
+			const parsed = TemplateParser.ParseWhenShorthand(expr);
 			const slot = new UITemplateSlot(
 				node,
 				parent,
@@ -412,7 +594,7 @@ class UITemplateSlot {
 					if (attr.name.startsWith(prefix)) {
 						const attrName = attr.name.slice(prefix.length);
 						const slotName = attr.value || attrName;
-						const parsed = TemplateParser.parseOutAttributeBinding(slotName);
+						const parsed = TemplateParser.ParseOutAttributeBinding(slotName);
 						const binding = parsed.binding;
 						const sourceKey = binding?.sourceKey ?? slotName;
 						const processorsKey = binding?.processors?.join("|") || "";
@@ -472,7 +654,7 @@ class UITemplateSlot {
 				for (const attr of node.attributes) {
 					if (attr.name.startsWith(prefix)) {
 						const eventType = attr.name.slice(prefix.length);
-						const parsed = TemplateParser.parseEventEffect(
+						const parsed = TemplateParser.ParseEventEffect(
 							attr.value,
 							eventType,
 						);
@@ -854,7 +1036,7 @@ class UITemplate {
 		this.out = UITemplateSlot.MergeMaps(
 			UITemplateSlot.Find("out", nodes),
 			UITemplateSlot.Find("out-replace", nodes, (slot, key) => {
-				const parsed = TemplateParser.parsePipedBinding(key);
+				const parsed = TemplateParser.ParsePipedBinding(key);
 				slot.binding = parsed || {
 					sourceKey: `${key || ""}`.trim(),
 					processors: [],
@@ -2407,6 +2589,7 @@ class UIInstance {
 			);
 			return this;
 		}
+		const renderData = data ?? {};
 
 		data = this._runEagerBehaviors(data);
 		const isGranular = changedKeys !== null && changedKeys.size > 0;
@@ -2471,9 +2654,9 @@ class UIInstance {
 					// TODO: What does it mean has behavior, and what do we
 					// do with the tracking proxy
 					if (hasBehavior) {
-						if (isGranular) {
-							const [trackedData, accessed] = createTrackingProxy(data);
-							v = hasBehavior(this, trackedData, null);
+							if (isGranular) {
+								const [trackedData, accessed] = createTrackingProxy(renderData);
+								v = hasBehavior(this, trackedData, null);
 							if (!this._behaviorDeps) {
 								this._behaviorDeps = new Map();
 							}
@@ -2485,17 +2668,14 @@ class UIInstance {
 							if (!this._behaviorDepRevisions) {
 								this._behaviorDepRevisions = new Map();
 							}
-							this._behaviorDepRevisions.set(
-								k,
-								snapshotReactiveDependencyRevisions(data, accessed),
-							);
+								this._behaviorDepRevisions.set(k, snapshotReactiveDependencyRevisions(renderData, accessed));
+							} else {
+								v = hasBehavior(this, renderData, null);
+							}
 						} else {
-							v = hasBehavior(this, data, null);
+							v = resolveSourceValue(renderData, sourceKey);
+							v = v === undefined ? undefined : expand(v);
 						}
-					} else {
-						v = resolveSourceValue(data, sourceKey);
-						v = v === undefined ? undefined : expand(v);
-					}
 
 					if (
 						hasBehavior &&
@@ -2504,7 +2684,7 @@ class UIInstance {
 							if (withProcessors && processors?.length) {
 								next = applyNamedProcessors(
 									this,
-									data,
+									renderData,
 									next,
 									processors,
 									sourceKey,
@@ -2518,7 +2698,7 @@ class UIInstance {
 						continue;
 					}
 					if (withProcessors && processors?.length) {
-						v = applyNamedProcessors(this, data, v, processors, sourceKey);
+						v = applyNamedProcessors(this, renderData, v, processors, sourceKey);
 					}
 					for (const slot of slots) {
 						slot.render(v);
@@ -2531,7 +2711,7 @@ class UIInstance {
 			renderSet(this.in);
 			for (const k in this.when) {
 				for (const slot of this.when[k]) {
-					if (slot.template.predicate(this, data)) {
+					if (slot.template.predicate(this, renderData)) {
 						slot.show();
 					} else {
 						slot.hide();
@@ -2542,7 +2722,7 @@ class UIInstance {
 				if (k === "$template") {
 					for (const slot of this.outAttr.$template) {
 						slot.render(
-							resolveTemplateTokens(this, slot.template.template?.tokens, data),
+							resolveTemplateTokens(this, slot.template.template?.tokens, renderData),
 						);
 					}
 					continue;
@@ -2557,7 +2737,7 @@ class UIInstance {
 				if (hasBehavior) {
 					for (const slot of slots) {
 						const attrValue = slot.node.getAttribute(slot.attrName);
-						v = hasBehavior(this, data, attrValue, slot.node);
+						v = hasBehavior(this, renderData, attrValue, slot.node);
 						if (
 							this._trackAsyncBehaviorValue(
 								`${k}:${slot.attrName}`,
@@ -2567,7 +2747,7 @@ class UIInstance {
 									if (processors?.length) {
 										next = applyNamedProcessors(
 											this,
-											data,
+											renderData,
 											next,
 											processors,
 											sourceKey,
@@ -2580,17 +2760,17 @@ class UIInstance {
 							continue;
 						}
 						if (processors?.length) {
-							v = applyNamedProcessors(this, data, v, processors, sourceKey);
+							v = applyNamedProcessors(this, renderData, v, processors, sourceKey);
 						}
 						slot.render(v);
 					}
 					continue;
 				}
-				v = resolveSourceValue(data, sourceKey);
+				v = resolveSourceValue(renderData, sourceKey);
 				if (v !== undefined) {
 					v = expand(v);
 					if (processors?.length) {
-						v = applyNamedProcessors(this, data, v, processors, sourceKey);
+						v = applyNamedProcessors(this, renderData, v, processors, sourceKey);
 					}
 				}
 				for (const slot of slots) {
@@ -2611,9 +2791,8 @@ class UIInstance {
 	}
 }
 const Dynamic = (type, props = {}) => {
-	const component =
-		typeof type === "string" ? COMPONENT_REGISTRY.get(type) : type;
-	return component ? component(props) : null;
+	const resolved = typeof type === "string" ? COMPONENTS[type] : type;
+	return resolved ? resolved(props) : null;
 };
 const lazy = (loader, placeholder = null) => {
 	let tmpl = null;
@@ -2628,310 +2807,13 @@ const lazy = (loader, placeholder = null) => {
 		return tmpl ? tmpl(data) : placeholder;
 	};
 };
-const Disconnect = Symbol.for("Disconnect");
-const Adopted = Symbol.for("Adopted");
-const BaseHTMLElement = globalThis.HTMLElement || class {};
-
-const wcToKebabCase = (value) =>
-	value
-		.replace(/([a-z0-9])([A-Z])/g, "$1-$2")
-		.replace(/[_\s]+/g, "-")
-		.toLowerCase();
-
-const wcToCamelCase = (value) =>
-	value
-		.toLowerCase()
-		.replace(/-([a-z0-9])/g, (_, letter) => letter.toUpperCase());
-
-const wcParseAttributeValue = (value) => {
-	if (value === null) {
-		return null;
-	}
-	if (value === "true") {
-		return true;
-	}
-	if (value === "false") {
-		return false;
-	}
-	if (value !== "" && !Number.isNaN(Number(value))) {
-		return Number(value);
-	}
-	return value;
-};
-
-const wcCreateAttributeBindings = (initial, options) => {
-	const bindings = new Map();
-	const addBinding = (attribute, key) => {
-		if (!attribute || !key) {
-			return;
-		}
-		const attr = `${attribute}`.toLowerCase();
-		bindings.set(attr, key);
-	};
-
-	if (initial && typeof initial === "object") {
-		for (const key in initial) {
-			addBinding(key, key);
-			addBinding(wcToKebabCase(key), key);
-		}
-	}
-
-	if (isObject(options?.attributes)) {
-		for (const attribute in options.attributes) {
-			addBinding(attribute, options.attributes[attribute]);
-		}
-	}
-
-	if (Array.isArray(options?.observedAttributes)) {
-		for (const attribute of options.observedAttributes) {
-			if (typeof attribute !== "string") {
-				continue;
-			}
-			const key = wcToCamelCase(attribute);
-			addBinding(attribute, key);
-		}
-	}
-
-	return bindings;
-};
-
-const wcCollectObservedAttributes = (initial, bindings, options) => {
-	const attributes = new Set();
-
-	if (initial && typeof initial === "object") {
-		for (const key in initial) {
-			attributes.add(`${key}`.toLowerCase());
-			attributes.add(wcToKebabCase(key));
-		}
-	}
-
-	for (const key of bindings.keys()) {
-		attributes.add(key);
-	}
-
-	if (Array.isArray(options?.observedAttributes)) {
-		for (const attribute of options.observedAttributes) {
-			if (typeof attribute === "string") {
-				attributes.add(attribute.toLowerCase());
-			}
-		}
-	}
-
-	return [...attributes];
-};
-
-const wcAsNodes = (value, nodes = []) => {
-	if (value === undefined || value === null || value === false) {
-		return nodes;
-	}
-	if (value instanceof Node) {
-		nodes.push(value);
-		return nodes;
-	}
-	if (
-		value instanceof NodeList ||
-		value instanceof HTMLCollection ||
-		(value &&
-			typeof value === "object" &&
-			typeof value.length === "number" &&
-			value.length >= 0 &&
-			value.length % 1 === 0)
-	) {
-		for (let i = 0; i < value.length; i++) {
-			wcAsNodes(value[i], nodes);
-		}
-		return nodes;
-	}
-	if (Array.isArray(value)) {
-		for (let i = 0; i < value.length; i++) {
-			wcAsNodes(value[i], nodes);
-		}
-		return nodes;
-	}
-	nodes.push(document.createTextNode(asText(value)));
-	return nodes;
-};
-
-class UIWebComponent extends BaseHTMLElement {
-	constructor(
-		componentFactory,
-		initial = {},
-		attributeBindings = new Map(),
-		options = {},
-	) {
-		super();
-		const useShadow = options.shadow !== false;
-		const shadowMode = options.shadowMode || "open";
-		this.root =
-			useShadow && typeof this.attachShadow === "function"
-				? this.shadowRoot || this.attachShadow({ mode: shadowMode })
-				: this;
-		this.componentFactory = componentFactory;
-		this.attributeBindings = attributeBindings;
-		this.options = options;
-		this.instance = undefined;
-		this.nodes = [];
-		this.isInitialized = false;
-		this.data = {
-			...(initial && typeof initial === "object" ? initial : {}),
-		};
-	}
-
-	readAttributes() {
-		const data = {};
-		for (const attribute of this.attributes) {
-			const name = attribute.name.toLowerCase();
-			const key = this.attributeBindings.get(name) || wcToCamelCase(name);
-			data[key] = wcParseAttributeValue(attribute.value);
-		}
-		return data;
-	}
-
-	_clearPureNodes() {
-		if (!this.nodes || this.nodes.length === 0) {
-			return;
-		}
-		for (let i = 0; i < this.nodes.length; i++) {
-			this.nodes[i].parentNode?.removeChild(this.nodes[i]);
-		}
-		this.nodes = [];
-	}
-
-	_renderUIComponent() {
-		if (!this.instance) {
-			this.instance = this.componentFactory.new();
-			this.instance.set(this.data).mount(this.root);
-		} else {
-			this.instance.update(this.data);
-		}
-	}
-
-	_renderPureComponent() {
-		if (this.instance) {
-			this.instance.unmount();
-			this.instance = undefined;
-		}
-		this._clearPureNodes();
-		const output = this.componentFactory(this.data, this);
-		const nodes = wcAsNodes(output);
-		for (let i = 0; i < nodes.length; i++) {
-			this.root.appendChild(nodes[i]);
-		}
-		this.nodes = nodes;
-	}
-
-	render() {
-		if (this.componentFactory?.isTemplate && this.componentFactory?.new) {
-			this._renderUIComponent();
-		} else if (typeof this.componentFactory === "function") {
-			this._renderPureComponent();
-		} else {
-			log.error("UIWebComponent: invalid component factory, details", {
-				componentFactory: this.componentFactory,
-				host: this,
-			});
-		}
-	}
-
-	applyData(data) {
-		if (!data || typeof data !== "object") {
-			return;
-		}
-		this.data = Object.assign({}, this.data, data);
-		if (this.isInitialized) {
-			this.render();
-		}
-	}
-
-	connectedCallback() {
-		if (!this.isInitialized) {
-			this.applyData(this.readAttributes());
-			this.isInitialized = true;
-			this.render();
-			return;
-		}
-		this.applyData(this.readAttributes());
-	}
-
-	disconnectedCallback() {
-		this.trigger(Disconnect);
-		if (this.instance) {
-			this.instance.unmount();
-			this.instance = undefined;
-		}
-		this._clearPureNodes();
-		this.isInitialized = false;
-	}
-
-	adoptedCallback() {
-		this.trigger(Adopted);
-	}
-
-	attributeChangedCallback(name, previous, current) {
-		if (previous === current) {
-			return;
-		}
-		const normalized = `${name}`.toLowerCase();
-		const key =
-			this.attributeBindings.get(normalized) || wcToCamelCase(normalized);
-		this.applyData({ [key]: wcParseAttributeValue(current) });
-		this.trigger(name, previous, current);
-	}
-
-	trigger(name, previous, current) {
-		if (typeof name === "symbol") {
-			return;
-		}
-		this.dispatchEvent(
-			new CustomEvent(`wc:${name}`, {
-				detail: {
-					name,
-					previous,
-					current,
-				},
-			}),
-		);
-	}
-}
-
-const webcomponent = (
-	name,
-	componentFactory,
-	initial = undefined,
-	options = undefined,
-) => {
-	const registry = globalThis.customElements;
-	if (!registry) {
-		return null;
-	}
-	const existing = registry.get(name);
-	if (existing) {
-		return existing;
-	}
-	const initialData =
-		initial && typeof initial === "object" ? { ...initial } : {};
-	const attributeBindings = wcCreateAttributeBindings(initialData, options);
-	const observedAttributes = wcCollectObservedAttributes(
-		initialData,
-		attributeBindings,
-		options,
-	);
-	const WebComponent = class extends UIWebComponent {
-		static observedAttributes = observedAttributes;
-		constructor() {
-			super(componentFactory, initialData, attributeBindings, options || {});
-		}
-	};
-	registry.define(name, WebComponent);
-	return WebComponent;
-};
-
 export {
-	Adopted,
-	COMPONENT_REGISTRY,
-	Disconnect,
+	COMPONENTS,
+	component,
 	Dynamic,
 	lazy,
+	AppliedUITemplate,
+	UIEvent,
 	UIAttributeSlot,
 	UIAttributeTemplateSlot,
 	UIContentSlot,
@@ -2941,8 +2823,6 @@ export {
 	UISlot,
 	UITemplate,
 	UITemplateSlot,
-	UIWebComponent,
-	webcomponent,
 	uiOptions,
 };
 

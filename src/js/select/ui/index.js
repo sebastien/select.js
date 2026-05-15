@@ -4,51 +4,21 @@
 // Created: 2024-01-01
 
 // Module: select/ui
-// A standalone, simple and performant UI rendering library designed for
-// quickly creating interactive UIs and visualizations. Templates are defined
-// with HTML and bound to reactive data cells.
-//
-// Templates use special attributes for data binding: `out` for output,
-// `in` for input, `inout` for bidirectional, `on:event` for event handlers,
-// `ref` for element references, `when` for conditional rendering, and
-// `out:attr` for attribute binding.
-//
-// Example:
-// ```javascript
-// import { ui, cell } from "./select.ui.js"
-//
-// const Counter = ui(`
-//   <div>
-//     <span out:text="count">0</span>
-//     <button on:click="increment">+</button>
-//   </div>
-// `).does({
-//   increment: (self, data) => data.count.set(data.count.get() + 1)
-// })
-//
-// const instance = Counter.new().mount(document.body)
-// instance.set({ count: cell(0) })
-// ```
+// Re-export surface for the UI runtime.
 
-import { len } from "../utils.js";
+import { len } from "../utils.js"
 
 import {
-	FORMATS_PROXY,
-	HTML,
-	log,
-	pruneTemplateWhitespace,
-	TemplateRegistry,
 	type,
-	UIEvent,
-	AppliedUITemplate,
-} from "./html.js";
+} from "./templates.js"
 
 import {
-	Adopted,
-	COMPONENT_REGISTRY,
-	Disconnect,
+	AppliedUITemplate,
+	COMPONENTS,
+	component,
 	Dynamic,
 	lazy,
+	UIEvent,
 	UIAttributeSlot,
 	UIAttributeTemplateSlot,
 	UIContentSlot,
@@ -58,273 +28,11 @@ import {
 	UISlot,
 	UITemplate,
 	UITemplateSlot,
-	UIWebComponent,
-	webcomponent,
-	uiOptions,
-} from "./components.js";
+} from "./components.js"
 
-// ----------------------------------------------------------------------------
-//
-// COMPONENT FACTORY
-//
-// ----------------------------------------------------------------------------
-
-const stripTemplateNodes = (nodes) => {
-	const res = [];
-	for (let i = 0; i < nodes.length; i++) {
-		const node = nodes[i];
-		if (!node || node.nodeName === "TEMPLATE") {
-			continue;
-		}
-		const clone = node.cloneNode(true);
-		if (clone.querySelectorAll) {
-			for (const nested of clone.querySelectorAll("template")) {
-				nested.remove();
-			}
-		}
-		res.push(clone);
-	}
-	return res;
-};
-
-const createComponent = (tmpl, localTemplateNodes = tmpl.nodes) => {
-	const component = (...args) => tmpl.apply(...args);
-	tmpl.component = component;
-	Object.assign(component, {
-		isTemplate: true,
-		template: tmpl,
-		singleton: null,
-		new: (...args) => tmpl.new(...args),
-		init: (...args) => {
-			tmpl.init(...args);
-			return component;
-		},
-		map: (...args) => {
-			return tmpl.map(...args);
-		},
-		apply: (...args) => {
-			return tmpl.apply(...args);
-		},
-		does: (...args) => {
-			tmpl.does(...args);
-			return component;
-		},
-		on: (...args) => {
-			tmpl.sub(...args);
-			return component;
-		},
-		sub: (...args) => {
-			tmpl.sub(...args);
-			return component;
-		},
-		cleanup: (...args) => {
-			tmpl.cleanup(...args);
-			return component;
-		},
-	});
-	const localTemplates = new Map();
-	const registerLocalTemplate = (templateNode) => {
-		if (!templateNode || templateNode.nodeName !== "TEMPLATE") {
-			return;
-		}
-		const name = TemplateRegistry.formatterName(templateNode);
-		if (name && !localTemplates.has(name)) {
-			const childNodes = [...templateNode.content.childNodes];
-			const childTemplate = new UITemplate(childNodes, tmpl.scope, name);
-			const childComponent = createComponent(childTemplate);
-			component[name] = childComponent;
-			localTemplates.set(name, childComponent);
-		}
-		if (!templateNode.content?.querySelectorAll) {
-			return;
-		}
-		for (const nested of templateNode.content.querySelectorAll("template")) {
-			registerLocalTemplate(nested);
-		}
-	};
-	for (let i = 0; i < localTemplateNodes.length; i++) {
-		const node = localTemplateNodes[i];
-		if (node?.nodeName === "TEMPLATE") {
-			registerLocalTemplate(node);
-		}
-		if (node?.querySelectorAll) {
-			for (const nested of node.querySelectorAll("template")) {
-				registerLocalTemplate(nested);
-			}
-		}
-	}
-	if (localTemplates.size) {
-		tmpl.localTemplates = localTemplates;
-	}
-	return component;
-};
-
-// ----------------------------------------------------------------------------
-//
-// UI FACTORY
-//
-// ----------------------------------------------------------------------------
-
-const ui = (selection, scope = document) => {
-	if (selection === null || selection === undefined) {
-		throw new Error(
-			`ui() received ${selection === null ? "null" : "undefined"} as selection. ` +
-				`Expected a CSS selector string, an HTML string starting with "<", ` +
-				`a DOM Node, or an array of DOM Nodes. ` +
-				`Example: ui("#container") or ui("<div>Hello</div>")`,
-		);
-	}
-
-	if (typeof selection === "string") {
-		let nodes = [];
-		let defaultData = null;
-		let sourceMode = "default";
-		let sourceHosts = null;
-		let autoFormatName = null;
-		const templateRegistry = TemplateRegistry.for(scope);
-		if (/^\s*</.test(selection)) {
-			const doc = HTML.parseFromString(selection, "text/html");
-			pruneTemplateWhitespace(doc.body);
-			nodes = [...doc.body.childNodes];
-			if (nodes.length === 1) {
-				autoFormatName = TemplateRegistry.formatterName(nodes[0]);
-			}
-			TemplateRegistry.registerNodes(nodes, templateRegistry, scope);
-		} else {
-			const template = templateRegistry.get(TemplateRegistry.key(selection));
-			if (template) {
-				nodes = [...template.content.childNodes];
-				autoFormatName = TemplateRegistry.formatterName(template);
-			} else {
-				let matchedTemplateCount = 0;
-				let matchedTemplateName = null;
-				const matchedNodes = [];
-				const parent = scope?.querySelectorAll ? scope : document;
-				let query = selection;
-				let queried = [];
-				try {
-					queried = [...parent.querySelectorAll(query)];
-				} catch (_error) {
-					queried = [];
-				}
-				if (
-					queried.length === 0 &&
-					!selection.includes("#") &&
-					!selection.includes(".") &&
-					!selection.includes("[") &&
-					!selection.includes(":") &&
-					!/\s/.test(selection)
-				) {
-					query = `#${selection}`;
-					try {
-						queried = [...parent.querySelectorAll(query)];
-					} catch (_error) {
-						queried = [];
-					}
-				}
-				for (const node of queried) {
-					if (node.nodeName === "TEMPLATE") {
-						matchedTemplateCount += 1;
-						matchedTemplateName = TemplateRegistry.formatterName(node);
-						TemplateRegistry.registerNode(node, templateRegistry, scope);
-						nodes = [...nodes, ...node.content.childNodes];
-					} else {
-						matchedNodes.push(node);
-					}
-				}
-				if (matchedTemplateCount === 0 && matchedNodes.length > 0) {
-					sourceMode = "fallback-node-template";
-					sourceHosts = matchedNodes;
-					let hasDefaultData = false;
-					defaultData = {};
-					for (const node of matchedNodes) {
-						nodes.push(node.cloneNode(true));
-						const payload = node.getAttribute?.("data");
-						if (payload !== null && payload !== undefined && payload !== "") {
-							let parsed;
-							try {
-								parsed = JSON.parse(payload);
-							} catch (_error) {
-								throw new Error(
-									`ui(): invalid JSON in [data] attribute for selector "${selection}"`,
-								);
-							}
-							if (
-								parsed === null ||
-								typeof parsed !== "object" ||
-								Array.isArray(parsed)
-							) {
-								throw new Error(
-									`ui(): [data] attribute JSON for selector "${selection}" must be an object`,
-								);
-							}
-							Object.assign(defaultData, parsed);
-							hasDefaultData = true;
-						}
-					}
-					if (!hasDefaultData) {
-						defaultData = null;
-					}
-				}
-				if (matchedTemplateCount === 1) {
-					autoFormatName = matchedTemplateName;
-				}
-				TemplateRegistry.registerNodes(nodes, templateRegistry, scope);
-			}
-		}
-		if (nodes.length === 0) {
-			log.warn("ui: selector did not match any elements, details", {
-				selector: selection,
-				scope,
-			});
-		}
-		const templateNodes = stripTemplateNodes(nodes);
-		const template = new UITemplate(templateNodes, scope, autoFormatName);
-		if (sourceMode === "fallback-node-template") {
-			template.sourceMode = sourceMode;
-			template.sourceSelector = selection;
-			template.sourceHosts = sourceHosts;
-			template.defaultData = defaultData;
-		}
-		const component = createComponent(template, nodes);
-		if (autoFormatName) {
-			ui.format(autoFormatName, component);
-		}
-		return component;
-	}
-
-	if (selection instanceof Node || Array.isArray(selection)) {
-		const nodes = selection instanceof Node ? [selection] : selection;
-		let autoFormatName = null;
-		if (nodes.length === 1) {
-			autoFormatName = TemplateRegistry.formatterName(nodes[0]);
-		}
-		TemplateRegistry.registerNodes(nodes, TemplateRegistry.for(scope), scope);
-		const component = createComponent(
-			new UITemplate(stripTemplateNodes(nodes), scope, autoFormatName),
-			nodes,
-		);
-		if (autoFormatName) {
-			ui.format(autoFormatName, component);
-		}
-		return component;
-	}
-
-	throw new Error(
-		`ui() received an invalid selection type: ${typeof selection}. ` +
-			`Expected a string (CSS selector or HTML), a DOM Node, or an array of DOM Nodes. ` +
-			`Received: ${selection}`,
-	);
-};
-
-// ----------------------------------------------------------------------------
-//
-// FORMATS & REGISTRY API
-//
-// ----------------------------------------------------------------------------
-
-const formats = FORMATS_PROXY;
-const options = uiOptions;
+import { Adopted, Disconnect, UIWebComponent, webcomponent } from "./webcomponents.js"
+import { ui } from "./factory.js"
+import { FORMATS, format } from "./formatters.js"
 
 // Maps `f` over collection entries while preserving the original container.
 function remap(value, f) {
@@ -334,101 +42,43 @@ function remap(value, f) {
 		typeof value === "number" ||
 		typeof value === "string"
 	) {
-		return value;
+		return value
 	} else if (Array.isArray(value)) {
-		const n = value.length;
-		const res = new Array(n);
+		const n = value.length
+		const res = new Array(n)
 		for (let i = 0; i < n; i++) {
-			res[i] = f(value[i], i);
+			res[i] = f(value[i], i)
 		}
-		return res;
+		return res
 	} else if (value instanceof Map) {
-		const res = new Map();
+		const res = new Map()
 		for (const [k, v] of value.entries()) {
-			res.set(k, f(v, k));
+			res.set(k, f(v, k))
 		}
-		return res;
+		return res
 	} else if (value instanceof Set) {
-		const res = new Set();
+		const res = new Set()
 		for (const v of value) {
-			res.add(f(v, undefined));
+			res.add(f(v, undefined))
 		}
-		return res;
+		return res
 	}
-	const res = {};
+	const res = {}
 	for (const k in value) {
-		res[k] = f(value[k], k);
+		res[k] = f(value[k], k)
 	}
-	return res;
-};
-
-function format(name, formatter) {
-	if (name && typeof name === "object" && !Array.isArray(name)) {
-		for (const key in name) {
-			format(key, name[key]);
-		}
-		return ui;
-	}
-	if (typeof name !== "string" || !name.trim()) {
-		log.error("ui.formats: invalid formatter name, details", {
-			name,
-			formatter,
-		});
-		return ui;
-	}
-	ui.formats[name.trim()] = formatter;
-	return ui;
+	return res
 }
-
-function unformat(name) {
-	if (typeof name === "string" && name.trim()) {
-		delete ui.formats[name.trim()];
-	}
-	return ui;
-}
-
-function formatter(name) {
-	if (typeof name !== "string") {
-		return undefined;
-	}
-	return ui.formats[name.trim()];
-}
-
-function resolveFormat(name) {
-	return formatter(name);
-}
-
-// Registers `component` as `name` for Dynamic() resolution.
-function register (name, component) {
-	COMPONENT_REGISTRY.set(name, component);
-	return ui;
-};
-
-// Resolves registered component by `name`.
-function resolve (name){return COMPONENT_REGISTRY.get(name)};
-
-Object.assign(ui, {
-	formats,
-	options,
-	format,
-	unformat,
-	formatter,
-	resolveFormat,
-	register,
-	resolve,
-});
-
-// ----------------------------------------------------------------------------
-//
-// EXPORTS
-//
-// ----------------------------------------------------------------------------
 
 export {
 	Adopted,
 	AppliedUITemplate,
 	Disconnect,
+	COMPONENTS,
+	component,
 	Dynamic,
+	FORMATS,
+	format,
 	lazy,
 	len,
 	remap,
@@ -446,7 +96,8 @@ export {
 	UIWebComponent,
 	ui,
 	webcomponent,
-};
-export default ui;
+}
+
+export default ui
 
 // EOF
