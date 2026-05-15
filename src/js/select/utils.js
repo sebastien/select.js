@@ -6,6 +6,14 @@
 // Module: select/utils
 // Shared utility helpers used across select modules.
 
+// ----------------------------------------------------------------------------
+//
+// LOGGING AND STRUCTURAL HELPERS
+//
+// ----------------------------------------------------------------------------
+
+// Function: logger
+// Returns scoped logging methods (`log`, `warn`, `error`) prefixed with `scope`.
 function logger(scope) {
 	return {
 		log: (...args) => console.log(`[${scope}]`, ...args),
@@ -14,6 +22,8 @@ function logger(scope) {
 	};
 }
 
+// Function: isObject
+// Returns true when `value` is a plain object.
 function isObject(value) {
 	return (
 		value !== null &&
@@ -27,12 +37,16 @@ const Nothing = Object.freeze(new Object());
 
 const Something = Object.freeze(new Object());
 
+// Function: clone
+// Creates a shallow clone for `value`, inferring container type from `key` when needed.
 function clone(value, key = undefined) {
 	if (Array.isArray(value)) return value.slice();
 	if (isObject(value)) return { ...value };
 	return typeof key === "number" ? [] : {};
 }
 
+// Function: access
+// Traverses `context` using path `p` starting at `offset`.
 function access(context, p, offset = 0) {
 	if (p?.length && context !== undefined) {
 		for (
@@ -46,6 +60,8 @@ function access(context, p, offset = 0) {
 	return context;
 }
 
+// Function: path
+// Normalizes `p` to a path array, returning `null` when unset.
 function path(p, nothing = undefined) {
 	if (p === nothing) {
 		return null;
@@ -59,6 +75,8 @@ function path(p, nothing = undefined) {
 	return null;
 }
 
+// Function: assign
+// Mutably assigns `value` at path `p` in `scope` and returns the root container.
 function assign(scope, p, value, merge = undefined, offset = 0) {
 	const n = p?.length ?? 0;
 	if (n === 0) {
@@ -95,6 +113,8 @@ function assign(scope, p, value, merge = undefined, offset = 0) {
 	return root;
 }
 
+// Function: reassign
+// Immutably assigns `value` at path `p` by cloning touched branches.
 function reassign(scope, p, value, merge = undefined, offset = 0) {
 	const n = p?.length ?? 0;
 	if (n === 0) {
@@ -127,6 +147,12 @@ function reassign(scope, p, value, merge = undefined, offset = 0) {
 	return root;
 }
 
+// ----------------------------------------------------------------------------
+//
+// SANITIZATION
+//
+// ----------------------------------------------------------------------------
+
 class Sanitizer {
 	constructor(options = {}) {
 		this.dropUndefined = options.dropUndefined !== false;
@@ -148,14 +174,20 @@ class Sanitizer {
 			typeof options.onDrop === "function" ? options.onDrop : undefined;
 	}
 
+	// Function: notify
+	// Invokes drop callback with `reason` and optional `details`.
 	notify(reason, details = undefined) {
 		if (this.onDrop) this.onDrop(reason, details);
 	}
 
+	// Function: sanitize
+	// Sanitizes any input `value` according to sanitizer options.
 	sanitize(value) {
 		return this.sanitizeAny(value, undefined, undefined);
 	}
 
+	// Function: sanitizeAny
+	// Sanitizes `value` according to its runtime type.
 	sanitizeAny(value, key, parent) {
 		if (value === undefined && this.dropUndefined) {
 			this.notify("undefined", { key, parent, value });
@@ -175,12 +207,16 @@ class Sanitizer {
 		return this.sanitizeScalar(value, key, parent);
 	}
 
+	// Function: sanitizeText
+	// Sanitizes text `value` using the configured text hook when available.
 	sanitizeText(value, key, parent) {
 		return this.sanitizeTextHook
 			? this.sanitizeTextHook(value, { key, parent, sanitizer: this })
 			: value;
 	}
 
+	// Function: sanitizeKey
+	// Sanitizes object `key` using the configured key hook when available.
 	sanitizeKey(key, value, parent) {
 		if (!this.sanitizeKeyHook) return key;
 		return this.sanitizeKeyHook(key, {
@@ -190,12 +226,16 @@ class Sanitizer {
 		});
 	}
 
+	// Function: sanitizeScalar
+	// Sanitizes scalar `value` using the configured scalar hook when available.
 	sanitizeScalar(value, key, parent) {
 		return this.sanitizeScalarHook
 			? this.sanitizeScalarHook(value, { key, parent, sanitizer: this })
 			: value;
 	}
 
+	// Function: sanitizeArray
+	// Sanitizes array entries and optionally compacts dropped values.
 	sanitizeArray(value) {
 		const res = [];
 		for (let i = 0; i < value.length; i++) {
@@ -209,6 +249,8 @@ class Sanitizer {
 		return res;
 	}
 
+	// Function: sanitizeObject
+	// Sanitizes object keys and values, skipping dropped entries.
 	sanitizeObject(value) {
 		const res = {};
 		for (const k in value) {
@@ -229,6 +271,8 @@ class Sanitizer {
 const DEFAULT_SANITIZER = new Sanitizer();
 const SANITIZER_BY_OPTIONS = new WeakMap();
 
+// Function: sanitizer
+// Returns a cached sanitizer instance for `options`.
 function sanitizer(options = undefined) {
 	if (!options) return DEFAULT_SANITIZER;
 	if (options instanceof Sanitizer) return options;
@@ -240,11 +284,15 @@ function sanitizer(options = undefined) {
 	return cached;
 }
 
+// Function: sanitize
+// Sanitizes `value` using the resolved sanitizer for `options`.
 function sanitize(value, options = undefined) {
 	return sanitizer(options).sanitize(value);
 }
 sanitize.value = (value, options = undefined) => sanitize(value, options);
 
+// Function: eq
+// Performs deep structural equality on arrays and plain objects.
 function eq(a, b, limit = undefined) {
 	if (Object.is(a, b)) {
 		return true;
@@ -285,6 +333,8 @@ function eq(a, b, limit = undefined) {
 	return false;
 }
 
+// Function: len
+// Returns collection length/size semantics for `v`.
 function len(v) {
 	if (v === undefined || v === null) {
 		return 0;
@@ -305,6 +355,8 @@ const microtask =
 		? globalThis.queueMicrotask.bind(globalThis)
 		: (fn) => Promise.resolve().then(fn);
 
+// Function: asText
+// Converts `value` to displayable text, expanding reactive values.
 function asText(value) {
 	value = expand(value);
 	return value === null || value === undefined
@@ -316,10 +368,14 @@ function asText(value) {
 				: JSON.stringify(value);
 }
 
+// Function: isPascalCaseName
+// Returns true when `name` matches PascalCase naming.
 function isPascalCaseName(name) {
 	return /^[A-Z][A-Za-z0-9_]*$/.test(name);
 }
 
+// Function: list
+// Normalizes `value` into an array-like list.
 function list(value) {
 	if (value == null) return [];
 	switch (value?.constructor) {
@@ -336,10 +392,14 @@ function list(value) {
 	}
 }
 
+// Function: itemkey
+// Resolves a stable key from common item fields (`id`, `key`, `name`).
 function itemkey(item) {
 	return item?.id ?? item?.key ?? item?.name ?? item;
 }
 
+// Function: index
+// Returns index of `item` in `items` using `keyFn` matching.
 function index(items, item, keyFn = undefined) {
 	if (!items) {
 		return -1;
@@ -358,10 +418,14 @@ function index(items, item, keyFn = undefined) {
 	return -1;
 }
 
+// Function: has
+// Returns true when `item` exists in `items`.
 function has(items, item, keyFn = undefined) {
 	return index(items, item, keyFn) >= 0;
 }
 
+// Function: add
+// Adds `item` to `items` if not already present.
 function add(items, item, keyFn = undefined) {
 	if (!items) {
 		return [item];
@@ -370,6 +434,8 @@ function add(items, item, keyFn = undefined) {
 	return index(items, item, keyFn) < 0 ? [...items, item] : items;
 }
 
+// Function: remove
+// Removes `item` from `items` when present.
 function remove(items, item, keyFn = undefined) {
 	if (!items) {
 		return items;
@@ -384,12 +450,16 @@ function remove(items, item, keyFn = undefined) {
 	return res;
 }
 
+// Function: toggle
+// Toggles membership of `item` in `items`.
 function toggle(items, item, keyFn = undefined) {
 	return has(items, item, keyFn)
 		? (remove(items, item, keyFn) ?? [])
 		: add(items, item, keyFn);
 }
 
+// Function: wrapindex
+// Wraps index arithmetic over `itemsOrLength` with circular behavior.
 function wrapindex(itemsOrLength, i, delta = 1) {
 	const n =
 		typeof itemsOrLength === "number"
@@ -401,10 +471,14 @@ function wrapindex(itemsOrLength, i, delta = 1) {
 	return (((i + delta) % n) + n) % n;
 }
 
+// Function: rescape
+// Escapes regexp metacharacters in `value`.
 function rescape(value) {
 	return `${value}`.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Function: bool
+// Coerces `value` to semantic truthiness used by selection helpers.
 function bool(value) {
 	if (value == null) return false;
 	if (typeof value === "boolean") return value;
@@ -413,6 +487,8 @@ function bool(value) {
 	return true;
 }
 
+// Function: extractor
+// Returns accessor function for `pathOrFunc`.
 function extractor(pathOrFunc) {
 	if (typeof pathOrFunc === "function") {
 		return pathOrFunc;
@@ -423,6 +499,8 @@ function extractor(pathOrFunc) {
 	return (v) => access(v, pathOrFunc);
 }
 
+// Function: cmp
+// Compares `a` and `b`, optionally after extractor projection.
 function cmp(a, b, extractorFunc) {
 	if (extractorFunc) {
 		const ext = extractor(extractorFunc);
@@ -434,6 +512,8 @@ function cmp(a, b, extractorFunc) {
 	return 0;
 }
 
+// Function: predicate
+// Returns predicate function from `predicateOrExtractor`.
 function predicate(predicateOrExtractor) {
 	if (typeof predicateOrExtractor === "function") {
 		return predicateOrExtractor;
@@ -445,6 +525,8 @@ function predicate(predicateOrExtractor) {
 	return (v) => bool(ext(v));
 }
 
+// Function: sorted
+// Returns sorted copy of `values`, optionally by `extractorFunc`.
 function sorted(values, extractorFunc) {
 	const arr = list(values);
 	if (!extractorFunc) {
@@ -454,6 +536,8 @@ function sorted(values, extractorFunc) {
 	return arr.slice().sort((a, b) => cmp(ext(a), ext(b)));
 }
 
+// Function: unique
+// Returns unique values from `values`, optionally by projection.
 function unique(values, extractorFunc) {
 	const arr = list(values);
 	if (!extractorFunc) {
@@ -469,20 +553,28 @@ function unique(values, extractorFunc) {
 	});
 }
 
+// Function: filter
+// Filters `values` using resolved predicate semantics.
 function filter(values, predicateOrExtractor) {
 	const arr = list(values);
 	const pred = predicate(predicateOrExtractor);
 	return arr.filter(pred);
 }
 
+// Function: find
+// Alias to `index` using `key` extraction.
 function find(items, item, key = itemkey) {
 	return index(items, item, key);
 }
 
+// Function: next
+// Returns next wrapped index from `i` by `delta`.
 function next(items, i, delta = 1) {
 	return wrapindex(items, i, delta);
 }
 
+// Function: iwalk
+// Generator that depth-walks `value`, yielding `[node, path, parents]` tuples.
 function* iwalk(value, functor, processor, p = [], parents = []) {
 	value = processor ? processor(value) : value;
 	if (!functor || functor(value, p, parents) !== false) {
@@ -516,6 +608,8 @@ function* iwalk(value, functor, processor, p = [], parents = []) {
 
 const RE_SHORTWORD = /[A-Za-z][A-Za-z0-9]+/g;
 
+// Function: b26
+// Encodes integer `i` to base-26 lowercase token.
 function b26(i) {
 	let result = "";
 	const base = 26;
@@ -526,6 +620,8 @@ function b26(i) {
 	return result;
 }
 
+// Function: shortdict
+// Builds dictionary mapping frequent words in `text` to compact tokens.
 function shortdict(text) {
 	const words = Array.isArray(text)
 		? text
@@ -541,6 +637,8 @@ function shortdict(text) {
 	return Object.fromEntries(sortedWords.map((word, i) => [word, b26(i)]));
 }
 
+// Function: shortword
+// Compresses words in `text` using `dict` substitutions.
 function shortword(text, dict = shortdict(text)) {
 	let compressed = `${text ?? ""}`;
 	for (const [originalWord, indexWord] of Object.entries(dict || {})) {
@@ -554,6 +652,8 @@ function shortword(text, dict = shortdict(text)) {
 	return compressed;
 }
 
+// Function: unshortword
+// Expands compressed tokens in `text` using `dict` substitutions.
 function unshortword(text, dict = shortdict(text)) {
 	const source = `${text ?? ""}`;
 	let compressed = source;
@@ -582,6 +682,8 @@ function unshortword(text, dict = shortdict(text)) {
 	return decompressed;
 }
 
+// Function: iclsx
+// Generator yielding normalized class tokens from mixed inputs.
 function* iclsx(...args) {
 	for (const value of args) {
 		if (!value) continue;
@@ -607,10 +709,14 @@ function* iclsx(...args) {
 	}
 }
 
+// Function: clsx
+// Joins normalized class tokens into a single class string.
 function clsx(...args) {
 	return [...iclsx(...args)].join(" ");
 }
 
+// Function: remap
+// Maps `value` with `mapper`; supports deep traversal with path-aware options.
 function remap(
 	value,
 	mapper,
@@ -686,6 +792,8 @@ function remap(
 	return mapped;
 }
 
+// Function: expand
+// Resolves nested reactive values recursively.
 function expand(value) {
 	return remap(value, (v) => (v?.isReactive === true ? v.value : v), {
 		deep: true,

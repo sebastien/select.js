@@ -21,6 +21,9 @@
 	},
 	"scripts": {
 		"build": "make dist",
+		"test": "bun test",
+		"test:int": "bun test tests/int-examples.test.ts",
+		"test:int:update": "UPDATE_FIXTURES=1 bun test tests/int-examples.test.ts",
 		"bench:inspector": "node scripts/bench-inspector.mjs",
 		"bench:inspector:happy": "node benchmarks/inspector/run-compare.mjs",
 		"bench:inspector:chrome": "node benchmarks/inspector/run-node.js"
