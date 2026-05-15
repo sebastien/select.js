@@ -134,7 +134,7 @@ const match = _match
 // Returns: Array<Element> - matching element nodes
 
 // TODO: Implement the `limit` to optimize
-const query = (selector, scope, _limit) => {
+function query(selector, scope, _limit) {
 	selector = selector.trim();
 	if (!selector || selector.length === 0) {
 		return [scope];
@@ -192,7 +192,7 @@ const query = (selector, scope, _limit) => {
 		}
 		return result;
 	}
-};
+}
 
 // Function: filter
 // Filters `nodes` array to only include elements matching `selector`.
@@ -203,7 +203,7 @@ const query = (selector, scope, _limit) => {
 //
 // Returns: Array<Node> - subset of nodes matching selector
 
-const filter = (selector, nodes) => {
+function filter(selector, nodes) {
 	const result = [];
 	for (let i = 0; i < nodes.length; i++) {
 		const node = nodes[i];
@@ -212,7 +212,7 @@ const filter = (selector, nodes) => {
 		}
 	}
 	return result;
-};
+}
 
 // ----------------------------------------------------------------------------
 //
@@ -1601,11 +1601,11 @@ class Selection extends Array {
 // const wrapped = select(existingNode)
 // ```
 
-const select = (selector, scope) => {
+function select(selector, scope) {
 	return Selection.Is(selector) && !scope
 		? selector
 		: new Selection(selector, scope);
-};
+}
 
 // NOTE: This is a bit recursive as the select is actually a factory function
 // for Selection object, but we also copy the top-level module attributes in

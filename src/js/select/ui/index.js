@@ -6,6 +6,12 @@
 // Module: select/ui
 // Re-export surface for the UI runtime.
 
+// ----------------------------------------------------------------------------
+//
+// PUBLIC HELPERS
+//
+// ----------------------------------------------------------------------------
+
 import { len } from "../utils.js"
 
 import {
@@ -34,7 +40,8 @@ import { Adopted, Disconnect, UIWebComponent, webcomponent } from "./webcomponen
 import { ui } from "./factory.js"
 import { FORMATS, format } from "./formatters.js"
 
-// Maps `f` over collection entries while preserving the original container.
+// Function: remap
+// Maps `f` over collection entries while preserving the input container shape.
 function remap(value, f) {
 	if (
 		value === null ||

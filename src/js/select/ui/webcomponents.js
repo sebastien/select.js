@@ -6,25 +6,21 @@
 // Module: select/ui/webcomponents
 // Web component bridge for UI templates and pure render functions.
 
+// ----------------------------------------------------------------------------
+//
+// WEB COMPONENT BRIDGE
+//
+// ----------------------------------------------------------------------------
+
 import { asText, isObject } from "../utils.js"
+import { toCamelCase, toKebabCase } from "../formats.js"
 import { log } from "./templates.js"
 
 const Disconnect = Symbol.for("Disconnect")
 const Adopted = Symbol.for("Adopted")
 const BaseHTMLElement = globalThis.HTMLElement || class {}
 
-const toKebabCase = (value) =>
-	value
-		.replace(/([a-z0-9])([A-Z])/g, "$1-$2")
-		.replace(/[_\s]+/g, "-")
-		.toLowerCase()
-
-const toCamelCase = (value) =>
-	value
-		.toLowerCase()
-		.replace(/-([a-z0-9])/g, (_, letter) => letter.toUpperCase())
-
-const parseAttributeValue = (value) => {
+function parseAttributeValue(value) {
 	if (value === null) {
 		return null
 	}
@@ -40,7 +36,7 @@ const parseAttributeValue = (value) => {
 	return value
 }
 
-const createAttributeBindings = (initial, options) => {
+function createAttributeBindings(initial, options) {
 	const bindings = new Map()
 	const addBinding = (attribute, key) => {
 		if (!attribute || !key) {
@@ -76,7 +72,7 @@ const createAttributeBindings = (initial, options) => {
 	return bindings
 }
 
-const collectObservedAttributes = (initial, bindings, options) => {
+function collectObservedAttributes(initial, bindings, options) {
 	const attributes = new Set()
 
 	if (initial && typeof initial === "object") {
@@ -101,7 +97,7 @@ const collectObservedAttributes = (initial, bindings, options) => {
 	return [...attributes]
 }
 
-const asDOMNodes = (value, nodes = []) => {
+function asDOMNodes(value, nodes = []) {
 	if (value === undefined || value === null || value === false) {
 		return nodes
 	}
@@ -269,7 +265,10 @@ class UIWebComponent extends BaseHTMLElement {
 	}
 }
 
-const webcomponent = (name, componentFactory, initial = undefined, options = undefined) => {
+// Function: webcomponent
+// Defines and returns a custom element class bound to `componentFactory`.
+// Initializes attributes from `initial` and optional mapping in `options`.
+function webcomponent(name, componentFactory, initial = undefined, options = undefined) {
 	const registry = globalThis.customElements
 	if (!registry) {
 		return null

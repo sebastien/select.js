@@ -13,8 +13,9 @@ class RoutePattern {
 	}
 }
 
-const pattern = (regexp, extractor = undefined) =>
-	new RoutePattern(regexp, extractor)
+function pattern(regexp, extractor = undefined) {
+	return new RoutePattern(regexp, extractor)
+}
 
 const ROUTE_PATTERNS = {
 	chunk: pattern(/^[^/]+$/),
@@ -35,7 +36,7 @@ class RoutePatternSlot {
 	}
 }
 
-const splitPath = (value) => {
+function splitPath(value) {
 	if (Array.isArray(value)) {
 		return value
 	}
@@ -56,7 +57,7 @@ const splitPath = (value) => {
 	return res
 }
 
-const route = (text) => {
+function route(text) {
 	if (Array.isArray(text)) {
 		return text
 	}
@@ -210,10 +211,11 @@ class Router {
 	}
 }
 
-const router = (routes = undefined) =>
-	Object.entries(routes || {}).reduce((r, [k, v]) => r.on(route(k), v), new Router())
+function router(routes = undefined) {
+	return Object.entries(routes || {}).reduce((r, [k, v]) => r.on(route(k), v), new Router())
+}
 
-const routed = (routes = undefined) => {
+function routed(routes = undefined) {
 	const r = router(routes)
 	return Object.assign(
 		(p, ...args) => r.run(p, ...args),

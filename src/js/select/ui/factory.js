@@ -6,6 +6,12 @@
 // Module: select/ui/factory
 // UI component factory and template/component construction.
 
+// ----------------------------------------------------------------------------
+//
+// COMPONENT FACTORY
+//
+// ----------------------------------------------------------------------------
+
 import {
 	HTML,
 	log,
@@ -15,7 +21,7 @@ import {
 import { FORMATS, format } from "./formatters.js"
 import { COMPONENTS, component, uiOptions, UITemplate } from "./components.js"
 
-const stripTemplateNodes = (nodes) => {
+function stripTemplateNodes(nodes) {
 	const res = []
 	for (let i = 0; i < nodes.length; i++) {
 		const node = nodes[i]
@@ -33,7 +39,10 @@ const stripTemplateNodes = (nodes) => {
 	return res
 }
 
-const createComponent = (tmpl, localTemplateNodes = tmpl.nodes) => {
+// Function: createComponent
+// Wraps a `UITemplate` into a callable component facade and attaches helper
+// methods (`new`, `map`, `on`, `sub`, `cleanup`) used by the UI runtime.
+function createComponent(tmpl, localTemplateNodes = tmpl.nodes) {
 	const component = (...args) => tmpl.apply(...args)
 	tmpl.component = component
 	Object.assign(component, {
@@ -101,7 +110,10 @@ const createComponent = (tmpl, localTemplateNodes = tmpl.nodes) => {
 	return component
 }
 
-const ui = (selection, scope = document) => {
+// Function: ui
+// Resolves `selection` against `scope` and returns a component factory.
+// `selection` can be HTML, a CSS selector, a DOM node, or an array of nodes.
+function ui(selection, scope = document) {
 	if (selection === null || selection === undefined) {
 		throw new Error(
 			`ui() received ${selection === null ? "null" : "undefined"} as selection. ` +
@@ -239,14 +251,18 @@ const ui = (selection, scope = document) => {
 	)
 }
 
+// Function: register
 // Registers `value` as `name` for Dynamic() resolution.
-const register = (name, value) => {
+function register(name, value) {
 	component(name, value)
 	return ui
 }
 
-// Resolves registered component by `name`.
-const resolve = (name) => component(name)
+// Function: resolve
+// Resolves a registered component by `name`.
+function resolve(name) {
+	return component(name)
+}
 
 Object.assign(ui, {
 	formats: FORMATS,

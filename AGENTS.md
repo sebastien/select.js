@@ -38,6 +38,8 @@ make clean
 - Tab indentation, size 2 for HTML/XML
 - No semicolons required
 - Use `const` and `let`, avoid `var`
+- Prefer `function name(...) {}` for top-level functions
+- Use arrow functions for callbacks, closures, and inline lambdas
 
 ### Imports
 ```javascript
@@ -77,7 +79,7 @@ Exports are consolidated at the end of each file, not inline.
 
 ```javascript
 // Named exports for utilities
-const query = (selector, scope, limit) => { ... }
+function query(selector, scope, limit) { ... }
 class Selection extends Array { ... }
 
 // Default export (one per module)
@@ -158,6 +160,7 @@ export { {{name}} }
 - **Module-level docs**: Define concepts, keywords, and provide overview
 - **Type/Class docs**: Describe purpose; list attributes as bullet points with types
 - **Function/Method docs**: Embed parameters in description using backticks; include examples for factory functions and complex APIs
+- **Top-level functions**: Use `function name(...) {}` declarations instead of `const name = (...) =>` for exported and module-level APIs
 - **Exports**: Named exports listed at file end with explicit `// EOF` marker
 - **Examples**: Always use fenced code blocks with language specifier; comment style for examples matches the surrounding code
 - **Visibility**: Don't use private/protected, but group internal operations together with a SUBSECTION

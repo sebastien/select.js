@@ -47,14 +47,15 @@ const log = logger("select.cells");
 //
 // ----------------------------------------------------------------------------
 
-const normalizeSelectionPath = (path) =>
-	path === undefined || path === null
+function normalizeSelectionPath(path) {
+	return path === undefined || path === null
 		? []
 		: Array.isArray(path)
 			? path
-			: [path];
+			: [path]
+}
 
-const selectionPathKey = (path) => {
+function selectionPathKey(path) {
 	if (!path || path.length === 0) {
 		return "";
 	}
@@ -66,7 +67,7 @@ const selectionPathKey = (path) => {
 		key += `${typeof path[i]}:${path[i]}`;
 	}
 	return key;
-};
+}
 
 // ----------------------------------------------------------------------------
 //

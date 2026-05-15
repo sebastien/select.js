@@ -7,29 +7,80 @@
 // Core component engine: template slots, reactive instances, rendering
 // pipeline, and web component wrappers.
 
+// ----------------------------------------------------------------------------
+//
+// RUNTIME CORE
+//
+// ----------------------------------------------------------------------------
+
 import { asText, eq, expand, isPascalCaseName, microtask } from "../utils.js";
 import { FORMATS } from "./formatters.js";
 
 import {
-	getInputBindingProperty,
-	getInputEventValue,
 	log,
-	resolveSourceValue,
-	setNodeText,
-	SKIP_INPUT_UPDATE,
-	SLOT_DEFAULT_KEY,
 	TemplateParser,
 	isInputNode,
 } from "./templates.js";
 
-const scheduleRenderTask = (fn) => {
+const SLOT_DEFAULT_KEY = "_";
+const SKIP_INPUT_UPDATE = Symbol("skip-input-update");
+function getInputBindingProperty(node, preferred = undefined) {
+	return preferred ? preferred : node?.nodeName === "DETAILS" ? "open" : "value";
+}
+function getInputEventValue(node, event, property = "value") {
+	const target = event?.target;
+	if (!target) return undefined;
+	if (property === "open") return !!target.open;
+	if (property !== "value") return target[property];
+	if (node?.nodeName === "INPUT") {
+		const type = `${node.type || ""}`.toLowerCase();
+		if (type === "checkbox") return !!target.checked;
+		if (type === "radio") return target.checked ? target.value : SKIP_INPUT_UPDATE;
+	}
+	return target.value;
+}
+function setNodeText(node, text) {
+	switch (node.nodeType) {
+		case Node.TEXT_NODE:
+			if (node.data !== text) node.data = text;
+			break;
+		case Node.ELEMENT_NODE:
+			if (isInputNode(node)) {
+				if (node.nodeName === "DETAILS") {
+					const next = !!text;
+					if (node.open !== next) node.open = next;
+				} else if (node.value !== text) {
+					node.value = text;
+				}
+			} else if (node.textContent !== text) {
+				node.textContent = text;
+			}
+			break;
+	}
+	return node;
+}
+function normalizeSourceKey(sourceKey) {
+	if (sourceKey === "data" || sourceKey === ".") return "";
+	if (sourceKey.startsWith("data.")) return sourceKey.slice(5);
+	if (sourceKey.startsWith(".")) return sourceKey.slice(1);
+	return sourceKey;
+}
+function resolveSourceValue(data, sourceKey) {
+	if (!sourceKey) return undefined;
+	const normalizedKey = normalizeSourceKey(sourceKey);
+	if (!normalizedKey) return data;
+	if (!normalizedKey.includes(".")) return data ? data[normalizedKey] : undefined;
+	return resolveDataPath(data, normalizedKey.split("."));
+}
+
+function scheduleRenderTask(fn) {
 	const mutate = globalThis.fastdom?.mutate;
 	if (typeof mutate === "function") {
 		mutate(fn);
 	} else {
 		microtask(fn);
 	}
-};
+}
 
 class UIEvent {
 	constructor(name, data, origin) {
@@ -50,15 +101,15 @@ class AppliedUITemplate {
 	}
 }
 
-const resolveWhenValue = (self, data, key) => {
+function resolveWhenValue(self, data, key) {
 	const behavior = self?.template?.behavior;
 	const b = behavior?.[key];
 	if (b) return b(self, data, null);
 	const value = resolveSourceValue(data, key);
 	return value === undefined ? undefined : expand(value);
-};
+}
 
-const resolveDataPath = (data, path) => {
+function resolveDataPath(data, path) {
 	if (!path?.length) return data;
 	let value = data;
 	for (let i = 0; i < path.length; i++) {
@@ -67,9 +118,9 @@ const resolveDataPath = (data, path) => {
 		value = value[path[i]];
 	}
 	return value;
-};
+}
 
-const mapProcessorCollection = (value, f) => {
+function mapProcessorCollection(value, f) {
 	if (value === null || value === undefined || typeof value === "number" || typeof value === "string") return value;
 	if (Array.isArray(value)) {
 		const n = value.length;
@@ -93,9 +144,9 @@ const mapProcessorCollection = (value, f) => {
 		return res;
 	}
 	return value;
-};
+}
 
-const resolveNamedProcessor = (self, name) => {
+function resolveNamedProcessor(self, name) {
 	if (!self?.template || !name) return null;
 	const template = self.template;
 	const localTemplate = template.localTemplates?.get(name);
@@ -111,9 +162,9 @@ const resolveNamedProcessor = (self, name) => {
 	if (isPascal && !isComponent) log.warn("ui.formats: PascalCase formatter is not a component, details", { name, formatter: registered });
 	if (!isPascal && isComponent) log.warn("ui.formats: component formatter should use PascalCase, details", { name, formatter: registered });
 	return { type: isComponent ? "component" : "function", value: registered };
-};
+}
 
-const applyNamedProcessor = (processor, current, self, data, sourceKey, name) => {
+function applyNamedProcessor(processor, current, self, data, sourceKey, name) {
 	if (processor.type === "component") {
 		const component = processor.value;
 		if (current === undefined || current === null) return current;
@@ -125,9 +176,9 @@ const applyNamedProcessor = (processor, current, self, data, sourceKey, name) =>
 		return current;
 	}
 	return processor.value(current, self, data, sourceKey, name);
-};
+}
 
-const applyNamedProcessors = (self, data, value, processors, sourceKey) => {
+function applyNamedProcessors(self, data, value, processors, sourceKey) {
 	if (!processors || processors.length === 0) return value;
 	let current = value;
 	for (let i = 0; i < processors.length; i++) {
@@ -149,9 +200,9 @@ const applyNamedProcessors = (self, data, value, processors, sourceKey) => {
 		current = applyNamedProcessor(processor, current, self, data, sourceKey, processorName);
 	}
 	return current;
-};
+}
 
-const resolveTemplateTokens = (self, tokens, data) => {
+function resolveTemplateTokens(self, tokens, data) {
 	if (!tokens?.length) return "";
 	const behavior = self?.template?.behavior;
 	let result = "";
@@ -182,15 +233,16 @@ const resolveTemplateTokens = (self, tokens, data) => {
 		}
 	}
 	return result;
-};
+}
 
-const createWhenPredicate = (mode, key, processors = undefined, operator = null, comparisonValue = undefined) =>
-	(self, data) => {
+function createWhenPredicate(mode, key, processors = undefined, operator = null, comparisonValue = undefined) {
+	return (self, data) => {
 		const value = resolveWhenValue(self, data, key);
 		const resolved = applyNamedProcessors(self, data, value, processors, key);
 		if (operator) return TemplateParser.EvaluateWhenComparison(resolved, operator, comparisonValue);
 		return TemplateParser.EvaluateWhen(mode, resolved);
 	};
+}
 
 function createTrackingProxy(data) {
 	const accessed = new Set();
@@ -237,11 +289,12 @@ function hasTrackedNonReactiveObjectDeps(data, deps) {
 	return false;
 }
 
-const isThenable = (value) =>
-	value !== null &&
-	value !== undefined &&
-	(typeof value === "object" || typeof value === "function") &&
-	typeof value.then === "function";
+function isThenable(value) {
+	return value !== null &&
+		value !== undefined &&
+		(typeof value === "object" || typeof value === "function") &&
+		typeof value.then === "function";
+}
 
 // ----------------------------------------------------------------------------
 //
@@ -277,7 +330,7 @@ const uiOptions = {
 };
 
 // Maps `f` over the entries of `value` while preserving container shape.
-const remapCollection = (value, f) => {
+function remapCollection(value, f) {
 	if (
 		value === null ||
 		value === undefined ||
@@ -310,7 +363,7 @@ const remapCollection = (value, f) => {
 		res[k] = f(value[k], k);
 	}
 	return res;
-};
+}
 
 class UITemplateSlot {
 	static MergeMaps(...maps) {
@@ -2790,11 +2843,17 @@ class UIInstance {
 		return this;
 	}
 }
-const Dynamic = (type, props = {}) => {
+// Function: Dynamic
+// Resolves `type` from the component registry when needed and invokes it with
+// `props`. Returns `null` when no component matches.
+function Dynamic(type, props = {}) {
 	const resolved = typeof type === "string" ? COMPONENTS[type] : type;
 	return resolved ? resolved(props) : null;
-};
-const lazy = (loader, placeholder = null) => {
+}
+// Function: lazy
+// Wraps async `loader` and returns a component function that renders
+// `placeholder` until the loaded template is available.
+function lazy(loader, placeholder = null) {
 	let tmpl = null;
 	let loading = false;
 	return (data) => {
@@ -2806,7 +2865,7 @@ const lazy = (loader, placeholder = null) => {
 		}
 		return tmpl ? tmpl(data) : placeholder;
 	};
-};
+}
 export {
 	COMPONENTS,
 	component,

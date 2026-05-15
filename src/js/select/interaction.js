@@ -6,7 +6,7 @@
 // Module: select/interaction
 // DOM interaction helpers.
 
-const bind = (node, handlers) => {
+function bind(node, handlers) {
 	if (handlers) {
 		for (const [name, handler] of Object.entries(handlers)) {
 			for (const target of Array.isArray(node) ? node : [node]) {
@@ -15,9 +15,9 @@ const bind = (node, handlers) => {
 		}
 	}
 	return node;
-};
+}
 
-const unbind = (node, handlers) => {
+function unbind(node, handlers) {
 	if (handlers) {
 		for (const [name, handler] of Object.entries(handlers)) {
 			for (const target of Array.isArray(node) ? node : [node]) {
@@ -26,9 +26,9 @@ const unbind = (node, handlers) => {
 		}
 	}
 	return node;
-};
+}
 
-const drag = (event, move, end) => {
+function drag(event, move, end) {
 	const context = {};
 	const dragging = {
 		node: event.target,
@@ -77,17 +77,17 @@ const drag = (event, move, end) => {
 	const doEnd = () => unbind(scope, handlers);
 	bind(scope, handlers);
 	return doEnd;
-};
+}
 
-const target = (node, pred) => {
+function target(node, pred) {
 	while (node && node.nodeType === Node.ELEMENT_NODE) {
 		if (pred(node)) return node;
 		node = node.parentNode;
 	}
 	return undefined;
-};
+}
 
-const dragtarget = (node, name) => {
+function dragtarget(node, name) {
 	while (node && node.nodeType === Node.ELEMENT_NODE) {
 		const element = node;
 		if (!name && element.hasAttribute("data-drag")) return element;
@@ -95,18 +95,18 @@ const dragtarget = (node, name) => {
 		node = element.parentNode;
 	}
 	return node?.nodeType === Node.ELEMENT_NODE ? node : undefined;
-};
+}
 
 drag.target = dragtarget;
 
-const autoresize = (event) => {
+function autoresize(event) {
 	const node = event.target;
 	node.style.height = "auto";
 	const style = globalThis.window.getComputedStyle(node);
 	const border =
 		parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
 	node.style.height = `${border + node.scrollHeight}px`;
-};
+}
 
 const Keyboard = {
 	Down: "keydown",

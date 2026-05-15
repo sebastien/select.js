@@ -6,12 +6,18 @@
 // Module: select/ui/templates
 // HTML template parsing, data path parsing, and DOM binding helpers.
 
-import { expand, logger } from "../utils.js"
+// ----------------------------------------------------------------------------
+//
+// TEMPLATE REGISTRY AND PARSER
+//
+// ----------------------------------------------------------------------------
+
+import { logger } from "../utils.js"
 
 const HTML = new DOMParser()
 
 class TemplateRegistry {
-	static #registries = new WeakMap()
+	static _Registries = new WeakMap()
 
 	static Key(value) {
 		if (typeof value !== "string") {
@@ -22,7 +28,7 @@ class TemplateRegistry {
 		return key.length ? key : null
 	}
 
-	static #registerKey(registry, key, template, scope) {
+	static _RegisterKey(registry, key, template, scope) {
 		if (!key) {
 			return
 		}
@@ -43,8 +49,8 @@ class TemplateRegistry {
 		if (!template || template.nodeName !== "TEMPLATE") {
 			return
 		}
-		TemplateRegistry.#registerKey(registry, template.id, template, scope)
-		TemplateRegistry.#registerKey(registry, template.getAttribute("name"), template, scope)
+		TemplateRegistry._RegisterKey(registry, template.id, template, scope)
+		TemplateRegistry._RegisterKey(registry, template.getAttribute("name"), template, scope)
 		if (!template.content?.querySelectorAll) {
 			return
 		}
@@ -54,12 +60,12 @@ class TemplateRegistry {
 	}
 
 	static For(scope = document) {
-		let registry = TemplateRegistry.#registries.get(scope)
+		let registry = TemplateRegistry._Registries.get(scope)
 		if (registry) {
 			return registry
 		}
 		registry = new Map()
-		TemplateRegistry.#registries.set(scope, registry)
+		TemplateRegistry._Registries.set(scope, registry)
 		const isTemplate = scope?.nodeName === "TEMPLATE"
 		if (isTemplate) {
 			TemplateRegistry.RegisterNode(scope, registry, scope)
@@ -109,8 +115,8 @@ class TemplateParser {
 	static DEFINED = 3
 	static UNDEFINED = 4
 
-	static #WHEN_COMPARATORS = ["!==", "==", "!=", ">=", "<=", "~?", "=", ">", "<"]
-	static #RE_BINDING_PATH = /^[A-Za-z_$][A-Za-z0-9_$-]*$/
+	static _WhenComparators = ["!==", "==", "!=", ">=", "<=", "~?", "=", ">", "<"]
+	static _ReBindingPath = /^[A-Za-z_$][A-Za-z0-9_$-]*$/
 
 	static ParsePipedBinding(expr, validateSource = false) {
 		const source = typeof expr === "string" ? expr.trim() : ""
@@ -141,7 +147,7 @@ class TemplateParser {
 			if (!parts.length) return null
 			for (let i = 0; i < parts.length; i++) {
 				const part = parts[i].trim()
-				if (!part || !TemplateParser.#RE_BINDING_PATH.test(part)) return null
+				if (!part || !TemplateParser._ReBindingPath.test(part)) return null
 				parts[i] = part
 			}
 			return [".", ...parts]
@@ -150,7 +156,7 @@ class TemplateParser {
 		if (!parts.length) return null
 		for (let i = 0; i < parts.length; i++) {
 			const part = parts[i].trim()
-			if (!part || !TemplateParser.#RE_BINDING_PATH.test(part)) return null
+			if (!part || !TemplateParser._ReBindingPath.test(part)) return null
 			parts[i] = part
 		}
 		return parts
@@ -250,8 +256,8 @@ class TemplateParser {
 			return value
 		}
 		const parseWhenComparison = (text) => {
-			for (let i = 0; i < TemplateParser.#WHEN_COMPARATORS.length; i++) {
-				const operator = TemplateParser.#WHEN_COMPARATORS[i]
+			for (let i = 0; i < TemplateParser._WhenComparators.length; i++) {
+				const operator = TemplateParser._WhenComparators[i]
 				const at = text.indexOf(operator)
 				if (at <= 0) continue
 				const left = text.slice(0, at).trim()
@@ -342,9 +348,16 @@ class TemplateParser {
 	}
 }
 
-const SLOT_DEFAULT_KEY = "_"
-const isPrunableWhitespaceText = (node) => node && node.nodeType === Node.TEXT_NODE && !/\S/.test(node.data) && /[\n\r\t]/.test(node.data)
-const pruneTemplateWhitespace = (node) => {
+// ----------------------------------------------------------------------------
+//
+// DOM HELPERS
+//
+// ----------------------------------------------------------------------------
+
+function isPrunableWhitespaceText(node) {
+	return node && node.nodeType === Node.TEXT_NODE && !/\S/.test(node.data) && /[\n\r\t]/.test(node.data)
+}
+function pruneTemplateWhitespace(node) {
 	if (!node?.childNodes || node.childNodes.length === 0) return
 	for (let i = node.childNodes.length - 1; i >= 0; i--) {
 		const child = node.childNodes[i]
@@ -356,12 +369,14 @@ const pruneTemplateWhitespace = (node) => {
 	}
 }
 
+// Function: type
+// Returns the Select.js value kind constant for `value`.
 const type = Object.assign(
 	(value) => value === undefined || value === null ? type.Null : Array.isArray(value) ? type.List : Object.getPrototypeOf(value) === Object.prototype ? type.Dict : typeof value === "number" ? type.Number : typeof value === "string" ? type.String : typeof value === "boolean" ? type.Boolean : type.Object,
 	{ Null: 1, Number: 2, Boolean: 3, String: 4, Object: 5, List: 10, Dict: 11 },
 )
 
-const isInputNode = (node) => {
+function isInputNode(node) {
 	switch (node.nodeName) {
 		case "INPUT":
 		case "TEXTAREA":
@@ -373,21 +388,9 @@ const isInputNode = (node) => {
 	}
 }
 
-const SKIP_INPUT_UPDATE = Symbol("skip-input-update")
-const getInputBindingProperty = (node, preferred = undefined) => preferred ? preferred : node?.nodeName === "DETAILS" ? "open" : "value"
-const getInputEventValue = (node, event, property = "value") => {
-	const target = event?.target
-	if (!target) return undefined
-	if (property === "open") return !!target.open
-	if (property !== "value") return target[property]
-	if (node?.nodeName === "INPUT") {
-		const type = `${node.type || ""}`.toLowerCase()
-		if (type === "checkbox") return !!target.checked
-		if (type === "radio") return target.checked ? target.value : SKIP_INPUT_UPDATE
-	}
-	return target.value
-}
-const setNodeText = (node, text) => {
+// Function: setNodeText
+// Applies `text` to a text node or form-like element value in place.
+function setNodeText(node, text) {
 	switch (node.nodeType) {
 		case Node.TEXT_NODE:
 			if (node.data !== text) node.data = text
@@ -408,45 +411,14 @@ const setNodeText = (node, text) => {
 	return node
 }
 
-const resolveDataPath = (data, path) => {
-	if (!path?.length) return data
-	let value = data
-	for (let i = 0; i < path.length; i++) {
-		value = expand(value)
-		if (value === undefined || value === null) return undefined
-		value = value[path[i]]
-	}
-	return value
-}
-
-const normalizeSourceKey = (sourceKey) => {
-	if (sourceKey === "data" || sourceKey === ".") return ""
-	if (sourceKey.startsWith("data.")) return sourceKey.slice(5)
-	if (sourceKey.startsWith(".")) return sourceKey.slice(1)
-	return sourceKey
-}
-
-const resolveSourceValue = (data, sourceKey) => {
-	if (!sourceKey) return undefined
-	const normalizedKey = normalizeSourceKey(sourceKey)
-	if (!normalizedKey) return data
-	if (!normalizedKey.includes(".")) return data ? data[normalizedKey] : undefined
-	return resolveDataPath(data, normalizedKey.split("."))
-}
-
 export {
 	HTML,
-	SKIP_INPUT_UPDATE,
-	SLOT_DEFAULT_KEY,
 	TemplateParser,
 	TemplateRegistry,
-	getInputBindingProperty,
-	getInputEventValue,
 	isInputNode,
 	isPrunableWhitespaceText,
 	log,
 	pruneTemplateWhitespace,
-	resolveSourceValue,
 	setNodeText,
 	type,
 }
