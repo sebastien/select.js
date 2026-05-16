@@ -2004,12 +2004,17 @@ class UIInstance {
 		}
 		UIInstance._applyComponentRootClass(this.nodes, template);
 		this.in = compiled.in ? compiled.in(this.nodes, this) : null;
-		this.out = compiled.out ? compiled.out(this.nodes, this) : null;
-		this.inout = compiled.inout ? compiled.inout(this.nodes, this) : null;
-		this.ref = compiled.ref ? compiled.ref(this.nodes, this) : null;
+		// NOTE: Keep non-mutating slot resolution before `out` slots.
+		// `out-replace` (compiled as part of `out`) mutates DOM shape by replacing
+		// anchor nodes with comment boundaries. If `on` slots are resolved after
+		// that mutation, index-based node paths can drift for later siblings and
+		// event handlers may bind to wrong/missing nodes.
 		this.on = compiled.on ? compiled.on(this.nodes, this) : null;
 		this.when = compiled.when ? compiled.when(this.nodes, this) : null;
 		this.outAttr = compiled.outAttr ? compiled.outAttr(this.nodes, this) : null;
+		this.inout = compiled.inout ? compiled.inout(this.nodes, this) : null;
+		this.ref = compiled.ref ? compiled.ref(this.nodes, this) : null;
+		this.out = compiled.out ? compiled.out(this.nodes, this) : null;
 		this.slots = null;
 		if (template.slots) {
 			this.slots = [];
@@ -2291,7 +2296,19 @@ class UIInstance {
 	}
 
 	// Binds event slot with explicit event type.
-	_bindEvent(name, target, handler = this.template.behavior?.[name]) {
+	_resolveEventBehaviorTarget(name) {
+		let current = this;
+		while (current) {
+			const handler = current.template?.behavior?.[name];
+			if (typeof handler === "function") {
+				return current;
+			}
+			current = current.parent;
+		}
+		return null;
+	}
+
+	_bindEvent(name, target) {
 		if (target.mode === "publish" && target.publishEvent) {
 			const listener = (event) => {
 				if (target.stopPropagation) {
@@ -2324,26 +2341,31 @@ class UIInstance {
 			});
 			return;
 		}
-		if (handler) {
-			const listener = (event) => {
-				if (target.stopPropagation) {
-					event.stopPropagation();
-				}
-				if (target.preventDefault) {
-					event.preventDefault();
-				}
-				const result = handler(this, this.data || {}, event);
-				if (result && typeof result === "object" && !Array.isArray(result)) {
-					this.update(result);
-				}
-			};
-			target.node.addEventListener(target.eventType, listener);
-			this._domListeners.push({
-				node: target.node,
-				type: target.eventType,
-				handler: listener,
-			});
-		}
+		const listener = (event) => {
+			if (target.stopPropagation) {
+				event.stopPropagation();
+			}
+			if (target.preventDefault) {
+				event.preventDefault();
+			}
+			const targetInstance = this._resolveEventBehaviorTarget(name);
+			if (!targetInstance) {
+				return;
+			}
+			event.origin = this;
+			event.originData = this.data || {};
+			const handler = targetInstance.template.behavior?.[name];
+			const result = handler(targetInstance, targetInstance.data || {}, event);
+			if (result && typeof result === "object" && !Array.isArray(result)) {
+				targetInstance.update(result);
+			}
+		};
+		target.node.addEventListener(target.eventType, listener);
+		this._domListeners.push({
+			node: target.node,
+			type: target.eventType,
+			handler: listener,
+		});
 	}
 
 	// Binds input slot with inferred event type.

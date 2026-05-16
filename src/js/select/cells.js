@@ -803,10 +803,16 @@ class Deferred extends Cell {
 // - `reactors`: Array<function> - internal subscription handlers
 // - `expanded`: any - current expanded (non-reactive) template values
 class Derivation extends Reactive {
-	constructor(template, processor = undefined, initial = true) {
+	constructor(
+		template,
+		processor = undefined,
+		initial = true,
+		updateStrategy = "join",
+	) {
 		super();
 		this.template = template;
 		this.processor = processor;
+		this.updateStrategy = Derivation.UpdateStrategy(updateStrategy);
 		this.reactors = [];
 		this.sources = [];
 		this.isBound = false;
@@ -814,11 +820,30 @@ class Derivation extends Reactive {
 		this._promiseToken = 0;
 		this.revision = initial ? 0 : -1;
 		if (initial) {
-			this._apply(this._compute(), false);
+			if (
+				this.updateStrategy === "immediate" ||
+				!this._templateHasPendingSources()
+			) {
+				this._apply(this._compute(), false);
+			} else {
+				this.value = undefined;
+				this.isPending = true;
+			}
 		} else {
 			this.value = undefined;
 		}
 		this.bind();
+	}
+
+	static UpdateStrategy(value) {
+		switch (value) {
+			case "incremental":
+			case "immediate":
+			case "join":
+				return value;
+			default:
+				return "join";
+		}
 	}
 
 	_compute() {
@@ -826,13 +851,39 @@ class Derivation extends Reactive {
 	}
 
 	_recompute() {
+		if (this.updateStrategy === "join" && this._hasPendingSources()) {
+			this.isPending = true;
+			return false;
+		}
 		const expanded = Reactive.Expand(this.template);
 		if (eq(expanded, this.expanded)) {
+			return false;
+		}
+		if (this.updateStrategy === "join" && this._hasPendingSources()) {
+			this.isPending = true;
 			return false;
 		}
 		this.expanded = expanded;
 		this._apply(this._compute());
 		return true;
+	}
+
+	_hasPendingSources() {
+		for (let i = 0; i < this.sources.length; i++) {
+			if (this.sources[i]?.isPending) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	_templateHasPendingSources() {
+		for (const [cell] of Reactive.Walk(this.template)) {
+			if (cell?.isPending) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	_apply(value, publish = true) {
@@ -888,7 +939,23 @@ class Derivation extends Reactive {
 		}
 		this.isBound = true;
 		for (const [cell] of Reactive.Walk(this.template)) {
-			const reactor = () => {
+			const reactor = (value) => {
+				const isPromise = !!(value && typeof value.then === "function");
+				if (this.updateStrategy === "immediate") {
+					this._recompute();
+					return;
+				}
+				if (isPromise) {
+					this.isPending = true;
+					return;
+				}
+				if (
+					this.updateStrategy === "join" &&
+					this._hasPendingSources()
+				) {
+					this.isPending = true;
+					return;
+				}
 				this._recompute();
 			};
 			cell.sub(reactor);
@@ -941,9 +1008,23 @@ class Derivation extends Reactive {
 				this.expanded = Reactive.Expand(nextTemplate);
 				this.unbind();
 				this.bind();
-				this._apply(this._compute());
+				if (
+					this.updateStrategy === "immediate" ||
+					!this._hasPendingSources()
+				) {
+					this._apply(this._compute());
+				} else {
+					this.isPending = true;
+				}
 			}
 		} else if (!this._recompute()) {
+			if (
+				this.updateStrategy === "join" &&
+				this._hasPendingSources()
+			) {
+				this.isPending = true;
+				return this.value;
+			}
 			this._apply(this._compute());
 		}
 		return this.value;
@@ -1007,8 +1088,34 @@ function deferred(value, delay) {
 // a.set(5)  // Logs: "Sum: 7"
 // ```
 
-function derived(template, processor, initial) {
-	return new Derivation(template, processor, initial);
+function derived(template, processor, initial, strategy) {
+	let shouldInitialize = true;
+	let updateStrategy = "join";
+	if (
+		initial &&
+		typeof initial === "object" &&
+		!Array.isArray(initial)
+	) {
+		if (initial.initial !== undefined) {
+			shouldInitialize = !!initial.initial;
+		}
+		if (typeof initial.strategy === "string") {
+			updateStrategy = initial.strategy;
+		}
+	} else if (typeof initial === "string") {
+		updateStrategy = initial;
+	} else if (initial !== undefined) {
+		shouldInitialize = !!initial;
+	}
+	if (typeof strategy === "string") {
+		updateStrategy = strategy;
+	}
+	return new Derivation(
+		template,
+		processor,
+		shouldInitialize,
+		updateStrategy,
+	);
 }
 
 function selected(parent, path) {

@@ -36,7 +36,7 @@ const EXAMPLE_INTERACTIONS: Record<string, (window: Window) => Promise<void> | v
 		input.dispatchEvent(new window.Event("input", { bubbles: true }))
 	},
 	"feature-derived-promise": async (window) => {
-		const input = window.document.querySelector("input[placeholder='Type to trigger async derived value']") as HTMLInputElement
+		const input = window.document.querySelector("input[placeholder='Type to compare derived update strategies']") as HTMLInputElement
 		input.value = "test"
 		input.dispatchEvent(new window.Event("input", { bubbles: true }))
 	},

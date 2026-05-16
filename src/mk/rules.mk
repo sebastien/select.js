@@ -30,6 +30,7 @@ fmt-biome:
 ci:
 	@set -eu
 	@$(MAKE) check
+	@bun test
 	@TMP_DIR=$$(mktemp -d); \
 	FMT_SNAPSHOT_1=$$(mktemp); \
 	FMT_SNAPSHOT_2=$$(mktemp); \

@@ -12,7 +12,7 @@
 		body {
 			font-family: system-ui, sans-serif;
 			padding: 20px;
-			max-width: 760px;
+			max-width: 980px;
 			margin: 0 auto;
 		}
 
@@ -56,6 +56,25 @@
 			margin-top: 10px;
 		}
 
+		.grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+			gap: 12px;
+			margin-top: 12px;
+		}
+
+		.card {
+			border: 1px solid #ddd;
+			border-radius: 8px;
+			padding: 10px;
+			background: #fafafa;
+		}
+
+		.card h2 {
+			margin: 0 0 8px 0;
+			font-size: 16px;
+		}
+
 		code {
 			background: #f2f2f2;
 			padding: 2px 4px;
@@ -66,17 +85,34 @@
 
 <body>
 	<h1>Derived Promise Feature</h1>
-	<p>This feature demo shows a derived cell that returns a promise. The UI renders while pending, then re-renders on fulfillment, and exposes <code>.previous</code> and <code>.isPending</code>.</p>
+	<p>This feature demo compares derived promise update strategies: <code>join</code>, <code>incremental</code>, and <code>immediate</code>.</p>
 
 	<div id="ui"></div>
 
 	<template id="App">
 		<div>
 			<label>Search term</label>
-			<input inout="query" type="text" placeholder="Type to trigger async derived value" />
-			<div class="row">State: <span out:class="stateClass" out:text="stateLabel" class="status">pending</span></div>
-			<div class="row">Current value: <code out="currentValue"></code></div>
-			<div class="row">Previous value: <code out="previousValue"></code></div>
+			<input inout="query" type="text" placeholder="Type to compare derived update strategies" />
+			<div class="grid">
+				<div class="card">
+					<h2>join (default)</h2>
+					<div class="row">State: <span out:class="joinStateClass" out:text="joinStateLabel" class="status">pending</span></div>
+					<div class="row">Current value: <code out="joinCurrentValue"></code></div>
+					<div class="row">Previous value: <code out="joinPreviousValue"></code></div>
+				</div>
+				<div class="card">
+					<h2>incremental</h2>
+					<div class="row">State: <span out:class="incrementalStateClass" out:text="incrementalStateLabel" class="status">pending</span></div>
+					<div class="row">Current value: <code out="incrementalCurrentValue"></code></div>
+					<div class="row">Previous value: <code out="incrementalPreviousValue"></code></div>
+				</div>
+				<div class="card">
+					<h2>immediate</h2>
+					<div class="row">State: <span out:class="immediateStateClass" out:text="immediateStateLabel" class="status">pending</span></div>
+					<div class="row">Current value: <code out="immediateCurrentValue"></code></div>
+					<div class="row">Previous value: <code out="immediatePreviousValue"></code></div>
+				</div>
+			</div>
 		</div>
 	</template>
 
@@ -85,30 +121,45 @@
 		import ui from "@./ui.js"
 
 		const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+		const renderStateClass = (derivedCell) => ({status: true, ready: !derivedCell.isPending})
+		const renderStateLabel = (derivedCell) => derivedCell.isPending ? "pending" : "fulfilled"
+		const renderCurrentValue = (derivedCell) =>
+			derivedCell.isPending
+				? "[Promise pending]"
+				: (derivedCell.value ?? "none")
+		const renderPreviousValue = (derivedCell) =>
+			derivedCell.previous === undefined
+				? "none"
+				: (derivedCell.previous && typeof derivedCell.previous.then === "function")
+					? "[Promise]"
+					: derivedCell.previous
 
 		const App = ui("#App").init(() => {
 			const query = cell("select")
-			const result = derived([query], async (value) => {
+			const resolveResult = async (value) => {
 				const text = `${value ?? ""}`.trim()
 				const delay = text.length < 4 ? 600 : 250
 				await wait(delay)
 				return text ? `Result for "${text}" at ${new Date().toLocaleTimeString()}` : "No query"
-			})
-			return {query, result}
+			}
+			const join = derived([query], resolveResult)
+			const incremental = derived([query], resolveResult, "incremental")
+			const immediate = derived([query], resolveResult, "immediate")
+			return {query, join, incremental, immediate}
 		}).does({
 			query: (_self, {query}, event) => event ? query.set(event.target.value) : query.value,
-			stateClass: (_self, {result}) => ({status: true, ready: !result.isPending}),
-			stateLabel: (_self, {result}) => result.isPending ? "pending" : "fulfilled",
-			currentValue: (_self, {result}) =>
-				result.isPending
-					? "[Promise pending]"
-					: (result.value ?? "none"),
-			previousValue: (_self, {result}) =>
-				result.previous === undefined
-					? "none"
-					: (result.previous && typeof result.previous.then === "function")
-						? "[Promise]"
-						: result.previous,
+			joinStateClass: (_self, {join}) => renderStateClass(join),
+			joinStateLabel: (_self, {join}) => renderStateLabel(join),
+			joinCurrentValue: (_self, {join}) => renderCurrentValue(join),
+			joinPreviousValue: (_self, {join}) => renderPreviousValue(join),
+			incrementalStateClass: (_self, {incremental}) => renderStateClass(incremental),
+			incrementalStateLabel: (_self, {incremental}) => renderStateLabel(incremental),
+			incrementalCurrentValue: (_self, {incremental}) => renderCurrentValue(incremental),
+			incrementalPreviousValue: (_self, {incremental}) => renderPreviousValue(incremental),
+			immediateStateClass: (_self, {immediate}) => renderStateClass(immediate),
+			immediateStateLabel: (_self, {immediate}) => renderStateLabel(immediate),
+			immediateCurrentValue: (_self, {immediate}) => renderCurrentValue(immediate),
+			immediatePreviousValue: (_self, {immediate}) => renderPreviousValue(immediate),
 		})
 
 		App.new().mount("#ui")
