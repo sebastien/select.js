@@ -52,7 +52,7 @@ function normalizeSelectionPath(path) {
 		? []
 		: Array.isArray(path)
 			? path
-			: [path]
+			: [path];
 }
 
 function selectionPathKey(path) {
@@ -784,23 +784,23 @@ class Derivation extends Reactive {
 	_apply(value, publish = true) {
 		const token = ++this._promiseToken;
 		const isPromise = !!(value && typeof value.then === "function");
-			if (isPromise) {
-				this.isPending = true;
-				if (publish) {
-					this.revision++;
-					this.pub(value, Nothing, this);
-				}
-				value.then(
-					(resolved) => {
-						if (token !== this._promiseToken) {
-							return;
+		if (isPromise) {
+			this.isPending = true;
+			if (publish) {
+				this.revision++;
+				this.pub(value, Nothing, this);
+			}
+			value.then(
+				(resolved) => {
+					if (token !== this._promiseToken) {
+						return;
 					}
-						this.previous = this.value;
-						this.value = resolved;
-						this.isPending = false;
-						this.revision++;
-						this.pub(resolved, Nothing, this);
-					},
+					this.previous = this.value;
+					this.value = resolved;
+					this.isPending = false;
+					this.revision++;
+					this.pub(resolved, Nothing, this);
+				},
 				(error) => {
 					if (token !== this._promiseToken) {
 						return;
@@ -816,11 +816,11 @@ class Derivation extends Reactive {
 		this.previous = this.value;
 		this.value = value;
 		this.isPending = false;
-			if (publish) {
-				this.revision++;
-				this.pub(value, Nothing, this);
-			}
+		if (publish) {
+			this.revision++;
+			this.pub(value, Nothing, this);
 		}
+	}
 
 	// Subscribes to all reactive cells in template.
 	bind() {
@@ -835,7 +835,7 @@ class Derivation extends Reactive {
 					return;
 				}
 				const fullPath =
-					sourcePath === undefined || sourcePath === null
+					sourcePath === undefined || sourcePath === null || sourcePath === Nothing
 						? path
 						: Array.isArray(sourcePath)
 							? [...path, ...sourcePath]
@@ -1016,7 +1016,7 @@ function effect(inputs, effector) {
 	for (const [cell, path] of Reactive.Walk(inputs)) {
 		const reactor = (_value, sourcePath, origin) => {
 			const fullPath =
-				sourcePath === undefined || sourcePath === null
+				sourcePath === undefined || sourcePath === null || sourcePath === Nothing
 					? path
 					: Array.isArray(sourcePath)
 						? [...path, ...sourcePath]
@@ -1080,10 +1080,14 @@ export {
 	walk,
 };
 export default Object.assign(cell, {
+	derived,
+	deferred,
+	selected,
+	effect,
+	// TODO: We may want to deprecate these
+	select: selected,
 	defer: deferred,
 	derive: derived,
-	effect,
-	select: selected,
 	walk,
 	expand,
 });

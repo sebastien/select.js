@@ -14,7 +14,7 @@
 // ----------------------------------------------------------------------------
 
 import { asText, eq, expand, isPascalCaseName, microtask } from "../utils.js";
-import { FORMATS } from "./formatters.js";
+import { FORMATS } from "../formats.js";
 
 import {
 	log,
@@ -2296,12 +2296,7 @@ class UIInstance {
 			const listener = (event) => {
 				const result = handler(this, this.data || {}, event);
 				if (result && typeof result === "object" && !Array.isArray(result)) {
-					for (const key in result) {
-						const cell = this.data?.[key];
-						if (cell?.isReactive) {
-							cell.set(result[key]);
-						}
-					}
+					this.update(result);
 				}
 			};
 			target.node.addEventListener(target.eventType, listener);
@@ -2345,12 +2340,7 @@ class UIInstance {
 			if (handler) {
 				const result = handler(this, data, event);
 				if (result && typeof result === "object" && !Array.isArray(result)) {
-					for (const key in result) {
-						const cell = data[key];
-						if (cell?.isReactive) {
-							cell.set(result[key]);
-						}
-					}
+					this.update(result);
 				} else if (result !== undefined && slotValue?.isReactive) {
 					slotValue.set(result);
 				}
@@ -2582,6 +2572,9 @@ class UIInstance {
 			if (rl) {
 				for (const h of rl) {
 					const c = h(this, data, event);
+					if (c && typeof c === "object" && !Array.isArray(c)) {
+						this.update(c);
+					}
 					if (c === false) {
 						return event;
 					} else if (c === null) {
@@ -2595,6 +2588,9 @@ class UIInstance {
 			if (hl) {
 				for (const h of hl) {
 					const c = h(this, data, event);
+					if (c && typeof c === "object" && !Array.isArray(c)) {
+						this.update(c);
+					}
 					if (c === false) {
 						return event;
 					} else if (c === null) {

@@ -18,7 +18,7 @@ import {
 	pruneTemplateWhitespace,
 	TemplateRegistry,
 } from "./templates.js"
-import { FORMATS, format } from "./formatters.js"
+import { FORMATS, format } from "../formats.js"
 import { COMPONENTS, component, uiOptions, UITemplate } from "./components.js"
 
 function stripTemplateNodes(nodes) {

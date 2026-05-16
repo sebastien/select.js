@@ -12,11 +12,7 @@
 //
 // ----------------------------------------------------------------------------
 
-import { len } from "../utils.js"
-
-import {
-	type,
-} from "./templates.js"
+import { len, type } from "../utils.js"
 
 import {
 	AppliedUITemplate,
@@ -38,7 +34,7 @@ import {
 
 import { Adopted, Disconnect, UIWebComponent, webcomponent } from "./webcomponents.js"
 import { ui } from "./factory.js"
-import { FORMATS, format } from "./formatters.js"
+import { FORMATS, format } from "../formats.js"
 
 // Function: remap
 // Maps `f` over collection entries while preserving the input container shape.

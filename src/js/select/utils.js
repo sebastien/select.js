@@ -48,6 +48,7 @@ function clone(value, key = undefined) {
 // Function: access
 // Traverses `context` using path `p` starting at `offset`.
 function access(context, p, offset = 0) {
+	p = typeof p === "string" ? p.split(".") : p;
 	if (p?.length && context !== undefined) {
 		for (
 			let i = offset;
@@ -350,6 +351,18 @@ function len(v) {
 	return 1;
 }
 
+// Function: idem
+// Identity helper returning `value` unchanged.
+function idem(value) {
+	return value;
+}
+
+// Function: entries
+// Returns object entries for plain objects, empty list otherwise.
+function entries(value) {
+	return value && typeof value === "object" ? Object.entries(value) : [];
+}
+
 const microtask =
 	typeof globalThis.queueMicrotask === "function"
 		? globalThis.queueMicrotask.bind(globalThis)
@@ -486,6 +499,26 @@ function bool(value) {
 	if (typeof value === "string") return value.length > 0;
 	return true;
 }
+
+// Function: type
+// Returns the Select.js value kind constant for `value`.
+const type = Object.assign(
+	(value) =>
+		value === undefined || value === null
+			? type.Null
+			: Array.isArray(value)
+				? type.List
+				: Object.getPrototypeOf(value) === Object.prototype
+					? type.Dict
+					: typeof value === "number"
+						? type.Number
+						: typeof value === "string"
+							? type.String
+							: typeof value === "boolean"
+								? type.Boolean
+								: type.Object,
+	{ Null: 1, Number: 2, Boolean: 3, String: 4, Object: 5, List: 10, Dict: 11 },
+);
 
 // Function: extractor
 // Returns accessor function for `pathOrFunc`.
@@ -809,6 +842,7 @@ export {
 	bool,
 	clsx,
 	cmp,
+	entries,
 	expand,
 	eq,
 	extractor,
@@ -820,6 +854,7 @@ export {
 	isObject,
 	isPascalCaseName,
 	iwalk,
+	idem,
 	len,
 	list,
 	logger,
@@ -839,6 +874,7 @@ export {
 	sorted,
 	Something,
 	toggle,
+	type,
 	unshortword,
 	unique,
 	wrapindex,

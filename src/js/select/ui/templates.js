@@ -12,7 +12,7 @@
 //
 // ----------------------------------------------------------------------------
 
-import { logger } from "../utils.js"
+import { logger, type } from "../utils.js"
 
 const HTML = new DOMParser()
 
@@ -368,13 +368,6 @@ function pruneTemplateWhitespace(node) {
 		}
 	}
 }
-
-// Function: type
-// Returns the Select.js value kind constant for `value`.
-const type = Object.assign(
-	(value) => value === undefined || value === null ? type.Null : Array.isArray(value) ? type.List : Object.getPrototypeOf(value) === Object.prototype ? type.Dict : typeof value === "number" ? type.Number : typeof value === "string" ? type.String : typeof value === "boolean" ? type.Boolean : type.Object,
-	{ Null: 1, Number: 2, Boolean: 3, String: 4, Object: 5, List: 10, Dict: 11 },
-)
 
 function isInputNode(node) {
 	switch (node.nodeName) {
