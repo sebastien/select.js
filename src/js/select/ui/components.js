@@ -416,16 +416,21 @@ class UITemplateSlot {
 				UITemplateSlot.Path(node, parent, [i]),
 			);
 			if (name === "out") {
-				const parsed = TemplateParser.ParsePipedBinding(k);
-				if (!parsed) {
-					log.warn("UITemplate: invalid [out] binding, details", {
-						binding: k,
-						node,
-						example: 'out="slot|Formatter|Formatter"',
-					});
-					v.binding = { sourceKey: `${k || ""}`.trim(), processors: [] };
+				const parsed = TemplateParser.ParseOutAttributeBinding(k);
+				if (parsed?.mode === "template") {
+					v.template = parsed.template;
 				} else {
-					v.binding = parsed;
+					const binding = parsed?.binding;
+					if (!binding) {
+						log.warn("UITemplate: invalid [out] binding, details", {
+							binding: k,
+							node,
+							example: 'out="slot|Formatter|Formatter"',
+						});
+						v.binding = { sourceKey: `${k || ""}`.trim(), processors: [] };
+					} else {
+						v.binding = binding;
+					}
 				}
 			}
 			v = processor ? processor(v, k) : v;
@@ -469,10 +474,23 @@ class UITemplateSlot {
 		const inferWhenKeyFromOutAttr = (node) => {
 			const outKey = node.getAttribute("out")?.trim();
 			if (outKey) {
-				const outBinding = TemplateParser.ParsePipedBinding(outKey);
-				if (outBinding?.sourceKey) {
-					return outBinding.sourceKey;
+				const parsedOut = TemplateParser.ParseOutAttributeBinding(outKey);
+				if (parsedOut.mode === "binding" && parsedOut.binding?.sourceKey) {
+					return parsedOut.binding.sourceKey;
 				}
+				const tokens = parsedOut.template?.tokens || [];
+				const inferred = new Set();
+				for (let i = 0; i < tokens.length; i++) {
+					const token = tokens[i];
+					if (token.type !== "expr") {
+						continue;
+					}
+					const key = pathToSourceKey(token.value?.path);
+					if (key) {
+						inferred.add(key);
+					}
+				}
+				if (inferred.size === 1) return inferred.values().next().value;
 			}
 			const inferred = new Set();
 			for (const attr of node.attributes || []) {
@@ -737,6 +755,8 @@ class UITemplateSlot {
 							parsed.mode,
 							parsed.publishEvent,
 							parsed.binding,
+							parsed.stopPropagation,
+							parsed.preventDefault,
 						);
 
 						if (!res[handlerName]) res[handlerName] = [];
@@ -1020,6 +1040,8 @@ class UIEventTemplateSlot {
 		mode = "handler",
 		publishEvent = null,
 		binding = null,
+		stopPropagation = false,
+		preventDefault = false,
 	) {
 		this.node = node;
 		this.parent = parent;
@@ -1031,6 +1053,8 @@ class UIEventTemplateSlot {
 		this.mode = mode;
 		this.publishEvent = publishEvent;
 		this.binding = binding;
+		this.stopPropagation = stopPropagation;
+		this.preventDefault = preventDefault;
 	}
 
 	resolve(nodes) {
@@ -1058,6 +1082,8 @@ class UIEventSlot {
 		this.mode = template.mode;
 		this.publishEvent = template.publishEvent;
 		this.binding = template.binding;
+		this.stopPropagation = template.stopPropagation;
+		this.preventDefault = template.preventDefault;
 	}
 }
 // Class: UITemplate
@@ -2267,7 +2293,13 @@ class UIInstance {
 	// Binds event slot with explicit event type.
 	_bindEvent(name, target, handler = this.template.behavior?.[name]) {
 		if (target.mode === "publish" && target.publishEvent) {
-			const listener = (_event) => {
+			const listener = (event) => {
+				if (target.stopPropagation) {
+					event.stopPropagation();
+				}
+				if (target.preventDefault) {
+					event.preventDefault();
+				}
 				const data = this.data || {};
 				let payload = data;
 				if (target.binding?.sourceKey) {
@@ -2294,6 +2326,12 @@ class UIInstance {
 		}
 		if (handler) {
 			const listener = (event) => {
+				if (target.stopPropagation) {
+					event.stopPropagation();
+				}
+				if (target.preventDefault) {
+					event.preventDefault();
+				}
 				const result = handler(this, this.data || {}, event);
 				if (result && typeof result === "object" && !Array.isArray(result)) {
 					this.update(result);
@@ -2754,6 +2792,20 @@ class UIInstance {
 				for (const k in set) {
 					let v;
 					const slots = set[k];
+					const templateTokens = withProcessors
+						? slots?.[0]?.template?.template?.tokens
+						: null;
+					if (templateTokens) {
+						const resolvedTemplate = resolveTemplateTokens(
+							this,
+							templateTokens,
+							renderData,
+						);
+						for (const slot of slots) {
+							slot.render(resolvedTemplate);
+						}
+						continue;
+					}
 					const binding = withProcessors ? slots?.[0]?.template?.binding : null;
 					const sourceKey = binding?.sourceKey || k;
 					const processors = binding?.processors || null;

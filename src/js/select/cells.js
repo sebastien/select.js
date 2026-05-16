@@ -17,7 +17,7 @@
 // import { cell, derived } from "./select.cells.js"
 //
 // const count = cell(0)
-// const doubled = derived([count], c => c * 2)
+// const doubled = derived(count, c => c * 2)
 //
 // doubled.sub((value) => console.log("Doubled:", value))
 // count.set(5)  // Logs: "Doubled: 10"
@@ -31,6 +31,7 @@
 
 import {
 	access,
+	eq,
 	logger,
 	Nothing,
 	path as pathify,
@@ -40,6 +41,46 @@ import {
 } from "./utils.js";
 
 const log = logger("select.cells");
+
+function errorDetails(error) {
+	if (error instanceof Error) {
+		return {
+			name: error.name,
+			message: error.message,
+			stack: error.stack,
+			cause: error.cause,
+		};
+	}
+	return {
+		name: typeof error,
+		message: String(error),
+	};
+}
+
+function reactiveLabel(value) {
+	if (!value || value.isReactive !== true) {
+		return String(value);
+	}
+	const id = value._debugId ?? "?";
+	return `${value.constructor.name}#${id}`;
+}
+
+function isReactiveValue(value) {
+	return (
+		value !== null &&
+		value !== undefined &&
+		typeof value === "object" &&
+		value.isReactive === true
+	);
+}
+
+function isReactiveSource(value) {
+	return (
+		isReactiveValue(value) &&
+		typeof value.sub === "function" &&
+		typeof value.unsub === "function"
+	);
+}
 
 // ----------------------------------------------------------------------------
 //
@@ -190,15 +231,17 @@ class Selections {
 // - `subs`: Array<function> - subscriber callbacks
 // - `selections`: Selections? - registry for nested property selections
 class Reactive {
-	static resolveValue(value) {
-		if (value instanceof Reactive) {
-			if (value.isPending) {
+	static DebugId = 1;
+
+	static Unwrap(value) {
+		let next = value;
+		while (isReactiveValue(next)) {
+			if (next.isPending) {
 				return undefined;
 			}
-			const next = value.value;
-			return next && typeof next.then === "function" ? undefined : next;
+			next = next.value;
 		}
-		return value;
+		return next && typeof next.then === "function" ? undefined : next;
 	}
 
 	// Generator that yields `[reactive, path]` tuples for all reactive values
@@ -206,7 +249,7 @@ class Reactive {
 	static *Walk(value, path = []) {
 		if (value === null || value === undefined || typeof value !== "object") {
 			// pass
-		} else if (value instanceof Reactive) {
+		} else if (isReactiveSource(value)) {
 			yield [value, path];
 		} else if (Array.isArray(value)) {
 			for (let i = 0; i < value.length; i++) {
@@ -225,7 +268,7 @@ class Reactive {
 
 	// Recursively expands `value` by replacing reactive cells with their values.
 	static Expand(value) {
-		return remap(value, (v) => Reactive.resolveValue(v), {
+		return remap(value, (v) => Reactive.Unwrap(v), {
 			deep: true,
 			descend: (v) => !(v?.isReactive === true),
 		});
@@ -233,6 +276,7 @@ class Reactive {
 
 	constructor(value = Nothing) {
 		this.isReactive = true;
+		this._debugId = Reactive.DebugId++;
 		this.value = value === Nothing ? undefined : value;
 		this.previous = undefined;
 		this.isPending = false;
@@ -652,8 +696,12 @@ class Cell extends Reactive {
 					}
 					this.isPending = false;
 					log.error("Cell._update: cell promise rejected, details", {
-						error,
+						cell: reactiveLabel(this),
+						error: errorDetails(error),
 						path,
+						incomingValue: value,
+						currentValue: this.value,
+						previousValue: this.previous,
 					});
 				},
 			);
@@ -774,11 +822,17 @@ class Derivation extends Reactive {
 	}
 
 	_compute() {
-		return this.processor
-			? Array.isArray(this.expanded)
-				? this.processor(...this.expanded)
-				: this.processor(this.expanded)
-			: this.expanded;
+		return this.processor ? this.processor(this.expanded) : this.expanded;
+	}
+
+	_recompute() {
+		const expanded = Reactive.Expand(this.template);
+		if (eq(expanded, this.expanded)) {
+			return false;
+		}
+		this.expanded = expanded;
+		this._apply(this._compute());
+		return true;
 	}
 
 	_apply(value, publish = true) {
@@ -807,7 +861,12 @@ class Derivation extends Reactive {
 					}
 					this.isPending = false;
 					log.error("Derivation._apply: derived promise rejected, details", {
-						error,
+						cell: reactiveLabel(this),
+						error: errorDetails(error),
+						currentValue: this.value,
+						previousValue: this.previous,
+						sourceValues: this.expanded,
+						derivedInput: this.expanded,
 					});
 				},
 			);
@@ -828,20 +887,9 @@ class Derivation extends Reactive {
 			return this;
 		}
 		this.isBound = true;
-		for (const [cell, path] of Reactive.Walk(this.template)) {
-			const reactor = (value, sourcePath) => {
-				// NOTE: We way want to debounce the updates
-				if (value && typeof value.then === "function") {
-					return;
-				}
-				const fullPath =
-					sourcePath === undefined || sourcePath === null || sourcePath === Nothing
-						? path
-						: Array.isArray(sourcePath)
-							? [...path, ...sourcePath]
-							: [...path, sourcePath];
-				this.expanded = reassign(this.expanded, fullPath, value);
-				this._apply(this._compute());
+		for (const [cell] of Reactive.Walk(this.template)) {
+			const reactor = () => {
+				this._recompute();
 			};
 			cell.sub(reactor);
 			this.sources.push(cell);
@@ -879,46 +927,23 @@ class Derivation extends Reactive {
 
 	// Refreshes derived value and publishes updates.
 	refresh() {
-		this._apply(this._compute());
+		this._recompute();
 		return this;
 	}
 
 	// Updates derivation inputs and recomputes only when they changed.
 	// Accepts reactive and non-reactive values.
 	update(...inputs) {
-		let changed = false;
-
-		if (Array.isArray(this.template)) {
-			const current = Array.isArray(this.expanded)
-				? this.expanded
-				: Reactive.Expand(this.template);
-			const next = current.slice();
-			const n = inputs.length < next.length ? inputs.length : next.length;
-			for (let i = 0; i < n; i++) {
-				const input = inputs[i];
-				const value = Reactive.resolveValue(input);
-				if (!Object.is(next[i], value)) {
-					next[i] = value;
-					changed = true;
-				}
-			}
-			if (changed) {
-				this.expanded = next;
+		if (inputs.length > 0) {
+			const nextTemplate = inputs.length === 1 ? inputs[0] : inputs;
+			if (!eq(nextTemplate, this.template)) {
+				this.template = nextTemplate;
+				this.expanded = Reactive.Expand(nextTemplate);
+				this.unbind();
+				this.bind();
 				this._apply(this._compute());
 			}
-			return this.value;
-		}
-
-		if (inputs.length > 0) {
-			const input = inputs.length === 1 ? inputs[0] : inputs;
-			const value = Reactive.resolveValue(input);
-			if (!Object.is(this.expanded, value)) {
-				this.expanded = value;
-				changed = true;
-			}
-		}
-
-		if (changed) {
+		} else if (!this._recompute()) {
 			this._apply(this._compute());
 		}
 		return this.value;
@@ -967,8 +992,8 @@ function deferred(value, delay) {
 // Factory that creates a new Derivation from template cells.
 //
 // Parameters:
-// - `template`: any - template containing reactive cells (can be nested)
-// - `processor`: function? - transforms expanded values: (values...) => result
+// - `template`: any - source shape (cell, list of cells, or map of cells)
+// - `processor`: function? - transforms unwrapped expanded shape passed as one argument
 // - `initial`: boolean? - compute initial value immediately (default true)
 //
 // Returns: Derivation
@@ -977,7 +1002,7 @@ function deferred(value, delay) {
 // ```javascript
 // const a = cell(1)
 // const b = cell(2)
-// const sum = derived([a, b], (x, y) => x + y)
+// const sum = derived([a, b], ([x, y]) => x + y)
 // sum.sub(v => console.log("Sum:", v))
 // a.set(5)  // Logs: "Sum: 7"
 // ```
@@ -988,6 +1013,10 @@ function derived(template, processor, initial) {
 
 function selected(parent, path) {
 	return new Selected(parent, path);
+}
+
+function unwrap(value) {
+	return Reactive.Unwrap(value);
 }
 
 // Function: effect
@@ -1016,7 +1045,9 @@ function effect(inputs, effector) {
 	for (const [cell, path] of Reactive.Walk(inputs)) {
 		const reactor = (_value, sourcePath, origin) => {
 			const fullPath =
-				sourcePath === undefined || sourcePath === null || sourcePath === Nothing
+				sourcePath === undefined ||
+				sourcePath === null ||
+				sourcePath === Nothing
 					? path
 					: Array.isArray(sourcePath)
 						? [...path, ...sourcePath]
@@ -1077,12 +1108,14 @@ export {
 	expand,
 	Reactive,
 	Selected,
+	unwrap,
 	walk,
 };
 export default Object.assign(cell, {
 	derived,
 	deferred,
 	selected,
+	unwrap,
 	effect,
 	// TODO: We may want to deprecate these
 	select: selected,

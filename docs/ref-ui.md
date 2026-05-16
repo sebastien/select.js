@@ -553,6 +553,9 @@ Effect expression forms:
 - `!EventName`: publish event only, payload defaults to current data
 - `path.to.value!EventName`: publish event with payload from data path
 - `path.to.value|processorA|processorB!EventName`: publish event with payload transformed by processors
+- `!EventName.`: publish event and stop propagation
+- `!EventName-`: publish event and prevent default
+- `!EventName.-` (or `!EventName-.`): publish event, stop propagation, and prevent default
 
 ```html
 <!-- Click event with "save" handler -->
@@ -563,6 +566,15 @@ Effect expression forms:
 
 <!-- Publish-only effect -->
 <button on:click="!Clicked">Click me</button>
+
+<!-- Publish + stop propagation -->
+<button on:click="!Clicked.">Click me</button>
+
+<!-- Publish + prevent default -->
+<button on:click="!Submit-">Submit</button>
+
+<!-- Publish + stop propagation + prevent default -->
+<button on:click="!Submit.-">Submit</button>
 
 <!-- Publish payload from data path -->
 <button on:click="item.id!Select">Select</button>

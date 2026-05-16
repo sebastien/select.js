@@ -32,8 +32,10 @@ const currencyFormatterDefault = new Intl.NumberFormat(undefined, {
 	currency: "USD",
 });
 const currencyFormatters = new Map();
-const FORMATS = Object.create(null);
 
+function active(value) {
+	return value ? "active" : "";
+}
 function toKebabCase(value) {
 	return `${value}`
 		.replace(/([a-z0-9])([A-Z])/g, "$1-$2")
@@ -90,6 +92,29 @@ function asDate(value) {
 		: value && value instanceof Date
 			? value
 			: new Date();
+}
+
+function asDateWithUtcFallback(value) {
+	if (value instanceof Date) {
+		return value;
+	}
+	if (typeof value === "number") {
+		return new Date(value * 1000);
+	}
+	if (typeof value !== "string") {
+		return asDate(value);
+	}
+	const source = value.trim();
+	if (!source) {
+		return new Date();
+	}
+	// Treat timezone-less ISO-like strings as UTC so local rendering is stable.
+	const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(source);
+	const normalized =
+		hasTimezone || !/^\d{4}-\d{2}-\d{2}/.test(source)
+			? source
+			: `${source.replace(" ", "T")}Z`;
+	return new Date(normalized);
 }
 
 function date(value) {
@@ -160,6 +185,11 @@ function time(value) {
 
 function datetime(value) {
 	const d = asDate(value);
+	return `${date(d)} ${time(d)}`;
+}
+
+function localtime(value) {
+	const d = asDateWithUtcFallback(value);
 	return `${date(d)} ${time(d)}`;
 }
 
@@ -278,8 +308,9 @@ function debug(value, scope) {
 	return value;
 }
 
-const DefaultFormats = {
+const FORMATS = {
 	ago,
+	active,
 	asDate,
 	attr,
 	bool,
@@ -296,6 +327,7 @@ const DefaultFormats = {
 	index,
 	json,
 	len,
+	localtime,
 	not,
 	number,
 	percent,
@@ -307,14 +339,6 @@ const DefaultFormats = {
 	toKebabCase,
 	type,
 };
-
-for (const key in DefaultFormats) {
-	FORMATS[key] = DefaultFormats[key];
-}
-
-function applyFormat(value, name) {
-	return (FORMATS[name] || idem)(value);
-}
 
 function format(name, ...value) {
 	if (name && typeof name === "object" && !Array.isArray(name)) {
@@ -337,11 +361,9 @@ function format(name, ...value) {
 	return FORMATS[key];
 }
 
-const Formats = FORMATS;
-
 export {
 	ago,
-	applyFormat,
+	active,
 	asDate,
 	attr,
 	bool,
@@ -355,12 +377,12 @@ export {
 	entries,
 	FORMATS,
 	format,
-	Formats,
 	html,
 	idem,
 	index,
 	json,
 	len,
+	localtime,
 	not,
 	number,
 	percent,

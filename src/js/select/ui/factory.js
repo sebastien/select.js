@@ -81,8 +81,8 @@ function createComponent(tmpl, localTemplateNodes = tmpl.nodes) {
 		const name = TemplateRegistry.FormatterName(templateNode)
 		if (name && !localTemplates.has(name)) {
 			const childNodes = [...templateNode.content.childNodes]
-			const childTemplate = new UITemplate(childNodes, tmpl.scope, name)
-			const childComponent = createComponent(childTemplate)
+			const childTemplate = new UITemplate(stripTemplateNodes(childNodes), tmpl.scope, name)
+			const childComponent = createComponent(childTemplate, childNodes)
 			component[name] = childComponent
 			localTemplates.set(name, childComponent)
 		}

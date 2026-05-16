@@ -260,7 +260,7 @@ class IconElement extends HTMLElement {
 			this.getAttribute("source"),
 		);
 		const className = this.getAttribute("class") || "icon";
-		const size = px(this.getAttribute("size") || IconDefaults.size);
+		const size = this.getAttribute("size") || "1em";
 		const fill = this.getAttribute("fill");
 		const stroke = this.getAttribute("stroke");
 		const dy = this.getAttribute("dy");

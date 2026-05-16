@@ -187,13 +187,26 @@ class TemplateParser {
 
 	static ParseEventEffect(expr, eventType = "") {
 		const source = typeof expr === "string" ? expr.trim() : ""
-		if (!source) return { mode: "handler", handlerName: eventType }
+		if (!source) return { mode: "handler", handlerName: eventType, stopPropagation: false, preventDefault: false }
 		const separator = source.lastIndexOf("!")
-		if (separator === -1) return { mode: "handler", handlerName: source }
-		const publishEvent = source.slice(separator + 1).trim()
+		if (separator === -1) return { mode: "handler", handlerName: source, stopPropagation: false, preventDefault: false }
+		let publishEvent = source.slice(separator + 1).trim()
+		let stopPropagation = false
+		let preventDefault = false
+		if (publishEvent.endsWith(".-") || publishEvent.endsWith("-.")) {
+			publishEvent = publishEvent.slice(0, -2).trim()
+			stopPropagation = true
+			preventDefault = true
+		} else if (publishEvent.endsWith(".")) {
+			publishEvent = publishEvent.slice(0, -1).trim()
+			stopPropagation = true
+		} else if (publishEvent.endsWith("-")) {
+			publishEvent = publishEvent.slice(0, -1).trim()
+			preventDefault = true
+		}
 		if (!publishEvent || /\s/.test(publishEvent)) return null
 		const payloadExpr = source.slice(0, separator).trim()
-		if (!payloadExpr) return { mode: "publish", publishEvent, binding: null }
+		if (!payloadExpr) return { mode: "publish", publishEvent, binding: null, stopPropagation, preventDefault }
 		const parts = payloadExpr.split("|")
 		for (let i = 0; i < parts.length; i++) {
 			parts[i] = parts[i].trim()
@@ -204,7 +217,7 @@ class TemplateParser {
 		const processors = parts.length > 1 ? parts.slice(1) : []
 		for (let i = 0; i < processors.length; i++) if (/\s/.test(processors[i])) return null
 		const sourceKey = path[0] === "." ? (path.length === 1 ? "." : `.${path.slice(1).join(".")}`) : path.join(".")
-		return { mode: "publish", publishEvent, binding: { sourceKey, processors } }
+		return { mode: "publish", publishEvent, binding: { sourceKey, processors }, stopPropagation, preventDefault }
 	}
 
 	static ParseOutAttributeBinding(expr) {

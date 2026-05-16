@@ -275,6 +275,15 @@ Event bindings support handler mode and publish/effect mode:
 - `on:click="!Clicked"`: publish `Clicked` with current component data as payload
 - `on:click="path.to.value!Selected"`: publish `Selected` with payload from data path
 - `on:click="path.to.value|processorA|processorB!Selected"`: same, after processors
+- `on:click="!Selected."`: publish then call `event.stopPropagation()`
+- `on:click="!Selected-"`: publish then call `event.preventDefault()`
+- `on:click="!Selected.-"`: publish then call both `event.stopPropagation()` and `event.preventDefault()`
+
+Effect modifiers (suffix on event name in publish mode):
+
+- `.`: stop propagation
+- `-`: prevent default
+- `.-` (or `-.`): stop propagation and prevent default
 
 Using nested component-local processors:
 

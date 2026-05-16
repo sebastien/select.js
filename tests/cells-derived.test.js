@@ -1,0 +1,116 @@
+import { describe, expect, test } from "bun:test"
+import { cell, derived } from "../src/js/select/cells.js"
+
+function foreignReactive(initialValue) {
+	return {
+		isReactive: true,
+		isPending: false,
+		value: initialValue,
+		_subs: [],
+		sub(handler) {
+			this._subs.push(handler)
+			return this
+		},
+		unsub(handler) {
+			const i = this._subs.indexOf(handler)
+			if (i >= 0) this._subs.splice(i, 1)
+			return this
+		},
+		set(next) {
+			this.value = next
+			for (const handler of this._subs.slice()) {
+				handler(this.value, undefined, this)
+			}
+			return this
+		},
+	}
+}
+
+describe("cells.derived", () => {
+	test("single-input processor receives exactly one unwrapped value", () => {
+		const source = cell("alpha")
+		const calls = []
+		const d = derived(source, (...args) => {
+			calls.push(args)
+			return args[0]
+		})
+
+		expect(calls.length).toBe(1)
+		expect(calls[0].length).toBe(1)
+		expect(calls[0][0]).toBe("alpha")
+		expect(d.value).toBe("alpha")
+
+		source.set("beta")
+		expect(calls.length).toBe(2)
+		expect(calls[1].length).toBe(1)
+		expect(calls[1][0]).toBe("beta")
+		expect(d.value).toBe("beta")
+	})
+
+	test("single-input processor does not receive reactive objects on source updates", () => {
+		const source = cell(cell("x"))
+		const values = []
+		const d = derived(source, (value) => {
+			values.push(value)
+			return value
+		})
+
+		expect(values[0]).toBe("x")
+		expect(d.value).toBe("x")
+
+		source.set(cell("y"))
+		expect(values[1]).toBe("y")
+		expect(d.value).toBe("y")
+	})
+
+	test("single foreign reactive source passes expanded values to processor", () => {
+		const source = foreignReactive("alpha")
+		const seen = []
+		const d = derived(source, (value) => {
+			seen.push(value)
+			return value
+		})
+
+		expect(seen[0]).toBe("alpha")
+		expect(d.value).toBe("alpha")
+
+		source.set("beta")
+		expect(seen[1]).toBe("beta")
+		expect(d.value).toBe("beta")
+	})
+
+	test("mixed templates expand nested foreign and local reactives", () => {
+		const local = cell("left")
+		const foreign = foreignReactive("right")
+		const seen = []
+		const d = derived(
+			{
+				one: local,
+				two: [foreign, { three: cell("deep") }],
+			},
+			(value) => {
+				seen.push(value)
+				return value
+			},
+		)
+
+		expect(seen[0]).toEqual({
+			one: "left",
+			two: ["right", { three: "deep" }],
+		})
+		expect(d.value).toEqual({
+			one: "left",
+			two: ["right", { three: "deep" }],
+		})
+
+		foreign.set("right2")
+		expect(seen[1]).toEqual({
+			one: "left",
+			two: ["right2", { three: "deep" }],
+		})
+		expect(d.value).toEqual({
+			one: "left",
+			two: ["right2", { three: "deep" }],
+		})
+	})
+})
