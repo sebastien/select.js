@@ -386,6 +386,20 @@ class UITemplateSlot {
 		return count ? res : null;
 	}
 
+	static ComparePathDesc(a, b) {
+		const ap = a?.path || [];
+		const bp = b?.path || [];
+		const n = Math.max(ap.length, bp.length);
+		for (let i = 0; i < n; i++) {
+			const av = ap[i] ?? -1;
+			const bv = bp[i] ?? -1;
+			if (av !== bv) {
+				return bv - av;
+			}
+		}
+		return bp.length - ap.length;
+	}
+
 	// Computes path indices from `parent` to `node`.
 	static Path(node, parent, path) {
 		const res = [];
@@ -1951,27 +1965,48 @@ class UIInstance {
 	}
 
 	// Compiles slot definitions into efficient applier functions.
-	static _compileSlotApplier(slots, rawSingle = false) {
+	static _compileSlotApplier(slots, rawSingle = false, stableDomOrder = false) {
 		if (!slots) {
 			return null;
 		}
 		const keys = [];
 		const groups = [];
+		const plan = [];
 		for (const key in slots) {
 			keys.push(key);
-			groups.push(slots[key]);
+			const group = slots[key];
+			groups.push(group);
+			for (let j = 0; j < group.length; j++) {
+				plan.push({ key, keyIndex: keys.length - 1, itemIndex: j, slot: group[j] });
+			}
 		}
 		if (keys.length === 0) {
 			return null;
 		}
+		if (stableDomOrder) {
+			plan.sort((a, b) => UITemplateSlot.ComparePathDesc(a.slot, b.slot));
+		}
 		return (nodes, parent) => {
 			const res = {};
+			const mappedGroups = new Array(keys.length);
 			for (let i = 0; i < keys.length; i++) {
-				const source = groups[i];
-				const mapped = new Array(source.length);
-				for (let j = 0; j < source.length; j++) {
-					mapped[j] = source[j].apply(nodes, parent, rawSingle);
+				mappedGroups[i] = new Array(groups[i].length);
+			}
+			if (stableDomOrder) {
+				for (let i = 0; i < plan.length; i++) {
+					const { keyIndex, itemIndex, slot } = plan[i];
+					mappedGroups[keyIndex][itemIndex] = slot.apply(nodes, parent, rawSingle);
 				}
+			} else {
+				for (let i = 0; i < keys.length; i++) {
+					const source = groups[i];
+					for (let j = 0; j < source.length; j++) {
+						mappedGroups[i][j] = source[j].apply(nodes, parent, rawSingle);
+					}
+				}
+			}
+			for (let i = 0; i < keys.length; i++) {
+				const mapped = mappedGroups[i];
 				res[keys[i]] = rawSingle && mapped.length === 1 ? mapped[0] : mapped;
 			}
 			return res;
@@ -1982,9 +2017,9 @@ class UIInstance {
 		if (template._compiledSlotAppliers) {
 			return template._compiledSlotAppliers;
 		}
-		template._compiledSlotAppliers = {
-			in: UIInstance._compileSlotApplier(template.in),
-			out: UIInstance._compileSlotApplier(template.out),
+			template._compiledSlotAppliers = {
+				in: UIInstance._compileSlotApplier(template.in),
+				out: UIInstance._compileSlotApplier(template.out, false, true),
 			inout: UIInstance._compileSlotApplier(template.inout),
 			ref: UIInstance._compileSlotApplier(template.ref, true),
 			on: UIInstance._compileSlotApplier(template.on),

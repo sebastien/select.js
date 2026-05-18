@@ -24,6 +24,7 @@ import { COMPONENTS, component as componentRegistry, uiOptions, UITemplate } fro
 const TEMPLATE_RESOURCES = new Map()
 const TEMPLATE_RESOURCE_LOADS = new Map()
 const TEMPLATE_NAME_STACKS = new Map()
+const STYLE_RESOURCES = new Map()
 
 function cloneSubs(subs) {
 	if (!subs) {
@@ -244,6 +245,9 @@ function getTemplateResource(ref, scope = document) {
 async function load(url, scope = document) {
 	const parsed = parseResourceReference(url, scope)
 	const resourceURL = parsed?.url ?? normalizeResourceURL(url, scope)
+	if (STYLE_RESOURCES.has(resourceURL)) {
+		return STYLE_RESOURCES.get(resourceURL)
+	}
 	if (TEMPLATE_RESOURCES.has(resourceURL)) {
 		return TEMPLATE_RESOURCES.get(resourceURL)
 	}
@@ -256,6 +260,16 @@ async function load(url, scope = document) {
 			throw new Error(`ui.load(): unable to load ${resourceURL} (${response.status} ${response.statusText})`)
 		}
 		const source = await response.text()
+		if (/\.css(?:\?|$)/i.test(resourceURL)) {
+			const style = document.createElement("style")
+			style.setAttribute("data-ui-load", resourceURL)
+			style.textContent = source
+			const target = scope?.head || document.head || document.documentElement || document.body
+			target.appendChild(style)
+			const resource = { url: resourceURL, type: "css", node: style }
+			STYLE_RESOURCES.set(resourceURL, resource)
+			return resource
+		}
 		const doc = HTML.parseFromString(source, "text/html")
 		pruneTemplateWhitespace(doc.body)
 		const nodes = [...doc.body.childNodes]
