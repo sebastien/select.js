@@ -99,6 +99,8 @@ import ui from "@select/ui.js"
 - `cell(value?)`: mutable reactive cell.
 - `derived(template, processor?, initial?)`: derived reactive value.
 - `ui(selection, scope?)`: template component factory.
+- `ui.load(url, scope?)`: preload and cache external template fragments.
+- `ui.component(name)`: logic-only component definition to bind later with `.using(...)`.
 - `webcomponent(name, componentFactory, initial?, options?)`: native custom element registration from Select UI or pure render functions.
 - `Dynamic(type, props?)`: dynamic component resolution by name/function.
 - `lazy(loader, placeholder?)`: lazy component loader.
@@ -118,6 +120,7 @@ import ui from "@select/ui.js"
 
 - [`examples/feature-webcomponent.html`](examples/feature-webcomponent.html): custom elements with `webcomponent(...)` for both Select UI templates and pure render functions.
 - [`examples/feature-icons.html`](examples/feature-icons.html): icon usage with default CDN collections and local JSON catalog.
+- [`examples/feature-template-load.html`](examples/feature-template-load.html): preload external templates with `ui.load(...)` and bind one behavior to multiple presentations with `.using(...)`.
 
 # Features
 

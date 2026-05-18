@@ -139,9 +139,23 @@ function createFetch(examplePath: string) {
 			const body = `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path d=\"M3 12h18\"/></svg>`
 			return Promise.resolve({ ok: true, status: 200, text: async () => body, json: async () => ({}) })
 		}
-		const filePath = url.startsWith("./")
-			? path.join(exampleDir, url.replace(/^\.\//, ""))
-			: path.join(ROOT, url.replace(/^\.\.\//, ""))
+		let filePath
+		if (url.startsWith("./")) {
+			filePath = path.join(exampleDir, url.replace(/^\.\//, ""))
+		} else if (url.startsWith("../")) {
+			filePath = path.join(ROOT, url.replace(/^\.\.\//, ""))
+		} else {
+			try {
+				const parsed = new URL(url)
+				if (parsed.pathname.startsWith("/examples/")) {
+					filePath = path.join(ROOT, parsed.pathname.slice(1))
+				} else {
+					filePath = path.join(ROOT, parsed.pathname.replace(/^\//, ""))
+				}
+			} catch (_error) {
+				filePath = path.join(ROOT, url.replace(/^\//, ""))
+			}
+		}
 		const text = fs.readFileSync(filePath, "utf8")
 		return Promise.resolve({
 			ok: true,

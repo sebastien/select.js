@@ -54,6 +54,15 @@ as template source. In this fallback mode, a `data='{"...": ...}'` attribute on
 the source node is parsed as JSON and used as default instance data. Invalid
 JSON throws an error.
 
+External template fragments can be preloaded with `ui.load(url)` and then
+selected with `ui("url#TemplateName")`.
+
+When selecting by bare name (`ui("TemplateName")`), resolution is:
+
+1. Current document/scope templates.
+2. Most recently loaded external template with that name.
+3. Standard selector fallback behavior.
+
 ### Slot Attributes
 
 | Attribute      | Purpose                                  |
@@ -188,10 +197,13 @@ Returns a component function with these methods:
 - `init(initializer)`: Define initial state (often used with cells). Returns the component for chaining.
 - `cleanup(handler)`: Define a teardown handler called on instance disposal. Returns the component for chaining.
 - `on(event, handler)` / `sub(event, handler)`: Subscribe to events bubbled by child instances. Returns the component for chaining.
+- `using(selection, scope?)`: Rebind this component behavior to another template and return a bound component.
 - `map(data)`: Map a collection of data to a list of applied templates.
 - `apply(data)`: Create an applied template for composition (same result as calling the component as a function).
 - `ui.register(name, component)`: Register a component in the global registry.
 - `ui.resolve(name)`: Resolve a component from the global registry.
+- `ui.load(url, scope?)`: Preload external template fragments and cache parsed templates.
+- `ui.component(name)`: Create a named logic-only definition to bind later with `.using(...)`.
 - `ui.formats`: Global formatter/processor registry for `out` and `when` pipelines.
 - `ui.format(name, formatter)`: Register a formatter in `ui.formats`.
 - `ui.unformat(name)`: Remove a formatter from `ui.formats`.
@@ -207,6 +219,32 @@ const Card = ui("#Card")
 
 ui.options.componentRootClass = false
 // Disables automatic component root classes globally
+```
+
+Example with external fragment + rebinding:
+
+```javascript
+const Badge = ui.component("Badge").does({
+  label: (_self, data) => data.label,
+})
+
+await ui.load("./feature-template-load.fragment.tpl")
+
+const Card = Badge.using("./feature-template-load.fragment.tpl#BadgeCard")
+const Pill = Badge.using("./feature-template-load.fragment.tpl#BadgePill")
+```
+
+Module-local load + bare name example:
+
+```javascript
+import { ui } from "../../js/select/ui.js"
+
+await ui.load(import.meta.url.replace(".js", ".html"))
+
+// Resolves from document first, otherwise from latest loaded external template named "Larry"
+const Larry = ui("Larry").does({})
+
+export default Larry
 ```
 
 ### Web Components

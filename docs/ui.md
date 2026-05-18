@@ -18,6 +18,8 @@ For icon loading and `<ui-icon>` usage, see [`docs/icons.md`](./icons.md).
 - `UIWebComponent`: Base class used by registered Select UI custom elements.
 - `ui.register(name, component)`: Component registration.
 - `ui.resolve(name)`: Component lookup.
+- `ui.load(url, scope?)`: Loads and parses external template fragments once, then caches them for template binding.
+- `ui.component(name)`: Declares a logic-only component definition that can later be bound with `.using(templateRef)`.
 - `ui.formats`: Global formatter/processor registry used by `out` and `when` pipelines.
 - `ui.format(name, formatter)`: Registers a formatter in `ui.formats`.
 - `ui.unformat(name)`: Removes a formatter from `ui.formats`.
@@ -44,8 +46,23 @@ For icon loading and `<ui-icon>` usage, see [`docs/icons.md`](./icons.md).
 - `on(event, handler)` / `sub(event, handler)`: Event subscription.
 - `init(initializer)`: State initialization.
 - `cleanup(handler)`: Dispose-time teardown hook.
+- `using(selection, scope?)`: Rebinds the same behavior/state definition to another template.
 - `map(data)`: Collection mapping to applied templates.
 - `apply(data)`: Applied template creation (same result as `Component(data)`).
+
+### Component definition API (returned by `ui.component(name)`):
+
+- `init(initializer)`: State initialization for future bound templates.
+- `does(behavior)`: Behavior map for future bound templates.
+- `on(event, handler)` / `sub(event, handler)`: Event subscriptions for future bound templates.
+- `cleanup(handler)`: Teardown hook for future bound templates.
+- `using(selection, scope?)`: Binds the definition to a loaded/existing template and returns a renderable component.
+
+Notes:
+
+- Definitions are not renderable until bound. Calling `.new()`, `.apply()`, or `.map()` on an unbound definition throws.
+- For external template refs (`"path/file.html#Template"`), call `await ui.load("path/file.html")` first.
+- Name lookup order for `ui("TemplateName")`: document/scope templates first, then the most recently loaded external template with that name.
 
 ### Component instance API:
 
@@ -163,6 +180,8 @@ Dynamic("Badge", { label: "Ready" })
 ### The `ui` module:
 
 - `ui(selection, scope?)`: Creates a template component from a CSS selector, HTML string, DOM node, or node array. Returns a callable template function enhanced with component builder methods.
+- `ui.load(url, scope?)`: Fetches/parses an external fragment and caches discovered `<template>` nodes.
+- `ui.component(name)`: Creates or resolves a named logic-only component definition.
 - `Dynamic(type, props?)`: Resolves a registered component by name (or uses the function directly) and applies `props`.
 - `lazy(loader, placeholder?)`: Creates a lazy component resolver that returns `placeholder` until `loader` resolves.
 - `webcomponent(name, componentFactory, initial?, options?)`: Registers a custom element using either a Select UI template component or a pure render function.
@@ -189,9 +208,16 @@ Dynamic("Badge", { label: "Ready" })
 - `template.init(initializer)`: Defines an initializer that provides initial state for each new instance.
 - `template.cleanup(handler)`: Registers a cleanup handler called at instance disposal. Signature: `(self, data) => void`.
 - `template.on(event, handler)` / `template.sub(event, handler)`: Subscribes to events bubbled by child instances of this template.
+- `template.using(selection, scope?)`: Returns a new component bound to another template while preserving behavior/init/subscriptions.
 - `template.apply(data)`: Returns an applied template object for composition or nested rendering (same as `template(data)`).
 - `template.map(data)`: Returns a list (or mapped container) of applied template objects, one per entry in the input collection.
 - `template(data)`: Shorthand for `template.apply(data)`.
+
+External template resolution details:
+
+- `ui("./fragment.html#Card")`: Explicitly resolves `Card` from that loaded fragment.
+- `ui("Card")`: Resolves `Card` from the current document/scope first; if not found, resolves from the most recently loaded external fragment that defines `Card`.
+- `ui.load(...)` only fetches/parses once per URL; subsequent lookups reuse cached templates.
 
 ### Component instance methods:
 

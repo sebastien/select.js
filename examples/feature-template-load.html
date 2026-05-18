@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI - Template Load</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/select/" } }
+	</script>
+</head>
+
+<body>
+	<h1>Template Load and Rebinding</h1>
+	<div id="CardMount"></div>
+	<div id="PillMount"></div>
+
+	<template id="BadgeCard">
+		<article class="badge-card local">
+			<h3 out="label">Untitled</h3>
+			<p out="description">No description</p>
+			<em>Document template override</em>
+		</article>
+	</template>
+
+	<script type="module">
+		import { ui } from "@./ui.js"
+
+		const Badge = ui.component("Badge").does({
+			label: (_self, data) => data.label,
+			description: (_self, data) => data.description,
+		})
+
+		await ui.load("./feature-template-load.fragment.tpl")
+
+		const Card = Badge.using("BadgeCard")
+		const Pill = Badge.using("BadgePill")
+
+		const card = Card.new()
+		card.render({ label: "Card View", description: "Resolved from document template" })
+		card.mount("#CardMount")
+
+		const pill = Pill.new()
+		pill.render({ label: "Pill View", description: "Same behavior, different template" })
+		pill.mount("#PillMount")
+	</script>
+</body>
+
+</html>
