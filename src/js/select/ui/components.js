@@ -16,16 +16,16 @@
 import { asText, eq, expand, isPascalCaseName, microtask } from "../utils.js";
 import { FORMATS } from "../formats.js";
 
-import {
-	log,
-	TemplateParser,
-	isInputNode,
-} from "./templates.js";
+import { log, TemplateParser, isInputNode } from "./templates.js";
 
 const SLOT_DEFAULT_KEY = "_";
 const SKIP_INPUT_UPDATE = Symbol("skip-input-update");
 function getInputBindingProperty(node, preferred = undefined) {
-	return preferred ? preferred : node?.nodeName === "DETAILS" ? "open" : "value";
+	return preferred
+		? preferred
+		: node?.nodeName === "DETAILS"
+			? "open"
+			: "value";
 }
 function getInputEventValue(node, event, property = "value") {
 	const target = event?.target;
@@ -35,7 +35,8 @@ function getInputEventValue(node, event, property = "value") {
 	if (node?.nodeName === "INPUT") {
 		const type = `${node.type || ""}`.toLowerCase();
 		if (type === "checkbox") return !!target.checked;
-		if (type === "radio") return target.checked ? target.value : SKIP_INPUT_UPDATE;
+		if (type === "radio")
+			return target.checked ? target.value : SKIP_INPUT_UPDATE;
 	}
 	return target.value;
 }
@@ -69,8 +70,14 @@ function resolveSourceValue(data, sourceKey) {
 	if (!sourceKey) return undefined;
 	const normalizedKey = normalizeSourceKey(sourceKey);
 	if (!normalizedKey) return data;
-	if (!normalizedKey.includes(".")) return data ? data[normalizedKey] : undefined;
+	if (!normalizedKey.includes("."))
+		return data ? data[normalizedKey] : undefined;
 	return resolveDataPath(data, normalizedKey.split("."));
+}
+
+function resolveExpandedSourceValue(data, sourceKey) {
+	const value = resolveSourceValue(data, sourceKey);
+	return value === undefined ? undefined : expand(value);
 }
 
 function scheduleRenderTask(fn) {
@@ -105,8 +112,7 @@ function resolveWhenValue(self, data, key) {
 	const behavior = self?.template?.behavior;
 	const b = behavior?.[key];
 	if (b) return b(self, data, null);
-	const value = resolveSourceValue(data, key);
-	return value === undefined ? undefined : expand(value);
+	return resolveExpandedSourceValue(data, key);
 }
 
 function resolveDataPath(data, path) {
@@ -121,7 +127,13 @@ function resolveDataPath(data, path) {
 }
 
 function mapProcessorCollection(value, f) {
-	if (value === null || value === undefined || typeof value === "number" || typeof value === "string") return value;
+	if (
+		value === null ||
+		value === undefined ||
+		typeof value === "number" ||
+		typeof value === "string"
+	)
+		return value;
 	if (Array.isArray(value)) {
 		const n = value.length;
 		const res = new Array(n);
@@ -148,9 +160,13 @@ function mapProcessorCollection(value, f) {
 
 function resolveNamedProcessor(self, name) {
 	if (!self?.template || !name) return null;
-	const template = self.template;
-	const localTemplate = template.localTemplates?.get(name);
-	if (localTemplate) return { type: "component", value: localTemplate };
+	let current = self;
+	while (current) {
+		const template = current.template;
+		const localTemplate = template?.localTemplates?.get(name);
+		if (localTemplate) return { type: "component", value: localTemplate };
+		current = current.parent;
+	}
 	const registered = FORMATS[name];
 	if (!registered) {
 		return null;
@@ -159,26 +175,60 @@ function resolveNamedProcessor(self, name) {
 	const isComponent =
 		typeof registered === "function" &&
 		(registered?.isTemplate || typeof registered?.new === "function");
-	if (isPascal && !isComponent) log.warn("ui.formats: PascalCase formatter is not a component, details", { name, formatter: registered });
-	if (!isPascal && isComponent) log.warn("ui.formats: component formatter should use PascalCase, details", { name, formatter: registered });
+	if (isPascal && !isComponent)
+		log.warn("ui.formats: PascalCase formatter is not a component, details", {
+			name,
+			formatter: registered,
+		});
+	if (!isPascal && isComponent)
+		log.warn("ui.formats: component formatter should use PascalCase, details", {
+			name,
+			formatter: registered,
+		});
 	return { type: isComponent ? "component" : "function", value: registered };
 }
 
-function applyNamedProcessor(processor, current, self, data, sourceKey, name) {
+function applyNamedProcessor(
+	processor,
+	current,
+	self,
+	data,
+	sourceKey,
+	name,
+	{ expandFunctions = true } = {},
+) {
 	if (processor.type === "component") {
 		const component = processor.value;
 		if (current === undefined || current === null) return current;
-		if (component?.isTemplate && typeof component?.apply === "function" && typeof component !== "function") {
+		if (
+			component?.isTemplate &&
+			typeof component?.apply === "function" &&
+			typeof component !== "function"
+		) {
 			return component.apply(current, self, data, sourceKey, name);
 		}
-		if (typeof component?.apply === "function" && component?.isTemplate) return component(current);
+		if (typeof component?.apply === "function" && component?.isTemplate)
+			return component(current);
 		if (typeof component === "function") return component(current, self, data);
 		return current;
 	}
-	return processor.value(current, self, data, sourceKey, name);
+	return processor.value(
+		expandFunctions ? expand(current) : current,
+		self,
+		data,
+		sourceKey,
+		name,
+	);
 }
 
-function applyNamedProcessors(self, data, value, processors, sourceKey) {
+function applyNamedProcessors(
+	self,
+	data,
+	value,
+	processors,
+	sourceKey,
+	options = undefined,
+) {
 	if (!processors || processors.length === 0) return value;
 	let current = value;
 	for (let i = 0; i < processors.length; i++) {
@@ -188,16 +238,37 @@ function applyNamedProcessors(self, data, value, processors, sourceKey) {
 		const processor = resolveNamedProcessor(self, processorName);
 		if (!processor) {
 			const availableProcessors = Object.keys(FORMATS).sort();
-			log.warn("UIInstance.render: processor not found, details", { processor: processorName, sourceKey, availableProcessors, instance: self });
+			log.warn("UIInstance.render: processor not found, details", {
+				processor: processorName,
+				sourceKey,
+				availableProcessors,
+				instance: self,
+			});
 			continue;
 		}
 		if (each) {
 			current = mapProcessorCollection(current, (item) =>
-				applyNamedProcessor(processor, item, self, data, sourceKey, processorName),
+				applyNamedProcessor(
+					processor,
+					item,
+					self,
+					data,
+					sourceKey,
+					processorName,
+					options,
+				),
 			);
 			continue;
 		}
-		current = applyNamedProcessor(processor, current, self, data, sourceKey, processorName);
+		current = applyNamedProcessor(
+			processor,
+			current,
+			self,
+			data,
+			sourceKey,
+			processorName,
+			options,
+		);
 	}
 	return current;
 }
@@ -215,31 +286,57 @@ function resolveTemplateTokens(self, tokens, data) {
 		if (token.type === "invalid") continue;
 		if (token.type === "expr") {
 			const rawPath = token.value.path;
-			const path = rawPath?.[0] === "." ? (rawPath.length > 1 ? rawPath.slice(1) : []) : rawPath;
+			const path =
+				rawPath?.[0] === "."
+					? rawPath.length > 1
+						? rawPath.slice(1)
+						: []
+					: rawPath;
 			let value;
 			if (path?.length === 1) {
 				const key = path[0];
 				const slotBehavior = behavior?.[key];
-				value = typeof slotBehavior === "function" ? slotBehavior(self, data, null) : resolveDataPath(data, path);
+				value =
+					typeof slotBehavior === "function"
+						? slotBehavior(self, data, null)
+						: resolveDataPath(data, path);
 			} else {
 				value = resolveDataPath(data, path);
 			}
 			if (value === undefined || value === null) continue;
 			let resolved = expand(value);
 			if (token.value.processors?.length) {
-				resolved = applyNamedProcessors(self, data, resolved, token.value.processors, path.join("."));
+				resolved = applyNamedProcessors(
+					self,
+					data,
+					resolved,
+					token.value.processors,
+					path.join("."),
+				);
 			}
-			if (resolved !== undefined && resolved !== null) result += String(resolved);
+			if (resolved !== undefined && resolved !== null)
+				result += String(resolved);
 		}
 	}
 	return result;
 }
 
-function createWhenPredicate(mode, key, processors = undefined, operator = null, comparisonValue = undefined) {
+function createWhenPredicate(
+	mode,
+	key,
+	processors = undefined,
+	operator = null,
+	comparisonValue = undefined,
+) {
 	return (self, data) => {
 		const value = resolveWhenValue(self, data, key);
 		const resolved = applyNamedProcessors(self, data, value, processors, key);
-		if (operator) return TemplateParser.EvaluateWhenComparison(resolved, operator, comparisonValue);
+		if (operator)
+			return TemplateParser.EvaluateWhenComparison(
+				resolved,
+				operator,
+				comparisonValue,
+			);
 		return TemplateParser.EvaluateWhen(mode, resolved);
 	};
 }
@@ -290,10 +387,12 @@ function hasTrackedNonReactiveObjectDeps(data, deps) {
 }
 
 function isThenable(value) {
-	return value !== null &&
+	return (
+		value !== null &&
 		value !== undefined &&
 		(typeof value === "object" || typeof value === "function") &&
-		typeof value.then === "function";
+		typeof value.then === "function"
+	);
 }
 
 // ----------------------------------------------------------------------------
@@ -1527,8 +1626,20 @@ class UISlot {
 						this._mountInstance(newInstance, nextNode);
 						this.mapping.set(k, newInstance);
 					}
+				} else if (item instanceof Node) {
+					const lastNode = r.nodes[r.nodes.length - 1];
+					const nextNode = lastNode ? lastNode.nextSibling : null;
+					r.unmount();
+					this._mergeReplaceNodeDecorations(item);
+					this._mountInstance({ nodes: [item] }, nextNode);
+					this.mapping.set(k, item);
 				} else {
-					r.update(item);
+					const lastNode = r.nodes[r.nodes.length - 1];
+					const nextNode = lastNode ? lastNode.nextSibling : null;
+					r.unmount();
+					const textNode = document.createTextNode(asText(item));
+					this._mountInstance({ nodes: [textNode] }, nextNode);
+					this.mapping.set(k, textNode);
 				}
 			} else if (this.isInput) {
 				setNodeText(this.node, asText(item));
@@ -1642,7 +1753,10 @@ class UISlot {
 				for (let i = 0; i < previousEntries.length; i++) {
 					const [indexKey, mapped] = previousEntries[i];
 					const previousData = this._listItems?.[indexKey];
-					const stableKey = this._resolveCollectionItemKey(previousData, indexKey);
+					const stableKey = this._resolveCollectionItemKey(
+						previousData,
+						indexKey,
+					);
 					this.mapping.set(stableKey, mapped);
 				}
 				if (this._listKeys) {
@@ -1660,9 +1774,7 @@ class UISlot {
 			const stableKeys = this._listKeyMode === "stable";
 			for (let i = 0; i < data.length; i++) {
 				const item = data[i];
-				const key = stableKeys
-					? this._resolveCollectionItemKey(item, i)
-					: i;
+				const key = stableKeys ? this._resolveCollectionItemKey(item, i) : i;
 				nextKeys[i] = key;
 				previous = this._renderMapped(key, item, previous);
 			}
@@ -1977,7 +2089,12 @@ class UIInstance {
 			const group = slots[key];
 			groups.push(group);
 			for (let j = 0; j < group.length; j++) {
-				plan.push({ key, keyIndex: keys.length - 1, itemIndex: j, slot: group[j] });
+				plan.push({
+					key,
+					keyIndex: keys.length - 1,
+					itemIndex: j,
+					slot: group[j],
+				});
 			}
 		}
 		if (keys.length === 0) {
@@ -1995,7 +2112,11 @@ class UIInstance {
 			if (stableDomOrder) {
 				for (let i = 0; i < plan.length; i++) {
 					const { keyIndex, itemIndex, slot } = plan[i];
-					mappedGroups[keyIndex][itemIndex] = slot.apply(nodes, parent, rawSingle);
+					mappedGroups[keyIndex][itemIndex] = slot.apply(
+						nodes,
+						parent,
+						rawSingle,
+					);
 				}
 			} else {
 				for (let i = 0; i < keys.length; i++) {
@@ -2017,9 +2138,9 @@ class UIInstance {
 		if (template._compiledSlotAppliers) {
 			return template._compiledSlotAppliers;
 		}
-			template._compiledSlotAppliers = {
-				in: UIInstance._compileSlotApplier(template.in),
-				out: UIInstance._compileSlotApplier(template.out, false, true),
+		template._compiledSlotAppliers = {
+			in: UIInstance._compileSlotApplier(template.in),
+			out: UIInstance._compileSlotApplier(template.out, false, true),
 			inout: UIInstance._compileSlotApplier(template.inout),
 			ref: UIInstance._compileSlotApplier(template.ref, true),
 			on: UIInstance._compileSlotApplier(template.on),
@@ -2095,7 +2216,7 @@ class UIInstance {
 		this._behaviorDepRevisions = undefined;
 		this._hasRendered = false;
 		if (template.initializer) {
-			const state = template.initializer();
+			const state = template.initializer(this);
 			if (state) {
 				this.initial = state;
 			}
@@ -2355,7 +2476,7 @@ class UIInstance {
 				const data = this.data || {};
 				let payload = data;
 				if (target.binding?.sourceKey) {
-					payload = expand(resolveSourceValue(data, target.binding.sourceKey));
+					payload = resolveSourceValue(data, target.binding.sourceKey);
 					if (target.binding.processors?.length) {
 						payload = applyNamedProcessors(
 							this,
@@ -2363,6 +2484,7 @@ class UIInstance {
 							payload,
 							target.binding.processors,
 							target.binding.sourceKey,
+							{ expandFunctions: false },
 						);
 					}
 				}
@@ -2694,7 +2816,16 @@ class UIInstance {
 				}
 			}
 		}
-		propagate && this.parent?.onPub(event, true);
+		if (propagate && this.parent) {
+			if (typeof this.parent.onPub === "function") {
+				this.parent.onPub(event, true);
+			} else {
+				log.warn(
+					"UIInstance.onPub: parent is not a UIInstance-like event target, details",
+					{ parent: this.parent, event, self },
+				);
+			}
+		}
 		return event;
 	}
 
@@ -2888,9 +3019,9 @@ class UIInstance {
 					// TODO: What does it mean has behavior, and what do we
 					// do with the tracking proxy
 					if (hasBehavior) {
-							if (isGranular) {
-								const [trackedData, accessed] = createTrackingProxy(renderData);
-								v = hasBehavior(this, trackedData, null);
+						if (isGranular) {
+							const [trackedData, accessed] = createTrackingProxy(renderData);
+							v = hasBehavior(this, trackedData, null);
 							if (!this._behaviorDeps) {
 								this._behaviorDeps = new Map();
 							}
@@ -2902,14 +3033,18 @@ class UIInstance {
 							if (!this._behaviorDepRevisions) {
 								this._behaviorDepRevisions = new Map();
 							}
-								this._behaviorDepRevisions.set(k, snapshotReactiveDependencyRevisions(renderData, accessed));
-							} else {
-								v = hasBehavior(this, renderData, null);
-							}
+							this._behaviorDepRevisions.set(
+								k,
+								snapshotReactiveDependencyRevisions(renderData, accessed),
+							);
 						} else {
-							v = resolveSourceValue(renderData, sourceKey);
-							v = v === undefined ? undefined : expand(v);
+							v = hasBehavior(this, renderData, null);
 						}
+					} else {
+						v = processors?.length
+							? resolveSourceValue(renderData, sourceKey)
+							: resolveExpandedSourceValue(renderData, sourceKey);
+					}
 
 					if (
 						hasBehavior &&
@@ -2932,7 +3067,13 @@ class UIInstance {
 						continue;
 					}
 					if (withProcessors && processors?.length) {
-						v = applyNamedProcessors(this, renderData, v, processors, sourceKey);
+						v = applyNamedProcessors(
+							this,
+							renderData,
+							v,
+							processors,
+							sourceKey,
+						);
 					}
 					for (const slot of slots) {
 						slot.render(v);
@@ -2956,7 +3097,11 @@ class UIInstance {
 				if (k === "$template") {
 					for (const slot of this.outAttr.$template) {
 						slot.render(
-							resolveTemplateTokens(this, slot.template.template?.tokens, renderData),
+							resolveTemplateTokens(
+								this,
+								slot.template.template?.tokens,
+								renderData,
+							),
 						);
 					}
 					continue;
@@ -2994,18 +3139,29 @@ class UIInstance {
 							continue;
 						}
 						if (processors?.length) {
-							v = applyNamedProcessors(this, renderData, v, processors, sourceKey);
+							v = applyNamedProcessors(
+								this,
+								renderData,
+								v,
+								processors,
+								sourceKey,
+							);
 						}
 						slot.render(v);
 					}
 					continue;
 				}
 				v = resolveSourceValue(renderData, sourceKey);
-				if (v !== undefined) {
+				if (v !== undefined && processors?.length) {
+					v = applyNamedProcessors(
+						this,
+						renderData,
+						v,
+						processors,
+						sourceKey,
+					);
+				} else if (v !== undefined) {
 					v = expand(v);
-					if (processors?.length) {
-						v = applyNamedProcessors(this, renderData, v, processors, sourceKey);
-					}
 				}
 				for (const slot of slots) {
 					slot.render(v);

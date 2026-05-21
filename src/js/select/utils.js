@@ -33,6 +33,35 @@ function isObject(value) {
 	);
 }
 
+function isEmpty(value) {
+	switch (value?.constructor) {
+		case Array:
+			for (let i = 0; i < value.length; i++) {
+				const v = value[i];
+				if (v !== null && v !== undefined) {
+					return false;
+				}
+			}
+			return true;
+		case Object:
+			for (const k in value) {
+				const v = value[k];
+				if (v !== null && v !== undefined) {
+					return false;
+				}
+			}
+			return true;
+		case String:
+			return value.trim() === "";
+		case Number:
+			return Number.isNaN(value);
+		case undefined:
+			return true;
+		default:
+			return false;
+	}
+}
+
 const Nothing = Object.freeze(new Object());
 
 const Something = Object.freeze(new Object());
@@ -853,6 +882,7 @@ export {
 	index,
 	isObject,
 	isPascalCaseName,
+	isEmpty,
 	iwalk,
 	idem,
 	len,
