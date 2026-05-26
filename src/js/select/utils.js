@@ -8,7 +8,7 @@
 
 // ----------------------------------------------------------------------------
 //
-// LOGGING AND STRUCTURAL HELPERS
+// LOGGING
 //
 // ----------------------------------------------------------------------------
 
@@ -21,6 +21,12 @@ function logger(scope) {
 		error: (...args) => console.error(`[${scope}]`, ...args),
 	};
 }
+
+// ----------------------------------------------------------------------------
+//
+// VALUES
+//
+// ----------------------------------------------------------------------------
 
 // Function: isObject
 // Returns true when `value` is a plain object.
@@ -65,6 +71,12 @@ function isEmpty(value) {
 const Nothing = Object.freeze(new Object());
 
 const Something = Object.freeze(new Object());
+
+// ----------------------------------------------------------------------------
+//
+// COLLECTIONS
+//
+// ----------------------------------------------------------------------------
 
 // Function: clone
 // Creates a shallow clone for `value`, inferring container type from `key` when needed.
@@ -476,6 +488,28 @@ function add(items, item, keyFn = undefined) {
 	return index(items, item, keyFn) < 0 ? [...items, item] : items;
 }
 
+function set(value, key, other) {
+	switch (value?.constructor) {
+		case Array:
+			if (value[key] === other) {
+				return value;
+			} else {
+				const res = [...value];
+				if (typeof key === "number") {
+					while (res.length <= key) {
+						res.push(undefined);
+					}
+				}
+				res[key] = other;
+				return res;
+			}
+		case Object:
+			return value[key] === other ? value : { ...value, [key]: other };
+		default:
+			return { [key]: other };
+	}
+}
+
 // Function: remove
 // Removes `item` from `items` when present.
 function remove(items, item, keyFn = undefined) {
@@ -863,7 +897,94 @@ function expand(value) {
 	});
 }
 
+// ============================================================================
+//
+// SEARCH
+//
+// ============================================================================
+
+// --
+// Splits the given `text` based on the regular expression `re`.
+function* iresplit(text, re, outputText = true) {
+	if (!text?.length) {
+		return;
+	}
+	switch (re?.constructor) {
+		case String:
+			re = new RegExp(re, "g");
+			break;
+		case RegExp:
+			re = re.global ? re : new RegExp(re, `g${re.flags}`);
+			break;
+	}
+	let o = 0;
+	let match;
+	while ((match = re.exec(text)) !== null) {
+		if (outputText && o < match.index) {
+			yield text.substring(o, match.index);
+		}
+		yield match;
+		o = match.index + match[0].length;
+	}
+	if (outputText && o < text.length) {
+		yield text.substring(o);
+	}
+}
+
+function re(query) {
+	if (query?.constructor !== String) {
+		return query;
+	}
+	if (query.length === 0) {
+		return null;
+	}
+	if (re.cache.has(query)) {
+		return re.cache.get(query);
+	}
+	const res = new RegExp(query, "ig");
+	// NOTE: Not 100% sure that's the best way to proceeed, should maybe
+	// cap growth.
+	re.cache.set(query, res);
+	// We should defer a cleanup task every 60s
+	return res;
+}
+re.cache = new WeakMap();
+
+function hi(text, query, creator = undefined) {
+	query = re(query);
+	text = str(text);
+	if (!text) {
+		return text;
+	}
+	switch (query?.constructor) {
+		case RegExp: {
+			const res = document.createDocumentFragment();
+			for (const atom of iresplit(text, query)) {
+				let node;
+				if (typeof atom === "string") {
+					node = document.createTextNode(atom);
+				} else {
+					const text = `${_[0]}`;
+					if (creator) {
+						node = creator(text);
+					} else {
+						node = document.createElement("mark");
+						node.appendChild(document.createTextNode(text));
+					}
+				}
+				res.appendChild(node);
+			}
+			return res;
+		}
+		default:
+			return text;
+	}
+}
+
 export {
+	re,
+	hi,
+	iresplit,
 	access,
 	add,
 	asText,
@@ -907,6 +1028,7 @@ export {
 	type,
 	unshortword,
 	unique,
+	set,
 	wrapindex,
 	clone,
 };

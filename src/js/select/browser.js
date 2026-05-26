@@ -29,11 +29,11 @@ class RecordFormat {
 		this.warn = warn;
 	}
 
-	static warnIssue(warn, scope, message, details = {}) {
+	static WarnIssue(warn, scope, message, details = {}) {
 		if (typeof warn === "function") warn(scope, new Error(message), details);
 	}
 
-	static sanitizeText(value, warn, scope, details = {}) {
+	static SanitizeText(value, warn, scope, details = {}) {
 		const text = `${value ?? ""}`;
 		let sanitized = "";
 		for (let i = 0; i < text.length; i++) {
@@ -48,7 +48,7 @@ class RecordFormat {
 			sanitized += text[i];
 		}
 		if (sanitized !== text) {
-			RecordFormat.warnIssue(warn, scope, "control characters pruned", {
+			RecordFormat.WarnIssue(warn, scope, "control characters pruned", {
 				value: text,
 				sanitized,
 				...details,
@@ -57,14 +57,14 @@ class RecordFormat {
 		return sanitized;
 	}
 
-	static sanitizeKey(key, warn, scope, details = {}) {
-		const sanitized = RecordFormat.sanitizeText(key, warn, scope, details);
+	static SanitizeKey(key, warn, scope, details = {}) {
+		const sanitized = RecordFormat.SanitizeText(key, warn, scope, details);
 		if (
 			!sanitized ||
 			RecordFormat.UNSAFE_LOCATION_KEY.test(sanitized) ||
 			sanitized.endsWith("[]")
 		) {
-			RecordFormat.warnIssue(warn, scope, "unsafe key pruned", {
+			RecordFormat.WarnIssue(warn, scope, "unsafe key pruned", {
 				key,
 				sanitized,
 				...details,
@@ -74,20 +74,20 @@ class RecordFormat {
 		return sanitized;
 	}
 
-	static sanitizeItem(value, warn, scope, details = {}) {
+	static SanitizeItem(value, warn, scope, details = {}) {
 		if (value === undefined) return undefined;
 		if (value === null || value === true || value === false) return value;
 		if (typeof value === "string")
-			return RecordFormat.sanitizeText(value, warn, scope, details);
+			return RecordFormat.SanitizeText(value, warn, scope, details);
 		if (typeof value === "number") {
 			if (Number.isFinite(value)) return value;
-			RecordFormat.warnIssue(warn, scope, "non-finite number pruned", {
+			RecordFormat.WarnIssue(warn, scope, "non-finite number pruned", {
 				value,
 				...details,
 			});
 			return undefined;
 		}
-		RecordFormat.warnIssue(warn, scope, "unsupported location value pruned", {
+		RecordFormat.WarnIssue(warn, scope, "unsupported location value pruned", {
 			type: typeof value,
 			value,
 			...details,
@@ -95,10 +95,10 @@ class RecordFormat {
 		return undefined;
 	}
 
-	static sanitizeArray(value, warn, scope, details = {}) {
+	static SanitizeArray(value, warn, scope, details = {}) {
 		const res = [];
 		for (let i = 0; i < value.length; i++) {
-			const item = RecordFormat.sanitizeItem(value[i], warn, scope, {
+			const item = RecordFormat.SanitizeItem(value[i], warn, scope, {
 				...details,
 				index: i,
 			});
@@ -107,10 +107,10 @@ class RecordFormat {
 		return res;
 	}
 
-	static sanitizeRecord(value, warn, scope) {
+	static SanitizeRecord(value, warn, scope) {
 		if (!isObject(value)) {
 			if (value !== undefined && value !== null) {
-				RecordFormat.warnIssue(
+				RecordFormat.WarnIssue(
 					warn,
 					scope,
 					"unsupported location container pruned",
@@ -125,16 +125,16 @@ class RecordFormat {
 		const res = {};
 		for (const key in value) {
 			if (!Object.hasOwn(value, key)) continue;
-			const safeKey = RecordFormat.sanitizeKey(key, warn, scope, { key });
+			const safeKey = RecordFormat.SanitizeKey(key, warn, scope, { key });
 			if (safeKey === undefined) continue;
 			const item = value[key];
 			if (Array.isArray(item)) {
-				const safeArray = RecordFormat.sanitizeArray(item, warn, scope, {
+				const safeArray = RecordFormat.SanitizeArray(item, warn, scope, {
 					key: safeKey,
 				});
 				if (safeArray.length) res[safeKey] = safeArray;
 			} else {
-				const safeValue = RecordFormat.sanitizeItem(item, warn, scope, {
+				const safeValue = RecordFormat.SanitizeItem(item, warn, scope, {
 					key: safeKey,
 				});
 				if (safeValue !== undefined) res[safeKey] = safeValue;
@@ -152,7 +152,7 @@ class RecordFormat {
 	}
 
 	sanitizeRecord(value) {
-		return RecordFormat.sanitizeRecord(value, this.warn, this.scope);
+		return RecordFormat.SanitizeRecord(value, this.warn, this.scope);
 	}
 
 	parse(value, fallback = {}) {
@@ -183,19 +183,19 @@ class PathFormat {
 		this.warn = warn;
 	}
 
-	static sanitizeText(value, warn) {
-		const text = RecordFormat.sanitizeText(value, warn, "browser.path");
+	static SanitizeText(value, warn) {
+		const text = RecordFormat.SanitizeText(value, warn, "browser.path");
 		return text ? (text.startsWith("/") ? text : `/${text}`) : "/";
 	}
 
 	parse(value) {
-		const text = PathFormat.sanitizeText(value, this.warn);
+		const text = PathFormat.SanitizeText(value, this.warn);
 		const segments = text.split("/");
 		for (let i = 0; i < segments.length; i++) {
 			try {
 				segments[i] = decodeURIComponent(segments[i]);
 			} catch (error) {
-				RecordFormat.warnIssue(
+				RecordFormat.WarnIssue(
 					this.warn,
 					"browser.path",
 					"path segment decode failed",
@@ -212,7 +212,7 @@ class PathFormat {
 	}
 
 	format(value) {
-		const text = PathFormat.sanitizeText(value, this.warn);
+		const text = PathFormat.SanitizeText(value, this.warn);
 		const segments = text.split("/");
 		for (let i = 0; i < segments.length; i++)
 			segments[i] = encodeURIComponent(segments[i]);
@@ -222,7 +222,7 @@ class PathFormat {
 	read(win, fallback = "/") {
 		return win?.location
 			? this.parse(win.location.pathname)
-			: PathFormat.sanitizeText(fallback, this.warn);
+			: PathFormat.SanitizeText(fallback, this.warn);
 	}
 }
 
@@ -234,7 +234,7 @@ class HashFormat extends RecordFormat {
 		super("browser.hash", serializer, warn);
 	}
 
-	static decodeComponent(value) {
+	static DecodeComponent(value) {
 		if (!value?.includes("%")) return value;
 		try {
 			return decodeURIComponent(value);
@@ -243,7 +243,7 @@ class HashFormat extends RecordFormat {
 		}
 	}
 
-	static formatAtom(value) {
+	static FormatAtom(value) {
 		if (value === undefined) return "undefined";
 		if (value === null) return "_";
 		if (value === true) return "T";
@@ -256,7 +256,7 @@ class HashFormat extends RecordFormat {
 			: text;
 	}
 
-	static *iformat(value, depth = 0) {
+	static *IFormat(value, depth = 0) {
 		if (
 			value === undefined ||
 			value === null ||
@@ -264,13 +264,13 @@ class HashFormat extends RecordFormat {
 			typeof value === "number" ||
 			typeof value === "boolean"
 		) {
-			yield HashFormat.formatAtom(value);
+			yield HashFormat.FormatAtom(value);
 			return;
 		}
 		if (depth > 0) yield "(";
 		if (Array.isArray(value)) {
 			for (let i = 0; i < value.length; i++) {
-				yield* HashFormat.iformat(value[i], depth + 1);
+				yield* HashFormat.IFormat(value[i], depth + 1);
 				if (i < value.length - 1) yield ",";
 			}
 		} else if (isObject(value)) {
@@ -278,18 +278,18 @@ class HashFormat extends RecordFormat {
 			for (let i = 0; i < keys.length; i++) {
 				const key = keys[i];
 				yield `${key}=`;
-				yield* HashFormat.iformat(value[key], depth + 1);
+				yield* HashFormat.IFormat(value[key], depth + 1);
 				if (i < keys.length - 1) yield ",";
 			}
 		}
 		if (depth > 0) yield ")";
 	}
 
-	static formatHash(value) {
-		return [...HashFormat.iformat(value)].join("");
+	static FormatHash(value) {
+		return [...HashFormat.IFormat(value)].join("");
 	}
 
-	static nextSeparator(value, offset = 0) {
+	static NextSeparator(value, offset = 0) {
 		let quoted = false;
 		for (let i = offset; i < value.length; i++) {
 			const c = value[i];
@@ -305,8 +305,8 @@ class HashFormat extends RecordFormat {
 		return [null, null];
 	}
 
-	static parseAtom(value) {
-		const decode = HashFormat.decodeComponent(value);
+	static ParseAtom(value) {
+		const decode = HashFormat.DecodeComponent(value);
 		if (value === "") return "";
 		if (decode === "_" || decode === "null") return null;
 		if (decode === "undefined") return undefined;
@@ -319,8 +319,8 @@ class HashFormat extends RecordFormat {
 		return decode;
 	}
 
-	static parseHash(value) {
-		const source = RecordFormat.sanitizeText(
+	static ParseHash(value) {
+		const source = RecordFormat.SanitizeText(
 			value,
 			undefined,
 			"browser.hashformat",
@@ -356,7 +356,7 @@ class HashFormat extends RecordFormat {
 			if (rawStart >= 0) {
 				const quote = source.indexOf('"', cursor);
 				if (quote < 0) {
-					const raw = HashFormat.decodeComponent(
+					const raw = HashFormat.DecodeComponent(
 						source.substring(rawStart).replaceAll('\\"', '"'),
 					);
 					if (raw !== "") commit(raw);
@@ -366,7 +366,7 @@ class HashFormat extends RecordFormat {
 					cursor = quote + 1;
 					continue;
 				}
-				const raw = HashFormat.decodeComponent(
+				const raw = HashFormat.DecodeComponent(
 					source.substring(rawStart, quote).replaceAll('\\"', '"'),
 				);
 				if (raw !== "") commit(raw);
@@ -374,12 +374,12 @@ class HashFormat extends RecordFormat {
 				cursor = quote + 1;
 				continue;
 			}
-			const [sepIndex, sep] = HashFormat.nextSeparator(source, cursor);
+			const [sepIndex, sep] = HashFormat.NextSeparator(source, cursor);
 			const end = sepIndex === null ? source.length : sepIndex;
 			const token = source.substring(cursor, end).trim();
 			if (sep === "=") {
-				const nextKey = RecordFormat.sanitizeKey(
-					HashFormat.decodeComponent(token),
+				const nextKey = RecordFormat.SanitizeKey(
+					HashFormat.DecodeComponent(token),
 					undefined,
 					"browser.hash",
 				);
@@ -389,7 +389,7 @@ class HashFormat extends RecordFormat {
 				continue;
 			}
 			if (!keyBlocked && token !== "") {
-				const atom = HashFormat.parseAtom(token);
+				const atom = HashFormat.ParseAtom(token);
 				if (atom !== "") commit(atom);
 			}
 			if (sep === ",") {
@@ -445,7 +445,7 @@ class HashFormat extends RecordFormat {
 	}
 
 	decodeText(value) {
-		return RecordFormat.sanitizeText(
+		return RecordFormat.SanitizeText(
 			`${value || ""}`.replace(/^#/, ""),
 			this.warn,
 			this.scope,
@@ -453,7 +453,7 @@ class HashFormat extends RecordFormat {
 	}
 
 	encodeText(value) {
-		return RecordFormat.sanitizeText(
+		return RecordFormat.SanitizeText(
 			`${value || ""}`.replace(/^#/, ""),
 			this.warn,
 			this.scope,
@@ -471,12 +471,12 @@ class QueryFormat extends RecordFormat {
 	}
 
 	decodeText(value) {
-		const text = RecordFormat.sanitizeText(value, this.warn, this.scope);
+		const text = RecordFormat.SanitizeText(value, this.warn, this.scope);
 		const normalized = text.replace(/^\?/, "");
 		const i = normalized.indexOf("#");
 		if (i >= 0) {
 			const pruned = normalized.slice(0, i);
-			RecordFormat.warnIssue(
+			RecordFormat.WarnIssue(
 				this.warn,
 				this.scope,
 				"query hash fragment pruned",
@@ -497,14 +497,14 @@ class QueryFormat extends RecordFormat {
 
 const QuerySerializer = {
 	parse(value) {
-		const parsed = HashFormat.parseHash(`${value || ""}`.replace(/^[?#]/, ""));
+		const parsed = HashFormat.ParseHash(`${value || ""}`.replace(/^[?#]/, ""));
 		if (isObject(parsed)) return parsed;
 		if (Array.isArray(parsed)) return Object.assign({}, parsed);
 		return {};
 	},
 	format(value) {
-		return HashFormat.formatHash(
-			RecordFormat.sanitizeRecord(value, undefined, "browser.query"),
+		return HashFormat.FormatHash(
+			RecordFormat.SanitizeRecord(value, undefined, "browser.query"),
 		);
 	},
 };
@@ -527,11 +527,11 @@ class LocationValueCell extends Cell {
 		this.writer = options.writer;
 	}
 
-	static normalizePathArg(path) {
+	static NormalizePathArg(path) {
 		return pathify(path, Nothing);
 	}
 
-	static isForcedWrite(options) {
+	static IsForcedWrite(options) {
 		return (
 			options === true ||
 			!!(
@@ -543,14 +543,14 @@ class LocationValueCell extends Cell {
 		);
 	}
 
-	static historyMode(options, dflt = "replace") {
+	static HistoryMode(options, dflt = "replace") {
 		if (options && typeof options === "object" && !Array.isArray(options)) {
 			return options.mode === "push" ? "push" : dflt;
 		}
 		return dflt;
 	}
 
-	static mergeAtPath(scope, p, value) {
+	static MergeAtPath(scope, p, value) {
 		if (!p || p.length === 0) return value;
 		if (p.length === 1 && isObject(scope) && isObject(value)) {
 			return sanitize({ ...scope, ...value });
@@ -559,10 +559,10 @@ class LocationValueCell extends Cell {
 	}
 
 	set(value, p = Nothing, options = false) {
-		const resolvedPath = LocationValueCell.normalizePathArg(p);
-		const force = LocationValueCell.isForcedWrite(options);
+		const resolvedPath = LocationValueCell.NormalizePathArg(p);
+		const force = LocationValueCell.IsForcedWrite(options);
 		let next = this.merge
-			? LocationValueCell.mergeAtPath(this.value, resolvedPath, value)
+			? LocationValueCell.MergeAtPath(this.value, resolvedPath, value)
 			: resolvedPath
 				? sanitize(reassign(this.value, resolvedPath, value))
 				: value;
@@ -575,7 +575,7 @@ class LocationValueCell extends Cell {
 		);
 		if (this.writer) {
 			this.writer(this.value, {
-				mode: LocationValueCell.historyMode(options, this.mode),
+				mode: LocationValueCell.HistoryMode(options, this.mode),
 				path: resolvedPath,
 			});
 		}
@@ -591,7 +591,7 @@ class LocationValueCell extends Cell {
 
 class LocationState {
 	constructor(options = {}) {
-		this.win = LocationState.getWindow();
+		this.win = LocationState.GetWindow();
 		this.hasWindow = !!this.win?.location;
 		this.hasHistory = !!(
 			this.hasWindow &&
@@ -659,7 +659,7 @@ class LocationState {
 		this.bind();
 	}
 
-	static getWindow() {
+	static GetWindow() {
 		return typeof globalThis !== "undefined" && globalThis.window
 			? globalThis.window
 			: undefined;
@@ -739,10 +739,10 @@ class LocalStorageCell extends Cell {
 	}
 
 	set(value, p = Nothing, options = false) {
-		const resolvedPath = LocationValueCell.normalizePathArg(p);
-		const force = LocationValueCell.isForcedWrite(options);
+		const resolvedPath = LocationValueCell.NormalizePathArg(p);
+		const force = LocationValueCell.IsForcedWrite(options);
 		const next = this.merge
-			? LocationValueCell.mergeAtPath(this.value, resolvedPath, value)
+			? LocationValueCell.MergeAtPath(this.value, resolvedPath, value)
 			: resolvedPath
 				? sanitize(reassign(this.value, resolvedPath, value))
 				: value;
@@ -819,9 +819,9 @@ function browser(options = {}) {
 			typeof normalizer.format === "function"
 				? normalizer
 				: opts &&
-					  typeof opts === "object" &&
-					  typeof opts.parse === "function" &&
-					  typeof opts.format === "function"
+						typeof opts === "object" &&
+						typeof opts.parse === "function" &&
+						typeof opts.format === "function"
 					? opts
 					: {};
 		const serializer =
@@ -847,7 +847,8 @@ function browser(options = {}) {
 		locals.set(key, { cell, defaultValue: normalizedDefault, serializer });
 		if (
 			hasStorage &&
-			((win.localStorage.getItem(key) === null && normalizedDefault !== undefined) ||
+			((win.localStorage.getItem(key) === null &&
+				normalizedDefault !== undefined) ||
 				!eq(loaded, cell.value))
 		) {
 			writeLocal(key, cell.value, serializer);
@@ -860,6 +861,7 @@ function browser(options = {}) {
 		query: location.query,
 		hash: location.hash,
 		local,
+		locals,
 	};
 }
 
