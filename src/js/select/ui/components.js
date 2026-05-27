@@ -14,6 +14,7 @@
 // ----------------------------------------------------------------------------
 
 import { asText, eq, expand, isPascalCaseName, microtask } from "../utils.js";
+import { unwrap } from "../cells.js";
 import { FORMATS } from "../formats.js";
 
 import { log, TemplateParser, isInputNode } from "./templates.js";
@@ -119,11 +120,11 @@ function resolveDataPath(data, path) {
 	if (!path?.length) return data;
 	let value = data;
 	for (let i = 0; i < path.length; i++) {
-		value = expand(value);
+		value = unwrap(expand(value));
 		if (value === undefined || value === null) return undefined;
 		value = value[path[i]];
 	}
-	return value;
+	return unwrap(expand(value));
 }
 
 function mapProcessorCollection(value, f) {
@@ -199,18 +200,19 @@ function applyNamedProcessor(
 ) {
 	if (processor.type === "component") {
 		const component = processor.value;
-		if (current === undefined || current === null) return current;
+		const value = current;
+		if (value === undefined || value === null) return value;
 		if (
 			component?.isTemplate &&
 			typeof component?.apply === "function" &&
 			typeof component !== "function"
 		) {
-			return component.apply(current, self, data, sourceKey, name);
+			return component.apply(value, self, data, sourceKey, name);
 		}
 		if (typeof component?.apply === "function" && component?.isTemplate)
-			return component(current);
-		if (typeof component === "function") return component(current, self, data);
-		return current;
+			return component(value);
+		if (typeof component === "function") return component(value, self, data);
+		return value;
 	}
 	return processor.value(
 		expandFunctions ? expand(current) : current,
@@ -229,8 +231,11 @@ function applyNamedProcessors(
 	sourceKey,
 	options = undefined,
 ) {
-	if (!processors || processors.length === 0) return value;
+	const withMeta = options?.withMeta === true;
+	if (!processors || processors.length === 0)
+		return withMeta ? { value, lastProcessorType: null } : value;
 	let current = value;
+	let lastProcessorType = null;
 	for (let i = 0; i < processors.length; i++) {
 		const name = processors[i];
 		const each = name.startsWith("*");
@@ -246,6 +251,7 @@ function applyNamedProcessors(
 			});
 			continue;
 		}
+		lastProcessorType = processor.type;
 		if (each) {
 			current = mapProcessorCollection(current, (item) =>
 				applyNamedProcessor(
@@ -270,7 +276,11 @@ function applyNamedProcessors(
 			options,
 		);
 	}
-	return current;
+	return withMeta ? { value: current, lastProcessorType } : current;
+}
+
+function finalizeRenderProcessorValue(value, lastProcessorType = null) {
+	return lastProcessorType === "component" ? value : expand(value);
 }
 
 function resolveTemplateTokens(self, tokens, data) {
@@ -306,12 +316,17 @@ function resolveTemplateTokens(self, tokens, data) {
 			if (value === undefined || value === null) continue;
 			let resolved = expand(value);
 			if (token.value.processors?.length) {
-				resolved = applyNamedProcessors(
+				const processed = applyNamedProcessors(
 					self,
 					data,
 					resolved,
 					token.value.processors,
 					path.join("."),
+					{ withMeta: true },
+				);
+				resolved = finalizeRenderProcessorValue(
+					processed.value,
+					processed.lastProcessorType,
 				);
 			}
 			if (resolved !== undefined && resolved !== null)
@@ -1556,6 +1571,18 @@ class UISlot {
 		}
 	}
 
+	_isMappedValueDetached(v) {
+		if (v instanceof UIInstance) {
+			for (const node of v.nodes) {
+				if (node?.parentNode) {
+					return false;
+				}
+			}
+			return true;
+		}
+		return v !== this.node && !v?.parentNode;
+	}
+
 	_clearMapped() {
 		for (const v of this.mapping.values()) {
 			this._removeMappedValue(v);
@@ -1581,7 +1608,11 @@ class UISlot {
 	}
 
 	_renderMapped(k, item, previous) {
-		const existing = this.mapping.get(k);
+		let existing = this.mapping.get(k);
+		if (existing !== undefined && this._isMappedValueDetached(existing)) {
+			this.mapping.delete(k);
+			existing = undefined;
+		}
 		if (existing === undefined) {
 			let r;
 			if (item instanceof AppliedUITemplate) {
@@ -3051,12 +3082,17 @@ class UIInstance {
 						this._trackAsyncBehaviorValue(k, v, (resolved) => {
 							let next = resolved;
 							if (withProcessors && processors?.length) {
-								next = applyNamedProcessors(
+								const processed = applyNamedProcessors(
 									this,
 									renderData,
 									next,
 									processors,
 									sourceKey,
+									{ withMeta: true },
+								);
+								next = finalizeRenderProcessorValue(
+									processed.value,
+									processed.lastProcessorType,
 								);
 							}
 							for (const slot of slots) {
@@ -3067,12 +3103,17 @@ class UIInstance {
 						continue;
 					}
 					if (withProcessors && processors?.length) {
-						v = applyNamedProcessors(
+						const processed = applyNamedProcessors(
 							this,
 							renderData,
 							v,
 							processors,
 							sourceKey,
+							{ withMeta: true },
+						);
+						v = finalizeRenderProcessorValue(
+							processed.value,
+							processed.lastProcessorType,
 						);
 					}
 					for (const slot of slots) {
@@ -3124,12 +3165,17 @@ class UIInstance {
 								(resolved) => {
 									let next = resolved;
 									if (processors?.length) {
-										next = applyNamedProcessors(
+										const processed = applyNamedProcessors(
 											this,
 											renderData,
 											next,
 											processors,
 											sourceKey,
+											{ withMeta: true },
+										);
+										next = finalizeRenderProcessorValue(
+											processed.value,
+											processed.lastProcessorType,
 										);
 									}
 									slot.render(next);
@@ -3139,12 +3185,17 @@ class UIInstance {
 							continue;
 						}
 						if (processors?.length) {
-							v = applyNamedProcessors(
+							const processed = applyNamedProcessors(
 								this,
 								renderData,
 								v,
 								processors,
 								sourceKey,
+								{ withMeta: true },
+							);
+							v = finalizeRenderProcessorValue(
+								processed.value,
+								processed.lastProcessorType,
 							);
 						}
 						slot.render(v);
@@ -3153,12 +3204,17 @@ class UIInstance {
 				}
 				v = resolveSourceValue(renderData, sourceKey);
 				if (v !== undefined && processors?.length) {
-					v = applyNamedProcessors(
+					const processed = applyNamedProcessors(
 						this,
 						renderData,
 						v,
 						processors,
 						sourceKey,
+						{ withMeta: true },
+					);
+					v = finalizeRenderProcessorValue(
+						processed.value,
+						processed.lastProcessorType,
 					);
 				} else if (v !== undefined) {
 					v = expand(v);

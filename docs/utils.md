@@ -68,6 +68,9 @@ Browser URL and storage state now live in `select/browser.js` via
 `browser(options?)`, which returns reactive `path`, `query`, `hash`, and
 `local(key, dflt, opts?)` cells.
 
+See [`browser.md`](browser.md) and [`ref-browser.md`](ref-browser.md) for the
+browser guide and serializer reference.
+
 ### Using
 
 ```javascript

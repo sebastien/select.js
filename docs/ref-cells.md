@@ -138,6 +138,7 @@ Notes:
 
 - Legacy URL query parsing (`a=1&b=2`) is not supported by default.
 - You can override behavior with `browser({ query: { parse, format }, hash: { parse, format } })`.
+- See [`browser.md`](browser.md) and [`ref-browser.md`](ref-browser.md) for the dedicated browser guide and serializer reference.
 
 ### Reactive Objects
 You can store complex objects in cells and subscribe to specific paths.

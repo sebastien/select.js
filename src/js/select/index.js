@@ -19,6 +19,7 @@ import * as utils from "./utils.js";
 export * from "./query.js";
 export * from "./cells.js";
 export * from "./fastdom.js";
+export * from "./browser.js";
 export * from "./icons.js";
 export * from "./ui/index.js";
 export * from "./interaction.js";

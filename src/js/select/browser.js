@@ -327,26 +327,42 @@ class HashFormat extends RecordFormat {
 		);
 		const root = [];
 		const stack = [root];
-		const indexStack = [{ key: undefined, index: 0 }];
+		const indexStack = [{ key: undefined, index: 0, mode: "array" }];
 		let key;
 		let keyBlocked = false;
 		let index = 0;
 		let rawStart = -1;
 		let cursor = 0;
 		const current = () => stack[stack.length - 1];
-		const commit = (atom) => {
+		const currentContext = () => indexStack[indexStack.length - 1];
+		const promoteCurrentToObject = () => {
+			const ctx = currentContext();
+			if (ctx.mode === "object") return;
+			if (!Array.isArray(current())) {
+				ctx.mode = "object";
+				return;
+			}
+			const parent = stack[stack.length - 2];
+			const parentRef = indexStack[indexStack.length - 1];
+			const replacement = {};
+			for (let i = 0; i < current().length; i++) {
+				const item = current()[i];
+				if (item !== undefined) replacement[`${item}`] = true;
+			}
+			if (parent) parent[parentRef.key ?? parentRef.index] = replacement;
+			stack[stack.length - 1] = replacement;
+			ctx.mode = "object";
+		};
+		const commit = (atom, forcedKey = undefined) => {
 			const container = current();
-			if (key !== undefined) {
-				if (Array.isArray(container)) {
-					const parent = stack[stack.length - 2];
-					const parentRef = indexStack[indexStack.length - 1];
-					const replacement = {};
-					for (let i = 0; i < container.length; i++)
-						replacement[i] = container[i];
-					if (parent) parent[parentRef.key ?? parentRef.index] = replacement;
-					stack[stack.length - 1] = replacement;
-				}
-				current()[key] = atom;
+			const targetKey = forcedKey !== undefined ? forcedKey : key;
+			if (targetKey !== undefined) {
+				promoteCurrentToObject();
+				current()[targetKey] = atom;
+				return;
+			}
+			if (currentContext().mode === "object") {
+				if (atom !== undefined) current()[`${atom}`] = true;
 				return;
 			}
 			if (Array.isArray(container)) container.push(atom);
@@ -385,17 +401,27 @@ class HashFormat extends RecordFormat {
 				);
 				key = nextKey;
 				keyBlocked = nextKey === undefined;
+				if (nextKey !== undefined) promoteCurrentToObject();
 				cursor = sepIndex + 1;
 				continue;
 			}
 			if (!keyBlocked && token !== "") {
-				const atom = HashFormat.ParseAtom(token);
-				if (atom !== "") commit(atom);
+				if (currentContext().mode === "object" && key === undefined) {
+					const nextKey = RecordFormat.SanitizeKey(
+						HashFormat.DecodeComponent(token),
+						undefined,
+						"browser.hash",
+					);
+					if (nextKey !== undefined) commit(true, nextKey);
+				} else {
+					const atom = HashFormat.ParseAtom(token);
+					if (atom !== "") commit(atom);
+				}
 			}
 			if (sep === ",") {
 				key = undefined;
 				keyBlocked = false;
-				index += 1;
+				if (currentContext().mode === "array") index += 1;
 				cursor = sepIndex + 1;
 				continue;
 			}
@@ -412,7 +438,7 @@ class HashFormat extends RecordFormat {
 				const nested = [];
 				commit(nested);
 				stack.push(nested);
-				indexStack.push({ key, index });
+				indexStack.push({ key, index, mode: "array" });
 				key = undefined;
 				keyBlocked = false;
 				index = 0;
@@ -495,18 +521,85 @@ class QueryFormat extends RecordFormat {
 	}
 }
 
-const QuerySerializer = {
-	parse(value) {
-		const parsed = HashFormat.ParseHash(`${value || ""}`.replace(/^[?#]/, ""));
-		if (isObject(parsed)) return parsed;
-		if (Array.isArray(parsed)) return Object.assign({}, parsed);
-		return {};
-	},
-	format(value) {
-		return HashFormat.FormatHash(
-			RecordFormat.SanitizeRecord(value, undefined, "browser.query"),
-		);
-	},
+function isArrayLikeRecord(value) {
+	if (!isObject(value)) return false;
+	const keys = Object.keys(value);
+	if (!keys.length) return false;
+	for (let i = 0; i < keys.length; i++) {
+		if (keys[i] !== `${i}`) return false;
+	}
+	return true;
+}
+
+function normalizeHashValue(value) {
+	if (Array.isArray(value)) {
+		const res = new Array(value.length);
+		for (let i = 0; i < value.length; i++)
+			res[i] = normalizeHashValue(value[i]);
+		return res;
+	}
+	if (isArrayLikeRecord(value)) {
+		const keys = Object.keys(value);
+		const res = new Array(keys.length);
+		for (let i = 0; i < keys.length; i++) {
+			const key = keys[i];
+			res[i] = normalizeHashValue(value[key]);
+		}
+		return res;
+	}
+	if (isObject(value)) {
+		const res = {};
+		const keys = Object.keys(value);
+		for (let i = 0; i < keys.length; i++) {
+			const key = keys[i];
+			res[key] = normalizeHashValue(value[key]);
+		}
+		return res;
+	}
+	return value;
+}
+
+function parseRecord(value) {
+	return RecordFormat.SanitizeRecord(value, undefined, "browser.record");
+}
+
+function formatRecord(value) {
+	return RecordFormat.SanitizeRecord(value, undefined, "browser.record");
+}
+
+function parseHash(value) {
+	const parsed = HashFormat.ParseHash(`${value || ""}`.replace(/^#/, ""));
+	return normalizeHashValue(parsed);
+}
+
+function formatHash(value) {
+	return HashFormat.FormatHash(normalizeHashValue(value));
+}
+
+function parseQuery(value) {
+	const text = `${value || ""}`.replace(/^[?#]/, "");
+	const i = text.indexOf("#");
+	const parsed = HashFormat.ParseHash(i >= 0 ? text.slice(0, i) : text);
+	return normalizeHashValue(parsed);
+}
+
+function formatQuery(value) {
+	return HashFormat.FormatHash(normalizeHashValue(value));
+}
+
+const record = {
+	parse: parseRecord,
+	format: formatRecord,
+};
+
+const hash = {
+	parse: parseHash,
+	format: formatHash,
+};
+
+const query = {
+	parse: parseQuery,
+	format: formatQuery,
 };
 
 const JSONSerializer = {
@@ -615,13 +708,13 @@ class LocationState {
 			typeof options.query.parse === "function" &&
 			typeof options.query.format === "function"
 				? options.query
-				: QuerySerializer;
+				: query;
 		const hashSerializer =
 			options.hash &&
 			typeof options.hash.parse === "function" &&
 			typeof options.hash.format === "function"
 				? options.hash
-				: QuerySerializer;
+				: hash;
 		this.pathFormat = new PathFormat(this.warn);
 		this.queryFormat = new QueryFormat(querySerializer, this.warn);
 		this.hashFormat = new HashFormat(hashSerializer, this.warn);
@@ -870,7 +963,7 @@ function get(options = {}) {
 	return get.SINGLETON;
 }
 
-export { browser };
+export { browser, hash, query, record };
 export default get;
 
 // EOF

@@ -306,10 +306,13 @@ Factory returning a callable dispatcher function:
 
 ### Browser state
 
-Browser-backed URL and storage state moved to `select.cells.js`.
+Browser-backed URL and storage state live in `select/browser.js`.
 
 - `browser(options?)`: Returns `{ path, query, hash, local }`
 - `path`: `Cell<string>` bound to `location.pathname`
 - `query`: `Cell<object>` bound to `location.search`
 - `hash`: `Cell<object>` bound to `location.hash`
 - `local(key, dflt, opts?)`: `Cell<T>` backed by `localStorage`
+
+See [`browser.md`](browser.md) and [`ref-browser.md`](ref-browser.md) for the
+browser guide and serializer reference.

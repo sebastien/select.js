@@ -6,6 +6,7 @@
 // Module: select/formats
 // String case format helpers shared across modules.
 
+import { unwrap } from "./cells.js";
 import { bool, entries, idem, len, type } from "./utils.js";
 
 const MONTH_NAMES = [
@@ -51,6 +52,10 @@ function toCamelCase(value) {
 
 function text(value) {
 	return `${value}`;
+}
+
+function unwrapped(value) {
+	return unwrap(value);
 }
 
 function count(value) {
@@ -292,12 +297,19 @@ function json(value) {
 	return value === undefined ? "" : JSON.stringify(value);
 }
 
+function head(value) {
+	return Array.isArray(value) && value.length > 0 ? value[0] : null;
+}
 const html = HTML_PARSER
 	? (value) => {
-			const doc = HTML_PARSER.parseFromString(value, "text/html");
+			const doc = HTML_PARSER.parseFromString(`${value ?? ""}`, "text/html");
+			const nodes = [...(doc.body?.childNodes ?? [])];
+			if (nodes.length === 1) {
+				return nodes[0];
+			}
 			const res = new DocumentFragment();
-			while (doc.body?.firstChild) {
-				res.appendChild(doc.body.firstChild);
+			for (const node of nodes) {
+				res.appendChild(node);
 			}
 			return res;
 		}
@@ -326,6 +338,7 @@ const FORMATS = {
 	idem,
 	index,
 	json,
+	head,
 	len,
 	localtime,
 	not,
@@ -338,6 +351,7 @@ const FORMATS = {
 	toCamelCase,
 	toKebabCase,
 	type,
+	unwrap: unwrapped,
 };
 
 function format(name, ...value) {
@@ -390,9 +404,11 @@ export {
 	text,
 	time,
 	timetuple,
+	head,
 	toCamelCase,
 	toKebabCase,
 	type,
+	unwrapped as unwrap,
 };
 
 // EOF

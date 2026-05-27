@@ -85,6 +85,7 @@ Serializer note:
 - Default query/hash format is hashformat (comma-separated atoms, `key=value`, nested values in parentheses).
 - Legacy URLSearchParams-style query parsing (`a=1&b=2`) is not supported by default.
 - Custom serializers can still be provided through `browser({ query, hash })`.
+- See [`browser.md`](browser.md) and [`ref-browser.md`](ref-browser.md) for the browser-specific guide and API reference.
 
 Path-based selection example:
 
