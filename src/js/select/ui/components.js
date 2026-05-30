@@ -3122,23 +3122,14 @@ class UIInstance {
 				}
 			};
 
-			renderSet(this.out, true);
-			renderSet(this.inout);
-			renderSet(this.in);
-			for (const k in this.when) {
-				for (const slot of this.when[k]) {
-					if (slot.template.predicate(this, renderData)) {
-						slot.show();
-					} else {
-						slot.hide();
-					}
-				}
-			}
-			for (const k in this.outAttr) {
-				if (k === "$template") {
-					for (const slot of this.outAttr.$template) {
-						slot.render(
-							resolveTemplateTokens(
+				renderSet(this.out, true);
+				renderSet(this.inout);
+				renderSet(this.in);
+				for (const k in this.outAttr) {
+					if (k === "$template") {
+						for (const slot of this.outAttr.$template) {
+							slot.render(
+								resolveTemplateTokens(
 								this,
 								slot.template.template?.tokens,
 								renderData,
@@ -3220,18 +3211,27 @@ class UIInstance {
 					v = expand(v);
 				}
 				for (const slot of slots) {
-					slot.render(v);
+						slot.render(v);
+					}
+				}
+				if (this.slots?.length) {
+					for (const slot of this.slots) {
+						const content = data?.slots?.[slot.name];
+						slot.mount(content);
+					}
 				}
 			}
-			if (this.slots?.length) {
-				for (const slot of this.slots) {
-					const content = data?.slots?.[slot.name];
-					slot.mount(content);
+			for (const k in this.when) {
+				for (const slot of this.when[k]) {
+					if (slot.template.predicate(this, renderData)) {
+						slot.show();
+					} else {
+						slot.hide();
+					}
 				}
 			}
-		}
-		this.syncReactiveDataSubs(data);
-		this.data = data;
+			this.syncReactiveDataSubs(data);
+			this.data = data;
 		this._hasRendered = true;
 		return this;
 	}
