@@ -93,7 +93,7 @@ state.set(2, "a.b");
 ### The `cell` module:
 
 - `cell(value?)`: Factory function to create a new `Cell` instance.
-- `browser(options?)`: Factory that returns browser-backed `path`, `query`, `hash`, and `local(key, dflt, opts?)` cells.
+- `browser(options?)`: Factory that returns browser-backed `path`, `query`, `hash`, `local(key, dflt, opts?)`, and `internal(name, value)` cells.
 	- Default `query`/`hash` serialization uses hashformat syntax (for example `a=1,b=(2,3)`).
 - `deferred(value?, delay)`: Factory function to create a new `Deferred` cell instance for debounced updates.
 - `derived(template, processor?, initial?)`: Factory function to create a new `Derivation` instance. `template` can be a cell, an array of cells, or a function.
@@ -138,6 +138,7 @@ Notes:
 
 - Legacy URL query parsing (`a=1&b=2`) is not supported by default.
 - You can override behavior with `browser({ query: { parse, format }, hash: { parse, format } })`.
+- `internal(name, value)` returns an in-memory shared cell and reuses an existing one for the same `name`.
 - See [`browser.md`](browser.md) and [`ref-browser.md`](ref-browser.md) for the dedicated browser guide and serializer reference.
 
 ### Reactive Objects

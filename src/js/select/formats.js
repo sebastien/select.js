@@ -75,6 +75,17 @@ function not(value) {
 	return !bool(value);
 }
 
+function item(value, index) {
+	switch (value?.constructor) {
+		case String:
+		case Boolean:
+		case Number:
+		case undefined:
+			return { value, label: `${value}`, index };
+		default:
+			return value;
+	}
+}
 function empty(value) {
 	if (!value) {
 		return true;
@@ -337,6 +348,7 @@ const FORMATS = {
 	html,
 	idem,
 	index,
+	item,
 	json,
 	head,
 	len,
@@ -404,6 +416,7 @@ export {
 	text,
 	time,
 	timetuple,
+	item,
 	head,
 	toCamelCase,
 	toKebabCase,

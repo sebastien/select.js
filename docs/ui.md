@@ -258,6 +258,7 @@ External template resolution details:
 - `out="slot|Formatter"`: pass `slot` through one processor
 - `out="slot|FormatterA|FormatterB"`: chain processors left-to-right
 - `out="collection|*Formatter"`: apply `Formatter` to each item of `collection` (preserving array/map/set/object shape)
+- In starred pipelines, function processors receive the item index as the second argument and the rest of the chain stays item-wise.
 
 `out-replace` uses the same binding and processor pipeline as `out`, but mounts
 its result between anchors at the original node position. This is useful when

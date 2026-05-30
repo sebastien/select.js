@@ -602,6 +602,9 @@ const query = {
 	format: formatQuery,
 };
 
+const RE_INTERNAL_REFERENCE = /^@([^.?#:]+)(?:\.(.+))?$/;
+const RE_REQUEST_REFERENCE = /^([A-Z]+):([^?#]*)(\?[^#]*)?(?:#(.*))?$/;
+
 const JSONSerializer = {
 	parse(value) {
 		return JSON.parse(value);
@@ -855,39 +858,53 @@ class LocalStorageCell extends Cell {
 	}
 }
 
-function browser(options = {}) {
-	const location = new LocationState(options);
-	const win = location.win;
-	const hasWindow = location.hasWindow;
-	const hasStorage = !!(hasWindow && win.localStorage);
-	const localSerializer =
-		options.local &&
-		typeof options.local.parse === "function" &&
-		typeof options.local.format === "function"
-			? options.local
-			: JSONSerializer;
+function looksLikeHashText(value) {
+	return (
+		value.startsWith("#") ||
+		value.includes("=") ||
+		value.includes(",") ||
+		value.includes("(") ||
+		value.includes(")")
+	);
+}
 
-	const locals = new Map();
-	const writeLocal = (key, value, serializer) => {
-		if (!hasStorage) return;
-		if (value === undefined) {
-			win.localStorage.removeItem(key);
+class Browser {
+	constructor(options = {}) {
+		this.location = new LocationState(options);
+		this.win = this.location.win;
+		this.hasWindow = this.location.hasWindow;
+		this.hasStorage = !!(this.hasWindow && this.win.localStorage);
+		this.localSerializer =
+			options.local &&
+			typeof options.local.parse === "function" &&
+			typeof options.local.format === "function"
+				? options.local
+				: JSONSerializer;
+		this.locals = new Map();
+		this.internals = new Map();
+		this.path = this.location.path;
+		this.query = this.location.query;
+		this.hash = this.location.hash;
+
+		this.local = this.local.bind(this);
+		this.internal = this.internal.bind(this);
+		this.parse = this.parse.bind(this);
+		this.fetch = this.fetch.bind(this);
+
+		this.bind();
+	}
+
+	bind() {
+		if (!this.hasWindow || typeof this.win.addEventListener !== "function")
 			return;
-		}
-		const formatted = serializer.format(value);
-		if (formatted === undefined) win.localStorage.removeItem(key);
-		else win.localStorage.setItem(key, formatted);
-	};
-
-	if (hasWindow && typeof win.addEventListener === "function") {
-		win.addEventListener("storage", (event) => {
-			if (!event.key || !locals.has(event.key)) return;
-			const entry = locals.get(event.key);
+		this.win.addEventListener("storage", (event) => {
+			if (!event.key || !this.locals.has(event.key)) return;
+			const entry = this.locals.get(event.key);
 			const fallback = entry.defaultValue;
 			const next =
 				event.newValue === null
 					? fallback
-					: location.safeParse(
+					: this.location.safeParse(
 							`browser.local:${event.key}`,
 							entry.serializer,
 							event.newValue,
@@ -897,8 +914,19 @@ function browser(options = {}) {
 		});
 	}
 
-	const local = (key, dflt, normalizer = undefined, opts = {}) => {
-		if (locals.has(key)) return locals.get(key).cell;
+	writeLocal(key, value, serializer) {
+		if (!this.hasStorage) return;
+		if (value === undefined) {
+			this.win.localStorage.removeItem(key);
+			return;
+		}
+		const formatted = serializer.format(value);
+		if (formatted === undefined) this.win.localStorage.removeItem(key);
+		else this.win.localStorage.setItem(key, formatted);
+	}
+
+	local(key, dflt, normalizer = undefined, opts = {}) {
+		if (this.locals.has(key)) return this.locals.get(key).cell;
 		const normalized =
 			typeof normalizer === "function"
 				? normalizer
@@ -922,48 +950,121 @@ function browser(options = {}) {
 			typeof serializerOptions.parse === "function" &&
 			typeof serializerOptions.format === "function"
 				? serializerOptions
-				: localSerializer;
-		const loaded = hasStorage
+				: this.localSerializer;
+		const loaded = this.hasStorage
 			? (() => {
-					const raw = win.localStorage.getItem(key);
+					const raw = this.win.localStorage.getItem(key);
 					return raw === null
 						? dflt
-						: location.safeParse(`browser.local:${key}`, serializer, raw, dflt);
+						: this.location.safeParse(
+								`browser.local:${key}`,
+								serializer,
+								raw,
+								dflt,
+							);
 				})()
 			: dflt;
 		const normalizedDefault = normalized ? normalized(dflt) : dflt;
 		const cell = new LocalStorageCell(key, loaded, {
 			merge: true,
 			normalizer: normalized,
-			writer: (value) => writeLocal(key, value, serializer),
+			writer: (value) => this.writeLocal(key, value, serializer),
 		});
-		locals.set(key, { cell, defaultValue: normalizedDefault, serializer });
+		this.locals.set(key, { cell, defaultValue: normalizedDefault, serializer });
 		if (
-			hasStorage &&
-			((win.localStorage.getItem(key) === null &&
+			this.hasStorage &&
+			((this.win.localStorage.getItem(key) === null &&
 				normalizedDefault !== undefined) ||
 				!eq(loaded, cell.value))
 		) {
-			writeLocal(key, cell.value, serializer);
+			this.writeLocal(key, cell.value, serializer);
 		}
 		return cell;
-	};
+	}
 
-	return {
-		path: location.path,
-		query: location.query,
-		hash: location.hash,
-		local,
-		locals,
-	};
+	internal(name, value) {
+		if (this.internals.has(name)) return this.internals.get(name);
+		const cell = new Cell(value);
+		this.internals.set(name, cell);
+		return cell;
+	}
+
+	parse(value) {
+		if (typeof value !== "string") return value;
+		const internalMatch = RE_INTERNAL_REFERENCE.exec(value);
+		if (internalMatch) {
+			const cell = this.internal(internalMatch[1]);
+			const path = internalMatch[2]?.split(".").filter(Boolean);
+			return path?.length ? cell.select(path) : cell;
+		}
+		return looksLikeHashText(value) ? hash.parse(value) : value;
+	}
+
+	parseRequest(value) {
+		if (typeof value !== "string") return null;
+		const match = RE_REQUEST_REFERENCE.exec(value);
+		if (!match) return null;
+		const [, method, path, rawQuery, rawData] = match;
+		return {
+			method,
+			url: `${path || ""}${rawQuery || ""}`,
+			body: rawData !== undefined ? hash.parse(rawData) : undefined,
+		};
+	}
+
+	parseResponse(response) {
+		const contentType = `${response.headers.get("content-type") || ""}`
+			.toLowerCase()
+			.split(";")[0]
+			.trim();
+		if (contentType === "application/json" || contentType.endsWith("+json")) {
+			return response.json();
+		}
+		if (
+			contentType.startsWith("text/") ||
+			contentType === "application/xml" ||
+			contentType === "application/javascript" ||
+			contentType === "application/xhtml+xml" ||
+			contentType === "image/svg+xml"
+		) {
+			return response.text();
+		}
+		return response.blob();
+	}
+
+	async fetch(input, options = undefined) {
+		const request = this.parseRequest(input);
+		const fetcher =
+			typeof globalThis.fetch === "function" ? globalThis.fetch : undefined;
+		if (!fetcher) {
+			throw new Error("browser.fetch: fetch is not available");
+		}
+		if (!request) {
+			const response = await fetcher(input, options);
+			return this.parseResponse(response);
+		}
+		const headers = new Headers(options?.headers || undefined);
+		const init = {
+			...options,
+			method: request.method,
+			headers,
+		};
+		if (request.body !== undefined) {
+			if (!headers.has("content-type")) {
+				headers.set("content-type", "application/json");
+			}
+			init.body = JSON.stringify(sanitize(request.body));
+		}
+		const response = await fetcher(request.url, init);
+		return this.parseResponse(response);
+	}
 }
 
-function get(options = {}) {
-	if (!get.SINGLETON) get.SINGLETON = browser(options);
-	return get.SINGLETON;
+function browser(options = {}) {
+	return browser.SINGLETON ?? (browser.SINGLETON = new Browser(options));
 }
 
-export { browser, hash, query, record };
-export default get;
+export { Browser, browser, hash, query, record };
+export default browser;
 
 // EOF

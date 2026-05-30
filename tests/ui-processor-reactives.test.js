@@ -191,4 +191,54 @@ describe("ui processor reactive handling", () => {
 		document.body.innerHTML = "";
 		window.close?.();
 	});
+
+	test("keeps starred pipelines item-wise through later processors", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui, format } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="ProcessorEachPipelineRepro">
+				<div out="actions|*item|debug|Action"></div>
+			</template>
+			<template id="Action">
+				<span out="summary"></span>
+			</template>
+		`;
+
+		const logs = [];
+		const originalLog = console.log;
+		console.log = (...args) => {
+			logs.push(args);
+		};
+
+		const Action = ui("#Action").does({
+			summary: (_self, data) =>
+				Array.isArray(data) ? `collection:${data.length}` : `${data.label}:${data.index}`,
+		});
+		registerFormat(format, "Action", Action);
+
+		try {
+			const instance = ui("ProcessorEachPipelineRepro")
+				.new()
+				.set({ actions: ["alpha", "beta"] })
+				.mount("#app");
+
+			expect(
+				Array.from(document.querySelectorAll("#app span")).map((node) =>
+					(node.textContent || "").trim(),
+				),
+			).toEqual(["alpha:0", "beta:1"]);
+			expect(logs.length).toBe(2);
+			expect(logs[0][1].value.index).toBe(0);
+			expect(logs[1][1].value.index).toBe(1);
+
+			instance.unmount();
+		} finally {
+			console.log = originalLog;
+			document.body.innerHTML = "";
+			window.close?.();
+		}
+	});
 });

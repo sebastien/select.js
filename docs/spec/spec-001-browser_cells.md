@@ -9,7 +9,7 @@ become redundant.
 In `select.cells`:
 
 ```js
-const { path, query, hash, local } = browser(options)
+const { path, query, hash, local, internal } = browser(options)
 ```
 
 `browser(options)` returns:
@@ -18,6 +18,7 @@ const { path, query, hash, local } = browser(options)
 - `query`: cell of dictionary, mapped to `location.search`
 - `hash`: cell of dictionary, mapped to `location.hash`
 - `local(key, dflt, opts?)`: function returning a cell backed by `localStorage`
+- `internal(name, value)`: function returning an in-memory shared cell
 
 ## Defaults and Types
 
@@ -40,6 +41,11 @@ const { path, query, hash, local } = browser(options)
   - Type: `Cell<T>`
   - Default mapping: JSON parse/stringify
   - If no stored value exists, initialize from `dflt`
+
+- `internal(name, value)`
+  - Type: `Cell<T>`
+  - Default mapping: shared in-memory registry entry
+  - If no entry exists, create it with `value`
 
 ## Serializer Interface
 
@@ -108,7 +114,7 @@ Implement source-tagging or equality checks so that internal writes do not re-em
 ## Implementation Plan (Refined)
 
 1. Define internal adapter contracts for URL and storage serializers.
-2. Implement `browser(options)` factory returning `{path, query, hash, local}`.
+2. Implement `browser(options)` factory returning `{path, query, hash, local, internal}`.
 3. Add URL listener wiring (`popstate`, `hashchange`) with loop prevention.
 4. Add `localStorage` adapter and `storage` cross-tab sync.
 5. Add subset merge/removal semantics for `query` and `hash`.

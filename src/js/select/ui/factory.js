@@ -454,7 +454,7 @@ function createTemplateComponent(selection, scope = document, definition = null)
 }
 
 function stripTemplateNodes(nodes) {
-	const res = []
+	const candidates = []
 	for (let i = 0; i < nodes.length; i++) {
 		const node = nodes[i]
 		if (!node || node.nodeName === "TEMPLATE") {
@@ -466,7 +466,27 @@ function stripTemplateNodes(nodes) {
 				nested.remove()
 			}
 		}
-		res.push(clone)
+		candidates.push(clone)
+	}
+	let start = 0
+	let end = candidates.length - 1
+	while (
+		start <= end &&
+		candidates[start]?.nodeType === Node.TEXT_NODE &&
+		!/\S/.test(candidates[start].data || "")
+	) {
+		start += 1
+	}
+	while (
+		end >= start &&
+		candidates[end]?.nodeType === Node.TEXT_NODE &&
+		!/\S/.test(candidates[end].data || "")
+	) {
+		end -= 1
+	}
+	const res = []
+	for (let i = start; i <= end; i++) {
+		res.push(candidates[i])
 	}
 	return res
 }

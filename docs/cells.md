@@ -9,7 +9,7 @@ and lightweight pub/sub.
 ### Primitives:
 
 - `cell(value?)`: Creates a mutable reactive `Cell` instance.
-- `browser(options?)`: Creates browser-backed cells for `path`, `query`, `hash`, and `localStorage`.
+- `browser(options?)`: Creates browser-backed cells for `path`, `query`, `hash`, `localStorage`, and in-memory shared state.
 	- Query and hash use the same hashformat serializer by default (`a=1,b=(2,3)`).
 - `deferred(value?, delay)`: Creates a mutable reactive `Deferred` cell that debounces updates by the given delay.
 - `derived(template, processor?, initial?)`: Creates a reactive derivation from a template containing cells.
@@ -78,6 +78,9 @@ const sidebar = state.query.select("sidebar")
 sidebar.set("open")
 const prefs = state.local("prefs", { theme: "light" })
 prefs.select("theme").set("dark")
+
+const modal = state.internal("modal.open", false)
+modal.set(true)
 ```
 
 Serializer note:
@@ -117,7 +120,7 @@ export const counter = (initial = 0) => {
 ### The `cell` module:
 
 - `cell(value?)`: Creates a mutable reactive `Cell` instance.
-- `browser(options?)`: Creates `{ path, query, hash, local }` browser-backed reactive helpers.
+- `browser(options?)`: Creates `{ path, query, hash, local, internal }` browser-backed reactive helpers.
 - `deferred(value?, delay)`: Creates a mutable reactive `Deferred` cell that debounces updates.
 - `derived(template, processor?, initial?)`: Creates a reactive derivation from a template containing cells.
 - `walk(value, path?)`: Iterates through nested values and yields `[reactive, path]` entries.

@@ -13,6 +13,14 @@ Returns:
 - `query`: cell for `location.search`
 - `hash`: cell for `location.hash`
 - `local(key, dflt, normalizerOrSerializer?, opts?)`: `localStorage` cell factory
+- `internal(name, value)`: in-memory shared cell factory
+- `parse(value)`: internal-reference and hashformat parser
+- `fetch(input, options?)`: fetch helper with content-type-aware decoding
+
+### `Browser`
+
+`Browser` is the class instantiated by `browser(options?)`. It exposes the same
+instance API as the factory return value.
 
 ### Exported serializers
 
@@ -156,7 +164,50 @@ query.format({ 0: "alpha", 1: "beta" })
 - `path` is normalized to start with `/`
 - `query` and `hash` support partial object updates through cell selection
 - `local()` defaults to JSON parse/stringify unless a custom serializer is provided
+- `internal()` creates per-browser shared cells that are not persisted
+- `parse()` resolves `@name.path` references before attempting hashformat parsing
+- `fetch()` parses `METHOD:PATH?QUERY#DATA` and decodes responses by content type
 - write mode defaults to `replaceState`, with optional `pushState`
+
+## Additional Methods
+
+### `parse(value)`
+
+- non-string values are returned unchanged
+- `@name` returns `internal("name")`
+- `@name.path.to.value` returns `internal("name").select("path.to.value")`
+- strings that look like hashformat are parsed with `hash.parse(...)`
+- plain strings with no hashformat structure are returned unchanged
+
+Examples:
+
+```javascript
+state.parse("@modal")
+// => same cell as state.internal("modal")
+
+state.parse("@form.user.name")
+// => same cell as state.internal("form").select("user.name")
+
+state.parse("a=1,b=(2,3)")
+// => { a: 1, b: [2, 3] }
+
+state.parse("hello")
+// => "hello"
+```
+
+### `fetch(input, options?)`
+
+- if `input` does not match `METHOD:PATH?QUERY#DATA`, it falls back to native
+  `fetch(input, options)` and still normalizes the response body
+- if `input` matches that form:
+  - `METHOD` becomes `init.method`
+  - `PATH?QUERY` becomes the request URL
+  - `DATA` is parsed with `hash.parse(...)`
+  - parsed data is JSON-stringified into `init.body`
+- response decoding:
+  - JSON content types return `response.json()`
+  - text-like content types return `response.text()`
+  - all other content types return `response.blob()`
 
 ## Example
 

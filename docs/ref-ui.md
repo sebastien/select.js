@@ -498,6 +498,9 @@ Use `*` to apply a processor to each item of a collection:
 <span out="prices|*asCurrency"></span>
 ```
 
+In starred pipelines, function processors receive the item index as the second
+argument, and later processors remain item-wise too.
+
 Processors are looked up by name in `ui.formats`.
 For both `Name` and `*Name`, resolution checks component-local nested templates
 first, then global `ui.formats`.

@@ -308,11 +308,12 @@ Factory returning a callable dispatcher function:
 
 Browser-backed URL and storage state live in `select/browser.js`.
 
-- `browser(options?)`: Returns `{ path, query, hash, local }`
+- `browser(options?)`: Returns `{ path, query, hash, local, internal }`
 - `path`: `Cell<string>` bound to `location.pathname`
 - `query`: `Cell<object>` bound to `location.search`
 - `hash`: `Cell<object>` bound to `location.hash`
 - `local(key, dflt, opts?)`: `Cell<T>` backed by `localStorage`
+- `internal(name, value)`: `Cell<T>` backed by an in-memory registry
 
 See [`browser.md`](browser.md) and [`ref-browser.md`](ref-browser.md) for the
 browser guide and serializer reference.

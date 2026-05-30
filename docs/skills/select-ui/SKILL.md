@@ -132,6 +132,7 @@ prefs.select("theme").set("dark")
 - `query`: search-backed cell
 - `hash`: hash-backed cell
 - `local(key, dflt, normalizerOrSerializer?, opts?)`: `localStorage`-backed cell
+- `internal(name, value)`: in-memory shared cell for cross-component state
 
 Important:
 

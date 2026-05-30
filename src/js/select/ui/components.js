@@ -196,7 +196,7 @@ function applyNamedProcessor(
 	data,
 	sourceKey,
 	name,
-	{ expandFunctions = true } = {},
+	{ expandFunctions = true, itemIndex = undefined } = {},
 ) {
 	if (processor.type === "component") {
 		const component = processor.value;
@@ -214,13 +214,23 @@ function applyNamedProcessor(
 		if (typeof component === "function") return component(value, self, data);
 		return value;
 	}
-	return processor.value(
-		expandFunctions ? expand(current) : current,
-		self,
-		data,
-		sourceKey,
-		name,
-	);
+	const value = expandFunctions ? expand(current) : current;
+	if (itemIndex !== undefined) {
+		return processor.value(value, itemIndex, self, data, sourceKey, name);
+	}
+	return processor.value(value, self, data, sourceKey, name);
+}
+
+function resolveNamedProcessorChainType(self, processors, _sourceKey) {
+	let lastProcessorType = null;
+	if (!processors || processors.length === 0) return lastProcessorType;
+	for (let i = 0; i < processors.length; i++) {
+		const name = processors[i];
+		const processorName = name.startsWith("*") ? name.slice(1) : name;
+		const processor = resolveNamedProcessor(self, processorName);
+		if (processor) lastProcessorType = processor.type;
+	}
+	return lastProcessorType;
 }
 
 function applyNamedProcessors(
@@ -253,7 +263,7 @@ function applyNamedProcessors(
 		}
 		lastProcessorType = processor.type;
 		if (each) {
-			current = mapProcessorCollection(current, (item) =>
+			current = mapProcessorCollection(current, (item, itemIndex) =>
 				applyNamedProcessor(
 					processor,
 					item,
@@ -261,10 +271,32 @@ function applyNamedProcessors(
 					data,
 					sourceKey,
 					processorName,
-					options,
+					{ ...options, itemIndex },
 				),
 			);
-			continue;
+			const tail = processors.slice(i + 1);
+			if (tail.length === 0) {
+				return withMeta
+					? { value: current, lastProcessorType: processor.type }
+					: current;
+			}
+			current = mapProcessorCollection(current, (item, itemIndex) =>
+				applyNamedProcessors(self, data, item, tail, sourceKey, {
+					...options,
+					withMeta: false,
+					itemIndex,
+				}),
+			);
+			return withMeta
+				? {
+						value: current,
+						lastProcessorType: resolveNamedProcessorChainType(
+							self,
+							tail,
+							sourceKey,
+						),
+					}
+				: current;
 		}
 		current = applyNamedProcessor(
 			processor,
@@ -276,7 +308,14 @@ function applyNamedProcessors(
 			options,
 		);
 	}
-	return withMeta ? { value: current, lastProcessorType } : current;
+	return withMeta
+		? {
+				value: current,
+				lastProcessorType:
+					lastProcessorType ??
+					resolveNamedProcessorChainType(self, processors, sourceKey),
+			}
+		: current;
 }
 
 function finalizeRenderProcessorValue(value, lastProcessorType = null) {
