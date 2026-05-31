@@ -19,6 +19,7 @@ import { log } from "./templates.js";
 const Disconnect = Symbol.for("Disconnect");
 const Adopted = Symbol.for("Adopted");
 const BaseHTMLElement = globalThis.HTMLElement || class {};
+const documentStyleSheetCache = new WeakMap();
 
 function parseAttributeValue(value) {
 	if (value === null) {
@@ -147,6 +148,47 @@ function asDOMNodes(value, nodes = []) {
 	return nodes;
 }
 
+function buildDocumentStyleSheets(doc) {
+	if (!doc?.head?.querySelectorAll) {
+		return { sheets: [], fallbackNodes: [] };
+	}
+	const nodes = doc.head.querySelectorAll("style,link[rel~='stylesheet']");
+	const sheets = [];
+	const fallbackNodes = [];
+	for (let i = 0; i < nodes.length; i++) {
+		const node = nodes[i];
+		if (node instanceof HTMLStyleElement && typeof CSSStyleSheet === "function") {
+			try {
+				const sheet = new CSSStyleSheet();
+				sheet.replaceSync(node.textContent || "");
+				sheets.push(sheet);
+				continue;
+			} catch (error) {
+				log.warn("UIWebComponent: could not adopt document style, details", {
+					node,
+					error,
+				});
+			}
+		}
+		fallbackNodes.push(node);
+	}
+	return { sheets, fallbackNodes };
+}
+
+function getDocumentStyles(doc) {
+	const cached = documentStyleSheetCache.get(doc);
+	const headChildCount = doc?.head?.children?.length ?? 0;
+	if (cached && cached.headChildCount === headChildCount) {
+		return cached;
+	}
+	const value = {
+		...buildDocumentStyleSheets(doc),
+		headChildCount,
+	};
+	documentStyleSheetCache.set(doc, value);
+	return value;
+}
+
 function cloneDocumentStyles(root, options) {
 	if (options?.documentStyles === false) {
 		return;
@@ -154,11 +196,14 @@ function cloneDocumentStyles(root, options) {
 	if (!root || root === document || !document?.head?.querySelectorAll) {
 		return;
 	}
-	const styles = document.head.querySelectorAll(
-		"style,link[rel~='stylesheet']",
-	);
-	for (let i = 0; i < styles.length; i++) {
-		root.appendChild(styles[i].cloneNode(true));
+	const { sheets, fallbackNodes } = getDocumentStyles(document);
+	if (sheets.length && "adoptedStyleSheets" in root) {
+		root.adoptedStyleSheets = [...(root.adoptedStyleSheets || []), ...sheets];
+	}
+	if (!("adoptedStyleSheets" in root) || fallbackNodes.length) {
+		for (let i = 0; i < fallbackNodes.length; i++) {
+			root.appendChild(fallbackNodes[i].cloneNode(true));
+		}
 	}
 }
 
@@ -184,12 +229,14 @@ class UIWebComponent extends BaseHTMLElement {
 		this.attributeBindings = attributeBindings;
 		this.attributeProcessors = attributeProcessors;
 		this.options = options;
+		this.initialData = {
+			...(initial && typeof initial === "object" ? initial : {}),
+		};
 		this.instance = undefined;
 		this.nodes = [];
 		this.isInitialized = false;
-		this.data = {
-			...(initial && typeof initial === "object" ? initial : {}),
-		};
+		this.attributeData = {};
+		this.data = { ...this.initialData };
 	}
 
 	readAttributes() {
@@ -238,9 +285,15 @@ class UIWebComponent extends BaseHTMLElement {
 		this.nodes = [];
 	}
 
+	_rebuildData() {
+		this.data = Object.assign({}, this.initialData, this.attributeData);
+	}
+
 	_renderUIComponent() {
 		if (!this.instance) {
-			this.instance = this.componentFactory.new();
+			this.instance = this.componentFactory.new(undefined, {
+				nativeSlots: this.root !== this,
+			});
 			this.instance.set(this.data).mount(this.root);
 		} else {
 			this.instance.update(this.data);
@@ -278,7 +331,8 @@ class UIWebComponent extends BaseHTMLElement {
 		if (!data || typeof data !== "object") {
 			return;
 		}
-		this.data = Object.assign({}, this.data, data);
+		this.attributeData = Object.assign({}, this.attributeData, data);
+		this._rebuildData();
 		if (this.isInitialized) {
 			this.render();
 		}
@@ -286,12 +340,15 @@ class UIWebComponent extends BaseHTMLElement {
 
 	connectedCallback() {
 		if (!this.isInitialized) {
-			this.applyData(this.readAttributes());
+			this.attributeData = this.readAttributes();
+			this._rebuildData();
 			this.isInitialized = true;
 			this.render();
 			return;
 		}
-		this.applyData(this.readAttributes());
+		this.attributeData = this.readAttributes();
+		this._rebuildData();
+		this.render();
 	}
 
 	disconnectedCallback() {
@@ -317,7 +374,13 @@ class UIWebComponent extends BaseHTMLElement {
 			this.attributeBindings.get(normalized) || toCamelCase(normalized);
 		const value = this._readAttributeValue(key, current, normalized);
 		if (value !== Nothing) {
-			this.applyData({ [key]: value });
+			this.attributeData = Object.assign({}, this.attributeData, {
+				[key]: value,
+			});
+			this._rebuildData();
+			if (this.isInitialized) {
+				this.render();
+			}
 		}
 		this.trigger(name, previous, current);
 	}

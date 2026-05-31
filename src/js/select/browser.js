@@ -568,7 +568,9 @@ function formatRecord(value) {
 }
 
 function parseHash(value) {
-	const parsed = HashFormat.ParseHash(`${value || ""}`.replace(/^#/, ""));
+	const source = `${value || ""}`.replace(/^#/, "");
+	if (!source) return {};
+	const parsed = HashFormat.ParseHash(source);
 	return normalizeHashValue(parsed);
 }
 
@@ -579,7 +581,9 @@ function formatHash(value) {
 function parseQuery(value) {
 	const text = `${value || ""}`.replace(/^[?#]/, "");
 	const i = text.indexOf("#");
-	const parsed = HashFormat.ParseHash(i >= 0 ? text.slice(0, i) : text);
+	const source = i >= 0 ? text.slice(0, i) : text;
+	if (!source) return {};
+	const parsed = HashFormat.ParseHash(source);
 	return normalizeHashValue(parsed);
 }
 
@@ -602,7 +606,7 @@ const query = {
 	format: formatQuery,
 };
 
-const RE_INTERNAL_REFERENCE = /^@([^.?#:]+)(?:\.(.+))?$/;
+const RE_VALUE_REFERENCE = /^([@?#])([^.?#:]+)(?:\.(.+))?$/;
 const RE_REQUEST_REFERENCE = /^([A-Z]+):([^?#]*)(\?[^#]*)?(?:#(.*))?$/;
 
 const JSONSerializer = {
@@ -989,14 +993,41 @@ class Browser {
 		return cell;
 	}
 
-	parse(value) {
-		if (typeof value !== "string") return value;
-		const internalMatch = RE_INTERNAL_REFERENCE.exec(value);
-		if (internalMatch) {
-			const cell = this.internal(internalMatch[1]);
-			const path = internalMatch[2]?.split(".").filter(Boolean);
+	parseReferencePath(value) {
+		if (!value) return null;
+		const rawPath = value.split(".");
+		const path = new Array(rawPath.length);
+		let n = 0;
+		for (let i = 0; i < rawPath.length; i++) {
+			const segment = rawPath[i];
+			if (!segment) continue;
+			path[n++] =
+				/^\d+$/.test(segment) && Number.isSafeInteger(Number(segment))
+					? Number(segment)
+					: segment;
+		}
+		return n ? path.slice(0, n) : null;
+	}
+
+	parseReference(value) {
+		const match = RE_VALUE_REFERENCE.exec(value);
+		if (!match) return null;
+		const [, type, name, rawPath] = match;
+		const path = this.parseReferencePath(rawPath);
+		if (type === "@") {
+			const cell = this.internal(name);
 			return path?.length ? cell.select(path) : cell;
 		}
+		const root = type === "#" ? this.hash : this.query;
+		return path?.length
+			? root.select([name, ...path])
+			: root.select([name]);
+	}
+
+	parse(value) {
+		if (typeof value !== "string") return value;
+		const reference = this.parseReference(value);
+		if (reference) return reference;
 		return looksLikeHashText(value) ? hash.parse(value) : value;
 	}
 

@@ -1321,20 +1321,16 @@ class UITemplate {
 			for (const slotNode of candidates) {
 				const name = slotNode.getAttribute("name") || "default";
 				const fallback = slotNode.childNodes ? [...slotNode.childNodes] : [];
-				const placeholder = document.createComment(`slot:${name}`);
-				if (slotNode === root) {
-					nodes[i] = placeholder;
-					slots.push({ name, fallback, rootIndex: i, tailPath: null });
-				} else {
-					slotNode.parentNode.replaceChild(placeholder, slotNode);
-					const path = UITemplateSlot.Path(placeholder, root, [i]);
-					slots.push({
-						name,
-						fallback,
-						rootIndex: path[0],
-						tailPath: path.length > 1 ? path.slice(1) : null,
-					});
-				}
+				const path =
+					slotNode === root
+						? [i]
+						: UITemplateSlot.Path(slotNode, root, [i]);
+				slots.push({
+					name,
+					fallback,
+					rootIndex: path[0],
+					tailPath: path.length > 1 ? path.slice(1) : null,
+				});
 			}
 		}
 		return slots.length ? slots : null;
@@ -1343,8 +1339,8 @@ class UITemplate {
 	// TODO: There's a question whether we should have Instance instead
 	// of clone. We could certainly speed up init.
 	// Creates a new UIInstance from this template.
-	new(parent) {
-		return new UIInstance(this, parent);
+	new(parent, options = undefined) {
+		return new UIInstance(this, parent, options);
 	}
 
 	// Returns an AppliedUITemplate with this template and `data`.
@@ -2220,8 +2216,9 @@ class UIInstance {
 		return template._compiledSlotAppliers;
 	}
 
-	constructor(template, parent) {
+	constructor(template, parent, options = undefined) {
 		this.template = template;
+		this.options = options || {};
 		const compiled = UIInstance._ensureCompiled(template);
 		// FIXME: This is on the hotpath
 		this.nodes = new Array(template.nodes.length);
@@ -2242,7 +2239,7 @@ class UIInstance {
 		this.ref = compiled.ref ? compiled.ref(this.nodes, this) : null;
 		this.out = compiled.out ? compiled.out(this.nodes, this) : null;
 		this.slots = null;
-		if (template.slots) {
+		if (template.slots && this.options.nativeSlots !== true) {
 			this.slots = [];
 			for (const slotDef of template.slots) {
 				let node = this.nodes[slotDef.rootIndex];
@@ -2253,8 +2250,21 @@ class UIInstance {
 					}
 				}
 				if (node) {
+					const placeholder = document.createComment(
+						`slot:${slotDef.name}`,
+					);
+					if (tailPath) {
+						node.parentNode?.replaceChild(placeholder, node);
+					} else {
+						this.nodes[slotDef.rootIndex] = placeholder;
+					}
 					this.slots.push(
-						new UIContentSlot(node, slotDef.fallback, this, slotDef.name),
+						new UIContentSlot(
+							placeholder,
+							slotDef.fallback,
+							this,
+							slotDef.name,
+						),
 					);
 				}
 			}

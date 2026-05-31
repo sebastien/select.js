@@ -165,7 +165,7 @@ query.format({ 0: "alpha", 1: "beta" })
 - `query` and `hash` support partial object updates through cell selection
 - `local()` defaults to JSON parse/stringify unless a custom serializer is provided
 - `internal()` creates per-browser shared cells that are not persisted
-- `parse()` resolves `@name.path` references before attempting hashformat parsing
+- `parse()` resolves `@name.path`, `#name.path`, and `?name.path` references before attempting hashformat parsing
 - `fetch()` parses `METHOD:PATH?QUERY#DATA` and decodes responses by content type
 - write mode defaults to `replaceState`, with optional `pushState`
 
@@ -175,7 +175,12 @@ query.format({ 0: "alpha", 1: "beta" })
 
 - non-string values are returned unchanged
 - `@name` returns `internal("name")`
-- `@name.path.to.value` returns `internal("name").select("path.to.value")`
+- `@name.path.to.value` returns `internal("name").select(["path", "to", "value"])`
+- `#name` returns `hash.select(["name"])`
+- `#name.path.to.value` returns `hash.select(["name", "path", "to", "value"])`
+- `?name` returns `query.select(["name"])`
+- `?name.path.to.value` returns `query.select(["name", "path", "to", "value"])`
+- numeric dotted segments are coerced to indexes, so `#users.0.name` selects `["users", 0, "name"]`
 - strings that look like hashformat are parsed with `hash.parse(...)`
 - plain strings with no hashformat structure are returned unchanged
 
@@ -186,7 +191,13 @@ state.parse("@modal")
 // => same cell as state.internal("modal")
 
 state.parse("@form.user.name")
-// => same cell as state.internal("form").select("user.name")
+// => same cell as state.internal("form").select(["user", "name"])
+
+state.parse("#user.name")
+// => same cell as state.hash.select(["user", "name"])
+
+state.parse("?users.0.name")
+// => same cell as state.query.select(["users", 0, "name"])
 
 state.parse("a=1,b=(2,3)")
 // => { a: 1, b: [2, 3] }

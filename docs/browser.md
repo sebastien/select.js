@@ -9,7 +9,7 @@ Browser-backed reactive state for URL and `localStorage`.
 - `hash`: reactive record bound to `location.hash`
 - `local(key, dflt, normalizerOrSerializer?, opts?)`: `localStorage`-backed cell
 - `internal(name, value)`: in-memory shared cell registry for cross-component state
-- `parse(value)`: resolves `@internal.path` references or hashformat text
+- `parse(value)`: resolves `@`, `#`, and `?` cell references or hashformat text
 - `fetch(input, options?)`: fetch helper with typed response parsing
 
 `@./browser.js` also exports `Browser`, the class used by `browser(options?)`.
@@ -75,7 +75,12 @@ Notes:
 ## `parse(value)`
 
 - `@name` resolves to `internal("name")`
-- `@name.path.to.value` resolves to `internal("name").select("path.to.value")`
+- `@name.path.to.value` resolves to `internal("name").select(["path", "to", "value"])`
+- `#name` resolves to `hash.select(["name"])`
+- `#name.path.to.value` resolves to `hash.select(["name", "path", "to", "value"])`
+- `?name` resolves to `query.select(["name"])`
+- `?name.path.to.value` resolves to `query.select(["name", "path", "to", "value"])`
+- numeric dotted segments become indexes, so `#users.0.name` resolves to `hash.select(["users", 0, "name"])`
 - text containing hashformat structure such as `=`, `,`, `(`, `)`, or a leading `#`
   is parsed with the default hash parser
 - plain text such as `hello` or `42` is returned unchanged
