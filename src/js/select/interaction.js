@@ -6,6 +6,9 @@
 // Module: select/interaction
 // DOM interaction helpers.
 
+// Function: bind
+// Registers `handlers` on `node`. Accepts a single node or an array-like
+// collection of nodes and returns the original `node`.
 function bind(node, handlers) {
 	if (handlers) {
 		for (const [name, handler] of Object.entries(handlers)) {
@@ -17,6 +20,9 @@ function bind(node, handlers) {
 	return node;
 }
 
+// Function: unbind
+// Removes `handlers` from `node`. Accepts a single node or an array-like
+// collection of nodes and returns the original `node`.
 function unbind(node, handlers) {
 	if (handlers) {
 		for (const [name, handler] of Object.entries(handlers)) {
@@ -28,6 +34,9 @@ function unbind(node, handlers) {
 	return node;
 }
 
+// Function: drag
+// Starts a drag interaction on `event.target` and invokes `move` and `end`
+// callbacks with a shared drag context.
 function drag(event, move, end) {
 	const context = {};
 	const dragging = {
@@ -79,6 +88,8 @@ function drag(event, move, end) {
 	return doEnd;
 }
 
+// Function: target
+// Walks up from `node` until `pred(node)` returns true.
 function target(node, pred) {
 	while (node && node.nodeType === Node.ELEMENT_NODE) {
 		if (pred(node)) return node;
@@ -87,6 +98,9 @@ function target(node, pred) {
 	return undefined;
 }
 
+// Function: dragtarget
+// Walks up from `node` to find a `data-drag` target, optionally matching
+// `name`.
 function dragtarget(node, name) {
 	while (node && node.nodeType === Node.ELEMENT_NODE) {
 		const element = node;
@@ -99,6 +113,8 @@ function dragtarget(node, name) {
 
 drag.target = dragtarget;
 
+// Function: autoresize
+// Resizes a textarea-like `event.target` to fit its scroll height.
 function autoresize(event) {
 	const node = event.target;
 	node.style.height = "auto";
@@ -108,6 +124,8 @@ function autoresize(event) {
 	node.style.height = `${border + node.scrollHeight}px`;
 }
 
+// Constant: Keyboard
+// Keyboard event names and common key codes used by interaction helpers.
 const Keyboard = {
 	Down: "keydown",
 	Up: "keyup",

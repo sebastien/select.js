@@ -691,7 +691,7 @@ function next(items, i, delta = 1) {
 // Generator that depth-walks `value`, yielding `[node, path, parents]` tuples.
 function* iwalk(value, functor, processor, p = [], parents = []) {
 	value = processor ? processor(value) : value;
-	if (!functor || functor(value, p, parents) !== false) {
+	if (functor?.(value, p, parents) !== false) {
 		yield [value, p, parents];
 		switch (value?.constructor) {
 			case Array: {

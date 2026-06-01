@@ -12,6 +12,8 @@ const SVG = "http://www.w3.org/2000/svg";
 const log = logger("select.icons");
 const ICON_NAME = "__ICON_NAME__";
 const ICON_SOURCE = "__ICON_SOURCE__";
+// Constant: IconContainer
+// Shared hidden SVG container used to host loaded symbols.
 const IconContainer = Object.entries({
 	style: "position:absolute; width:0; height:0; overflow:hidden;",
 	width: "0",
@@ -37,6 +39,8 @@ const IconDefaults = {
 	},
 };
 
+// Constant: IconSources
+// Built-in source presets for common icon packs.
 const IconSources = {
 	devicons: {
 		size: [32, 32],
@@ -55,16 +59,24 @@ const IconSources = {
 	},
 };
 
+// Constant: Cache
+// Promise and symbol cache keyed by resolved icon URL.
 const Cache = new Map();
 
+// Function: parseIconName
+// Splits `name` into `[iconName, iconSource]`, preserving `source` as the
+// fallback when no source prefix is embedded in `name`.
 function parseIconName(name, source) {
 	const i = name.indexOf(":");
 	return [
 		(i > 0 ? name.substring(i + 1) : name) || IconDefaults.name,
-		(i > 0 ? name.substring(0, i) : source) || source | IconDefaults.source,
+		(i > 0 ? name.substring(0, i) : source) || source || IconDefaults.source,
 	];
 }
 
+// Function: load
+// Loads the SVG symbol for `name` from `source`, appends it to `container`,
+// and returns a promise for the created `<symbol>`.
 function load(
 	name = IconDefaults.name,
 	source = IconDefaults.source,
@@ -132,6 +144,9 @@ function load(
 	}
 }
 
+// Function: icon
+// Creates an SVG element for `name` using `source`. Returns either an inline
+// node or a `<svg><use/></svg>` reference depending on `mode`.
 function icon(
 	name = IconDefaults.name,
 	source = IconDefaults.source,
@@ -222,11 +237,14 @@ function icon(
 	}
 }
 
+// Function: px
+// Normalizes numeric size strings to CSS pixel values.
 function px(value) {
 	return value && /^\d+$/.test(value) ? `${value}px` : value;
 }
 
-// Define the custom element class inline
+// Class: IconElement
+// Custom element that renders an icon from the shared registry.
 class IconElement extends HTMLElement {
 	static observedAttributes = [
 		"name",
@@ -289,6 +307,9 @@ class IconElement extends HTMLElement {
 	}
 }
 
+// Function: install
+// Registers the icon custom element under `name` and applies `options` to the
+// shared icon defaults.
 function install(name = "ui-icon", options = {}) {
 	Object.assign(IconDefaults, options);
 	// Register the custom element

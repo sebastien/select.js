@@ -583,7 +583,7 @@ class Selection extends Array {
 			const node = this[i];
 			for (let j = 0; j < node.childNodes.length; j++) {
 				const child = node.childNodes[j];
-				if (!callback || callback(child, i, node) !== false) {
+				if (callback?.(child, i, node) !== false) {
 					nodes.push(child);
 				} else {
 					return nodes;

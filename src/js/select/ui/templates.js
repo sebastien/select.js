@@ -46,7 +46,7 @@ class TemplateRegistry {
 	}
 
 	static RegisterNode(template, registry, scope) {
-		if (!template || template.nodeName !== "TEMPLATE") {
+		if (template?.nodeName !== "TEMPLATE") {
 			return
 		}
 		TemplateRegistry._RegisterKey(registry, template.id, template, scope)

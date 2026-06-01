@@ -591,16 +591,22 @@ function formatQuery(value) {
 	return HashFormat.FormatHash(normalizeHashValue(value));
 }
 
+// Constant: record
+// Serializer pair for sanitized record-shaped browser state.
 const record = {
 	parse: parseRecord,
 	format: formatRecord,
 };
 
+// Constant: hash
+// Serializer pair for `#`-backed browser state values.
 const hash = {
 	parse: parseHash,
 	format: formatHash,
 };
 
+// Constant: query
+// Serializer pair for `?`-backed browser state values.
 const query = {
 	parse: parseQuery,
 	format: formatQuery,
@@ -872,6 +878,20 @@ function looksLikeHashText(value) {
 	);
 }
 
+// Class: Browser
+// Browser-backed state manager for URL, hash, query, and local storage.
+//
+// Attributes:
+// - `location`: LocationState - shared URL state wrapper
+// - `win`: Window? - browser window used for side effects
+// - `hasWindow`: boolean - true when `window` is available
+// - `hasStorage`: boolean - true when `localStorage` is available
+// - `localSerializer`: Object - serializer used for local storage values
+// - `locals`: Map - registered local storage cells
+// - `internals`: Map - internal named cells
+// - `path`: Cell - path state cell
+// - `query`: Cell - query state cell
+// - `hash`: Cell - hash state cell
 class Browser {
 	constructor(options = {}) {
 		this.location = new LocationState(options);
@@ -1091,6 +1111,9 @@ class Browser {
 	}
 }
 
+// Function: browser
+// Returns the shared `Browser` singleton, creating it with `options` when
+// needed.
 function browser(options = {}) {
 	return browser.SINGLETON ?? (browser.SINGLETON = new Browser(options));
 }

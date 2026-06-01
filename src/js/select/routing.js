@@ -6,6 +6,8 @@
 // Module: select/routing
 // URL-like route tokenization and dispatch.
 
+// Class: RoutePattern
+// Regular-expression route matcher used by dynamic path segments.
 class RoutePattern {
 	constructor(regexp, extractor = undefined) {
 		this.regexp = regexp
@@ -24,6 +26,9 @@ const ROUTE_PATTERNS = {
 	string: pattern(/^[A-Za-z0-9_-]+$/),
 }
 
+// Class: RoutePatternSlot
+// Route segment wrapper that stores the `pattern`, parameter `name`, and
+// positional `index` within the route.
 class RoutePatternSlot {
 	constructor(pattern, name, index) {
 		this.pattern = pattern
@@ -36,6 +41,8 @@ class RoutePatternSlot {
 	}
 }
 
+// Function: splitPath
+// Normalizes `value` into an array of path chunks.
 function splitPath(value) {
 	if (Array.isArray(value)) {
 		return value
@@ -57,6 +64,9 @@ function splitPath(value) {
 	return res
 }
 
+// Function: route
+// Parses `text` into a route description. Braced segments become
+// `RoutePatternSlot` entries and literal segments stay as strings.
 function route(text) {
 	if (Array.isArray(text)) {
 		return text
@@ -86,6 +96,8 @@ function route(text) {
 	return res
 }
 
+// Class: RouteHandler
+// Associates a route with a handler function, priority, and captured values.
 class RouteHandler {
 	constructor(route, value, priority = undefined, captured = null) {
 		this.route = route
@@ -113,6 +125,8 @@ class RouteHandler {
 	}
 }
 
+// Class: Router
+// Tree-based router that stores static and dynamic route handlers.
 class Router {
 	constructor() {
 		this.static = new Map()
@@ -211,10 +225,14 @@ class Router {
 	}
 }
 
+// Function: router
+// Creates a `Router` and registers all entries from `routes`.
 function router(routes = undefined) {
 	return Object.entries(routes || {}).reduce((r, [k, v]) => r.on(route(k), v), new Router())
 }
 
+// Function: routed
+// Returns a callable router wrapper with `.router` and `.match` helpers.
 function routed(routes = undefined) {
 	const r = router(routes)
 	return Object.assign(

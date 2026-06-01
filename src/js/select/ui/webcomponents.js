@@ -16,7 +16,11 @@ import { toCamelCase, toKebabCase } from "../formats.js";
 import { asText, isObject, Nothing } from "../utils.js";
 import { log } from "./templates.js";
 
+// Constant: Disconnect
+// Lifecycle sentinel fired when a component disconnects from the DOM.
 const Disconnect = Symbol.for("Disconnect");
+// Constant: Adopted
+// Lifecycle sentinel fired when a component is adopted into a new document.
 const Adopted = Symbol.for("Adopted");
 const BaseHTMLElement = globalThis.HTMLElement || class {};
 const documentStyleSheetCache = new WeakMap();
@@ -155,11 +159,19 @@ function buildDocumentStyleSheets(doc) {
 	const nodes = doc.head.querySelectorAll("style,link[rel~='stylesheet']");
 	const sheets = [];
 	const fallbackNodes = [];
+	const HTMLStyleElementType =
+		globalThis.HTMLStyleElement || doc.defaultView?.HTMLStyleElement;
+	const CSSStyleSheetType =
+		globalThis.CSSStyleSheet || doc.defaultView?.CSSStyleSheet;
 	for (let i = 0; i < nodes.length; i++) {
 		const node = nodes[i];
-		if (node instanceof HTMLStyleElement && typeof CSSStyleSheet === "function") {
+		if (
+			HTMLStyleElementType &&
+			node instanceof HTMLStyleElementType &&
+			typeof CSSStyleSheetType === "function"
+		) {
 			try {
-				const sheet = new CSSStyleSheet();
+				const sheet = new CSSStyleSheetType();
 				sheet.replaceSync(node.textContent || "");
 				sheets.push(sheet);
 				continue;
@@ -207,6 +219,22 @@ function cloneDocumentStyles(root, options) {
 	}
 }
 
+// Class: UIWebComponent
+// Base custom element that binds a component factory to DOM attributes and
+// renders its template into `root`.
+//
+// Attributes:
+// - `root`: ShadowRoot|HTMLElement - render target for the component
+// - `componentFactory`: function - component factory used to produce content
+// - `attributeBindings`: Map - attribute-to-data key mapping
+// - `attributeProcessors`: Map - attribute value processors
+// - `options`: Object - runtime options
+// - `initialData`: Object - initial attribute-derived data
+// - `instance`: UIInstance? - current mounted UI instance
+// - `nodes`: Array<Node> - rendered DOM nodes
+// - `isInitialized`: boolean - true after the initial render
+// - `attributeData`: Object - last parsed attribute snapshot
+// - `data`: Object - current render data
 class UIWebComponent extends BaseHTMLElement {
 	constructor(
 		componentFactory,

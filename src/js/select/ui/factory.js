@@ -19,7 +19,7 @@ import {
 	TemplateRegistry,
 } from "./templates.js"
 import { FORMATS, format } from "../formats.js"
-import { COMPONENTS, component as componentRegistry, uiOptions, UITemplate } from "./components.js"
+import { COMPONENTS, component as componentRegistry, options, UITemplate } from "./components.js"
 
 const TEMPLATE_RESOURCES = new Map()
 const TEMPLATE_RESOURCE_LOADS = new Map()
@@ -543,7 +543,7 @@ function createComponent(tmpl, localTemplateNodes = tmpl.nodes, definition = nul
 	})
 	const localTemplates = new Map()
 	const registerLocalTemplate = (templateNode) => {
-		if (!templateNode || templateNode.nodeName !== "TEMPLATE") {
+		if (templateNode?.nodeName !== "TEMPLATE") {
 			return
 		}
 		const name = TemplateRegistry.FormatterName(templateNode)
@@ -628,7 +628,7 @@ function defineComponent(name, ...value) {
 Object.assign(ui, {
 	formats: FORMATS,
 	components: COMPONENTS,
-	options: uiOptions,
+	options,
 	format,
 	component: defineComponent,
 	register,

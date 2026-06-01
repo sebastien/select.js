@@ -58,7 +58,7 @@ function errorDetails(error) {
 }
 
 function reactiveLabel(value) {
-	if (!value || value.isReactive !== true) {
+	if (value?.isReactive !== true) {
 		return String(value);
 	}
 	const id = value._debugId ?? "?";
