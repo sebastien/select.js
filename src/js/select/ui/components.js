@@ -76,9 +76,13 @@ function resolveSourceValue(data, sourceKey) {
 	return resolveDataPath(data, normalizedKey.split("."));
 }
 
+function resolveRenderableValue(value) {
+	return unwrap(expand(value));
+}
+
 function resolveExpandedSourceValue(data, sourceKey) {
 	const value = resolveSourceValue(data, sourceKey);
-	return value === undefined ? undefined : expand(value);
+	return value === undefined ? undefined : resolveRenderableValue(value);
 }
 
 function scheduleRenderTask(fn) {
@@ -120,11 +124,11 @@ function resolveDataPath(data, path) {
 	if (!path?.length) return data;
 	let value = data;
 	for (let i = 0; i < path.length; i++) {
-		value = unwrap(expand(value));
+		value = resolveRenderableValue(value);
 		if (value === undefined || value === null) return undefined;
 		value = value[path[i]];
 	}
-	return unwrap(expand(value));
+	return resolveRenderableValue(value);
 }
 
 function mapProcessorCollection(value, f) {
@@ -214,7 +218,7 @@ function applyNamedProcessor(
 		if (typeof component === "function") return component(value, self, data);
 		return value;
 	}
-	const value = expandFunctions ? expand(current) : current;
+	const value = expandFunctions ? resolveRenderableValue(current) : current;
 	if (itemIndex !== undefined) {
 		return processor.value(value, itemIndex, self, data, sourceKey, name);
 	}
@@ -319,7 +323,7 @@ function applyNamedProcessors(
 }
 
 function finalizeRenderProcessorValue(value, lastProcessorType = null) {
-	return lastProcessorType === "component" ? value : expand(value);
+	return lastProcessorType === "component" ? value : resolveRenderableValue(value);
 }
 
 function resolveTemplateTokens(self, tokens, data) {
@@ -3179,112 +3183,116 @@ class UIInstance {
 						for (const slot of this.outAttr.$template) {
 							slot.render(
 								resolveTemplateTokens(
-								this,
-								slot.template.template?.tokens,
-								renderData,
-							),
+									this,
+									slot.template.template?.tokens,
+									renderData,
+								),
+							);
+						}
+						continue;
+					}
+					const slots = this.outAttr[k];
+					const binding = slots?.[0]?.template.binding;
+					const sourceKey =
+						binding?.sourceKey || slots?.[0]?.template.slotName || k;
+					const processors = binding?.processors;
+					const hasBehavior = behavior?.[sourceKey];
+					let v;
+					if (hasBehavior) {
+						for (const slot of slots) {
+							const attrValue = slot.node.getAttribute(slot.attrName);
+							v = hasBehavior(this, renderData, attrValue, slot.node);
+							if (
+								this._trackAsyncBehaviorValue(
+									`${k}:${slot.attrName}`,
+									v,
+									(resolved) => {
+										let next = resolved;
+										if (processors?.length) {
+											const processed = applyNamedProcessors(
+												this,
+												renderData,
+												next,
+												processors,
+												sourceKey,
+												{ withMeta: true },
+											);
+											next = finalizeRenderProcessorValue(
+												processed.value,
+												processed.lastProcessorType,
+											);
+										} else {
+											next = resolveRenderableValue(next);
+										}
+										slot.render(next);
+									},
+								)
+							) {
+								continue;
+							}
+							if (processors?.length) {
+								const processed = applyNamedProcessors(
+									this,
+									renderData,
+									v,
+									processors,
+									sourceKey,
+									{ withMeta: true },
+								);
+								v = finalizeRenderProcessorValue(
+									processed.value,
+									processed.lastProcessorType,
+								);
+							} else {
+								v = resolveRenderableValue(v);
+							}
+							slot.render(v);
+						}
+						continue;
+					}
+					v = resolveSourceValue(renderData, sourceKey);
+					if (v !== undefined && processors?.length) {
+						const processed = applyNamedProcessors(
+							this,
+							renderData,
+							v,
+							processors,
+							sourceKey,
+							{ withMeta: true },
 						);
+						v = finalizeRenderProcessorValue(
+							processed.value,
+							processed.lastProcessorType,
+						);
+					} else if (v !== undefined) {
+						v = resolveRenderableValue(v);
 					}
-					continue;
-				}
-				const slots = this.outAttr[k];
-				const binding = slots?.[0]?.template.binding;
-				const sourceKey =
-					binding?.sourceKey || slots?.[0]?.template.slotName || k;
-				const processors = binding?.processors;
-				const hasBehavior = behavior?.[sourceKey];
-				let v;
-				if (hasBehavior) {
 					for (const slot of slots) {
-						const attrValue = slot.node.getAttribute(slot.attrName);
-						v = hasBehavior(this, renderData, attrValue, slot.node);
-						if (
-							this._trackAsyncBehaviorValue(
-								`${k}:${slot.attrName}`,
-								v,
-								(resolved) => {
-									let next = resolved;
-									if (processors?.length) {
-										const processed = applyNamedProcessors(
-											this,
-											renderData,
-											next,
-											processors,
-											sourceKey,
-											{ withMeta: true },
-										);
-										next = finalizeRenderProcessorValue(
-											processed.value,
-											processed.lastProcessorType,
-										);
-									}
-									slot.render(next);
-								},
-							)
-						) {
-							continue;
-						}
-						if (processors?.length) {
-							const processed = applyNamedProcessors(
-								this,
-								renderData,
-								v,
-								processors,
-								sourceKey,
-								{ withMeta: true },
-							);
-							v = finalizeRenderProcessorValue(
-								processed.value,
-								processed.lastProcessorType,
-							);
-						}
 						slot.render(v);
 					}
-					continue;
-				}
-				v = resolveSourceValue(renderData, sourceKey);
-				if (v !== undefined && processors?.length) {
-					const processed = applyNamedProcessors(
-						this,
-						renderData,
-						v,
-						processors,
-						sourceKey,
-						{ withMeta: true },
-					);
-					v = finalizeRenderProcessorValue(
-						processed.value,
-						processed.lastProcessorType,
-					);
-				} else if (v !== undefined) {
-					v = expand(v);
-				}
-				for (const slot of slots) {
-						slot.render(v);
+					if (this.slots?.length) {
+						for (const slot of this.slots) {
+							const content = data?.slots?.[slot.name];
+							slot.mount(content);
+						}
 					}
 				}
-				if (this.slots?.length) {
-					for (const slot of this.slots) {
-						const content = data?.slots?.[slot.name];
-						slot.mount(content);
+				for (const k in this.when) {
+					for (const slot of this.when[k]) {
+						if (slot.template.predicate(this, renderData)) {
+							slot.show();
+						} else {
+							slot.hide();
+						}
 					}
 				}
+				this.syncReactiveDataSubs(data);
+				this.data = data;
 			}
-			for (const k in this.when) {
-				for (const slot of this.when[k]) {
-					if (slot.template.predicate(this, renderData)) {
-						slot.show();
-					} else {
-						slot.hide();
-					}
-				}
-			}
-			this.syncReactiveDataSubs(data);
-			this.data = data;
-		this._hasRendered = true;
-		return this;
+			this._hasRendered = true;
+			return this;
+		}
 	}
-}
 // Function: Dynamic
 // Resolves `type` from the component registry when needed and invokes it with
 // `props`. Returns `null` when no component matches.
