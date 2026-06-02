@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test"
 import {
-	append,
 	array,
+	keys,
+	values,
+} from "../src/js/select/utils/values.js"
+import { get, has, iter } from "../src/js/select/utils/traverse.js"
+import {
+	appended as append,
 	combinations,
 	copy,
 	count,
@@ -12,30 +17,26 @@ import {
 	flatten,
 	first,
 	found,
-	get,
-	groupBy,
-	has,
+	grouped as groupBy,
 	head,
-	insertAt,
-	iter,
-	keys,
+	inserted as insertAt,
 	last,
 	merge,
 	nth,
 	partition,
-	prepend,
+	prepended as prepend,
 	prune,
 	pruned,
 	reduce,
 	removeAt,
 	resize,
 	reverse,
-	set,
+	sorted,
 	slice,
 	stripe,
 	unique,
-	values,
-} from "../src/js/select/utils/collections.js"
+	updated as set,
+} from "../src/js/select/utils/transform.js"
 
 describe("utils.collections", () => {
 	test("supports nested get and has across objects, arrays, maps, and sets", () => {
@@ -72,6 +73,7 @@ describe("utils.collections", () => {
 		expect(reverse(["a", "b", "c"])).toEqual(["c", "b", "a"])
 		expect(reverse({ a: 1, b: 2, c: 3 })).toEqual({ c: 3, b: 2, a: 1 })
 		expect(resize(["a"], 3, (i) => `x${i}`)).toEqual(["a", "x1", "x2"])
+		expect(sorted([{ id: 2 }, { id: 1 }], "id")).toEqual([{ id: 1 }, { id: 2 }])
 		expect(flatten([1, [2, [3]]])).toEqual([1, 2, 3])
 		expect(iter(["a", "b"], (v, i, r) => (r || "") + `${i}:${v}`, (r) => r, "")).toBe(
 			"0:a1:b",

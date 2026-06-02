@@ -44,7 +44,10 @@ For icon loading and `<ui-icon>` usage, see [`docs/icons.md`](./icons.md).
 - `new(parent?)`: Instance factory.
 - `does(behavior)`: Behavior definition.
 - `on(event, handler)` / `sub(event, handler)`: Event subscription.
-- `init(initializer)`: State initialization.
+- `init(initializer)`: State initialization. Top-level reactives returned from
+  `init()` stay stable by identity for the life of the instance; plain incoming
+  values write through them and incoming reactives are fused to them until the
+  incoming reactive reference changes.
 - `cleanup(handler)`: Dispose-time teardown hook.
 - `using(selection, scope?)`: Rebinds the same behavior/state definition to another template.
 - `map(data)`: Collection mapping to applied templates.
@@ -52,7 +55,8 @@ For icon loading and `<ui-icon>` usage, see [`docs/icons.md`](./icons.md).
 
 ### Component definition API (returned by `ui.component(name)`):
 
-- `init(initializer)`: State initialization for future bound templates.
+- `init(initializer)`: State initialization for future bound templates with the
+  same stable top-level reactive behavior.
 - `does(behavior)`: Behavior map for future bound templates.
 - `on(event, handler)` / `sub(event, handler)`: Event subscriptions for future bound templates.
 - `cleanup(handler)`: Teardown hook for future bound templates.
@@ -66,8 +70,13 @@ Notes:
 
 ### Component instance API:
 
-- `set(data, key?)`: Direct state updates.
-- `update(data, force?)`: Reactive partial updates.
+- `set(data, key?)`: Direct state updates. When `data` provides a plain value
+  for a top-level reactive created by `init()`, the instance writes through the
+  existing reactive instead of replacing it. When `data` provides a reactive,
+  the instance fuses it with the existing reactive until the incoming reactive
+  reference changes.
+- `update(data, force?)`: Reactive partial updates with the same top-level
+  reactive fusion semantics as `set(...)`.
 - `mount(target, previous?)`: DOM attachment.
   - `mount(target, true)`: replace-host mode. Mounts rendered nodes at `target` position, then removes the original host node.
   - Fallback shorthand: in fallback selector mode with exactly one original host, `mount()` (no args) auto-applies replace-host behavior. If host count is not exactly one, it throws and requires explicit `mount(selector, true)`.
@@ -205,7 +214,10 @@ Dynamic("Badge", { label: "Ready" })
 
 - `template.new(parent?)`: Creates a new component instance from this template.
 - `template.does(behavior)`: Binds slot handlers (behavior) to the template. Handler signature is `(self, data, event?) => value`.
-- `template.init(initializer)`: Defines an initializer that provides initial state for each new instance.
+- `template.init(initializer)`: Defines an initializer that provides initial
+  state for each new instance. Top-level reactives returned there remain the
+  mounted state object, so later plain props write through them and later
+  reactive props fuse to them.
 - `template.cleanup(handler)`: Registers a cleanup handler called at instance disposal. Signature: `(self, data) => void`.
 - `template.on(event, handler)` / `template.sub(event, handler)`: Subscribes to events bubbled by child instances of this template.
 - `template.using(selection, scope?)`: Returns a new component bound to another template while preserving behavior/init/subscriptions.

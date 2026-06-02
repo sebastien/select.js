@@ -2,6 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
+// Updated: 2026-06-02
 
 // Module: select/utils/iter
 // Iteration helpers for list-like, map-like, and scalar values.

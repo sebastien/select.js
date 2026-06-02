@@ -2,6 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
+// Updated: 2026-06-02
 
 // Module: select/ui/components/slots
 // Template slot descriptors and mounted slot renderers.

@@ -2,6 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
+// Updated: 2026-06-02
 
 // Module: select/ui/components/instance
 // Mounted UI template instances, lifecycle, events, and rendering.
@@ -49,7 +50,10 @@ import {
 // - `children`: Set<UIInstance>? - child components
 // - `data`: any - current rendered data
 // - `key`: any - optional key for list rendering
-// - `initial`: Object? - initial state from initializer
+// - `initial`: Object? - initial state from initializer. Top-level reactives
+//   returned here stay stable by identity for the lifetime of the instance.
+//   Plain incoming values write through them, while incoming reactives are
+//   fused to them until the incoming reactive reference changes.
 // - `_renderer`: function? - cached render function for subscriptions
 // - `_context`: Map? - provider context values
 // - `_ctxSubs`: Map? - context cell subscriptions
@@ -95,7 +99,30 @@ class UIInstance {
 		}
 	}
 
-	static _mergeReactiveTopLevel(base, incoming) {
+	static _setReactiveValue(target, value, path) {
+		if (Array.isArray(path)) {
+			target.set(value, path);
+		} else {
+			target.set(value);
+		}
+	}
+
+	static _releaseReactiveRef(cell) {
+		if (cell?.isReactive && typeof cell.release === "function") {
+			cell.release();
+		}
+	}
+
+	static _acquireReactiveRef(cell) {
+		if (cell?.isReactive && typeof cell.acquire === "function") {
+			cell.acquire();
+		}
+	}
+
+	// NOTE: Top-level reactives created in `init()` remain the mounted state.
+	// Later plain values write through them, while later reactive values are
+	// fused to them until the incoming reactive reference changes.
+	static _mergeReactiveTopLevel(self, base, incoming) {
 		if (!incoming || typeof incoming !== "object") {
 			return incoming;
 		}
@@ -104,10 +131,15 @@ class UIInstance {
 		for (const key in incoming) {
 			const next = incoming[key];
 			const current = merged[key];
-			if (current?.isReactive && !next?.isReactive) {
+			if (current?.isReactive && next?.isReactive) {
+				self?._fuseReactiveTopLevel(key, current, next);
+				merged[key] = current;
+			} else if (current?.isReactive && !next?.isReactive) {
+				self?._clearReactiveTopLevelFusion(key);
 				current.set(next);
 				merged[key] = current;
 			} else {
+				self?._clearReactiveTopLevelFusion(key);
 				merged[key] = next;
 			}
 		}
@@ -266,6 +298,7 @@ class UIInstance {
 		this._behaviorDeps = undefined;
 		this._behaviorValues = undefined;
 		this._behaviorDepRevisions = undefined;
+		this._reactiveTopLevelFusions = undefined;
 		this._hasRendered = false;
 		if (template.initializer) {
 			const state = template.initializer(this);
@@ -382,6 +415,88 @@ class UIInstance {
 		}
 	}
 
+	_getReactiveTopLevelFusion(key) {
+		return this._reactiveTopLevelFusions?.get(key);
+	}
+
+	_clearReactiveTopLevelFusion(key) {
+		if (!this._reactiveTopLevelFusions?.has(key)) {
+			return;
+		}
+		const fusion = this._reactiveTopLevelFusions.get(key);
+		fusion.active = false;
+		fusion.internal.unsub(fusion.internalHandler);
+		fusion.upstream.unsub(fusion.upstreamHandler);
+		UIInstance._releaseReactiveRef(fusion.upstream);
+		this._reactiveTopLevelFusions.delete(key);
+		if (this._reactiveTopLevelFusions.size === 0) {
+			this._reactiveTopLevelFusions = undefined;
+		}
+	}
+
+	_clearReactiveTopLevelFusions() {
+		if (!this._reactiveTopLevelFusions) {
+			return;
+		}
+		for (const key of this._reactiveTopLevelFusions.keys()) {
+			this._clearReactiveTopLevelFusion(key);
+		}
+	}
+
+	_fuseReactiveTopLevel(key, internal, upstream) {
+		if (!internal?.isReactive || !upstream?.isReactive) {
+			return internal;
+		}
+		if (internal === upstream) {
+			this._clearReactiveTopLevelFusion(key);
+			return internal;
+		}
+		const existing = this._getReactiveTopLevelFusion(key);
+		if (existing?.internal === internal && existing.upstream === upstream) {
+			return internal;
+		}
+		this._clearReactiveTopLevelFusion(key);
+		UIInstance._setReactiveValue(internal, upstream.value);
+		UIInstance._acquireReactiveRef(upstream);
+		const fusion = {
+			active: true,
+			internal,
+			upstream,
+			internalDepth: 0,
+			upstreamDepth: 0,
+			internalHandler: undefined,
+			upstreamHandler: undefined,
+		};
+		fusion.internalHandler = (value, path) => {
+			if (!fusion.active || fusion.upstreamDepth > 0) {
+				return;
+			}
+			fusion.internalDepth += 1;
+			try {
+				UIInstance._setReactiveValue(upstream, value, path);
+			} finally {
+				fusion.internalDepth -= 1;
+			}
+		};
+		fusion.upstreamHandler = (value, path) => {
+			if (!fusion.active || fusion.internalDepth > 0) {
+				return;
+			}
+			fusion.upstreamDepth += 1;
+			try {
+				UIInstance._setReactiveValue(internal, value, path);
+			} finally {
+				fusion.upstreamDepth -= 1;
+			}
+		};
+		internal.sub(fusion.internalHandler);
+		upstream.sub(fusion.upstreamHandler);
+		this._reactiveTopLevelFusions =
+			this._reactiveTopLevelFusions ?? new Map();
+		this._reactiveTopLevelFusions.set(key, fusion);
+		return internal;
+	}
+
 	// Cleans up subscriptions, recursively disposes children, removes from parent.
 	dispose() {
 		if (this._isDisposed) {
@@ -413,6 +528,7 @@ class UIInstance {
 			this._effectTeardowns.length = 0;
 			this._effectTeardowns = undefined;
 		}
+		this._clearReactiveTopLevelFusions();
 		if (this._domListeners) {
 			for (const listener of this._domListeners) {
 				listener.node.removeEventListener(listener.type, listener.handler);
@@ -641,7 +757,7 @@ class UIInstance {
 			typeof data === "object" &&
 			Object.getPrototypeOf(data) === Object.prototype
 		) {
-			this.render(UIInstance._mergeReactiveTopLevel(this.initial, data));
+			this.render(UIInstance._mergeReactiveTopLevel(this, this.initial, data));
 		} else {
 			this.render(data);
 		}
@@ -683,7 +799,7 @@ class UIInstance {
 		if (!same) {
 			const merged =
 				this.data && typeof this.data === "object"
-					? UIInstance._mergeReactiveTopLevel(this.data, data)
+					? UIInstance._mergeReactiveTopLevel(this, this.data, data)
 					: data;
 			this.render(merged, changedKeys);
 		}

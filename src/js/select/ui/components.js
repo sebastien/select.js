@@ -1,7 +1,8 @@
 // Project: Select.js
 // Author:  Sebastien Pierre
 // License: BSD-3
-// Created: 2026-06-02
+// Created: 2015-02-27
+// Updated: 2026-06-02
 
 // Module: select/ui/components
 // Public barrel for the component runtime. Re-exports the component model,

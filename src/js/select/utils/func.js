@@ -2,9 +2,13 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
+// Updated: 2026-06-02
 
 // Module: select/utils/func
 // Function composition, defaults, and memoization helpers.
+
+import { access } from "./traverse.js"
+import { bool } from "./values.js"
 
 // ----------------------------------------------------------------------------
 //

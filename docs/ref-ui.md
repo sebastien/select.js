@@ -194,7 +194,11 @@ Returns a component function with these methods:
 
 - `new(parent?)`: Create a new component instance.
 - `does(behavior)`: Define behavior handlers for slots. Returns the component for chaining.
-- `init(initializer)`: Define initial state (often used with cells). Returns the component for chaining.
+- `init(initializer)`: Define initial state (often used with cells). Top-level
+  reactives returned from `init()` stay stable by identity for the life of the
+  instance. Plain incoming values write through them, while incoming reactives
+  are fused to them until the incoming reactive reference changes. Returns the
+  component for chaining.
 - `cleanup(handler)`: Define a teardown handler called on instance disposal. Returns the component for chaining.
 - `on(event, handler)` / `sub(event, handler)`: Subscribe to events bubbled by child instances. Returns the component for chaining.
 - `using(selection, scope?)`: Rebind this component behavior to another template and return a bound component.
@@ -457,6 +461,15 @@ const ColorPicker = ui("#ColorPicker").init(() => {
   return { red, green, blue, color };
 });
 ```
+
+Top-level reactives returned from `init()` remain the mounted state objects.
+Later `set(...)` or `update(...)` calls do not replace them:
+
+- plain incoming values write through the existing reactive
+- incoming reactives are fused to the existing reactive while that exact
+  incoming reactive reference remains assigned
+- when the incoming reactive reference changes, the old fusion is removed and a
+  new one is created from the new incoming reactive
 
 ### Instance Properties
 

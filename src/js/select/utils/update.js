@@ -2,6 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
+// Updated: 2026-06-02
 
 // Module: select/utils/update
 // In-place structural updates for supported collection containers.
@@ -106,6 +107,35 @@ function update(value, key, other) {
 	}
 }
 
+// Function: remove
+// Mutably removes `item` from `collection` and returns `collection`.
+function remove(collection, item) {
+	switch (collection?.constructor) {
+		case Array: {
+			for (let i = 0; i < collection.length; i++) {
+				if (collection[i] === item) {
+					collection.splice(i, 1)
+					return collection
+				}
+			}
+			return collection
+		}
+		case Object:
+			if (Object.hasOwn(collection, item)) {
+				delete collection[item]
+			}
+			return collection
+		case Map:
+			collection.delete(item)
+			return collection
+		case Set:
+			collection.delete(item)
+			return collection
+		default:
+			throw new Error("remove expects an Array, Object, Map, or Set")
+	}
+}
+
 // Function: assign
 // Mutably assigns `value` at path `p` in `scope` and returns the root container.
 function assign(scope, p, value, merge = undefined, offset = 0) {
@@ -144,6 +174,6 @@ function assign(scope, p, value, merge = undefined, offset = 0) {
 	return root
 }
 
-export { append, assign, insert, prepend, update }
+export { append, assign, insert, prepend, remove, update }
 
 // EOF

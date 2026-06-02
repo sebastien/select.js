@@ -1,7 +1,8 @@
 // Project: Select.js
 // Author:  Sebastien Pierre
 // License: BSD-3
-// Created: 2024-01-01
+// Created: 2026-04-23
+// Updated: 2026-06-02
 
 // Module: select/icons
 // SVG icon registry and loader utilities.

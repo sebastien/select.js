@@ -2,6 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-05-15
+// Updated: 2026-06-02
 
 // Module: select/ui/factory
 // UI component factory and template/component construction.

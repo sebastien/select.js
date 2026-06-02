@@ -1,7 +1,8 @@
 // Project: Select.js
 // Author:  Sebastien Pierre
 // License: BSD-3
-// Created: 2024-01-01
+// Created: 2026-05-07
+// Updated: 2026-06-02
 
 // Module: select/ui
 // Re-export surface for the UI runtime.

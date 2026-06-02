@@ -2,6 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
+// Updated: 2026-06-02
 
 // Module: select/ui/components/template
 // Reusable UI template class and template mapping helpers.
@@ -146,6 +147,10 @@ class UITemplate {
 	}
 
 	// Sets the state initializer function. Called as `init()` returning state.
+	// Top-level reactives returned from the initializer stay stable by identity
+	// for the lifetime of each instance. Plain incoming values write through
+	// them, while incoming reactives are fused to them until the incoming
+	// reactive reference changes.
 	init(init) {
 		this.initializer = init;
 		return this;

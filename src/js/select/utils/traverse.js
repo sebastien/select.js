@@ -2,6 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
+// Updated: 2026-06-02
 
 // Module: select/utils/traverse
 // Read-only traversal, lookup, path access, and recursive remapping helpers.

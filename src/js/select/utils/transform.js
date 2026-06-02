@@ -2,6 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
+// Updated: 2026-06-02
 
 // Module: select/utils/transform
 // Pure collection transforms and immutable structural update helpers.
@@ -496,6 +497,49 @@ function removeAt(values, itemIndex) {
 	return filter(values, (_, indexValue) => indexValue !== itemIndex)
 }
 
+// Function: removed
+// Returns `value` without `item`, preserving Array/Object/Map/Set shape.
+function removed(value, item) {
+	switch (value?.constructor) {
+		case Array: {
+			for (let i = 0; i < value.length; i++) {
+				if (value[i] === item) {
+					const res = value.slice()
+					res.splice(i, 1)
+					return res
+				}
+			}
+			return value
+		}
+		case Object: {
+			if (!Object.hasOwn(value, item)) {
+				return value
+			}
+			const res = { ...value }
+			delete res[item]
+			return res
+		}
+		case Map: {
+			if (!value.has(item)) {
+				return value
+			}
+			const res = new Map(value)
+			res.delete(item)
+			return res
+		}
+		case Set: {
+			if (!value.has(item)) {
+				return value
+			}
+			const res = new Set(value)
+			res.delete(item)
+			return res
+		}
+		default:
+			return value
+	}
+}
+
 // Function: isIn
 // Returns true when `value` is present in `values`.
 function isIn(values, value) {
@@ -768,6 +812,7 @@ export {
 	pruned,
 	reduce,
 	removeAt,
+	removed,
 	resize,
 	reverse,
 	slice,
