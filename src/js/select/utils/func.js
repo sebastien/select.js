@@ -7,8 +7,7 @@
 // Module: select/utils/func
 // Function composition, defaults, and memoization helpers.
 
-import { access } from "./traverse.js"
-import { bool } from "./values.js"
+import { access, bool } from "./values.js";
 
 // ----------------------------------------------------------------------------
 //
@@ -53,6 +52,12 @@ function pipe(v, ...f) {
 function idem(value) {
 	return value;
 }
+
+// ----------------------------------------------------------------------------
+//
+// ACCESS HELPERS
+//
+// ----------------------------------------------------------------------------
 
 // Function: extractor
 // Returns accessor function for `pathOrFunc`.
@@ -105,6 +110,6 @@ function memo(guards, functor) {
 	return scope.get(true);
 }
 
-export { asTrue, def, idem, extractor, predicate, memo, pipe, swallow };
+export { asTrue, def, extractor, idem, memo, pipe, predicate, swallow };
 
 // EOF

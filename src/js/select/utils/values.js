@@ -79,6 +79,32 @@ function list(value) {
 	}
 }
 
+// Function: str
+// Coerces `value` into a string representation.
+function str(value) {
+	if (value == null) return ""
+	switch (value?.constructor) {
+		case String:
+			return value
+		case Array:
+			return value.join("")
+		case Set:
+			return Array.from(value).join("")
+		case Map:
+			return Array.from(value.values()).join("")
+		case Object:
+			return JSON.stringify(value)
+		default:
+			return String(value)
+	}
+}
+
+// Function: set
+// Coerces `value` into a native Set using list-normalized values.
+function set(value) {
+	return new Set(list(value))
+}
+
 // Function: dict
 // Normalizes `value` into a plain object.
 function dict(value) {
@@ -286,6 +312,22 @@ const Something = Object.freeze(new Object())
 //
 // ----------------------------------------------------------------------------
 
+// Function: access
+// Traverses `context` using path `p` starting at `offset`.
+function access(context, p, offset = 0) {
+	p = typeof p === "string" ? p.split(".") : p
+	if (p?.length && context !== undefined) {
+		for (
+			let i = offset;
+			i < p.length && context !== undefined && context !== null;
+			i++
+		) {
+			context = context[p[i]]
+		}
+	}
+	return context
+}
+
 // Function: bool
 // Coerces `value` to semantic truthiness used by utility helpers.
 function bool(value) {
@@ -446,6 +488,7 @@ function clone(value, key = undefined) {
 export {
 	Nothing,
 	Something,
+	access,
 	array,
 	atom,
 	bool,
@@ -468,7 +511,9 @@ export {
 	len,
 	list,
 	recycle,
+	set,
 	singleton,
+	str,
 	type,
 	values,
 }

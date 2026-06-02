@@ -20,6 +20,7 @@ export * from "./utils/transform.js";
 export * from "./utils/traverse.js";
 export * from "./utils/update.js";
 export * from "./utils/values.js";
+export { access } from "./utils/traverse.js";
 export { sel };
 
 // EOF

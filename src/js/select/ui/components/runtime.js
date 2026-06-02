@@ -247,6 +247,9 @@ function applyNamedProcessors(
 		}
 		lastProcessorType = processor.type;
 		if (each) {
+			// NOTE: Starred processors act on the expanded collection shape, not on
+			// the reactive wrapper that may hold it.
+			current = resolveRenderableValue(current);
 			current = mapProcessorCollection(current, (item, itemIndex) =>
 				applyNamedProcessor(
 					processor,

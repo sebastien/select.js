@@ -10,7 +10,7 @@
 import { cmp } from "./compare.js"
 import { extractor, predicate } from "./func.js"
 import { index } from "./traverse.js"
-import { bool, clone, isObject, array, len, list, values as vals } from "./values.js"
+import { bool, clone, isObject, array, len, list } from "./values.js"
 
 // Function: map
 // Maps collection values while preserving array, object, map, and set shape.
@@ -56,41 +56,6 @@ function map(value, func = undefined) {
 		return res
 	}
 	return func(value, undefined)
-}
-
-// Function: each
-// Applies `func` to every collection value and returns the original value.
-function each(value, func) {
-	switch (value?.constructor) {
-		case Array:
-			for (let i = 0; i < value.length; i++) {
-				func(value[i], i)
-			}
-			return value
-		case Object:
-			for (const k in value) {
-				if (Object.hasOwn(value, k)) {
-					func(value[k], k)
-				}
-			}
-			return value
-		case Map:
-			for (const [k, v] of value.entries()) {
-				func(v, k)
-			}
-			return value
-		case Set: {
-			let i = 0
-			for (const v of value.values()) {
-				func(v, i)
-				i += 1
-			}
-			return value
-		}
-		default:
-			func(value, undefined)
-			return value
-	}
 }
 
 // Function: reduce
@@ -257,86 +222,6 @@ function pruned(value, ...removeKeys) {
 				`pruned expects a plain Object or Map, got ${value?.constructor?.name ?? typeof value}`,
 			)
 	}
-}
-
-// Function: count
-// Counts all values or values matching a predicate.
-function count(values, predicateOrExtractor = undefined) {
-	const arr = list(values)
-	if (predicateOrExtractor === undefined || predicateOrExtractor === null) {
-		return arr.length
-	}
-	const pred = predicate(predicateOrExtractor)
-	let res = 0
-	for (let i = 0; i < arr.length; i++) {
-		if (pred(arr[i], i)) {
-			res += 1
-		}
-	}
-	return res
-}
-
-// Function: found
-// Returns the first value equal to `item`, optionally by projection.
-function found(values, item, extractorFunc = undefined) {
-	const arr = list(values)
-	if (extractorFunc === undefined || extractorFunc === null) {
-		for (let i = 0; i < arr.length; i++) {
-			if (arr[i] === item) {
-				return arr[i]
-			}
-		}
-		return undefined
-	}
-	const ext = extractor(extractorFunc)
-	const searchKey = ext(item)
-	for (let i = 0; i < arr.length; i++) {
-		const v = arr[i]
-		if (ext(v) === searchKey) {
-			return v
-		}
-	}
-	return undefined
-}
-
-// Function: first
-// Returns the first value, optionally matching a predicate.
-function first(values, predicateOrExtractor = undefined) {
-	const arr = list(values)
-	if (predicateOrExtractor === undefined || predicateOrExtractor === null) {
-		return arr[0]
-	}
-	const pred = predicate(predicateOrExtractor)
-	for (let i = 0; i < arr.length; i++) {
-		if (pred(arr[i], i)) {
-			return arr[i]
-		}
-	}
-	return undefined
-}
-
-// Function: last
-// Returns the last value, optionally matching a predicate.
-function last(values, predicateOrExtractor = undefined) {
-	const arr = list(values)
-	if (predicateOrExtractor === undefined || predicateOrExtractor === null) {
-		return arr[arr.length - 1]
-	}
-	const pred = predicate(predicateOrExtractor)
-	for (let i = arr.length - 1; i >= 0; i--) {
-		if (pred(arr[i], i)) {
-			return arr[i]
-		}
-	}
-	return undefined
-}
-
-// Function: nth
-// Returns the value at `index`, supporting negative indexes.
-function nth(values, indexValue) {
-	const arr = list(values)
-	const i = indexValue < 0 ? arr.length + indexValue : indexValue
-	return arr[i]
 }
 
 // Function: slice
@@ -538,28 +423,6 @@ function removed(value, item) {
 		default:
 			return value
 	}
-}
-
-// Function: isIn
-// Returns true when `value` is present in `values`.
-function isIn(values, value) {
-	return index(values, value) !== -1
-}
-
-// Function: pick
-// Returns a random item from `values`.
-function pick(items) {
-	const valueList = vals(items)
-	return nth(valueList, Math.round(Math.random() * (len(valueList) - 1)))
-}
-
-// Function: head
-// Returns the first item or first `count` items from `values`.
-function head(value, count = undefined) {
-	const valueList = vals(value)
-	return count === undefined || count === 0
-		? valueList[0]
-		: valueList.slice(0, count < 0 ? valueList.length + count : count)
 }
 
 // Function: stripe
@@ -788,25 +651,16 @@ export {
 	combinations,
 	concat,
 	copy,
-	count,
 	difference,
-	each,
 	enumerate,
 	filter,
 	flatten,
-	first,
-	found,
 	grouped,
 	grow,
-	head,
 	inserted,
-	isIn,
-	last,
 	map,
 	merge,
-	nth,
 	partition,
-	pick,
 	prepended,
 	prune,
 	pruned,

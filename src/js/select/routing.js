@@ -20,6 +20,14 @@ function pattern(regexp, extractor = undefined) {
 	return new RoutePattern(regexp, extractor)
 }
 
+function escapeRegexp(value) {
+	return value.replace(/[\\^$+?.()|[\]{}]/g, "\\$&")
+}
+
+function wildcardPattern(text) {
+	return new RegExp(`^${escapeRegexp(text).replace(/\*/g, ".*")}$`)
+}
+
 const ROUTE_PATTERNS = {
 	chunk: pattern(/^[^/]+$/),
 	number: pattern(/^[0-9]+$/),
@@ -31,14 +39,31 @@ const ROUTE_PATTERNS = {
 // Route segment wrapper that stores the `pattern`, parameter `name`, and
 // positional `index` within the route.
 class RoutePatternSlot {
-	constructor(pattern, name, index) {
+	constructor(pattern, name, index, capture = true) {
 		this.pattern = pattern
 		this.name = name
 		this.index = index
+		this.capture = capture
 	}
 
 	toJSON() {
 		return { name: this.name, matches: this.pattern.regexp.source }
+	}
+}
+
+// Class: RouteWildcard
+// Single-segment wildcard (`*`) route segment.
+class RouteWildcard extends RoutePatternSlot {
+	constructor(index) {
+		super(ROUTE_PATTERNS.chunk, "*", index, false)
+	}
+}
+
+// Class: RouteDescendant
+// Multi-segment wildcard (`**`) route segment that matches the rest of a path.
+class RouteDescendant extends RoutePatternSlot {
+	constructor(index) {
+		super(pattern(/.+/), "**", index, false)
 	}
 }
 
@@ -76,7 +101,11 @@ function route(text) {
 	const res = []
 	for (let i = 0; i < items.length; i++) {
 		const item = items[i]
-		if (item.startsWith("{")) {
+		if (item === "*") {
+			res.push(new RouteWildcard(res.length))
+		} else if (item === "**") {
+			res.push(new RouteDescendant(res.length))
+		} else if (item.startsWith("{")) {
 			if (!item.endsWith("}")) {
 				throw new SyntaxError(`Route item '${item}' does not end with a brace: ${text}`)
 			}
@@ -89,7 +118,9 @@ function route(text) {
 					: type
 						? new RoutePattern(new RegExp(type))
 						: ROUTE_PATTERNS.chunk
-			res.push(new RoutePatternSlot(matched, name, res.length))
+			res.push(new RoutePatternSlot(matched, name, res.length, true))
+		} else if (item.includes("*")) {
+			res.push(new RoutePatternSlot(pattern(wildcardPattern(item)), item, res.length, false))
 		} else {
 			res.push(item)
 		}
@@ -122,8 +153,29 @@ class RouteHandler {
 	}
 
 	apply(p, ...value) {
-		return this.value(p, this.capture(p), ...value)
+		if (typeof this.value === "function") {
+			return this.value(p, this.capture(p), ...value)
+		}
+		return this.value
 	}
+}
+
+function routePriority(route) {
+	let priority = 3
+	for (let i = 0; i < route.length; i++) {
+		const item = route[i]
+		if (item instanceof RouteDescendant) {
+			return 0
+		}
+		if (item instanceof RouteWildcard) {
+			priority = priority > 1 ? 1 : priority
+			continue
+		}
+		if (item instanceof RoutePatternSlot) {
+			priority = priority > 2 ? 2 : priority
+		}
+	}
+	return priority
 }
 
 // Class: Router
@@ -133,6 +185,7 @@ class Router {
 		this.static = new Map()
 		this.dynamic = new Map()
 		this.handlers = []
+		this.descendants = []
 	}
 
 	on(expr, handler = undefined, priority = undefined, offset = 0) {
@@ -140,13 +193,25 @@ class Router {
 		const chunk = rte[offset]
 		if (offset === rte.length) {
 			const captured = rte.reduce((r, v, i) => {
-				if (v instanceof RoutePatternSlot) {
+				if (v instanceof RoutePatternSlot && v.capture) {
 					r = r || {}
 					r[v.name] = i
 				}
 				return r
 			}, null)
-			this.handlers.push(new RouteHandler(rte, handler, priority, captured))
+			this.handlers.push(new RouteHandler(rte, handler, priority ?? routePriority(rte), captured))
+		} else if (chunk instanceof RouteDescendant) {
+			if (offset !== rte.length - 1) {
+				throw new Error(`Route descendant must be terminal: ${rte}`)
+			}
+			const captured = rte.reduce((r, v, i) => {
+				if (v instanceof RoutePatternSlot && v.capture) {
+					r = r || {}
+					r[v.name] = i
+				}
+				return r
+			}, null)
+			this.descendants.push(new RouteHandler(rte, handler, priority ?? routePriority(rte), captured))
 		} else if (typeof chunk === "string") {
 			if (!this.static.has(chunk)) {
 				this.static.set(chunk, new Router())
@@ -169,6 +234,8 @@ class Router {
 		const chunk = rte[offset]
 		if (offset === rte.length) {
 			this.handlers = handler ? this.handlers.filter((h) => h.value !== handler) : []
+		} else if (chunk instanceof RouteDescendant) {
+			this.descendants = handler ? this.descendants.filter((h) => h.value !== handler) : []
 		} else if (typeof chunk === "string") {
 			this.static.get(chunk)?.off(rte, handler, offset + 1)
 		} else if (chunk instanceof RoutePatternSlot) {
@@ -198,15 +265,36 @@ class Router {
 		if (chunk === undefined) {
 			return null
 		}
+		let matches = null
 		if (this.static.has(chunk)) {
-			return this.static.get(chunk)?.match(items, offset + 1) ?? null
+			const staticMatches = this.static.get(chunk)?.match(items, offset + 1) ?? null
+			if (staticMatches?.length) {
+				if (this.descendants.length) {
+					staticMatches.push(...this.descendants)
+				}
+				return staticMatches
+			}
 		}
 		for (const [k, v] of this.dynamic.entries()) {
 			if (chunk.match(k.regexp)) {
-				return v.match(items, offset + 1)
+				const m = v.match(items, offset + 1)
+				if (m?.length) {
+					if (matches) {
+						matches.push(...m)
+					} else {
+						matches = m
+					}
+				}
 			}
 		}
-		return null
+		if (this.descendants.length) {
+			if (matches) {
+				matches.push(...this.descendants)
+			} else {
+				matches = this.descendants.slice()
+			}
+		}
+		return matches
 	}
 
 	run(p, ...args) {
@@ -223,6 +311,23 @@ class Router {
 			best = !best || (h.priority || 0) > (best.priority || 0) ? h : best
 		}
 		return best ? best.apply(p, ...args) : undefined
+	}
+
+	tree() {
+		const res = {}
+		res["#handlers"] = this.handlers.slice()
+		res["#descendants"] = this.descendants.slice()
+		for (const [k, v] of this.static.entries()) {
+			res[k] = v.tree()
+		}
+		if (this.dynamic.size) {
+			const dyn = []
+			for (const [k, v] of this.dynamic.entries()) {
+				dyn.push({ matches: k.regexp.source, node: v.tree() })
+			}
+			res["#dynamic"] = dyn
+		}
+		return res
 	}
 }
 
@@ -246,6 +351,8 @@ export {
 	RouteHandler,
 	RoutePattern,
 	RoutePatternSlot,
+	RouteDescendant,
+	RouteWildcard,
 	Router,
 	route,
 	routed,

@@ -43,29 +43,6 @@ import {
 
 const log = logger("select.cells");
 
-function errorDetails(error) {
-	if (error instanceof Error) {
-		return {
-			name: error.name,
-			message: error.message,
-			stack: error.stack,
-			cause: error.cause,
-		};
-	}
-	return {
-		name: typeof error,
-		message: String(error),
-	};
-}
-
-function reactiveLabel(value) {
-	if (value?.isReactive !== true) {
-		return String(value);
-	}
-	const id = value._debugId ?? "?";
-	return `${value.constructor.name}#${id}`;
-}
-
 function isReactiveValue(value) {
 	return (
 		value !== null &&
@@ -232,7 +209,7 @@ class Selections {
 // - `subs`: Array<function> - subscriber callbacks
 // - `selections`: Selections? - registry for nested property selections
 class Reactive {
-	static DebugId = 1;
+	static Id = 1;
 
 	static Unwrap(value) {
 		let next = value;
@@ -277,7 +254,7 @@ class Reactive {
 
 	constructor(value = Nothing) {
 		this.isReactive = true;
-		this._debugId = Reactive.DebugId++;
+		this.id = Reactive.Id++;
 		this.value = value === Nothing ? undefined : value;
 		this.previous = undefined;
 		this.isPending = false;
@@ -286,6 +263,10 @@ class Reactive {
 		this.selections = undefined;
 		this._selectionCache = new Map();
 		this._normalizer = undefined;
+	}
+
+	get label() {
+		return `${this.constructor.name}#${this.id}`;
 	}
 
 	// Sets a root-value normalizer for this reactive and returns self.
@@ -697,8 +678,19 @@ class Cell extends Reactive {
 					}
 					this.isPending = false;
 					log.error("Cell._update: cell promise rejected, details", {
-						cell: reactiveLabel(this),
-						error: errorDetails(error),
+						cell: this.label,
+						error:
+							error instanceof Error
+								? {
+										name: error.name,
+										message: error.message,
+										stack: error.stack,
+										cause: error.cause,
+									}
+								: {
+										name: typeof error,
+										message: String(error),
+									},
 						path,
 						incomingValue: value,
 						currentValue: this.value,
@@ -913,8 +905,19 @@ class Derivation extends Reactive {
 					}
 					this.isPending = false;
 					log.error("Derivation._apply: derived promise rejected, details", {
-						cell: reactiveLabel(this),
-						error: errorDetails(error),
+						cell: this.label,
+						error:
+							error instanceof Error
+								? {
+										name: error.name,
+										message: error.message,
+										stack: error.stack,
+										cause: error.cause,
+									}
+								: {
+										name: typeof error,
+										message: String(error),
+									},
 						currentValue: this.value,
 						previousValue: this.previous,
 						sourceValues: this.expanded,
@@ -950,10 +953,7 @@ class Derivation extends Reactive {
 					this.isPending = true;
 					return;
 				}
-				if (
-					this.updateStrategy === "join" &&
-					this._hasPendingSources()
-				) {
+				if (this.updateStrategy === "join" && this._hasPendingSources()) {
 					this.isPending = true;
 					return;
 				}
@@ -999,6 +999,31 @@ class Derivation extends Reactive {
 		return this;
 	}
 
+	// Derived values are read-only; log and ignore mutation attempts.
+	set(value, path = Nothing, force = false) {
+		log.error("Derivation.set: derived values are read-only", {
+			cell: this.label,
+			value,
+			path,
+			force,
+			currentValue: this.value,
+			previousValue: this.previous,
+		});
+		return this;
+	}
+
+	// Derived values are read-only; log and ignore mutation attempts.
+	merge(value, path = Nothing) {
+		log.error("Derivation.merge: derived values are read-only", {
+			cell: this.label,
+			value,
+			path,
+			currentValue: this.value,
+			previousValue: this.previous,
+		});
+		return this;
+	}
+
 	// Updates derivation inputs and recomputes only when they changed.
 	// Accepts reactive and non-reactive values.
 	update(...inputs) {
@@ -1009,20 +1034,14 @@ class Derivation extends Reactive {
 				this.expanded = Reactive.Expand(nextTemplate);
 				this.unbind();
 				this.bind();
-				if (
-					this.updateStrategy === "immediate" ||
-					!this._hasPendingSources()
-				) {
+				if (this.updateStrategy === "immediate" || !this._hasPendingSources()) {
 					this._apply(this._compute());
 				} else {
 					this.isPending = true;
 				}
 			}
 		} else if (!this._recompute()) {
-			if (
-				this.updateStrategy === "join" &&
-				this._hasPendingSources()
-			) {
+			if (this.updateStrategy === "join" && this._hasPendingSources()) {
 				this.isPending = true;
 				return this.value;
 			}
@@ -1092,11 +1111,7 @@ function deferred(value, delay) {
 function derived(template, processor, initial, strategy) {
 	let shouldInitialize = true;
 	let updateStrategy = "join";
-	if (
-		initial &&
-		typeof initial === "object" &&
-		!Array.isArray(initial)
-	) {
+	if (initial && typeof initial === "object" && !Array.isArray(initial)) {
 		if (initial.initial !== undefined) {
 			shouldInitialize = !!initial.initial;
 		}
@@ -1111,12 +1126,7 @@ function derived(template, processor, initial, strategy) {
 	if (typeof strategy === "string") {
 		updateStrategy = strategy;
 	}
-	return new Derivation(
-		template,
-		processor,
-		shouldInitialize,
-		updateStrategy,
-	);
+	return new Derivation(template, processor, shouldInitialize, updateStrategy);
 }
 
 function selected(parent, path) {
@@ -1207,7 +1217,6 @@ const expand = Reactive.Expand;
 export {
 	Cell,
 	cell,
-	selected,
 	Deferred,
 	Derivation,
 	deferred,
@@ -1216,6 +1225,7 @@ export {
 	expand,
 	Reactive,
 	Selected,
+	selected,
 	unwrap,
 	walk,
 };

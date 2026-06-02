@@ -7,7 +7,20 @@
 // Module: select/utils/traverse
 // Read-only traversal, lookup, path access, and recursive remapping helpers.
 
-import { isObject, list } from "./values.js"
+import {
+	icount,
+	ientries,
+	ifind,
+	ifirst,
+	ifound,
+	ihead,
+	iindex,
+	ilast,
+	inth,
+	ipick,
+} from "./iter.js";
+import { extractor, predicate } from "./func.js";
+import { access, isObject } from "./values.js";
 
 // ----------------------------------------------------------------------------
 //
@@ -15,35 +28,19 @@ import { isObject, list } from "./values.js"
 //
 // ----------------------------------------------------------------------------
 
-// Function: access
-// Traverses `context` using path `p` starting at `offset`.
-function access(context, p, offset = 0) {
-	p = typeof p === "string" ? p.split(".") : p
-	if (p?.length && context !== undefined) {
-		for (
-			let i = offset;
-			i < p.length && context !== undefined && context !== null;
-			i++
-		) {
-			context = context[p[i]]
-		}
-	}
-	return context
-}
-
 // Function: path
 // Normalizes `p` to a path array, returning `null` when unset.
 function path(p, nothing = undefined) {
 	if (p === nothing) {
-		return null
+		return null;
 	}
 	if (Array.isArray(p)) {
-		return p
+		return p;
 	}
 	if (p !== undefined && p !== null) {
-		return [p]
+		return [p];
 	}
-	return null
+	return null;
 }
 
 // ----------------------------------------------------------------------------
@@ -62,84 +59,84 @@ function iter(
 	empty = undefined,
 ) {
 	if (value === undefined || value === null) {
-		return processor(initial, value, undefined, value)
+		return processor(initial, value, undefined, value);
 	}
-	let result = initial
-	let current
-	let currentKey
-	let seen = 0
+	let result = initial;
+	let current;
+	let currentKey;
+	let seen = 0;
 	if (typeof value === "string") {
 		for (let i = 0; i < value.length; i++) {
-			current = value[i]
-			currentKey = i
-			const next = iterator(current, i, result, value)
+			current = value[i];
+			currentKey = i;
+			const next = iterator(current, i, result, value);
 			if (next === false) {
-				return processor(result, current, i, value)
+				return processor(result, current, i, value);
 			}
-			result = next === undefined ? result : next
-			seen += 1
+			result = next === undefined ? result : next;
+			seen += 1;
 		}
 	} else if (Array.isArray(value)) {
 		for (let i = 0; i < value.length; i++) {
-			current = value[i]
-			currentKey = i
-			const next = iterator(current, i, result, value)
+			current = value[i];
+			currentKey = i;
+			const next = iterator(current, i, result, value);
 			if (next === false) {
-				return processor(result, current, i, value)
+				return processor(result, current, i, value);
 			}
-			result = next === undefined ? result : next
-			seen += 1
+			result = next === undefined ? result : next;
+			seen += 1;
 		}
 	} else if (value instanceof Map) {
 		for (const [k, v] of value.entries()) {
-			current = v
-			currentKey = k
-			const next = iterator(v, k, result, value)
+			current = v;
+			currentKey = k;
+			const next = iterator(v, k, result, value);
 			if (next === false) {
-				return processor(result, v, k, value)
+				return processor(result, v, k, value);
 			}
-			result = next === undefined ? result : next
-			seen += 1
+			result = next === undefined ? result : next;
+			seen += 1;
 		}
 	} else if (value instanceof Set) {
-		let i = 0
+		let i = 0;
 		for (const v of value.values()) {
-			current = v
-			currentKey = i
-			const next = iterator(v, i, result, value)
+			current = v;
+			currentKey = i;
+			const next = iterator(v, i, result, value);
 			if (next === false) {
-				return processor(result, v, i, value)
+				return processor(result, v, i, value);
 			}
-			result = next === undefined ? result : next
-			seen += 1
-			i += 1
+			result = next === undefined ? result : next;
+			seen += 1;
+			i += 1;
 		}
 	} else if (isObject(value)) {
 		for (const k in value) {
 			if (!Object.hasOwn(value, k)) {
-				continue
+				continue;
 			}
-			current = value[k]
-			currentKey = k
-			const next = iterator(current, k, result, value)
+			current = value[k];
+			currentKey = k;
+			const next = iterator(current, k, result, value);
 			if (next === false) {
-				return processor(result, current, k, value)
+				return processor(result, current, k, value);
 			}
-			result = next === undefined ? result : next
-			seen += 1
+			result = next === undefined ? result : next;
+			seen += 1;
 		}
 	} else if (typeof value?.[Symbol.iterator] === "function") {
-		let i = 0
+		let i = 0;
 		for (const v of value) {
-			current = v
-			currentKey = i
-			const next = iterator(v, i, result, value)
+			current = v;
+			currentKey = i;
+			const next = iterator(v, i, result, value);
 			if (next === false) {
-				return processor(result, v, i, value)
+				return processor(result, v, i, value);
 			}
-			result = next === undefined ? result : next
-			seen += 1
-			i += 1
+			result = next === undefined ? result : next;
+			seen += 1;
+			i += 1;
 		}
 	} else {
 		return processor(
@@ -147,37 +144,72 @@ function iter(
 			value,
 			undefined,
 			value,
-		)
+		);
 	}
-	return seen === 0 ? empty : processor(result, current, currentKey, value)
+	return seen === 0 ? empty : processor(result, current, currentKey, value);
+}
+
+// Function: each
+// Applies `func` to every collection value and returns the original value.
+function each(value, func) {
+	switch (value?.constructor) {
+		case Array:
+			for (let i = 0; i < value.length; i++) {
+				func(value[i], i);
+			}
+			return value;
+		case Object:
+			for (const k in value) {
+				if (Object.hasOwn(value, k)) {
+					func(value[k], k);
+				}
+			}
+			return value;
+		case Map:
+			for (const [k, v] of value.entries()) {
+				func(v, k);
+			}
+			return value;
+		case Set: {
+			let i = 0;
+			for (const v of value.values()) {
+				func(v, i);
+				i += 1;
+			}
+			return value;
+		}
+		default:
+			func(value, undefined);
+			return value;
+	}
 }
 
 // Function: get
 // Returns the value at `key`; arrays may be used as nested paths.
 function get(parent, key = undefined) {
 	if (key === undefined) {
-		return parent
+		return parent;
 	}
 	if (Array.isArray(key)) {
-		let value = parent
+		let value = parent;
 		for (let i = 0; i < key.length; i++) {
-			value = get(value, key[i])
+			value = get(value, key[i]);
 			if (value === undefined) {
-				return undefined
+				return undefined;
 			}
 		}
-		return value
+		return value;
 	}
 	switch (parent?.constructor) {
 		case Array:
 		case Object:
-			return parent[key]
+			return parent[key];
 		case Map:
-			return parent.get(key)
+			return parent.get(key);
 		case Set:
-			return parent.has(key) ? key : undefined
+			return parent.has(key) ? key : undefined;
 		default:
-			return undefined
+			return undefined;
 	}
 }
 
@@ -185,102 +217,92 @@ function get(parent, key = undefined) {
 // Returns true when `parent` has `key`; arrays may be used as nested paths.
 function has(parent, key) {
 	if (Array.isArray(key)) {
-		let value = parent
+		let value = parent;
 		for (let i = 0; i < key.length; i++) {
 			if (!has(value, key[i])) {
-				return false
+				return false;
 			}
-			value = get(value, key[i])
+			value = get(value, key[i]);
 		}
-		return true
+		return true;
 	}
 	switch (parent?.constructor) {
 		case Array:
-			return typeof key === "number" && key >= 0 && key < parent.length
+			return typeof key === "number" && key >= 0 && key < parent.length;
 		case Object:
-			return Object.hasOwn(parent, key)
+			return Object.hasOwn(parent, key);
 		case Map:
 		case Set:
-			return parent.has(key)
+			return parent.has(key);
 		default:
-			return false
+			return false;
 	}
 }
 
 // Function: index
 // Returns the first index or key whose value strictly equals `item`.
 function index(values, item) {
-	if (Array.isArray(values)) {
-		return values.indexOf(item)
-	}
-	if (typeof values === "string") {
-		return values.indexOf(item)
-	}
-	if (values instanceof Map) {
-		for (const [k, v] of values.entries()) {
-			if (v === item) {
-				return k
-			}
-		}
-		return -1
-	}
-	if (values instanceof Set) {
-		let i = 0
-		for (const v of values.values()) {
-			if (v === item) {
-				return i
-			}
-			i += 1
-		}
-		return -1
-	}
-	if (isObject(values)) {
-		for (const k in values) {
-			if (Object.hasOwn(values, k) && values[k] === item) {
-				return k
-			}
-		}
-	}
-	return list(values).indexOf(item)
+	return iindex(values, item);
+}
+
+// Function: find
+// Returns the first index or key whose value satisfies `predicate`.
+function find(values, predicate) {
+	return ifind(values, predicate);
+}
+
+// Function: first
+// Returns the first value in `values`, optionally matching `predicate`.
+function first(values, predicate = undefined) {
+	return ifirst(values, predicate);
+}
+
+// Function: last
+// Returns the last value in `values`, optionally matching `predicate`.
+function last(values, predicate = undefined) {
+	return ilast(values, predicate);
+}
+
+// Function: nth
+// Returns the value at `index`, supporting negative indexes.
+function nth(values, indexValue) {
+	return inth(values, indexValue);
+}
+
+// Function: count
+// Counts all values or values matching a predicate.
+function count(values, predicateOrExtractor = undefined) {
+	return icount(values, predicateOrExtractor);
+}
+
+// Function: found
+// Returns the first value equal to `item`, optionally by projection.
+function found(values, item, extractorFunc = undefined) {
+	return ifound(values, item, extractorFunc);
+}
+
+// Function: isIn
+// Returns true when `value` is present in `values`.
+function isIn(values, value) {
+	return index(values, value) !== -1;
+}
+
+// Function: pick
+// Returns a random item from `values`.
+function pick(items) {
+	return ipick(items);
+}
+
+// Function: head
+// Returns the first item or first `count` items from `values`.
+function head(value, count = undefined) {
+	return ihead(value, count);
 }
 
 // Function: entries
 // Returns collection entries as `[key, value]` pairs.
 function entries(value) {
-	if (value == null) {
-		return []
-	}
-	switch (value?.constructor) {
-		case Array: {
-			const res = new Array(value.length)
-			for (let i = 0; i < value.length; i++) {
-				res[i] = [i, value[i]]
-			}
-			return res
-		}
-		case Object:
-			return Object.entries(value)
-		case Map:
-			return Array.from(value.entries())
-		case Set: {
-			const res = []
-			let i = 0
-			for (const v of value.values()) {
-				res.push([i++, v])
-			}
-			return res
-		}
-		default:
-			if (typeof value?.[Symbol.iterator] === "function") {
-				const res = []
-				let i = 0
-				for (const v of value) {
-					res.push([i++, v])
-				}
-				return res
-			}
-			return [[0, value]]
-	}
+	return ientries(value);
 }
 
 // ----------------------------------------------------------------------------
@@ -296,29 +318,29 @@ function remap(
 	mapper,
 	{ deep = false, match = undefined, descend = undefined, path = [] } = {},
 ) {
-	const shouldMap = match ? !!match(value, path) : true
-	const mapped = shouldMap ? mapper(value, path[path.length - 1], path) : value
+	const shouldMap = match ? !!match(value, path) : true;
+	const mapped = shouldMap ? mapper(value, path[path.length - 1], path) : value;
 	if (!deep) {
-		return mapped
+		return mapped;
 	}
 	if (descend && descend(mapped, path) === false) {
-		return mapped
+		return mapped;
 	}
 	if (Array.isArray(mapped)) {
-		const n = mapped.length
-		const res = new Array(n)
+		const n = mapped.length;
+		const res = new Array(n);
 		for (let i = 0; i < n; i++) {
 			res[i] = remap(mapped[i], mapper, {
 				deep,
 				match,
 				descend,
 				path: [...path, i],
-			})
+			});
 		}
-		return res
+		return res;
 	}
 	if (mapped instanceof Map) {
-		const res = new Map()
+		const res = new Map();
 		for (const [k, v] of mapped.entries()) {
 			res.set(
 				k,
@@ -328,13 +350,13 @@ function remap(
 					descend,
 					path: [...path, k],
 				}),
-			)
+			);
 		}
-		return res
+		return res;
 	}
 	if (mapped instanceof Set) {
-		const res = new Set()
-		let i = 0
+		const res = new Set();
+		let i = 0;
 		for (const v of mapped.values()) {
 			res.add(
 				remap(v, mapper, {
@@ -343,29 +365,50 @@ function remap(
 					descend,
 					path: [...path, i],
 				}),
-			)
-			i += 1
+			);
+			i += 1;
 		}
-		return res
+		return res;
 	}
 	if (isObject(mapped)) {
-		const res = {}
+		const res = {};
 		for (const k in mapped) {
 			if (!Object.hasOwn(mapped, k)) {
-				continue
+				continue;
 			}
 			res[k] = remap(mapped[k], mapper, {
 				deep,
 				match,
 				descend,
 				path: [...path, k],
-			})
+			});
 		}
-		return res
+		return res;
 	}
-	return mapped
+	return mapped;
 }
 
-export { access, entries, get, has, index, iter, path, remap }
+export {
+	access,
+	count,
+	each,
+	entries,
+	find,
+	first,
+	found,
+	extractor,
+	get,
+	has,
+	index,
+	isIn,
+	iter,
+	head,
+	last,
+	nth,
+	path,
+	pick,
+	predicate,
+	remap,
+};
 
 // EOF

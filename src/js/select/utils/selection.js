@@ -144,7 +144,7 @@ const sel = {
 	remove,
 	toggle,
 	wrapindex,
-}
+};
 
 export {
 	add,
@@ -158,8 +158,8 @@ export {
 	sel,
 	toggle,
 	wrapindex,
-}
+};
 
-export default sel
+export default sel;
 
 // EOF

@@ -6,6 +6,9 @@ import {
 	expand,
 	freeze,
 	isReactive,
+	list,
+	set,
+	str,
 } from "../src/js/select/utils/values.js"
 
 describe("utils.values", () => {
@@ -40,5 +43,29 @@ describe("utils.values", () => {
 		expect(freeze(value)).toBe(value)
 		expect(Object.isFrozen(value)).toBe(true)
 		expect(freeze("text")).toBe("text")
+	})
+
+	test("coerces values to lists, strings, and native sets", () => {
+		function* items() {
+			yield "a"
+			yield "b"
+			yield "a"
+		}
+
+		expect(list(null)).toEqual([])
+		expect(list("abc")).toEqual(["abc"])
+		expect(list(new Map([["a", 1], ["b", 2]]))).toEqual([1, 2])
+		expect(list(items())).toEqual(["a", "b", "a"])
+
+		expect(str(null)).toBe("")
+		expect(str(["a", "b"])).toBe("ab")
+		expect(str(new Set(["a", "b"]))).toBe("ab")
+		expect(str(new Map([["a", 1], ["b", 2]]))).toBe("12")
+		expect(str({ a: 1 })).toBe('{"a":1}')
+
+		expect(set(null)).toEqual(new Set())
+		expect(set("abc")).toEqual(new Set(["abc"]))
+		expect(set(["a", "b", "a"])).toEqual(new Set(["a", "b"]))
+		expect(set(new Map([["a", 1], ["b", 1]]))).toEqual(new Set([1]))
 	})
 })
