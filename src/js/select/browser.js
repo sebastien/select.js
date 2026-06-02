@@ -1,6 +1,6 @@
 // Project: Select.js
 // Author:  Sebastien Pierre
-// License: MIT
+// License: BSD-3
 // Created: 2026-05-07
 
 // Module: select/browser
@@ -9,12 +9,12 @@
 import { Cell } from "./cells.js";
 import {
 	access,
+	assigned,
 	eq,
 	isObject,
 	logger,
 	Nothing,
 	path as pathify,
-	reassign,
 	sanitize,
 } from "./utils.js";
 
@@ -661,7 +661,7 @@ class LocationValueCell extends Cell {
 		if (p.length === 1 && isObject(scope) && isObject(value)) {
 			return sanitize({ ...scope, ...value });
 		}
-		return sanitize(reassign(scope, p, value));
+		return sanitize(assigned(scope, p, value));
 	}
 
 	set(value, p = Nothing, options = false) {
@@ -670,7 +670,7 @@ class LocationValueCell extends Cell {
 		let next = this.merge
 			? LocationValueCell.MergeAtPath(this.value, resolvedPath, value)
 			: resolvedPath
-				? sanitize(reassign(this.value, resolvedPath, value))
+				? sanitize(assigned(this.value, resolvedPath, value))
 				: value;
 		if (this._valueNormalizer) next = this._valueNormalizer(next);
 		if (!force && eq(this.value, next)) return this;
@@ -850,7 +850,7 @@ class LocalStorageCell extends Cell {
 		const next = this.merge
 			? LocationValueCell.MergeAtPath(this.value, resolvedPath, value)
 			: resolvedPath
-				? sanitize(reassign(this.value, resolvedPath, value))
+				? sanitize(assigned(this.value, resolvedPath, value))
 				: value;
 		if (!force && eq(this.value, next)) return this;
 		this._update(

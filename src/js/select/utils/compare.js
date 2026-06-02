@@ -1,14 +1,12 @@
 // Project: Select.js
 // Author:  Sebastien Pierre
-// License: MIT
+// License: BSD-3
 // Created: 2026-06-02
 
 // Module: select/utils/compare
 // Equality, length, and comparison helpers.
 
-import { access } from "./traverse.js";
-import { bool, isObject } from "./values.js";
-import { predicate, extractor } from "./func.js";
+import { isObject } from "./values.js";
 
 // ----------------------------------------------------------------------------
 //

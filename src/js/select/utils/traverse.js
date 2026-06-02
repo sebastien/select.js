@@ -1,12 +1,12 @@
 // Project: Select.js
 // Author:  Sebastien Pierre
-// License: MIT
+// License: BSD-3
 // Created: 2026-06-02
 
 // Module: select/utils/traverse
-// Recursive traversal, path access, and structural reassignment helpers.
+// Read-only traversal, lookup, path access, and recursive remapping helpers.
 
-import { clone, isObject } from "./values.js";
+import { isObject, list } from "./values.js"
 
 // ----------------------------------------------------------------------------
 //
@@ -17,110 +17,269 @@ import { clone, isObject } from "./values.js";
 // Function: access
 // Traverses `context` using path `p` starting at `offset`.
 function access(context, p, offset = 0) {
-	p = typeof p === "string" ? p.split(".") : p;
+	p = typeof p === "string" ? p.split(".") : p
 	if (p?.length && context !== undefined) {
 		for (
 			let i = offset;
 			i < p.length && context !== undefined && context !== null;
 			i++
 		) {
-			context = context[p[i]];
+			context = context[p[i]]
 		}
 	}
-	return context;
+	return context
 }
 
 // Function: path
 // Normalizes `p` to a path array, returning `null` when unset.
 function path(p, nothing = undefined) {
 	if (p === nothing) {
-		return null;
+		return null
 	}
 	if (Array.isArray(p)) {
-		return p;
+		return p
 	}
 	if (p !== undefined && p !== null) {
-		return [p];
+		return [p]
 	}
-	return null;
+	return null
 }
 
 // ----------------------------------------------------------------------------
 //
-// ASSIGNMENT
+// COLLECTION ACCESS
 //
 // ----------------------------------------------------------------------------
 
-// Function: assign
-// Mutably assigns `value` at path `p` in `scope` and returns the root container.
-function assign(scope, p, value, merge = undefined, offset = 0) {
-	const n = p?.length ?? 0;
-	if (n === 0) {
-		return merge ? merge(scope, value) : value;
+// Function: iter
+// Iterates `value` and optionally finalizes the accumulator with `processor`.
+function iter(
+	value,
+	iterator = (_v, _k, r) => r,
+	processor = (r) => r,
+	initial = undefined,
+	empty = undefined,
+) {
+	if (value === undefined || value === null) {
+		return processor(initial, value, undefined, value)
 	}
-	let root =
-		n > offset && !(scope && scope instanceof Object)
-			? typeof p[offset] === "number"
-				? new Array(p[offset])
-				: {}
-			: scope;
-	let s = root;
-	let sp = null;
-	for (let i = offset; i < n - 1; i++) {
-		const k = p[i];
-		if (!(s && s instanceof Object)) {
-			s = typeof k === "number" ? new Array(k) : {};
-			if (i === 0) {
-				root = s;
-			} else {
-				sp[p[i - 1]] = s;
+	let result = initial
+	let current
+	let currentKey
+	let seen = 0
+	if (typeof value === "string") {
+		for (let i = 0; i < value.length; i++) {
+			current = value[i]
+			currentKey = i
+			const next = iterator(current, i, result, value)
+			if (next === false) {
+				return processor(result, current, i, value)
 			}
+			result = next === undefined ? result : next
+			seen += 1
 		}
-		if (typeof k === "number" && Array.isArray(s)) {
-			while (s.length <= k) {
-				s.push(undefined);
+	} else if (Array.isArray(value)) {
+		for (let i = 0; i < value.length; i++) {
+			current = value[i]
+			currentKey = i
+			const next = iterator(current, i, result, value)
+			if (next === false) {
+				return processor(result, current, i, value)
 			}
+			result = next === undefined ? result : next
+			seen += 1
 		}
-		sp = s;
-		s = s[k];
+	} else if (value instanceof Map) {
+		for (const [k, v] of value.entries()) {
+			current = v
+			currentKey = k
+			const next = iterator(v, k, result, value)
+			if (next === false) {
+				return processor(result, v, k, value)
+			}
+			result = next === undefined ? result : next
+			seen += 1
+		}
+	} else if (value instanceof Set) {
+		let i = 0
+		for (const v of value.values()) {
+			current = v
+			currentKey = i
+			const next = iterator(v, i, result, value)
+			if (next === false) {
+				return processor(result, v, i, value)
+			}
+			result = next === undefined ? result : next
+			seen += 1
+			i += 1
+		}
+	} else if (isObject(value)) {
+		for (const k in value) {
+			if (!Object.hasOwn(value, k)) {
+				continue
+			}
+			current = value[k]
+			currentKey = k
+			const next = iterator(current, k, result, value)
+			if (next === false) {
+				return processor(result, current, k, value)
+			}
+			result = next === undefined ? result : next
+			seen += 1
+		}
+	} else if (typeof value?.[Symbol.iterator] === "function") {
+		let i = 0
+		for (const v of value) {
+			current = v
+			currentKey = i
+			const next = iterator(v, i, result, value)
+			if (next === false) {
+				return processor(result, v, i, value)
+			}
+			result = next === undefined ? result : next
+			seen += 1
+			i += 1
+		}
+	} else {
+		return processor(
+			iterator(value, undefined, initial, value),
+			value,
+			undefined,
+			value,
+		)
 	}
-	const k = p[n - 1];
-	s[k] = merge ? merge(s[k], value) : value;
-	return root;
+	return seen === 0 ? empty : processor(result, current, currentKey, value)
 }
 
-// Function: reassign
-// Immutably assigns `value` at path `p` by cloning touched branches.
-function reassign(scope, p, value, merge = undefined, offset = 0) {
-	const n = p?.length ?? 0;
-	if (n === 0) {
-		return merge ? merge(scope, value) : value;
+// Function: get
+// Returns the value at `key`; arrays may be used as nested paths.
+function get(parent, key = undefined) {
+	if (key === undefined) {
+		return parent
 	}
-	const start = offset < 0 ? 0 : offset;
-	if (start >= n) {
-		return scope;
-	}
-	const root = clone(scope);
-	let currentClone = root;
-	let currentOriginal =
-		scope && (Array.isArray(scope) || isObject(scope)) ? scope : undefined;
-	for (let i = start; i < n - 1; i++) {
-		const key = p[i];
-		const originalChild = currentOriginal ? currentOriginal[key] : undefined;
-		const childClone = clone(originalChild, p[i + 1]);
-		if (Array.isArray(currentClone) && typeof key === "number") {
-			while (currentClone.length <= key) currentClone.push(undefined);
+	if (Array.isArray(key)) {
+		let value = parent
+		for (let i = 0; i < key.length; i++) {
+			value = get(value, key[i])
+			if (value === undefined) {
+				return undefined
+			}
 		}
-		currentClone[key] = childClone;
-		currentClone = childClone;
-		currentOriginal = originalChild;
+		return value
 	}
-	const leafKey = p[n - 1];
-	if (Array.isArray(currentClone) && typeof leafKey === "number") {
-		while (currentClone.length <= leafKey) currentClone.push(undefined);
+	switch (parent?.constructor) {
+		case Array:
+		case Object:
+			return parent[key]
+		case Map:
+			return parent.get(key)
+		case Set:
+			return parent.has(key) ? key : undefined
+		default:
+			return undefined
 	}
-	currentClone[leafKey] = merge ? merge(currentClone[leafKey], value) : value;
-	return root;
+}
+
+// Function: has
+// Returns true when `parent` has `key`; arrays may be used as nested paths.
+function has(parent, key) {
+	if (Array.isArray(key)) {
+		let value = parent
+		for (let i = 0; i < key.length; i++) {
+			if (!has(value, key[i])) {
+				return false
+			}
+			value = get(value, key[i])
+		}
+		return true
+	}
+	switch (parent?.constructor) {
+		case Array:
+			return typeof key === "number" && key >= 0 && key < parent.length
+		case Object:
+			return Object.hasOwn(parent, key)
+		case Map:
+		case Set:
+			return parent.has(key)
+		default:
+			return false
+	}
+}
+
+// Function: index
+// Returns the first index or key whose value strictly equals `item`.
+function index(values, item) {
+	if (Array.isArray(values)) {
+		return values.indexOf(item)
+	}
+	if (typeof values === "string") {
+		return values.indexOf(item)
+	}
+	if (values instanceof Map) {
+		for (const [k, v] of values.entries()) {
+			if (v === item) {
+				return k
+			}
+		}
+		return -1
+	}
+	if (values instanceof Set) {
+		let i = 0
+		for (const v of values.values()) {
+			if (v === item) {
+				return i
+			}
+			i += 1
+		}
+		return -1
+	}
+	if (isObject(values)) {
+		for (const k in values) {
+			if (Object.hasOwn(values, k) && values[k] === item) {
+				return k
+			}
+		}
+	}
+	return list(values).indexOf(item)
+}
+
+// Function: entries
+// Returns collection entries as `[key, value]` pairs.
+function entries(value) {
+	if (value == null) {
+		return []
+	}
+	switch (value?.constructor) {
+		case Array: {
+			const res = new Array(value.length)
+			for (let i = 0; i < value.length; i++) {
+				res[i] = [i, value[i]]
+			}
+			return res
+		}
+		case Object:
+			return Object.entries(value)
+		case Map:
+			return Array.from(value.entries())
+		case Set: {
+			const res = []
+			let i = 0
+			for (const v of value.values()) {
+				res.push([i++, v])
+			}
+			return res
+		}
+		default:
+			if (typeof value?.[Symbol.iterator] === "function") {
+				const res = []
+				let i = 0
+				for (const v of value) {
+					res.push([i++, v])
+				}
+				return res
+			}
+			return [[0, value]]
+	}
 }
 
 // ----------------------------------------------------------------------------
@@ -136,29 +295,29 @@ function remap(
 	mapper,
 	{ deep = false, match = undefined, descend = undefined, path = [] } = {},
 ) {
-	const shouldMap = match ? !!match(value, path) : true;
-	const mapped = shouldMap ? mapper(value, path[path.length - 1], path) : value;
+	const shouldMap = match ? !!match(value, path) : true
+	const mapped = shouldMap ? mapper(value, path[path.length - 1], path) : value
 	if (!deep) {
-		return mapped;
+		return mapped
 	}
 	if (descend && descend(mapped, path) === false) {
-		return mapped;
+		return mapped
 	}
 	if (Array.isArray(mapped)) {
-		const n = mapped.length;
-		const res = new Array(n);
+		const n = mapped.length
+		const res = new Array(n)
 		for (let i = 0; i < n; i++) {
 			res[i] = remap(mapped[i], mapper, {
 				deep,
 				match,
 				descend,
 				path: [...path, i],
-			});
+			})
 		}
-		return res;
+		return res
 	}
 	if (mapped instanceof Map) {
-		const res = new Map();
+		const res = new Map()
 		for (const [k, v] of mapped.entries()) {
 			res.set(
 				k,
@@ -168,13 +327,13 @@ function remap(
 					descend,
 					path: [...path, k],
 				}),
-			);
+			)
 		}
-		return res;
+		return res
 	}
 	if (mapped instanceof Set) {
-		const res = new Set();
-		let i = 0;
+		const res = new Set()
+		let i = 0
 		for (const v of mapped.values()) {
 			res.add(
 				remap(v, mapper, {
@@ -183,29 +342,29 @@ function remap(
 					descend,
 					path: [...path, i],
 				}),
-			);
-			i += 1;
+			)
+			i += 1
 		}
-		return res;
+		return res
 	}
 	if (isObject(mapped)) {
-		const res = {};
+		const res = {}
 		for (const k in mapped) {
 			if (!Object.hasOwn(mapped, k)) {
-				continue;
+				continue
 			}
 			res[k] = remap(mapped[k], mapper, {
 				deep,
 				match,
 				descend,
 				path: [...path, k],
-			});
+			})
 		}
-		return res;
+		return res
 	}
-	return mapped;
+	return mapped
 }
 
-export { access, assign, path, reassign, remap };
+export { access, entries, get, has, index, iter, path, remap }
 
 // EOF

@@ -1,6 +1,6 @@
 // Project: Select.js
 // Author:  Sebastien Pierre
-// License: MIT
+// License: BSD-3
 // Created: 2021-04-06
 
 // Module: select

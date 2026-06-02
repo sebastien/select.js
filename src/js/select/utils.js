@@ -1,6 +1,6 @@
 // Project: Select.js
 // Author:  Sebastien Pierre
-// License: MIT
+// License: BSD-3
 // Created: 2026-06-02
 import sel from "./utils/selection.js";
 
@@ -19,17 +19,17 @@ export {
 	toggle,
 	wrapindex,
 } from "./utils/selection.js";
-export * from "./utils/collections.js";
 export * from "./utils/compare.js";
 export * from "./utils/func.js";
 export * from "./utils/html.js";
 export * from "./utils/iter.js";
 export * from "./utils/logger.js";
 export * from "./utils/math.js";
-export * from "./utils/object.js";
 export * from "./utils/sanitize.js";
 export * from "./utils/text.js";
+export * from "./utils/transform.js";
 export * from "./utils/traverse.js";
+export * from "./utils/update.js";
 export * from "./utils/values.js";
 export { sel };
 

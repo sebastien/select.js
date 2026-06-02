@@ -1,6 +1,6 @@
 // Project: Select.js
 // Author:  Sebastien Pierre
-// License: MIT
+// License: BSD-3
 // Created: 2024-01-01
 
 // Module: select.cells
@@ -31,11 +31,11 @@
 
 import {
 	access,
+	assigned,
 	eq,
 	logger,
 	Nothing,
 	path as pathify,
-	reassign,
 	remap,
 	Something,
 } from "./utils.js";
@@ -667,7 +667,7 @@ class Cell extends Reactive {
 			}
 		}
 		// TODO: Check existing
-		const updated = path ? reassign(this.value, path, value) : value;
+		const updated = path ? assigned(this.value, path, value) : value;
 		const pending =
 			path && value && typeof value.then === "function" ? value : updated;
 		const token = ++this._promiseToken;
@@ -684,7 +684,7 @@ class Cell extends Reactive {
 						return;
 					}
 					this.previous = this.value;
-					this.value = path ? reassign(this.value, path, resolved) : resolved;
+					this.value = path ? assigned(this.value, path, resolved) : resolved;
 					this.isPending = false;
 					this.revision++;
 					this._refreshSelections(path);

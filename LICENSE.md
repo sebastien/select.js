@@ -1,6 +1,7 @@
 # Revised BSD License
 
-Copyright (c) 2016, [FFunction](http://ffctn.com) inc (1165373771 Québec inc) All rights reserved.
+Copyright (c) 2016-2019, [FFunction](http://ffctn.com) inc (1165373771 Québec inc) All rights reserved.
+Copyright (c) 2019-2026, Sébastien Pierre. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
@@ -8,9 +9,9 @@ Redistributions of source code must retain the above copyright notice, this
 list of conditions and the following disclaimer. Redistributions in binary
 form must reproduce the above copyright notice, this list of conditions and
 the following disclaimer in the documentation and/or other materials
-provided with the distribution. Neither the name of the FFunction inc
-(CANADA) nor the names of its contributors may be used to endorse or promote
-products derived from this software without specific prior written
+provided with the distribution. Neither the name of the FFunction inc (CANADA),
+Sébastien Pierre nor the names of its contributors may be used to endorse or
+promote products derived from this software without specific prior written
 permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
