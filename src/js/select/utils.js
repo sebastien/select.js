@@ -7,18 +7,6 @@ import sel from "./utils/selection.js";
 // Module: select/utils
 // Compatibility barrel for the split utility submodules.
 
-export {
-	add,
-	find,
-	has,
-	index,
-	itemkey,
-	items,
-	next,
-	remove,
-	toggle,
-	wrapindex,
-} from "./utils/selection.js";
 export * from "./utils/compare.js";
 export * from "./utils/func.js";
 export * from "./utils/html.js";

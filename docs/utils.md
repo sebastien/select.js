@@ -1,187 +1,60 @@
-# Select Utils/Interaction/Routing
+# Select Utils
 
-## Agnostic helpers for interaction and routing
+## Compatibility barrel for split helpers
 
-Helpers are now split across dedicated modules, with `select/utils.js` kept as the compatibility barrel:
+`select/utils.js` re-exports the helper modules under `select/utils/*.js` and
+exposes the `sel` bundle for selection helpers.
 
-- `select/utils/*.js`: topic-specific helper modules
-- `select/utils.js`: main compatibility export that re-exports the split modules
-- `select/interaction.js`: DOM interaction and keyboard helpers
-- `select/routing.js`: route parsing and dispatch
+### Re-exported groups
 
-### HTML helpers
-
-- `clsx(...values)`: Joins class fragments into one class string.
-- `iclsx(...values)`: Generator form of `clsx` (yields each normalized token).
+- `select/utils/selection.js`: `itemkey`, `items`, `index`, `find`, `has`, `add`, `remove`, `toggle`, `next`, `wrapindex`, `sel`
+- `select/utils/html.js`: `asText`, `clsx`, `iclsx`, `hi`, `microtask`
+- `select/utils/compare.js`: `cmp`, `eq`
+- `select/utils/func.js`: `asTrue`, `def`, `idem`, `extractor`, `predicate`, `memo`, `pipe`, `swallow`
+- `select/utils/iter.js`: `ikeys`, `iitems`, `iremap`, `iwalk`, `ileaves`
+- `select/utils/logger.js`: `logger`
+- `select/utils/math.js`: math helpers used by the library internals
+- `select/utils/sanitize.js`: `Sanitizer`, `sanitize`, `sanitizer`
+- `select/utils/text.js`: text helpers such as `shortdict`, `shortword`, `unshortword`, `re`, `rescape`, `sprintf`, `uid`
+- `select/utils/transform.js`, `traverse.js`, `update.js`, `values.js`: the remaining utility helpers re-exported by the barrel
 
 ### Selection helpers
 
 - `itemkey(item)`: Returns `item.id ?? item.key ?? item.name ?? item`.
-- `find(items, item, key?)`: Finds item index, with optional key extractor (or `null` for strict identity).
+- `items(values)`: Normalizes non-object entries into `{ label, value }` objects.
+- `index(items, item, key?)`: Finds the matching index, or `-1`.
+- `find(items, item, key?)`: Alias for `index`.
 - `has(items, item, key?)`: True when `item` exists in `items`.
-- `add(items, item, key?)`: Returns array with `item` added when absent.
-- `remove(items, item, key?)`: Returns array with `item` removed when present.
+- `add(items, item, key?)`: Returns an array with `item` appended when absent.
+- `remove(items, item, key?)`: Returns an array with `item` removed when present.
 - `toggle(items, item, key?)`: Adds when absent, removes when present.
-- `next(itemsOrLength, index, delta?)`: Returns wrapped index for cyclic navigation.
+- `next(itemsOrLength, index, delta?)`: Returns the wrapped index for cyclic navigation.
+- `wrapindex(itemsOrLength, index, delta?)`: Low-level wrapped index helper.
+- `sel`: Frozen-style selection helper bundle mirroring the selection exports.
+
+### HTML helpers
+
+- `clsx(...values)`: Joins class fragments into one class string.
+- `iclsx(...values)`: Generator form of `clsx`.
+- `asText(value)`: Converts values to displayable text.
+- `hi(text, query, creator?)`: Returns highlighted text nodes/fragments.
 
 ### Text compression helpers
 
-- `shortdict(text)`: Builds a word-frequency dictionary mapped to short base-26 tokens.
+- `shortdict(text)`: Builds a frequency-sorted dictionary mapped to short base-26 tokens.
 - `shortword(text, dict?)`: Replaces dictionary words with short tokens.
 - `unshortword(text, dict?)`: Restores text compressed with `shortword`.
-
-Accepted `clsx` values:
-
-- strings (`"btn active"`)
-- arrays (nested arrays are flattened)
-- objects (`{ active: true, hidden: false }`)
-- numbers (converted to strings)
-- falsy and booleans are ignored
-
-### Interaction helpers
-
-- `bind(nodeOrNodes, handlers)`: Attaches multiple event listeners.
-- `unbind(nodeOrNodes, handlers)`: Removes listeners attached with `bind`.
-- `drag(event, move?, end?)`: Starts a mouse drag interaction and returns a cancel function.
-- `dragtarget(node, name?)`: Finds nearest ancestor with `data-drag` (optionally matching `name`).
-- `target(node, predicate)`: Walks ancestors and returns the first matching element.
-- `autoresize(event)`: Auto-resizes a textarea to fit content.
-- `Keyboard`: Key helpers and code constants (`Keyboard.Key`, `Keyboard.Code`, `Keyboard.Char`, ...).
-
-### Routing helpers
-
-- `route(expr)`: Parses route expressions such as `/users/{id:number}`.
-- `Router`: Route trie with `on`, `off`, `match`, `run`, `tree`, and `iwalk`.
-- `router(map)`: Creates a `Router` from `{ routeExpr: handler }`.
-- `routed(map)`: Returns a callable dispatcher with attached `.router` and `.match`.
-
-Supported route slot forms:
-
-- `{name}`: non-empty path chunk
-- `{name:number}`: numeric chunk
-- `{name:alpha}`: alphabetic chunk
-- `{name:string}`: alphanumeric, `_`, and `-`
-- `{name:<regexp>}`: custom regexp source
-
-### Browser state
-
-Browser URL and storage state now live in `select/browser.js` via
-`browser(options?)`, which returns reactive `path`, `query`, `hash`,
-`local(key, dflt, opts?)`, and `internal(name, value)` cells.
-
-See [`browser.md`](browser.md) and [`ref-browser.md`](ref-browser.md) for the
-browser guide and serializer reference.
 
 ### Using
 
 ```javascript
-import { add, clsx, next, toggle } from "@./utils.js"
-import { bind, drag } from "@./interaction.js"
-import { router } from "@./routing.js"
-import { browser } from "@./browser.js"
+import { add, clsx, eq, next, shortword, toggle } from "@./utils.js"
 
-const button = document.querySelector("button")
-
-bind(button, {
-  click: () => {
-    button.className = clsx("btn", { active: true })
-  },
-})
-
-document.addEventListener("mousedown", (event) => {
-  const handle = event.target.closest("[data-drag='handle']")
-  if (!handle) return
-  drag(event, (_event, delta) => {
-    handle.style.transform = `translate(${delta.dx}px, ${delta.dy}px)`
-  })
-})
-
-const routes = router({
-  "/": () => console.log("home"),
-  "/users/{id:number}": (_path, { id }) => console.log("user", Number(id)),
-})
-
-const state = browser()
-state.path.sub((path) => {
-  routes.run(path)
-})
-
+const buttonClass = clsx("btn", { active: true })
 let items = [{ id: 1 }, { id: 2 }]
 items = toggle(items, { id: 2 })
 items = add(items, { id: 3 })
 
-const idx = next(items, 0, -1)
-console.log(items[idx])
+console.log(items[next(items, 0, -1)])
+console.log(eq(shortword("hello hello world"), shortword("hello hello world")))
 ```
-
-### API
-
-### Class helpers
-
-- `clsx(...values)`: Returns a space-joined class string from mixed values.
-- `iclsx(...values)`: Iterates normalized class tokens from mixed values.
-
-### Event and drag helpers
-
-- `bind(node, handlers)`: Adds handlers from `{ eventName: handler }` and returns `node`.
-- `unbind(node, handlers)`: Removes handlers from `{ eventName: handler }` and returns `node`.
-- `drag(event, move?, end?)`: Tracks mouse movement from the initial event and calls:
-  - `move(event, data)` during movement
-  - `end(event, data)` on mouseup/mouseleave
-  - returns a cleanup function to stop tracking immediately
-- `dragtarget(node, name?)`: Returns the nearest drag handle element.
-- `target(node, predicate)`: Returns nearest ancestor matching `predicate`.
-
-### Selection
-
-- `itemkey(item)`: Returns fallback key in order `id`, `key`, `name`, then item itself.
-- `find(items, item, key = itemkey)`: Returns matching index, or `-1`.
-- `has(items, item, key = itemkey)`: Convenience boolean around `find`.
-- `add(items, item, key = itemkey)`: Returns existing array or appended copy.
-- `remove(items, item, key = itemkey)`: Returns array copy with item removed when found.
-- `toggle(items, item, key = itemkey)`: Removes existing item, otherwise adds it.
-- `next(itemsOrLength, index, delta = 1)`: Returns wrapped index in `[0, n)`.
-
-### Text compression
-
-- `shortdict(text)`: Returns `{ word: shortToken }` dictionary using frequency ordering.
-- `shortword(text, dict = shortdict(text))`: Replaces words using the dictionary.
-- `unshortword(text, dict = shortdict(text))`: Reverses compressed tokens back to source words.
-
-### Textarea and keyboard
-
-- `autoresize(event)`: Resizes `event.target` textarea based on scroll height.
-- `Keyboard.Down` / `Keyboard.Up` / `Keyboard.Press`: Event-name constants.
-- `Keyboard.Codes`: Key code constants (Enter, Esc, arrows, modifiers, etc.).
-- `Keyboard.Key(event)`: Returns key identifier (`event.key` fallback).
-- `Keyboard.Code(event)`: Returns numeric key code.
-- `Keyboard.Char(event)`: Returns typed character or newline for Enter.
-- `Keyboard.IsControl(event)`: True when key represents control/non-char input.
-- `Keyboard.HasModifier(event)`: True when Alt or Ctrl is pressed.
-
-### Routing
-
-- `route(expr)`: Returns normalized route chunks and capture slots.
-- `new Router()`: Creates an empty router.
-- `router(routes?)`: Creates and preloads a router from route map.
-- `routed(routes?)`: Returns callable `(path, ...args)` with:
-  - `.router`: backing `Router` instance
-  - `.match(path)`: same as `router.match(path)`
-
-`Router` methods:
-
-- `on(expr, handler, priority?)`: Registers handler.
-- `off(expr, handler?)`: Unregisters one or all handlers for expr.
-- `match(path)`: Returns matching handler list or `null`.
-- `run(path, ...args)`: Runs best handler (highest priority, then latest registered).
-- `tree()`: Returns a serializable route tree.
-- `iwalk()`: Yields all handlers depth-first.
-
-Handler signature:
-
-- `(path, captured, ...args) => any`
-- `captured` is an object keyed by slot names.
-
-### Browser state
-
-- `browser(options?)`: Imported from `@./browser.js`, returns browser-backed reactive cells.
