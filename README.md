@@ -17,7 +17,9 @@ $$\   $$ |$$   ____|$$ |$$   ____|$$ |        $$ |$$\     $$ | \____$$\
 JavaScript. It started as faster alternative to the venerable jQuery,
 with support for DOM/SVG manipulation (`select/query.js`), and then expanded
 with a UI template library (`select/ui.js`) and supporting fine-grained reactive
-state primitives (`select/cells.js`).
+state primitives (`select/cells.js`). Over time, more capabilities got added
+in particular in `select/utils.js` to cover day-to-day needs and cover most
+needs of a modern web application.
 
 While `select/query.js` is fast, the `select/ui.js` library is not the fastest, but
 it is fast enough and lightweight enough to be used in a wide range of
@@ -105,7 +107,7 @@ import ui from "@select/ui.js"
 - `Dynamic(type, props?)`: dynamic component resolution by name/function.
 - `lazy(loader, placeholder?)`: lazy component loader.
 - `len`, `type`, `remap`: shared utility helpers from `select/ui.js`.
-- `clsx`, `shortword`, `sorted`, `unique`: shared helpers from `select/utils.js`.
+- `clsx`, `shortword`, `sorted`, `unique`: shared helpers from `select/utils.js` and `select/utils/*.js`.
 - `bind`, `drag`, `autoresize`, `Keyboard`: interaction helpers from `select/interaction.js`.
 
 ### Modules
@@ -113,7 +115,7 @@ import ui from "@select/ui.js"
 - [`docs/select.md`](docs/select.md): `select.js` complete reference (original README split).
 - [`docs/ui.md`](docs/ui.md): `select/ui.js` usage and API guide.
 - [`docs/cells.md`](docs/cells.md): `select/cells.js` usage and API guide.
-- [`docs/utils.md`](docs/utils.md): `select/utils.js`, `select/interaction.js`, and `select/routing.js` usage and API guide.
+- [`docs/utils.md`](docs/utils.md): `select/utils.js`, `select/utils/*.js`, `select/interaction.js`, and `select/routing.js` usage and API guide.
 - [`docs/icons.md`](docs/icons.md): `select/icons.js` CDN icon loading and catalog usage.
 
 ### Notable examples

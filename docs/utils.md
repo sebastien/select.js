@@ -2,13 +2,14 @@
 
 ## Agnostic helpers for interaction and routing
 
-Helpers are now split across dedicated modules:
+Helpers are now split across dedicated modules, with `select/utils.js` kept as the compatibility barrel:
 
-- `select/utils.js`: generic data, text, class, and collection helpers
+- `select/utils/*.js`: topic-specific helper modules
+- `select/utils.js`: main compatibility export that re-exports the split modules
 - `select/interaction.js`: DOM interaction and keyboard helpers
 - `select/routing.js`: route parsing and dispatch
 
-### Class helpers
+### HTML helpers
 
 - `clsx(...values)`: Joins class fragments into one class string.
 - `iclsx(...values)`: Generator form of `clsx` (yields each normalized token).

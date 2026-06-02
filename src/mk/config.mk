@@ -14,7 +14,7 @@ DIST_MODE:=
 
 SOURCES_JS:=$(shell find src/js/select -name "*.js")
 
-BUNDLE_JS:=dist/selectjs.js dist/selectjs.min.js
+BUNDLE_JS:=dist/selectjs.js dist/selectjs.min.js dist/selectjs.min.js.gz
 
 BUILD_ALL+=\
 	$(SOURCES_JS:src/js/select/%.js=dist/select/%.js)\

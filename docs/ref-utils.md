@@ -6,8 +6,8 @@ handling, and route dispatch.
 
 ## Overview
 
-Helpers are split across `select/utils.js`, `select/interaction.js`, and
-`select/routing.js` for clearer boundaries.
+Helpers are split across `select/utils.js`, `select/utils/*.js`,
+`select/interaction.js`, and `select/routing.js` for clearer boundaries.
 
 ## Quick Start
 

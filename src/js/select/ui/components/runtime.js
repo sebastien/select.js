@@ -12,7 +12,7 @@
 //
 // ----------------------------------------------------------------------------
 
-import { expand, isPascalCaseName, microtask } from "../../utils.js";
+import { expand, isPascalCase, microtask } from "../../utils.js";
 import { unwrap } from "../../cells.js";
 import { FORMATS } from "../../formats.js";
 
@@ -155,7 +155,7 @@ function resolveNamedProcessor(self, name) {
 	if (!registered) {
 		return null;
 	}
-	const isPascal = isPascalCaseName(name);
+	const isPascal = isPascalCase(name);
 	const isComponent =
 		typeof registered === "function" &&
 		(registered?.isTemplate || typeof registered?.new === "function");
