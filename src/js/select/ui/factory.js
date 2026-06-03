@@ -496,6 +496,10 @@ function qualifyNestedTemplateName(parentName, childName) {
 	return parentName && childName ? `${parentName}${childName}` : childName
 }
 
+function createLexicalTemplateScope(parentScope = undefined) {
+	return Object.create(parentScope ?? null)
+}
+
 function registerComponentFormat(name, component) {
 	if (!name) {
 		return
@@ -539,6 +543,8 @@ function createComponent(tmpl, localTemplateNodes = tmpl.nodes, definition = nul
 			doCleanup: tmpl.doCleanup,
 		},
 	)
+	const lexicalTemplates = tmpl.lexicalTemplates ?? createLexicalTemplateScope()
+	tmpl.lexicalTemplates = lexicalTemplates
 	tmpl.component = component
 	Object.assign(component, {
 		isTemplate: true,
@@ -585,9 +591,11 @@ function createComponent(tmpl, localTemplateNodes = tmpl.nodes, definition = nul
 		if (name && !localTemplates.has(name)) {
 			const childNodes = [...templateNode.content.childNodes]
 			const childTemplate = new UITemplate(stripTemplateNodes(childNodes), tmpl.scope, childQName)
+			childTemplate.lexicalTemplates = createLexicalTemplateScope(lexicalTemplates)
 			const childComponent = createComponent(childTemplate, childNodes)
 			component[name] = childComponent
 			localTemplates.set(name, childComponent)
+			lexicalTemplates[name] = childComponent
 			registerComponentFormat(childQName, childComponent)
 		}
 		if (!templateNode.content) {

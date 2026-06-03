@@ -69,6 +69,7 @@ class UITemplate {
 		this.nodes = nodes;
 		this.scope = scope;
 		this.componentName = componentName;
+		this.lexicalTemplates = undefined;
 		this.on = UITemplateSlot.FindEvent("on:", nodes);
 		this.in = UITemplateSlot.Find("in", nodes);
 		this.when = UITemplateSlot.FindWhen(nodes);

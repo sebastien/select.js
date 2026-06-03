@@ -145,6 +145,10 @@ function mapProcessorCollection(value, f) {
 
 function resolveNamedProcessor(self, name) {
 	if (!self?.template || !name) return null;
+	const lexicalTemplate = self.template.lexicalTemplates?.[name];
+	if (lexicalTemplate) {
+		return { type: "component", value: lexicalTemplate };
+	}
 	let current = self;
 	while (current) {
 		const template = current.template;
