@@ -109,7 +109,7 @@
 	<template id="ActionButton">
 		<button class="btn" out:class="btnClass" out:disabled="isDisabled" out:aria-busy="loading" out:style="customStyle"
 			out:title="${label|upper} (${variant})" out:data-state="load:${loading}|disable:${disabled}|missing:${doesNotExist}"
-			out:data-width="${column.width|em}"
+			out:data-width="${column.width|measure+widthScale+widthUnit.suffix}"
 			on:click>
 			<span out="label">Button</span>
 		</button>
@@ -145,8 +145,11 @@
 
 	<script type="module">
 		import ui from "@./ui.js"
+		import { cell } from "@./cells.js"
 		ui.format("upper", (value) => `${value ?? ""}`.toUpperCase())
 		ui.format("em", (value) => `${value ?? ""}em`)
+		ui.format("measure", (value, scale, suffix) =>
+			`${Number(value ?? 0) * Number(scale ?? 1)}${suffix ?? ""}`)
 
 		// ActionButton demonstrates multiple out:attr bindings:
 		// - out:class for dynamic CSS classes (object format like clsx)
@@ -154,7 +157,8 @@
 		// - out:aria-busy for accessibility
 		// - out:style for inline styles (object format)
 		// - out:title / out:data-state / out:data-width for template interpolation
-		//   including placeholder processors like ${column.width|em}
+		//   including placeholder processors like
+		//   ${column.width|measure+widthScale+widthUnit.suffix}
 		const ActionButton = ui("#ActionButton").does({
 			label: (_self, { label }) => label || "Click me",
 
@@ -192,14 +196,18 @@
 				loading: false,
 				disabled: false,
 				variantIndex: 0,
+				widthScale: cell(1),
+				widthUnit: cell({ suffix: "em" }),
 			}))
 			.does({
 				// Nested components with dynamic props
-				buttons: (_self, { loading, disabled, variantIndex }) => [
+				buttons: (_self, { loading, disabled, variantIndex, widthScale, widthUnit }) => [
 					ActionButton({
 						label: "Submit",
 						variant: variants[variantIndex],
 						column: { width: 8 },
+						widthScale,
+						widthUnit,
 						loading,
 						disabled
 					}),
@@ -207,12 +215,16 @@
 						label: "Cancel",
 						variant: "danger",
 						column: { width: 6 },
+						widthScale,
+						widthUnit,
 						disabled
 					}),
 					ActionButton({
 						label: "Special",
 						variant: "success",
 						column: { width: 10 },
+						widthScale,
+						widthUnit,
 						highlight: true
 					}),
 				],

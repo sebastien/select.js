@@ -118,6 +118,62 @@ class TemplateParser {
 
 	static _WhenComparators = ["!==", "==", "!=", ">=", "<=", "~?", "=", ">", "<"]
 	static _ReBindingPath = /^[A-Za-z_$][A-Za-z0-9_$-]*$/
+	static _ReProcessorName = /^\*?[A-Za-z_$][A-Za-z0-9_$-]*$/
+
+	static ParseProcessorToken(expr) {
+		const source = typeof expr === "string" ? expr.trim() : ""
+		if (!source || /\s/.test(source)) return null
+		const parts = source.split("+")
+		if (!parts.length) return null
+		const head = parts[0]
+		if (!head || !TemplateParser._ReProcessorName.test(head)) return null
+		const each = head.startsWith("*")
+		const name = each ? head.slice(1) : head
+		if (!name) return null
+		const args = []
+		for (let i = 1; i < parts.length; i++) {
+			const path = TemplateParser.ParseBindingPath(parts[i], true)
+			if (!path) return null
+			args.push(path)
+		}
+		return { raw: source, each, name, args }
+	}
+
+	static ParseProcessorList(parts) {
+		const processors = []
+		for (let i = 0; i < parts.length; i++) {
+			const processor = TemplateParser.ParseProcessorToken(parts[i])
+			if (!processor) return null
+			processors.push(processor)
+		}
+		return processors
+	}
+
+	static FormatBindingPath(path) {
+		if (!path?.length) return ""
+		return path[0] === "." ? (path.length > 1 ? `.${path.slice(1).join(".")}` : ".") : path.join(".")
+	}
+
+	static FormatProcessorToken(processor) {
+		if (!processor) return ""
+		if (typeof processor === "string") return processor
+		const prefix = processor.each ? "*" : ""
+		if (!processor.args?.length) return `${prefix}${processor.name || ""}`
+		let token = `${prefix}${processor.name || ""}`
+		for (let i = 0; i < processor.args.length; i++) {
+			token += `+${TemplateParser.FormatBindingPath(processor.args[i])}`
+		}
+		return token
+	}
+
+	static FormatProcessorList(processors) {
+		if (!processors?.length) return ""
+		const tokens = new Array(processors.length)
+		for (let i = 0; i < processors.length; i++) {
+			tokens[i] = TemplateParser.FormatProcessorToken(processors[i])
+		}
+		return tokens.join("|")
+	}
 
 	static ParsePipedBinding(expr, validateSource = false) {
 		const source = typeof expr === "string" ? expr.trim() : ""
@@ -130,10 +186,9 @@ class TemplateParser {
 		const sourceKey = parts[0]
 		if (!sourceKey) return null
 		if (validateSource && !/^[A-Za-z0-9_$-]+$/.test(sourceKey)) return null
-		const processors = parts.length > 1 ? parts.slice(1) : []
-		for (let i = 0; i < processors.length; i++) {
-			if (/\s/.test(processors[i])) return null
-		}
+		const processors =
+			parts.length > 1 ? TemplateParser.ParseProcessorList(parts.slice(1)) : []
+		if (!processors) return null
 		return { sourceKey, processors }
 	}
 
@@ -177,12 +232,9 @@ class TemplateParser {
 		}
 		const path = TemplateParser.ParseTemplatePath(parts[0])
 		if (!path) return null
-		const processors = parts.length > 1 ? parts.slice(1) : null
-		if (processors) {
-			for (let i = 0; i < processors.length; i++) {
-				if (/\s/.test(processors[i])) return null
-			}
-		}
+		const processors =
+			parts.length > 1 ? TemplateParser.ParseProcessorList(parts.slice(1)) : null
+		if (parts.length > 1 && !processors) return null
 		return { path, processors }
 	}
 
@@ -215,9 +267,10 @@ class TemplateParser {
 		}
 		const path = TemplateParser.ParseTemplatePath(parts[0])
 		if (!path) return null
-		const processors = parts.length > 1 ? parts.slice(1) : []
-		for (let i = 0; i < processors.length; i++) if (/\s/.test(processors[i])) return null
-		const sourceKey = path[0] === "." ? (path.length === 1 ? "." : `.${path.slice(1).join(".")}`) : path.join(".")
+		const processors =
+			parts.length > 1 ? TemplateParser.ParseProcessorList(parts.slice(1)) : []
+		if (!processors) return null
+		const sourceKey = TemplateParser.FormatBindingPath(path)
 		return { mode: "publish", publishEvent, binding: { sourceKey, processors }, stopPropagation, preventDefault }
 	}
 

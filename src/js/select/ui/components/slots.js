@@ -243,7 +243,7 @@ class UITemplateSlot {
 					whenComparisonValue,
 				);
 				slot.predicatePlaceholder = document.createComment(expr || "when");
-				const groupKey = `${parsed.mode}:${whenKey}:${whenProcessors.join("|")}:${whenOperator || ""}:${whenRawValue}`;
+				const groupKey = `${parsed.mode}:${whenKey}:${TemplateParser.FormatProcessorList(whenProcessors)}:${whenOperator || ""}:${whenRawValue}`;
 				if (res[groupKey] === undefined) {
 					res[groupKey] = [slot];
 				} else {
@@ -344,7 +344,8 @@ class UITemplateSlot {
 						const parsed = TemplateParser.ParseOutAttributeBinding(slotName);
 						const binding = parsed.binding;
 						const sourceKey = binding?.sourceKey ?? slotName;
-						const processorsKey = binding?.processors?.join("|") || "";
+						const processorsKey =
+							TemplateParser.FormatProcessorList(binding?.processors) || "";
 						const bindingKey =
 							parsed.mode === "binding"
 								? `${sourceKey}|${processorsKey}`
@@ -1352,6 +1353,7 @@ class UIContentSlot {
 		this.parent = parent;
 		this.name = name;
 		this.content = null;
+		this.contentNodes = null;
 		this.fallbackActive = false;
 		this._lastWasFallback = false;
 		this._lastContent = undefined;
@@ -1429,13 +1431,23 @@ class UIContentSlot {
 				parent.insertBefore(n, ref);
 			}
 			this.content = instance;
+			this.contentNodes = null;
+		} else if (content instanceof DocumentFragment) {
+			const nodes = [...content.childNodes];
+			for (const n of nodes) {
+				parent.insertBefore(n, ref);
+			}
+			this.content = content;
+			this.contentNodes = nodes;
 		} else if (content instanceof Node) {
 			parent.insertBefore(content, ref);
 			this.content = content;
+			this.contentNodes = null;
 		} else {
 			const text = document.createTextNode(asText(content));
 			parent.insertBefore(text, ref);
 			this.content = text;
+			this.contentNodes = null;
 		}
 	}
 
@@ -1453,10 +1465,15 @@ class UIContentSlot {
 	_clear() {
 		if (isUIInstance(this.content)) {
 			this.content.unmount();
+		} else if (this.contentNodes?.length) {
+			for (const node of this.contentNodes) {
+				node.parentNode?.removeChild(node);
+			}
 		} else if (this.content?.parentNode) {
 			this.content.parentNode.removeChild(this.content);
 		}
 		this.content = null;
+		this.contentNodes = null;
 		if (this.fallbackActive) {
 			for (const n of this.fallback) {
 				n.parentNode?.removeChild(n);

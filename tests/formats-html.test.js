@@ -3,6 +3,7 @@ import { Window } from "happy-dom"
 
 let window
 let html
+let hi
 
 function setupGlobals(win) {
 	win.SyntaxError = SyntaxError
@@ -24,7 +25,7 @@ function setupGlobals(win) {
 beforeAll(async () => {
 	window = new Window({ url: "http://localhost:8000/formats" })
 	setupGlobals(window)
-	;({ html } = await import("../src/js/select/formats.js"))
+	;({ html, hi } = await import("../src/js/select/formats.js"))
 })
 
 afterAll(() => {
@@ -47,5 +48,13 @@ describe("formats.html", () => {
 		expect(value.firstElementChild.tagName).toBe("DIV")
 		expect(value.lastElementChild.tagName).toBe("SPAN")
 	})
-})
 
+	test("highlights matching text in html", () => {
+		const value = hi("Tanzania", "an")
+		expect(value.nodeType).toBe(Node.ELEMENT_NODE)
+		expect(value.tagName).toBe("SPAN")
+		expect(value.textContent).toBe("Tanzania")
+		expect(value.querySelectorAll("mark").length).toBe(2)
+		expect(value.querySelectorAll("mark")[0]?.textContent).toBe("an")
+	})
+})

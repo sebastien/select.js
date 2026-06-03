@@ -269,8 +269,14 @@ External template resolution details:
 - `out-replace="slot"`: render slot value in place of the bound node
 - `out="slot|Formatter"`: pass `slot` through one processor
 - `out="slot|FormatterA|FormatterB"`: chain processors left-to-right
+- `out="slot|formatter+arg1+arg2.subvalue"`: call function processors as `formatter(value, arg1, arg2Subvalue, ...)`
 - `out="collection|*Formatter"`: apply `Formatter` to each item of `collection` (preserving array/map/set/object shape)
-- In starred pipelines, function processors receive the item index as the second argument and the rest of the chain stays item-wise.
+- In starred pipelines, function processors receive the item index as the second argument when no `+arg` values are provided.
+- With `+arg` values, starred function processors receive resolved args first and the item index after them (`processor(item, ...args, index, self, data, sourceKey, name)`).
+
+Each `+arg` segment is a data-path lookup resolved against the current component
+data. Dotted paths such as `+settings.units.suffix` expand reactive values while
+traversing and before the processor is invoked.
 
 `out-replace` uses the same binding and processor pipeline as `out`, but mounts
 its result between anchors at the original node position. This is useful when
@@ -314,6 +320,7 @@ Event bindings support handler mode and publish/effect mode:
 - `on:click="!Clicked"`: publish `Clicked` with current component data as payload
 - `on:click="path.to.value!Selected"`: publish `Selected` with payload from data path
 - `on:click="path.to.value|processorA|processorB!Selected"`: same, after processors
+- `on:click="path.to.value|formatter+arg1+arg2!Selected"`: same, with resolved processor arguments
 - `on:click="!Selected."`: publish then call `event.stopPropagation()`
 - `on:click="!Selected-"`: publish then call `event.preventDefault()`
 - `on:click="!Selected.-"`: publish then call both `event.stopPropagation()` and `event.preventDefault()`
@@ -366,7 +373,7 @@ alias `.`/`.path`:
 - `${.}` (full data in template interpolation)
 - `${.email}` (nested path from root data)
 
-In template mode, placeholders support optional processor pipelines (`${path|Formatter|Formatter}`), with no expression evaluation. Missing or invalid placeholders render as empty strings.
+In template mode, placeholders support optional processor pipelines (`${path|Formatter|formatter+arg}`), with no expression evaluation. Missing or invalid placeholders render as empty strings.
 
 `when` accepts shorthand slot predicates:
 
@@ -378,6 +385,7 @@ In template mode, placeholders support optional processor pipelines (`${path|For
 `when` also accepts processor pipelines:
 
 - `when="slot|Formatter"`
+- `when="slot|formatter+arg1+arg2"`
 - `when="?slot|FormatterA|FormatterB"`
 
 `when` uses the same `ui.formats` registry as `out`.

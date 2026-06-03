@@ -502,6 +502,7 @@ Render data to the DOM. Content can be text, HTML, or nested components.
 
 ```html
 <li out="client|ClientItem"></li>
+<span out="amount|formatRange+min+units.suffix"></span>
 ```
 
 Use `*` to apply a processor to each item of a collection:
@@ -512,7 +513,11 @@ Use `*` to apply a processor to each item of a collection:
 ```
 
 In starred pipelines, function processors receive the item index as the second
-argument, and later processors remain item-wise too.
+argument when no `+arg` values are present. With `+arg` values, they receive
+resolved args first and the item index after them.
+
+Each `+arg` segment is a data-path lookup against the current component data.
+Dotted paths such as `+units.suffix` expand reactive values while traversing.
 
 Processors are looked up by name in `ui.formats`.
 For both `Name` and `*Name`, resolution checks component-local nested templates

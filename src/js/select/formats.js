@@ -8,6 +8,7 @@
 // String case format helpers shared across modules.
 
 import { unwrap } from "./cells.js";
+import { hi as htmlHi } from "./utils/html.js";
 import { bool, entries, idem, len, type } from "./utils.js";
 
 const MONTH_NAMES = [
@@ -327,6 +328,19 @@ const html = HTML_PARSER
 		}
 	: (value) => value;
 
+function hi(value, query) {
+	if (value === undefined || value === null) {
+		return value;
+	}
+	const highlighted = htmlHi(value, query);
+	if (highlighted instanceof DocumentFragment) {
+		const wrapper = document.createElement("span");
+		wrapper.appendChild(highlighted);
+		return wrapper;
+	}
+	return highlighted;
+}
+
 function debug(value, scope) {
 	console.log("[uijs.debug] Slot value:", { value, scope });
 	return value;
@@ -347,6 +361,7 @@ const FORMATS = {
 	empty,
 	entries,
 	html,
+	hi,
 	idem,
 	index,
 	item,
@@ -405,6 +420,7 @@ export {
 	FORMATS,
 	format,
 	html,
+	hi,
 	idem,
 	index,
 	json,

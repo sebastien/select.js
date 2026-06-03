@@ -177,14 +177,40 @@ function resolveNamedProcessor(self, name) {
 	return { type: isComponent ? "component" : "function", value: registered };
 }
 
+function normalizeProcessorDescriptor(processor) {
+	if (!processor) return null;
+	if (typeof processor === "string") {
+		return TemplateParser.ParseProcessorToken(processor);
+	}
+	if (typeof processor.name !== "string" || !processor.name.length) {
+		return null;
+	}
+	return {
+		raw:
+			processor.raw || TemplateParser.FormatProcessorToken(processor),
+		each: processor.each === true,
+		name: processor.name,
+		args: Array.isArray(processor.args) ? processor.args : [],
+	};
+}
+
+function resolveProcessorArgs(data, args) {
+	if (!args?.length) return null;
+	const resolved = new Array(args.length);
+	for (let i = 0; i < args.length; i++) {
+		resolved[i] = resolveDataPath(data, args[i]);
+	}
+	return resolved;
+}
+
 function applyNamedProcessor(
 	processor,
 	current,
 	self,
 	data,
 	sourceKey,
-	name,
-	{ expandFunctions = true, itemIndex = undefined } = {},
+	descriptor,
+	{ expandFunctions = true, itemIndex = undefined, args = null } = {},
 ) {
 	if (processor.type === "component") {
 		const component = processor.value;
@@ -195,7 +221,7 @@ function applyNamedProcessor(
 			typeof component?.apply === "function" &&
 			typeof component !== "function"
 		) {
-			return component.apply(value, self, data, sourceKey, name);
+			return component.apply(value, self, data, sourceKey, descriptor.name);
 		}
 		if (typeof component?.apply === "function" && component?.isTemplate)
 			return component(value);
@@ -203,19 +229,46 @@ function applyNamedProcessor(
 		return value;
 	}
 	const value = expandFunctions ? resolveRenderableValue(current) : current;
+	const argValues = args || [];
 	if (itemIndex !== undefined) {
-		return processor.value(value, itemIndex, self, data, sourceKey, name);
+		return argValues.length
+			? processor.value(
+					value,
+					...argValues,
+					itemIndex,
+					self,
+					data,
+					sourceKey,
+					descriptor.name,
+				)
+			: processor.value(
+					value,
+					itemIndex,
+					self,
+					data,
+					sourceKey,
+					descriptor.name,
+				);
 	}
-	return processor.value(value, self, data, sourceKey, name);
+	return argValues.length
+		? processor.value(
+				value,
+				...argValues,
+				self,
+				data,
+				sourceKey,
+				descriptor.name,
+			)
+		: processor.value(value, self, data, sourceKey, descriptor.name);
 }
 
 function resolveNamedProcessorChainType(self, processors, _sourceKey) {
 	let lastProcessorType = null;
 	if (!processors || processors.length === 0) return lastProcessorType;
 	for (let i = 0; i < processors.length; i++) {
-		const name = processors[i];
-		const processorName = name.startsWith("*") ? name.slice(1) : name;
-		const processor = resolveNamedProcessor(self, processorName);
+		const descriptor = normalizeProcessorDescriptor(processors[i]);
+		if (!descriptor) continue;
+		const processor = resolveNamedProcessor(self, descriptor.name);
 		if (processor) lastProcessorType = processor.type;
 	}
 	return lastProcessorType;
@@ -235,14 +288,15 @@ function applyNamedProcessors(
 	let current = value;
 	let lastProcessorType = null;
 	for (let i = 0; i < processors.length; i++) {
-		const name = processors[i];
-		const each = name.startsWith("*");
-		const processorName = each ? name.slice(1) : name;
-		const processor = resolveNamedProcessor(self, processorName);
+		const descriptor = normalizeProcessorDescriptor(processors[i]);
+		if (!descriptor) {
+			continue;
+		}
+		const processor = resolveNamedProcessor(self, descriptor.name);
 		if (!processor) {
 			const availableProcessors = Object.keys(FORMATS).sort();
-			log.warn("UIInstance.render: processor not found, details", {
-				processor: processorName,
+			log.warn(`UIInstance.render: processor not found: ${descriptor.name}, details`, {
+				processor: descriptor.name,
 				sourceKey,
 				availableProcessors,
 				instance: self,
@@ -250,7 +304,8 @@ function applyNamedProcessors(
 			continue;
 		}
 		lastProcessorType = processor.type;
-		if (each) {
+		const args = resolveProcessorArgs(data, descriptor.args);
+		if (descriptor.each) {
 			// NOTE: Starred processors act on the expanded collection shape, not on
 			// the reactive wrapper that may hold it.
 			current = resolveRenderableValue(current);
@@ -261,8 +316,8 @@ function applyNamedProcessors(
 					self,
 					data,
 					sourceKey,
-					processorName,
-					{ ...options, itemIndex },
+					descriptor,
+					{ ...options, itemIndex, args },
 				),
 			);
 			const tail = processors.slice(i + 1);
@@ -295,8 +350,8 @@ function applyNamedProcessors(
 			self,
 			data,
 			sourceKey,
-			processorName,
-			options,
+			descriptor,
+			{ ...options, args },
 		);
 	}
 	return withMeta

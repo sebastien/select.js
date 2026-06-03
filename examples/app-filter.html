@@ -60,9 +60,8 @@
 
 	<template id="Country">
 		<li>
-			<!-- TODO: name|format -->
 			<code out="code"></code>
-			<span out="name"></span>
+			<span out="name|hi+query"></span>
 		</li>
 	</template>
 
@@ -81,6 +80,7 @@
 		const Country = ui("#Country").does({
 			name: (_self, {name}) => name,
 			code: (_self, {code}) => code,
+			query: (_self, {query}) => query,
 		})
 
 		const FilteredList = ui("#FilteredList").does({
@@ -90,7 +90,7 @@
 				}
 				const query = (filter || "").trim().toLowerCase()
 				const filtered = query ? items.filter(_ => _.name.toLowerCase().includes(query)) : items
-				return filtered.map(_ => Country(_))
+				return filtered.map(_ => Country({..._, query}))
 			},
 			empty: (_self, {items, filter}) => {
 				if (!items) return true
