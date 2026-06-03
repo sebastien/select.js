@@ -492,6 +492,39 @@ function stripTemplateNodes(nodes) {
 	return res
 }
 
+function qualifyNestedTemplateName(parentName, childName) {
+	return parentName && childName ? `${parentName}${childName}` : childName
+}
+
+function registerComponentFormat(name, component) {
+	if (!name) {
+		return
+	}
+	const existing = FORMATS[name]
+	if (existing && existing !== component) {
+		log.warn("ui.formats: duplicate component key, keeping first registration, details", {
+			key: name,
+			existing,
+			ignored: component,
+		})
+		return
+	}
+	format(name, component)
+}
+
+function visitImmediateNestedTemplates(node, visitor) {
+	if (!node?.childNodes) {
+		return
+	}
+	for (const child of node.childNodes) {
+		if (child?.nodeName === "TEMPLATE") {
+			visitor(child)
+			continue
+		}
+		visitImmediateNestedTemplates(child, visitor)
+	}
+}
+
 // Function: createComponent
 // Wraps a `UITemplate` into a callable component facade and attaches helper
 // methods (`new`, `map`, `on`, `sub`, `cleanup`) used by the UI runtime.
@@ -543,35 +576,33 @@ function createComponent(tmpl, localTemplateNodes = tmpl.nodes, definition = nul
 		},
 	})
 	const localTemplates = new Map()
-	const registerLocalTemplate = (templateNode) => {
+	const registerLocalTemplate = (templateNode, qname = tmpl.componentName ?? null) => {
 		if (templateNode?.nodeName !== "TEMPLATE") {
 			return
 		}
 		const name = TemplateRegistry.FormatterName(templateNode)
+		const childQName = qualifyNestedTemplateName(qname, name)
 		if (name && !localTemplates.has(name)) {
 			const childNodes = [...templateNode.content.childNodes]
-			const childTemplate = new UITemplate(stripTemplateNodes(childNodes), tmpl.scope, name)
+			const childTemplate = new UITemplate(stripTemplateNodes(childNodes), tmpl.scope, childQName)
 			const childComponent = createComponent(childTemplate, childNodes)
 			component[name] = childComponent
 			localTemplates.set(name, childComponent)
+			registerComponentFormat(childQName, childComponent)
 		}
-		if (!templateNode.content?.querySelectorAll) {
+		if (!templateNode.content) {
 			return
 		}
-		for (const nested of templateNode.content.querySelectorAll("template")) {
-			registerLocalTemplate(nested)
-		}
+		visitImmediateNestedTemplates(templateNode.content, (nested) =>
+			registerLocalTemplate(nested, childQName),
+		)
 	}
 	for (let i = 0; i < localTemplateNodes.length; i++) {
 		const node = localTemplateNodes[i]
 		if (node?.nodeName === "TEMPLATE") {
 			registerLocalTemplate(node)
 		}
-		if (node?.querySelectorAll) {
-			for (const nested of node.querySelectorAll("template")) {
-				registerLocalTemplate(nested)
-			}
-		}
+		visitImmediateNestedTemplates(node, (nested) => registerLocalTemplate(nested))
 	}
 	if (localTemplates.size) {
 		tmpl.localTemplates = localTemplates
