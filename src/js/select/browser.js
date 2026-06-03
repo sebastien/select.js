@@ -7,7 +7,7 @@
 // Module: select/browser
 // Browser-backed reactive state for URL and local storage.
 
-import { Cell } from "./cells.js";
+import { Cell, cell } from "./cells.js";
 import {
 	access,
 	assigned,
@@ -1040,9 +1040,7 @@ class Browser {
 			return path?.length ? cell.select(path) : cell;
 		}
 		const root = type === "#" ? this.hash : this.query;
-		return path?.length
-			? root.select([name, ...path])
-			: root.select([name]);
+		return path?.length ? root.select([name, ...path]) : root.select([name]);
 	}
 
 	parse(value) {
@@ -1084,8 +1082,12 @@ class Browser {
 		return response.blob();
 	}
 
+	fetched(input, options = undefined) {
+		return cell(this.fetch(input, options));
+	}
 	async fetch(input, options = undefined) {
 		const request = this.parseRequest(input);
+		console.log("REQUEST", { input, request });
 		const fetcher =
 			typeof globalThis.fetch === "function" ? globalThis.fetch : undefined;
 		if (!fetcher) {

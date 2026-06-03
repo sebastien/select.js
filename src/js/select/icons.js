@@ -68,6 +68,9 @@ const Cache = new Map();
 // Splits `name` into `[iconName, iconSource]`, preserving `source` as the
 // fallback when no source prefix is embedded in `name`.
 function parseIconName(name, source) {
+	// if (!name) {
+	// 	return [IconDefaults.name, source || IconDefaults.source];
+	// }
 	const i = name.indexOf(":");
 	return [
 		(i > 0 ? name.substring(i + 1) : name) || IconDefaults.name,

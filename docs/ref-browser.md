@@ -16,6 +16,7 @@ Returns:
 - `internal(name, value)`: in-memory shared cell factory
 - `parse(value)`: internal-reference and hashformat parser
 - `fetch(input, options?)`: fetch helper with content-type-aware decoding
+- `fetched(input, options?)`: reactive cell wrapper around `fetch(input, options?)`
 
 ### `Browser`
 
@@ -219,6 +220,10 @@ state.parse("hello")
   - JSON content types return `response.json()`
   - text-like content types return `response.text()`
   - all other content types return `response.blob()`
+
+### `fetched(input, options?)`
+
+Returns a cell that resolves to the same normalized value as `fetch(input, options?)`.
 
 ## Example
 

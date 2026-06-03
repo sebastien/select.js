@@ -256,10 +256,13 @@ class Selection extends Array {
 			scope = selector.scope;
 			selector = selector.selector;
 			if (selector.scope && scope !== selector.scope) {
-				log.error("Selection.new: given scope differs from first argument's, details", {
-					scope,
-					selectorScope: selector.scope,
-				});
+				log.error(
+					"Selection.new: given scope differs from first argument's, details",
+					{
+						scope,
+						selectorScope: selector.scope,
+					},
+				);
 			}
 		} else if (selector) {
 			nodes = Selection.AsElementList(selector);
@@ -394,9 +397,12 @@ class Selection extends Array {
 		} else if (typeof selector === "function") {
 			return new Selection(Array.prototype.filter.apply(this, [selector]));
 		} else {
-			log.error("Selection.filter: selector string or predicate expected, details", {
-				selector,
-			});
+			log.error(
+				"Selection.filter: selector string or predicate expected, details",
+				{
+					selector,
+				},
+			);
 			return None;
 		}
 	}
@@ -713,9 +719,12 @@ class Selection extends Array {
 				this.extend(value[i]);
 			}
 		} else {
-			log.error("Selection.extend: value must be a node, selection or list, details", {
-				value,
-			});
+			log.error(
+				"Selection.extend: value must be a node, selection or list, details",
+				{
+					value,
+				},
+			);
 		}
 		return this;
 	}
@@ -1635,7 +1644,7 @@ const $ = select;
 //
 // ----------------------------------------------------------------------------
 
-export { $, filter, match, query, S, Selection, select };
+export { $, S, Selection, select };
 export default select;
 
 // EOF

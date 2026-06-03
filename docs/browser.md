@@ -11,6 +11,7 @@ Browser-backed reactive state for URL and `localStorage`.
 - `internal(name, value)`: in-memory shared cell registry for cross-component state
 - `parse(value)`: resolves `@`, `#`, and `?` cell references or hashformat text
 - `fetch(input, options?)`: fetch helper with typed response parsing
+- `fetched(input, options?)`: reactive cell wrapper around `fetch(input, options?)`
 
 `@./browser.js` also exports `Browser`, the class used by `browser(options?)`.
 
@@ -33,6 +34,7 @@ modal.set(true)
 
 const current = state.parse("@modal.open")
 const result = await state.fetch("POST:/api/items#label=Draft,done=F")
+const resultCell = state.fetched("POST:/api/items#label=Draft,done=F")
 ```
 
 ## Serializer Exports
@@ -100,6 +102,10 @@ Responses are normalized by content type:
 - JSON content types return parsed JSON
 - text-like content types return `text()`
 - everything else returns a `Blob`
+
+## `fetched(input, options?)`
+
+Returns a cell that resolves to the same normalized result as `fetch(input, options?)`.
 
 ## Non-Browser Environments
 

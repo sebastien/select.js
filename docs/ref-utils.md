@@ -2,7 +2,8 @@
 
 Utility helpers are split across `select/utils.js`, `select/utils/*.js`,
 `select/interaction.js`, and `select/routing.js`. `select/utils.js` is the
-compatibility barrel that re-exports the split utility modules.
+compatibility barrel that re-exports the split utility modules. Search helpers
+live in `select/utils/search.js` as a direct import.
 
 ## Quick Start
 
@@ -129,6 +130,34 @@ Falsy values are ignored.
 
 Returns a space-joined class string from `iclsx(...args)`.
 
+### Search helpers
+
+#### `match(value, criteria)`
+
+Returns `true` when `value` satisfies `criteria`.
+
+- falsy criteria match everything
+- regular expressions test the string form of `value`
+- arrays require all criteria to match
+- objects require all enumerable keys to match recursively
+- functions are called as predicates
+- everything else is matched by strict identity
+
+#### `predicate(...criteria)`
+
+Returns a matcher that requires all criteria to pass.
+
+#### `textfilter(text)`
+
+Builds a case-insensitive regular expression from `text`.
+
+- `OR` splits alternatives
+- quoted phrases are treated as exact phrases
+- `?` expands to an optional whitespace-delimited capture
+
+`select/utils/search.js` is imported directly instead of through the
+compatibility barrel.
+
 ### Event binding
 
 #### `bind(node, handlers)`
@@ -251,7 +280,7 @@ Returns a callable dispatcher with `.router` and `.match(path)` attached.
 `browser(options?)` returns the shared `Browser` singleton.
 
 The `Browser` instance exposes `path`, `query`, `hash`, `local`, `internal`,
-`parse`, and `fetch`.
+`parse`, `fetch`, and `fetched`.
 
 Exported browser module symbols are `Browser`, `browser`, `hash`, `query`, and `record`.
 

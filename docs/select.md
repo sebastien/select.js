@@ -12,8 +12,6 @@ Module exports:
 - `select(selector, scope?)`
 - `$` (alias to `select`)
 - `S` (alias to `select`)
-- `query(selector, scope?, limit?)`
-- `filter(selector, nodes)`
 - `Selection` (class)
 
 Selection and traversal:
@@ -81,8 +79,6 @@ select.Selection.prototype.flash = function () {
 - `select(selector, scope?)`: Creates a `Selection` from CSS selector strings, DOM/SVG nodes, arrays, node lists, or existing selections.
 - `S(selector, scope?)`: Alias to `select`.
 - `$(selector, scope?)`: Alias to `select`.
-- `query(selector, scope?, limit?)`: Queries descendants with CSS selectors and returns matching elements.
-- `filter(selector, nodes)`: Filters a node collection by selector.
 - `Selection`: Array-like class used by all fluent operations.
 
 ### Selection and traversal:

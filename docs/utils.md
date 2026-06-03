@@ -3,7 +3,8 @@
 ## Compatibility barrel for split helpers
 
 `select/utils.js` re-exports the helper modules under `select/utils/*.js` and
-exposes the `sel` bundle for selection helpers.
+exposes the `sel` bundle for selection helpers. Search helpers live in the
+separate `select/utils/search.js` module.
 
 ### Re-exported groups
 
@@ -38,6 +39,11 @@ exposes the `sel` bundle for selection helpers.
 - `iclsx(...values)`: Generator form of `clsx`.
 - `asText(value)`: Converts values to displayable text.
 - `hi(text, query, creator?)`: Returns highlighted text nodes/fragments.
+
+### Search helpers
+
+- `select/utils/search.js` exports `match(value, criteria)`, `predicate(...criteria)`, and `textfilter(text)`.
+- Import it directly when you need those helpers.
 
 ### Text compression helpers
 
