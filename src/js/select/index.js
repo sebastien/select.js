@@ -25,6 +25,8 @@ export * from "./ui/index.js";
 export * from "./interaction.js";
 export * from "./routing.js";
 export * from "./utils.js";
+export { expand } from "./cells.js";
+export { remap } from "./ui/index.js";
 
 export { cells, fastdom, icons, interaction, routing, $, ui, utils, browser };
 

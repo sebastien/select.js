@@ -1177,6 +1177,20 @@ class UIInstance {
 							!hasTrackedNonReactiveObjectDeps(data, deps)
 						) {
 							v = this._behaviorValues.get(k);
+							if (withProcessors && processors?.length) {
+								const processed = applyNamedProcessors(
+									this,
+									renderData,
+									v,
+									processors,
+									sourceKey,
+									{ withMeta: true },
+								);
+								v = finalizeRenderProcessorValue(
+									processed.value,
+									processed.lastProcessorType,
+								);
+							}
 							for (const slot of slots) {
 								slot.render(v);
 							}

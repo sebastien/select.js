@@ -86,7 +86,11 @@ dist/selectjs.js: src/js/select/index.js $(SOURCES_JS)
 
 dist/selectjs.min.js: src/js/select/index.js $(SOURCES_JS)
 	@mkdir -p $(dir $@); true
-	@$(CMD) bun build --bundle --format=esm --minify --outfile="$@" "$<"
+	@tmp="$@.bundle.js"; \
+	rm -f "$$tmp"; \
+	$(call shell_try,$(CMD) bun build --bundle --format=esm --outfile="$$tmp" "$<",Unable to build JavaScript bundle: $<); \
+	$(call shell_try,$(call js_minify,$$tmp,$@),Unable to minify JavaScript bundle: $<); \
+	rm -f "$$tmp"
 	echo "[DIST] $$(du -hs $@)"
 
 # EOF

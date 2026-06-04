@@ -6,7 +6,11 @@ import { Window } from "happy-dom"
 const ROOT = path.resolve(__dirname, "..")
 const EXAMPLES_DIR = path.join(ROOT, "examples")
 const FIXTURES_DIR = path.join(ROOT, "tests", "fixtures", "examples")
+const DIST_BUNDLE_PATH = path.join(ROOT, "dist", "selectjs.min.js")
+const HAS_DIST_BUNDLE = fs.existsSync(DIST_BUNDLE_PATH)
 const UPDATE_FIXTURES = process.env.UPDATE_FIXTURES === "1"
+
+let distBundlePromise: Promise<Record<string, any>> | undefined
 
 const EXAMPLE_INTERACTIONS: Record<string, (window: Window) => Promise<void> | void> = {
 	"app-filter": async (window) => {
@@ -195,6 +199,44 @@ function transpileModuleScript(source: string) {
 	return transformed
 }
 
+function wrapIconsModule(mod: Record<string, any>) {
+	return {
+		...mod,
+		install: (...args: any[]) => {
+			try {
+				return mod.install(...args)
+			} catch (error) {
+				const message = `${error instanceof Error ? error.message : error}`
+				if (message.includes("constructor has already been used")) {
+					return undefined
+				}
+				throw error
+			}
+		},
+	}
+}
+
+async function loadDistBundle() {
+	distBundlePromise ||= import(pathToFileURL(DIST_BUNDLE_PATH).href)
+	return distBundlePromise
+}
+
+function resolveDistModule(bundle: Record<string, any>, specifier: string) {
+	if (specifier === "@./ui.js") {
+		return { ...bundle, default: bundle.ui, ui: bundle.ui }
+	}
+	if (specifier === "@./cells.js") {
+		return { ...bundle, default: bundle.cells, cells: bundle.cells }
+	}
+	if (specifier === "@./icons.js") {
+		return wrapIconsModule({ ...bundle, default: bundle.icons, icons: bundle.icons })
+	}
+	if (specifier === "@./index.js") {
+		return bundle
+	}
+	return bundle
+}
+
 function shouldIgnoreError(exampleName: string, error: unknown) {
 	const message = `${error instanceof Error ? error.message : error}`
 	if (exampleName === "feature-events" && message.includes("app.on is not a function")) {
@@ -206,7 +248,7 @@ function shouldIgnoreError(exampleName: string, error: unknown) {
 	return false
 }
 
-async function executeExample(examplePath: string) {
+async function executeExample(examplePath: string, mode: "src" | "dist" = "src") {
 	const exampleName = path.basename(examplePath, ".html")
 	const html = fs.readFileSync(examplePath, "utf8")
 	const window = new Window({ url: `http://localhost:8001/examples/${path.basename(examplePath)}` })
@@ -221,25 +263,12 @@ async function executeExample(examplePath: string) {
 	const run = new Function("__importAlias", `return (async () => {\n${moduleSource}\n})()`) as (i: (s: string) => Promise<any>) => Promise<void>
 	const importAlias = async (specifier: string) => {
 		if (specifier.startsWith("@./")) {
-		const p = path.join(ROOT, "src", "js", "select", specifier.replace("@./", ""))
-		const mod = await import(pathToFileURL(p).href)
-		if (specifier === "@./icons.js") {
-			return {
-				...mod,
-				install: (...args: any[]) => {
-					try {
-						return mod.install(...args)
-					} catch (error) {
-						const message = `${error instanceof Error ? error.message : error}`
-						if (message.includes("constructor has already been used")) {
-							return undefined
-						}
-						throw error
-					}
-				},
+			if (mode === "dist") {
+				return resolveDistModule(await loadDistBundle(), specifier)
 			}
-		}
-		return mod
+			const p = path.join(ROOT, "src", "js", "select", specifier.replace("@./", ""))
+			const mod = await import(pathToFileURL(p).href)
+			return specifier === "@./icons.js" ? wrapIconsModule(mod) : mod
 		}
 		if (specifier.startsWith("./") || specifier.startsWith("../")) {
 			const p = path.resolve(path.dirname(examplePath), specifier)
@@ -322,5 +351,23 @@ describe("examples integration", () => {
 		})
 	}
 })
+
+if (HAS_DIST_BUNDLE) {
+	describe("examples integration (dist bundle)", () => {
+		for (const example of listExamples()) {
+			test(example.name, async () => {
+				const window = await executeExample(example.path, "dist")
+				assertFixture(example.name, "initial", snapshotBody(window))
+				const interaction = EXAMPLE_INTERACTIONS[example.name]
+				if (interaction) {
+					await interaction(window)
+					await settle(window)
+					assertFixture(example.name, "interaction", snapshotBody(window))
+				}
+				window.close()
+			})
+		}
+	})
+}
 
 // EOF

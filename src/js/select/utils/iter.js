@@ -91,6 +91,14 @@ function* ivalues(value) {
 	}
 }
 
+// Function: iflatmap
+// Maps `values` with `func` and yields flattened results one level deep.
+function* iflatmap(values, func) {
+	for (const [k, v] of iitems(values)) {
+		yield* ivalues(func(v, k, values))
+	}
+}
+
 // Function: iitems
 // Yields `[key, value]` pairs for array-like, map-like, iterable, and scalar values.
 function* iitems(value) {
@@ -509,6 +517,7 @@ export {
 	icount,
 	ientries,
 	ifind,
+	iflatmap,
 	ifirst,
 	ifound,
 	ihead,

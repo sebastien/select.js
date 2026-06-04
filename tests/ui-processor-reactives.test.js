@@ -241,4 +241,50 @@ describe("ui processor reactive handling", () => {
 			window.close?.();
 		}
 	});
+
+	test("reapplies starred component processors for cached behavior values", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui, format } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="ProcessorCachedEachRepro">
+				<ul out="items|*ProbeItem"></ul>
+			</template>
+		`;
+
+		const ProbeItem = ui(`<li out="label"></li>`);
+		registerFormat(format, "ProbeItem", ProbeItem);
+
+		const Repro = ui("ProcessorCachedEachRepro").does({
+			items: (_self, { items }) => items,
+		});
+
+		const instance = Repro.new()
+			.set({
+				items: [{ label: "alpha" }, { label: "beta" }],
+				selected: 0,
+			})
+			.mount("#app");
+
+		expect(
+			Array.from(document.querySelectorAll("#app li")).map((node) =>
+				(node.textContent || "").trim(),
+			),
+		).toEqual(["alpha", "beta"]);
+
+		instance.update({ selected: 1 });
+
+		expect(
+			Array.from(document.querySelectorAll("#app li")).map((node) =>
+				(node.textContent || "").trim(),
+			),
+		).toEqual(["alpha", "beta"]);
+		expect(document.querySelector("#app ul")?.textContent).not.toContain('{"label":"alpha"}');
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
 });

@@ -14,6 +14,7 @@ import {
 	has,
 	head,
 	index,
+	isin,
 	iter,
 	last,
 	nth,
@@ -37,6 +38,7 @@ import {
 	difference,
 	enumerate,
 	filter,
+	flatmap,
 	flatten,
 	grouped as groupBy,
 	inserted as insertAt,
@@ -92,6 +94,9 @@ describe("utils.collections", () => {
 		expect(reverse({ a: 1, b: 2, c: 3 })).toEqual({ c: 3, b: 2, a: 1 })
 		expect(resize(["a"], 3, (i) => `x${i}`)).toEqual(["a", "x1", "x2"])
 		expect(sorted([{ id: 2 }, { id: 1 }], "id")).toEqual([{ id: 1 }, { id: 2 }])
+		expect(flatmap([1, 2, 3], (v, i) => [i, v * 2])).toEqual([0, 2, 1, 4, 2, 6])
+		expect(flatmap({ a: 1, b: 2 }, (v, k) => [k, v])).toEqual(["a", 1, "b", 2])
+		expect(flatmap("alpha", (v, k) => [k, v])).toEqual([0, "alpha"])
 		expect(flatten([1, [2, [3]]])).toEqual([1, 2, 3])
 		expect(iter(["a", "b"], (v, i, r) => (r || "") + `${i}:${v}`, (r) => r, "")).toBe(
 			"0:a1:b",
@@ -113,6 +118,8 @@ describe("utils.collections", () => {
 		expect(first("alpha")).toBe("alpha")
 		expect(index("alpha", "alpha")).toBe(0)
 		expect(index("alpha", "l")).toBe(-1)
+		expect(isin(rows, rows[1])).toBe(true)
+		expect(isin(rows, { id: 2, active: false })).toBe(false)
 		expect(slice(rows, 1)).toEqual([rows[1], rows[2]])
 		expect(unique([{ id: 1 }, { id: 1 }, { id: 2 }], "id")).toEqual([
 			{ id: 1 },

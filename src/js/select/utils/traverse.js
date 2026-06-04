@@ -281,9 +281,9 @@ function found(values, item, extractorFunc = undefined) {
 	return ifound(values, item, extractorFunc);
 }
 
-// Function: isIn
+// Function: isin
 // Returns true when `value` is present in `values`.
-function isIn(values, value) {
+function isin(values, value) {
 	return index(values, value) !== -1;
 }
 
@@ -400,7 +400,7 @@ export {
 	get,
 	has,
 	index,
-	isIn,
+	isin,
 	iter,
 	head,
 	last,
