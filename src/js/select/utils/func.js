@@ -114,7 +114,7 @@ function collect(value, asObject = false) {
 		case Number:
 		case Symbol:
 			return value;
-		case Array:
+		case Array: {
 			if (!asObject) {
 				for (let i = 0; i < value.length; i++) {
 					if (isThenable(value[i])) {
@@ -140,6 +140,7 @@ function collect(value, asObject = false) {
 				res[value[i][0]] = value[i][1];
 			}
 			return res;
+		}
 		default: {
 			return value;
 		}

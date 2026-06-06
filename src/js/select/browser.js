@@ -1047,6 +1047,8 @@ class Browser {
 		if (typeof value !== "string") return value;
 		const reference = this.parseReference(value);
 		if (reference) return reference;
+		if (value === "true") return true;
+		if (value === "false") return false;
 		return looksLikeHashText(value) ? hash.parse(value) : value;
 	}
 
