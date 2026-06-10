@@ -114,4 +114,36 @@ describe("ui when + out attribute regression", () => {
 		document.body.innerHTML = "";
 		window.close?.();
 	});
+
+	test("bare out attributes infer same-name when keys", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="WhenOutAttrInferenceRepro">
+				<div>
+					<input class="value" when="?" out:value />
+					<div class="class" when="?" out:class></div>
+					<div class="data" when="?" out:data-id></div>
+				</div>
+			</template>
+		`;
+
+		const Repro = ui("WhenOutAttrInferenceRepro");
+		Repro
+			.new()
+			.set({ value: "Alpha", class: "ready", "data-id": "card-42" })
+			.mount("#app");
+
+		expect(document.querySelector("#app .value")?.value).toBe("Alpha");
+		expect(document.querySelector("#app .class")?.className).toContain("ready");
+		expect(document.querySelector("#app .data")?.getAttribute("data-id")).toBe(
+			"card-42",
+		);
+
+		document.body.innerHTML = "";
+		window.close?.();
+	});
 });

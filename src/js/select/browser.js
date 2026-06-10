@@ -1087,9 +1087,9 @@ class Browser {
 	fetched(input, options = undefined) {
 		return cell(this.fetch(input, options));
 	}
+
 	async fetch(input, options = undefined) {
 		const request = this.parseRequest(input);
-		console.log("REQUEST", { input, request });
 		const fetcher =
 			typeof globalThis.fetch === "function" ? globalThis.fetch : undefined;
 		if (!fetcher) {

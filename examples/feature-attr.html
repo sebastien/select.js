@@ -102,7 +102,7 @@
 
 <body>
 	<h1>Button Attributes</h1>
-	<p>This example demonstrates <code>out:attr</code> bindings for dynamic classes, disabled state, ARIA attributes, and inline styles.</p>
+	<p>This example demonstrates <code>out:attr</code> bindings for dynamic classes, disabled state, ARIA attributes, and inline styles. Bare bindings like <code>out:class</code> now default to the same-name key, equivalent to <code>out:class="class"</code>.</p>
 
 	<div id="ui"></div>
 
@@ -118,7 +118,7 @@
 	<template id="ButtonDemo">
 		<div>
 			<h3>Button States Demo</h3>
-			<p>This example demonstrates <code>out:attr</code> bindings for dynamic styles, classes, and attributes.</p>
+			<p>This example demonstrates <code>out:attr</code> bindings for dynamic styles, classes, and attributes. The shorthand <code>out:name</code> is equivalent to <code>out:name="name"</code>.</p>
 
 			<div out="buttons"></div>
 
@@ -153,6 +153,7 @@
 
 		// ActionButton demonstrates multiple out:attr bindings:
 		// - out:class for dynamic CSS classes (object format like clsx)
+		//   and bare out:name shorthand maps to the same-name key
 		// - out:disabled for boolean attribute
 		// - out:aria-busy for accessibility
 		// - out:style for inline styles (object format)

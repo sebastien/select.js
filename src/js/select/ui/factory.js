@@ -456,6 +456,19 @@ function createTemplateComponent(
 			}
 		}
 		if (nodes.length === 0) {
+			const looksLikeTemplateName =
+				!resourceRef &&
+				!/^[\s<]/.test(selection) &&
+				!selection.includes("#") &&
+				!selection.includes(".") &&
+				!selection.includes("[") &&
+				!selection.includes(":") &&
+				!/\s/.test(selection);
+			if (looksLikeTemplateName) {
+				throw new Error(
+					`ui(): cannot create component: template ${JSON.stringify(selection)} was not found`,
+				);
+			}
 			log.warn("ui: selector did not match any elements, details", {
 				selector: selection,
 				scope,

@@ -173,8 +173,10 @@ class UITemplateSlot {
 				if (!attr.name.startsWith("out:")) {
 					continue;
 				}
+				const attrName = attr.name.slice("out:".length);
+				const slotName = attr.value || attrName;
 				const parsedOut = TemplateParser.ParseOutAttributeBinding(
-					attr.value || "",
+					slotName,
 				);
 				if (parsedOut.mode === "binding") {
 					const key = parsedOut.binding?.sourceKey;
@@ -563,8 +565,6 @@ class UIAttributeSlot {
 			this._renderClass(value);
 		} else if (this.attrName === "style") {
 			this._renderStyle(value);
-		} else if (this.attrName === "text") {
-			this._renderText(value);
 		} else if (this.attrName === "value") {
 			this._renderValue(value);
 		} else if (
@@ -655,10 +655,6 @@ class UIAttributeSlot {
 				this.appliedStyles.set(prop, val);
 			}
 		}
-	}
-
-	_renderText(value) {
-		setNodeText(this.node, asText(value));
 	}
 
 	_renderValue(value) {

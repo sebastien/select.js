@@ -101,6 +101,26 @@ describe("select ui reactive bindings", () => {
 		expect(document.querySelector("input")?.value).toBe("Active Clients");
 	});
 
+	it("treats bare out attributes as same-name bindings", () => {
+		const ValueBinding = ui(`<input out:value />`);
+		const ClassBinding = ui(`<div out:class></div>`);
+		const DataBinding = ui(`<div out:data-id></div>`);
+		const dataId = "card-42";
+
+		ValueBinding.new().set({ value: "Active Clients" }).mount(document.body);
+		expect(document.querySelector("input")?.value).toBe("Active Clients");
+
+		document.body.innerHTML = "";
+
+		ClassBinding.new().set({ class: "selected" }).mount(document.body);
+		expect(document.querySelector("div")?.className).toBe("selected");
+
+		document.body.innerHTML = "";
+
+		DataBinding.new().set({ "data-id": dataId }).mount(document.body);
+		expect(document.querySelector("div")?.getAttribute("data-id")).toBe(dataId);
+	});
+
 	it("publishes reactive payloads without expanding them", () => {
 		let seen = null;
 		const Component = ui(`<button on:click="payload!Ping">Ping</button>`).sub({
