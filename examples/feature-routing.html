@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI - Routing</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/select/" } }
+	</script>
+	<style>
+		:root {
+			color-scheme: light;
+			font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+			background: #f5f7fb;
+			color: #18202a;
+		}
+
+		body {
+			margin: 0;
+			padding: 24px;
+			background: linear-gradient(180deg, #f7f9fc 0%, #eef3fb 100%);
+		}
+
+		main {
+			max-width: 1100px;
+			margin: 0 auto;
+		}
+
+		h1,
+		h2,
+		h3,
+		p {
+			margin-top: 0;
+		}
+
+		.grid {
+			display: grid;
+			gap: 20px;
+			grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+		}
+
+		.example {
+			background: rgba(255, 255, 255, 0.9);
+			border: 1px solid #dbe3f0;
+			border-radius: 18px;
+			padding: 20px;
+			box-shadow: 0 18px 48px rgba(45, 75, 140, 0.08);
+		}
+
+		.stack {
+			display: grid;
+			gap: 12px;
+		}
+
+		.nav {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px;
+		}
+
+		button {
+			appearance: none;
+			border: 1px solid #c6d3eb;
+			border-radius: 999px;
+			background: #fff;
+			color: #1f3358;
+			padding: 8px 12px;
+			font: inherit;
+			cursor: pointer;
+		}
+
+		button:hover {
+			background: #f2f6ff;
+		}
+
+		.panel {
+			padding: 16px;
+			border-radius: 14px;
+			border: 1px solid #d8e2f3;
+			background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+		}
+
+		.panel h3 {
+			margin-bottom: 8px;
+		}
+
+		.muted {
+			color: #516175;
+		}
+
+		code {
+			background: #eef3fb;
+			border-radius: 6px;
+			padding: 2px 6px;
+		}
+
+		.status {
+			padding: 10px 12px;
+			border-radius: 10px;
+			background: #0f172a;
+			color: #dbeafe;
+			font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+			font-size: 0.95rem;
+			overflow-wrap: anywhere;
+		}
+
+		.note {
+			padding: 10px 12px;
+			border-radius: 12px;
+			background: #edf4ff;
+			color: #29436d;
+		}
+
+		.list {
+			margin: 0;
+			padding-left: 18px;
+		}
+
+		.route-path {
+			font-size: 1.05rem;
+			font-weight: 600;
+		}
+
+		@media (max-width: 700px) {
+			body {
+				padding: 16px;
+			}
+
+			.example {
+				padding: 16px;
+			}
+		}
+	</style>
+</head>
+
+<body>
+	<main>
+		<h1>Routing</h1>
+		<p>This example shows two ways to drive component state from the browser hash: a minimal panel switcher using <code>#panel=...</code>, and a path-style router using <code>#route=/...</code>.</p>
+
+		<div class="grid">
+			<section class="example stack">
+				<h2>Manual Hash Panels</h2>
+				<p class="muted">Use a selected hash cell directly when all you need is on/off panel state.</p>
+				<div id="manual-demo"></div>
+			</section>
+
+			<section class="example stack">
+				<h2>Router-Based Panels</h2>
+				<p class="muted">Use <code>router()</code> when the hash value should behave like a small path router with matching and captures.</p>
+				<div id="router-demo"></div>
+			</section>
+		</div>
+	</main>
+
+	<template id="ManualRouting">
+		<div class="stack">
+			<div class="nav">
+				<button on:click="goHome">#panel=home</button>
+				<button on:click="goDocs">#panel=docs</button>
+				<button on:click="goAbout">#panel=about</button>
+			</div>
+			<div class="status" out="fragment"></div>
+			<div class="note">Current panel: <strong out="panel"></strong></div>
+			<section class="panel" when="isHome">
+				<h3>Home</h3>
+				<p>Bind a component to <code>state.hash.select(["panel"])</code> and derive booleans from that value.</p>
+			</section>
+			<section class="panel" when="isDocs">
+				<h3>Docs</h3>
+				<p>This is the smallest routing pattern: one hash key, one selected cell, and conditional panels.</p>
+			</section>
+			<section class="panel" when="isAbout">
+				<h3>About</h3>
+				<p>It works well for tabs, inspectors, settings panes, and other shallow in-component navigation.</p>
+			</section>
+		</div>
+	</template>
+
+	<template id="HomeRoute">
+		<section class="panel stack">
+			<h3>Home Route</h3>
+			<p>The routed version maps a path-like hash value such as <code>#route=/settings</code> to components.</p>
+			<ul class="list">
+				<li>Simple routes: <code>/</code>, <code>/settings</code></li>
+				<li>Captured routes: <code>/profile/{tab}</code></li>
+			</ul>
+		</section>
+	</template>
+
+	<template id="SettingsRoute">
+		<section class="panel stack">
+			<h3>Settings Route</h3>
+			<p>Once a hash field behaves like a path, you can keep route matching out of the component body.</p>
+		</section>
+	</template>
+
+	<template id="ProfileRoute">
+		<section class="panel stack">
+			<h3>Profile Route</h3>
+			<p>Captured tab: <strong out="tab"></strong></p>
+			<p class="muted">This route comes from <code>/profile/{tab:string}</code>.</p>
+		</section>
+	</template>
+
+	<template id="NotFoundRoute">
+		<section class="panel stack">
+			<h3>Not Found</h3>
+			<p>No route matched <span class="route-path" out="path"></span>.</p>
+		</section>
+	</template>
+
+	<template id="RoutedPanels">
+		<div class="stack">
+			<div class="nav">
+				<button on:click="goRoot">#route=/</button>
+				<button on:click="goSettings">#route=/settings</button>
+				<button on:click="goActivity">#route=/profile/activity</button>
+				<button on:click="goSecurity">#route=/profile/security</button>
+				<button on:click="goMissing">#route=/reports/daily</button>
+			</div>
+			<div class="status" out="fragment"></div>
+			<div class="note">Current route: <strong out="route"></strong></div>
+			<div out="view"></div>
+		</div>
+	</template>
+
+	<script type="module">
+		import browser from "@./browser.js"
+		import { router } from "@./routing.js"
+		import ui from "@./ui.js"
+
+		const state = browser()
+		const panelCell = state.hash.select(["panel"])
+		const routeCell = state.hash.select(["route"])
+
+		const currentHash = () => state.win?.location?.hash || "#"
+
+		const hashState = state.hash.value || {}
+		if (!hashState.panel || !hashState.route) {
+			state.hash.set({
+				...hashState,
+				panel: hashState.panel || "home",
+				route: hashState.route || "/",
+			})
+		}
+
+		const ManualRouting = ui("#ManualRouting").does({
+			fragment: (_self, { fragment }) => fragment,
+			panel: (_self, { panel }) => panel,
+			isHome: (_self, { panel }) => panel === "home",
+			isDocs: (_self, { panel }) => panel === "docs",
+			isAbout: (_self, { panel }) => panel === "about",
+			goHome: () => panelCell.set("home"),
+			goDocs: () => panelCell.set("docs"),
+			goAbout: () => panelCell.set("about"),
+		})
+
+		const HomeRoute = ui("#HomeRoute")
+		const SettingsRoute = ui("#SettingsRoute")
+		const ProfileRoute = ui("#ProfileRoute").does({
+			tab: (_self, { tab }) => tab,
+		})
+		const NotFoundRoute = ui("#NotFoundRoute").does({
+			path: (_self, { path }) => path,
+		})
+
+		const matchRoute = router({
+			"/": () => HomeRoute(),
+			"/settings": () => SettingsRoute(),
+			"/profile/{tab:string}": (_path, captured) => ProfileRoute(captured),
+		})
+
+		const RoutedPanels = ui("#RoutedPanels").does({
+			fragment: (_self, { fragment }) => fragment,
+			route: (_self, { route }) => route,
+			view: (_self, { route }) => {
+				const path = route || "/"
+				return matchRoute.run(path) || NotFoundRoute({ path })
+			},
+			goRoot: () => routeCell.set("/"),
+			goSettings: () => routeCell.set("/settings"),
+			goActivity: () => routeCell.set("/profile/activity"),
+			goSecurity: () => routeCell.set("/profile/security"),
+			goMissing: () => routeCell.set("/reports/daily"),
+		})
+
+		const manual = ManualRouting
+			.new()
+			.mount("#manual-demo")
+			.set({ panel: panelCell.value || "home", fragment: currentHash() })
+
+		const routed = RoutedPanels
+			.new()
+			.mount("#router-demo")
+			.set({ route: routeCell.value || "/", fragment: currentHash() })
+
+		const sync = () => {
+			manual.update({ panel: panelCell.value || "home", fragment: currentHash() })
+			routed.update({ route: routeCell.value || "/", fragment: currentHash() })
+		}
+
+		state.hash.sub(sync)
+		sync()
+	</script>
+</body>
+
+</html>

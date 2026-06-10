@@ -231,6 +231,12 @@ function resolveDistModule(bundle: Record<string, any>, specifier: string) {
 	if (specifier === "@./icons.js") {
 		return wrapIconsModule({ ...bundle, default: bundle.icons, icons: bundle.icons })
 	}
+	if (specifier === "@./browser.js") {
+		return { ...bundle, default: bundle.browser, browser: bundle.browser }
+	}
+	if (specifier === "@./routing.js") {
+		return { ...bundle, default: bundle.routing, routing: bundle.routing }
+	}
 	if (specifier === "@./index.js") {
 		return bundle
 	}
