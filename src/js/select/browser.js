@@ -5,7 +5,9 @@
 // Updated: 2026-06-02
 
 // Module: select/browser
-// Browser-backed reactive state for URL and local storage.
+// Browser-backed reactive state for URL and local storage. The browser API
+// exposes `ref(value)` for reactive references, `val(value)` for plain value
+// coercion, and `parse(value)` as the compatibility dispatcher combining both.
 
 import { Cell, cell } from "./cells.js";
 import {
@@ -917,6 +919,8 @@ class Browser {
 
 		this.local = this.local.bind(this);
 		this.internal = this.internal.bind(this);
+		this.ref = this.ref.bind(this);
+		this.val = this.val.bind(this);
 		this.parse = this.parse.bind(this);
 		this.fetch = this.fetch.bind(this);
 
@@ -1063,13 +1067,20 @@ class Browser {
 		return path?.length ? root.select([name, ...path]) : root.select([name]);
 	}
 
-	parse(value) {
+	ref(value) {
+		if (typeof value !== "string") return undefined;
+		return this.parseReference(value) ?? undefined;
+	}
+
+	val(value) {
 		if (typeof value !== "string") return value;
-		const reference = this.parseReference(value);
-		if (reference) return reference;
 		if (value === "true") return true;
 		if (value === "false") return false;
 		return looksLikeHashText(value) ? hash.parse(value) : value;
+	}
+
+	parse(value) {
+		return this.ref(value) ?? this.val(value);
 	}
 
 	parseRequest(value) {

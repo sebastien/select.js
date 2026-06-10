@@ -265,7 +265,37 @@ class UIWebComponent extends BaseHTMLElement {
 		this.nodes = [];
 		this.isInitialized = false;
 		this.attributeData = {};
+		this._ownedAttributeReactiveRefs = new Map();
 		this.data = { ...this.initialData };
+	}
+
+	_replaceOwnedAttributeReactiveRef(key, value) {
+		const previous = this._ownedAttributeReactiveRefs.get(key);
+		if (previous?.isReactive && typeof previous.release === "function") {
+			previous.release();
+		}
+		if (value?.isReactive && typeof value.release === "function") {
+			this._ownedAttributeReactiveRefs.set(key, value);
+		} else {
+			this._ownedAttributeReactiveRefs.delete(key);
+		}
+	}
+
+	_syncOwnedAttributeReactiveRefs(data) {
+		for (const key of this._ownedAttributeReactiveRefs.keys()) {
+			if (!(key in data)) {
+				this._replaceOwnedAttributeReactiveRef(key, undefined);
+			}
+		}
+		for (const key in data) {
+			this._replaceOwnedAttributeReactiveRef(key, data[key]);
+		}
+	}
+
+	_clearOwnedAttributeReactiveRefs() {
+		for (const key of this._ownedAttributeReactiveRefs.keys()) {
+			this._replaceOwnedAttributeReactiveRef(key, undefined);
+		}
 	}
 
 	readAttributes() {
@@ -370,12 +400,14 @@ class UIWebComponent extends BaseHTMLElement {
 	connectedCallback() {
 		if (!this.isInitialized) {
 			this.attributeData = this.readAttributes();
+			this._syncOwnedAttributeReactiveRefs(this.attributeData);
 			this._rebuildData();
 			this.isInitialized = true;
 			this.render();
 			return;
 		}
 		this.attributeData = this.readAttributes();
+		this._syncOwnedAttributeReactiveRefs(this.attributeData);
 		this._rebuildData();
 		this.render();
 	}
@@ -386,6 +418,7 @@ class UIWebComponent extends BaseHTMLElement {
 			this.instance.unmount();
 			this.instance = undefined;
 		}
+		this._clearOwnedAttributeReactiveRefs();
 		this._clearPureNodes();
 		this.isInitialized = false;
 	}
@@ -403,12 +436,24 @@ class UIWebComponent extends BaseHTMLElement {
 			this.attributeBindings.get(normalized) || toCamelCase(normalized);
 		const value = this._readAttributeValue(key, current, normalized);
 		if (value !== Nothing) {
+			this._replaceOwnedAttributeReactiveRef(key, value);
 			this.attributeData = Object.assign({}, this.attributeData, {
 				[key]: value,
 			});
 			this._rebuildData();
 			if (this.isInitialized) {
 				this.render();
+			}
+		} else {
+			this._replaceOwnedAttributeReactiveRef(key, undefined);
+			if (key in this.attributeData) {
+				const next = { ...this.attributeData };
+				delete next[key];
+				this.attributeData = next;
+				this._rebuildData();
+				if (this.isInitialized) {
+					this.render();
+				}
 			}
 		}
 		this.trigger(name, previous, current);

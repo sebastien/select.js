@@ -113,4 +113,45 @@ describe("cells.derived", () => {
 			two: ["right2", { three: "deep" }],
 		})
 	})
+
+	test("acquires and releases selected inputs on dispose", () => {
+		const root = cell({ user: { name: "Ada" } })
+		const user = root.select("user")
+
+		expect(user._refs).toBe(1)
+
+		const d = derived(user, (value) => value)
+
+		expect(user._refs).toBe(2)
+		expect(d.value).toEqual({ name: "Ada" })
+
+		d.dispose()
+		expect(user._refs).toBe(1)
+
+		user.release()
+		expect(root._selectionCache.size).toBe(0)
+	})
+
+	test("releases replaced selected inputs on update", () => {
+		const root = cell({ a: 1, b: 2 })
+		const a = root.select("a")
+		const b = root.select("b")
+		const d = derived(a, (value) => value)
+
+		expect(a._refs).toBe(2)
+		expect(b._refs).toBe(1)
+
+		d.update(b)
+
+		expect(a._refs).toBe(1)
+		expect(b._refs).toBe(2)
+		expect(d.value).toBe(2)
+
+		d.dispose()
+		expect(b._refs).toBe(1)
+
+		a.release()
+		b.release()
+		expect(root._selectionCache.size).toBe(0)
+	})
 })

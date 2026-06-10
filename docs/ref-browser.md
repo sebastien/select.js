@@ -14,7 +14,9 @@ Returns:
 - `hash`: cell for `location.hash`
 - `local(key, dflt, normalizerOrSerializer?, opts?)`: `localStorage` cell factory
 - `internal(name, value)`: in-memory shared cell factory
-- `parse(value)`: internal-reference, `:` selection, and hashformat parser
+- `ref(value)`: internal-reference and `:` selection resolver
+- `val(value)`: plain value parser for booleans and hashformat-like text
+- `parse(value)`: compatibility parser that resolves references before value coercion
 - `fetch(input, options?)`: fetch helper with content-type-aware decoding
 - `fetched(input, options?)`: reactive cell wrapper around `fetch(input, options?)`
 
@@ -166,17 +168,19 @@ query.format({ 0: "alpha", 1: "beta" })
 - `query` and `hash` support partial object updates through cell selection
 - `local()` defaults to JSON parse/stringify unless a custom serializer is provided
 - `internal()` creates per-browser shared cells that are not persisted
-- `parse()` resolves `@name.path`, `#name.path`, and `?name.path` references before attempting hashformat parsing
-- `parse()` also resolves `@name.with.dots:path.to.value`, `#name.with.dots:path.to.value`, and `?name.with.dots:path.to.value`
+- `ref()` resolves `@name.path`, `#name.path`, and `?name.path` references
+- `ref()` also resolves `@name.with.dots:path.to.value`, `#name.with.dots:path.to.value`, and `?name.with.dots:path.to.value`
+- `val()` parses booleans and hashformat-like payloads without consuming browser reference strings
+- `parse()` dispatches to `ref()` before falling back to `val()`
 - when `:` is present, the left side is the full cell name and the right side is the nested selection path
 - `fetch()` parses `METHOD:PATH?QUERY#DATA` and decodes responses by content type
 - write mode defaults to `replaceState`, with optional `pushState`
 
 ## Additional Methods
 
-### `parse(value)`
+### `ref(value)`
 
-- non-string values are returned unchanged
+- non-string and non-reference inputs return `undefined`
 - `@name` returns `internal("name")`
 - `@name.path.to.value` returns `internal("name").select(["path", "to", "value"])`
 - `@name.with.dots:path.to.value` returns `internal("name.with.dots").select(["path", "to", "value"])`
@@ -188,33 +192,48 @@ query.format({ 0: "alpha", 1: "beta" })
 - `?name.with.dots:path.to.value` returns `query.select(["name.with.dots"]).select(["path", "to", "value"])`
 - when `:` is present, everything before `:` is treated as the full cell name
 - numeric dotted segments are coerced to indexes, so `#users.0.name` selects `["users", 0, "name"]`
-- numeric dotted segments after `:` are also coerced to indexes, so `?users:list.0.name` selects `["list", 0, "name"]` inside `query.select(["users"])`
+- numeric dotted segments after `:` are also coerced to indexes, so `?users:list.0.name` selects `["list", 0, "name"]` inside `query.select(["users"])
+
+### `val(value)`
+
+- non-string values are returned unchanged
+- `"true"` returns `true`
+- `"false"` returns `false`
 - strings that look like hashformat are parsed with `hash.parse(...)`
+- reference strings such as `@modal` are returned unchanged
 - plain strings with no hashformat structure are returned unchanged
+
+### `parse(value)`
+
+- dispatches to `ref(value)` first
+- falls back to `val(value)` when `ref(value)` returns `undefined`
 
 Examples:
 
 ```javascript
-state.parse("@modal")
+state.ref("@modal")
 // => same cell as state.internal("modal")
 
-state.parse("@form.user.name")
+state.ref("@form.user.name")
 // => same cell as state.internal("form").select(["user", "name"])
 
-state.parse("@form.user:name.first")
+state.ref("@form.user:name.first")
 // => same cell as state.internal("form.user").select(["name", "first"])
 
-state.parse("#user.name")
+state.ref("#user.name")
 // => same cell as state.hash.select(["user", "name"])
 
-state.parse("#user.settings:theme.current")
+state.ref("#user.settings:theme.current")
 // => same cell as state.hash.select(["user.settings"]).select(["theme", "current"])
 
-state.parse("?users.0.name")
+state.ref("?users.0.name")
 // => same cell as state.query.select(["users", 0, "name"])
 
-state.parse("?users:list.0.name")
+state.ref("?users:list.0.name")
 // => same cell as state.query.select(["users"]).select(["list", 0, "name"])
+
+state.val("@modal")
+// => "@modal"
 
 state.parse("a=1,b=(2,3)")
 // => { a: 1, b: [2, 3] }

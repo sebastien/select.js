@@ -88,6 +88,58 @@ function selectionPathKey(path) {
 	return key;
 }
 
+function refreshSelections(owner, path) {
+	if (!owner.selections) {
+		return;
+	}
+	path = path === Nothing ? [] : path;
+	const seen = new Set();
+	const refresh = (selection) => {
+		if (!seen.has(selection)) {
+			seen.add(selection);
+			selection.refresh();
+		}
+	};
+	for (const selection of owner.selections.iter(path)) {
+		refresh(selection);
+	}
+	if (path?.length) {
+		for (let i = path.length - 1; i >= 0; i--) {
+			const ancestorPath = i === 0 ? [] : path.slice(0, i);
+			const ancestors = owner.selections.get(ancestorPath);
+			if (ancestors) {
+				for (const selection of ancestors) {
+					refresh(selection);
+				}
+			}
+		}
+	}
+}
+
+function parseReactiveOptions(initial, strategy) {
+	let shouldInitialize = true;
+	let updateStrategy = "join";
+	if (initial && typeof initial === "object" && !Array.isArray(initial)) {
+		if (initial.initial !== undefined) {
+			shouldInitialize = !!initial.initial;
+		}
+		if (typeof initial.strategy === "string") {
+			updateStrategy = initial.strategy;
+		}
+	} else if (typeof initial === "string") {
+		updateStrategy = initial;
+	} else if (initial !== undefined) {
+		shouldInitialize = !!initial;
+	}
+	if (typeof strategy === "string") {
+		updateStrategy = strategy;
+	}
+	return {
+		shouldInitialize,
+		updateStrategy,
+	};
+}
+
 // ----------------------------------------------------------------------------
 //
 // SECTION: Selections Registry
@@ -604,32 +656,7 @@ class Cell extends Reactive {
 	}
 
 	_refreshSelections(path) {
-		if (!this.selections) {
-			return;
-		}
-		const seen = new Set();
-		const refresh = (selection) => {
-			if (!seen.has(selection)) {
-				seen.add(selection);
-				selection.refresh();
-			}
-		};
-		// Refresh exact path + descendants first.
-		for (const selection of this.selections.iter(path)) {
-			refresh(selection);
-		}
-		// Then refresh ancestors (including root selection).
-		if (path?.length) {
-			for (let i = path.length - 1; i >= 0; i--) {
-				const ancestorPath = i === 0 ? [] : path.slice(0, i);
-				const ancestors = this.selections.get(ancestorPath);
-				if (ancestors) {
-					for (const selection of ancestors) {
-						refresh(selection);
-					}
-				}
-			}
-		}
+		refreshSelections(this, path);
 	}
 
 	// Internal update implementation. Applies value, updates selections,
@@ -808,6 +835,7 @@ class Derivation extends Reactive {
 		this.updateStrategy = Derivation.UpdateStrategy(updateStrategy);
 		this.reactors = [];
 		this.sources = [];
+		this.acquired = [];
 		this.isBound = false;
 		this.expanded = Reactive.Expand(template);
 		this._promiseToken = 0;
@@ -960,6 +988,10 @@ class Derivation extends Reactive {
 				this._recompute();
 			};
 			cell.sub(reactor);
+			if (cell?.isReactive && typeof cell.acquire === "function") {
+				cell.acquire();
+				this.acquired.push(cell);
+			}
 			this.sources.push(cell);
 			this.reactors.push(reactor);
 		}
@@ -979,6 +1011,9 @@ class Derivation extends Reactive {
 		}
 		while (this.sources.length) {
 			this.sources.pop();
+		}
+		while (this.acquired.length) {
+			this.acquired.pop().release();
 		}
 		this.isBound = false;
 		return this;
@@ -1051,6 +1086,314 @@ class Derivation extends Reactive {
 	}
 }
 
+class Switched extends Reactive {
+	constructor(
+		inputs,
+		resolver = undefined,
+		initial = true,
+		updateStrategy = "join",
+	) {
+		super();
+		this.inputs = inputs;
+		this.resolver = resolver;
+		this.updateStrategy = Derivation.UpdateStrategy(updateStrategy);
+		this.reactors = [];
+		this.sources = [];
+		this.acquired = [];
+		this.expanded = Reactive.Expand(inputs);
+		this.isBound = false;
+		this.target = undefined;
+		this.targetReactor = undefined;
+		this.fallback = new Cell();
+		this._promiseToken = 0;
+		this.revision = initial ? 0 : -1;
+		if (initial) {
+			if (
+				this.updateStrategy === "immediate" ||
+				!this._inputsHavePendingSources()
+			) {
+				this._switch(this._compute(), false);
+			} else {
+				this.value = undefined;
+				this.isPending = true;
+			}
+		} else {
+			this.value = undefined;
+		}
+		this.bind();
+	}
+
+	_compute() {
+		return this.resolver ? this.resolver(this.expanded) : this.expanded;
+	}
+
+	_hasPendingSources() {
+		for (let i = 0; i < this.sources.length; i++) {
+			if (this.sources[i]?.isPending) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	_inputsHavePendingSources() {
+		for (const [cell] of Reactive.Walk(this.inputs)) {
+			if (cell?.isPending) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	_publish(value, path = Nothing, origin = this) {
+		const nextPath = this.target instanceof Selected ? Nothing : path;
+		this.previous = this.value;
+		this.value = this.target?.value;
+		this.isPending = !!(this.value && typeof this.value.then === "function");
+		this.revision++;
+		refreshSelections(this, nextPath);
+		this.pub(value, nextPath, origin);
+	}
+
+	_detachTarget() {
+		if (!this.target || !this.targetReactor) {
+			this.target = undefined;
+			this.targetReactor = undefined;
+			return;
+		}
+		this.target.unsub(this.targetReactor);
+		if (this.target !== this.fallback && typeof this.target.release === "function") {
+			this.target.release();
+		}
+		this.target = undefined;
+		this.targetReactor = undefined;
+	}
+
+	_attachTarget(target, publish = true) {
+		const active = isReactiveSource(target) ? target : this.fallback;
+		if (active === this.fallback) {
+			this.fallback.set(target, Nothing, true);
+		}
+		this.target = active;
+		const reactor = (value, path, origin) => {
+			this._publish(value, path, origin || active);
+		};
+		this.targetReactor = reactor;
+		active.sub(reactor);
+		this.previous = this.value;
+		this.value = active.value;
+		this.isPending = !!(this.value && typeof this.value.then === "function");
+		if (publish) {
+			this.revision++;
+			refreshSelections(this, Nothing);
+			this.pub(this.value, Nothing, active);
+		}
+	}
+
+	_switch(next, publish = true) {
+		const token = ++this._promiseToken;
+		if (next && typeof next.then === "function") {
+			this.isPending = true;
+			if (publish) {
+				this.revision++;
+				this.pub(next, Nothing, this);
+			}
+			next.then(
+				(resolved) => {
+					if (token !== this._promiseToken) {
+						return;
+					}
+					this._switch(resolved, publish);
+				},
+				(error) => {
+					if (token !== this._promiseToken) {
+						return;
+					}
+					this.isPending = false;
+					log.error("Switched._switch: switched promise rejected, details", {
+						cell: this.label,
+						error:
+							error instanceof Error
+								? {
+										name: error.name,
+										message: error.message,
+										stack: error.stack,
+										cause: error.cause,
+								  }
+								: {
+										name: typeof error,
+										message: String(error),
+								  },
+						currentValue: this.value,
+						previousValue: this.previous,
+						resolvedInputs: this.expanded,
+					});
+				},
+			);
+			return;
+		}
+		this._detachTarget();
+		this.isPending = false;
+		this._attachTarget(next, publish);
+	}
+
+	_recompute(force = false) {
+		if (this.updateStrategy === "join" && this._hasPendingSources()) {
+			this.isPending = true;
+			return false;
+		}
+		const expanded = Reactive.Expand(this.inputs);
+		if (!force && eq(expanded, this.expanded)) {
+			return false;
+		}
+		if (this.updateStrategy === "join" && this._hasPendingSources()) {
+			this.isPending = true;
+			return false;
+		}
+		this.expanded = expanded;
+		this._switch(this._compute());
+		return true;
+	}
+
+	bind() {
+		if (this.isBound) {
+			return this;
+		}
+		this.isBound = true;
+		for (const [cell] of Reactive.Walk(this.inputs)) {
+			const reactor = (value) => {
+				const isPromise = !!(value && typeof value.then === "function");
+				if (this.updateStrategy === "immediate") {
+					this._recompute();
+					return;
+				}
+				if (isPromise) {
+					this.isPending = true;
+					return;
+				}
+				if (this.updateStrategy === "join" && this._hasPendingSources()) {
+					this.isPending = true;
+					return;
+				}
+				this._recompute();
+			};
+			cell.sub(reactor);
+			if (cell?.isReactive && typeof cell.acquire === "function") {
+				cell.acquire();
+				this.acquired.push(cell);
+			}
+			this.sources.push(cell);
+			this.reactors.push(reactor);
+		}
+		return this;
+	}
+
+	unbind() {
+		if (!this.isBound) {
+			return this;
+		}
+		for (let i = 0; i < this.sources.length; i++) {
+			this.sources[i].unsub(this.reactors[i]);
+		}
+		while (this.reactors.length) {
+			this.reactors.pop();
+		}
+		while (this.sources.length) {
+			this.sources.pop();
+		}
+		while (this.acquired.length) {
+			this.acquired.pop().release();
+		}
+		this.isBound = false;
+		return this;
+	}
+
+	dispose() {
+		this.unbind();
+		this._promiseToken++;
+		this._detachTarget();
+		this.fallback.subs.length = 0;
+		this.subs.length = 0;
+		this.inputs = undefined;
+		this.resolver = undefined;
+		return this;
+	}
+
+	refresh() {
+		this._recompute(true);
+		return this;
+	}
+
+	update(...inputs) {
+		if (inputs.length > 0) {
+			const nextInputs = inputs.length === 1 ? inputs[0] : inputs;
+			if (!eq(nextInputs, this.inputs)) {
+				this.inputs = nextInputs;
+				this.expanded = Reactive.Expand(nextInputs);
+				this.unbind();
+				this.bind();
+				if (this.updateStrategy === "immediate" || !this._hasPendingSources()) {
+					this._switch(this._compute());
+				} else {
+					this.isPending = true;
+				}
+			}
+		} else if (!this._recompute()) {
+			if (this.updateStrategy === "join" && this._hasPendingSources()) {
+				this.isPending = true;
+				return this.value;
+			}
+			this._switch(this._compute());
+		}
+		return this.value;
+	}
+
+	set(value, path = Nothing, force = false) {
+		if (!this.target || typeof this.target.set !== "function") {
+			log.error("Switched.set: switched values are not writable", {
+				cell: this.label,
+				value,
+				path,
+				force,
+				currentValue: this.value,
+				previousValue: this.previous,
+			});
+			return this;
+		}
+		this.target.set(value, path, force);
+		return this;
+	}
+
+	merge(value, path = Nothing) {
+		if (!this.target || typeof this.target.merge !== "function") {
+			log.error("Switched.merge: switched values are not writable", {
+				cell: this.label,
+				value,
+				path,
+				currentValue: this.value,
+				previousValue: this.previous,
+			});
+			return this;
+		}
+		this.target.merge(value, path);
+		return this;
+	}
+
+	push(value) {
+		if (!this.target || typeof this.target.push !== "function") {
+			log.error("Switched.push: switched values are not writable", {
+				cell: this.label,
+				value,
+				currentValue: this.value,
+				previousValue: this.previous,
+			});
+			return this;
+		}
+		this.target.push(value);
+		return this;
+	}
+}
+
 // ----------------------------------------------------------------------------
 //
 // SECTION: Factory Functions
@@ -1109,24 +1452,19 @@ function deferred(value, delay) {
 // ```
 
 function derived(template, processor, initial, strategy) {
-	let shouldInitialize = true;
-	let updateStrategy = "join";
-	if (initial && typeof initial === "object" && !Array.isArray(initial)) {
-		if (initial.initial !== undefined) {
-			shouldInitialize = !!initial.initial;
-		}
-		if (typeof initial.strategy === "string") {
-			updateStrategy = initial.strategy;
-		}
-	} else if (typeof initial === "string") {
-		updateStrategy = initial;
-	} else if (initial !== undefined) {
-		shouldInitialize = !!initial;
-	}
-	if (typeof strategy === "string") {
-		updateStrategy = strategy;
-	}
+	const { shouldInitialize, updateStrategy } = parseReactiveOptions(
+		initial,
+		strategy,
+	);
 	return new Derivation(template, processor, shouldInitialize, updateStrategy);
+}
+
+function switched(inputs, resolver, initial, strategy) {
+	const { shouldInitialize, updateStrategy } = parseReactiveOptions(
+		initial,
+		strategy,
+	);
+	return new Switched(inputs, resolver, shouldInitialize, updateStrategy);
 }
 
 function selected(parent, path) {
@@ -1226,11 +1564,14 @@ export {
 	Reactive,
 	Selected,
 	selected,
+	Switched,
+	switched,
 	unwrap,
 	walk,
 };
 export default Object.assign(cell, {
 	derived,
+	switched,
 	deferred,
 	selected,
 	unwrap,

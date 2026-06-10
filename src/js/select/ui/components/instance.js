@@ -298,12 +298,14 @@ class UIInstance {
 		this._behaviorDeps = undefined;
 		this._behaviorValues = undefined;
 		this._behaviorDepRevisions = undefined;
+		this._ownedReactiveRefs = undefined;
 		this._reactiveTopLevelFusions = undefined;
 		this._hasRendered = false;
 		if (template.initializer) {
 			const state = template.initializer(this);
 			if (state) {
 				this.initial = state;
+				this._syncOwnedReactiveRefs(state);
 			}
 			this.set(state);
 		}
@@ -377,6 +379,29 @@ class UIInstance {
 			cell.release();
 			this._reactiveDataRefs.delete(cell);
 		}
+	}
+
+	_syncOwnedReactiveRefs(data) {
+		const refs = this._collectReactiveDataRefs(data);
+		if (this._ownedReactiveRefs === undefined) {
+			this._ownedReactiveRefs = new Set();
+		}
+		for (const cell of refs) {
+			this._ownedReactiveRefs.add(cell);
+		}
+	}
+
+	_releaseOwnedReactiveRefs() {
+		if (!this._ownedReactiveRefs) {
+			return;
+		}
+		for (const cell of this._ownedReactiveRefs) {
+			if (cell?.isReactive && typeof cell.release === "function") {
+				cell.release();
+			}
+		}
+		this._ownedReactiveRefs.clear();
+		this._ownedReactiveRefs = undefined;
 	}
 
 	syncReactiveDataSubs(data) {
@@ -537,6 +562,7 @@ class UIInstance {
 			this._domListeners = undefined;
 		}
 		this._clearReactiveDataSubs();
+		this._releaseOwnedReactiveRefs();
 		if (this._ctxSubs) {
 			for (const [cell, handler] of this._ctxSubs) {
 				cell.unsub(handler);
