@@ -88,6 +88,10 @@ class RecordFormat {
 			});
 			return undefined;
 		}
+		if (Array.isArray(value))
+			return RecordFormat.SanitizeArray(value, warn, scope, details);
+		if (isObject(value))
+			return RecordFormat.SanitizeRecord(value, warn, scope);
 		RecordFormat.WarnIssue(warn, scope, "unsupported location value pruned", {
 			type: typeof value,
 			value,
@@ -1031,6 +1035,22 @@ class Browser {
 	}
 
 	parseReference(value) {
+		if (typeof value === "string" && value.includes(":")) {
+			const type = value[0];
+			if (type === "@" || type === "#" || type === "?") {
+				const separator = value.indexOf(":");
+				if (separator <= 1) return null;
+				const name = value.substring(1, separator);
+				const path = this.parseReferencePath(value.substring(separator + 1));
+				const root =
+					type === "@"
+						? this.internal(name)
+						: type === "#"
+							? this.hash.select([name])
+							: this.query.select([name]);
+				return path?.length ? root.select(path) : root;
+			}
+		}
 		const match = RE_VALUE_REFERENCE.exec(value);
 		if (!match) return null;
 		const [, type, name, rawPath] = match;

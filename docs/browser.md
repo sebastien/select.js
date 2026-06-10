@@ -9,7 +9,7 @@ Browser-backed reactive state for URL and `localStorage`.
 - `hash`: reactive record bound to `location.hash`
 - `local(key, dflt, normalizerOrSerializer?, opts?)`: `localStorage`-backed cell
 - `internal(name, value)`: in-memory shared cell registry for cross-component state
-- `parse(value)`: resolves `@`, `#`, and `?` cell references or hashformat text
+- `parse(value)`: resolves `@`, `#`, and `?` cell references, including `:` selections, or hashformat text
 - `fetch(input, options?)`: fetch helper with typed response parsing
 - `fetched(input, options?)`: reactive cell wrapper around `fetch(input, options?)`
 
@@ -33,6 +33,7 @@ const modal = state.internal("modal.open", false)
 modal.set(true)
 
 const current = state.parse("@modal.open")
+const currentName = state.parse("@session.user:profile.name")
 const result = await state.fetch("POST:/api/items#label=Draft,done=F")
 const resultCell = state.fetched("POST:/api/items#label=Draft,done=F")
 ```
@@ -78,11 +79,16 @@ Notes:
 
 - `@name` resolves to `internal("name")`
 - `@name.path.to.value` resolves to `internal("name").select(["path", "to", "value"])`
+- `@name.with.dots:path.to.value` resolves to `internal("name.with.dots").select(["path", "to", "value"])`
 - `#name` resolves to `hash.select(["name"])`
 - `#name.path.to.value` resolves to `hash.select(["name", "path", "to", "value"])`
+- `#name.with.dots:path.to.value` resolves to `hash.select(["name.with.dots"]).select(["path", "to", "value"])`
 - `?name` resolves to `query.select(["name"])`
 - `?name.path.to.value` resolves to `query.select(["name", "path", "to", "value"])`
+- `?name.with.dots:path.to.value` resolves to `query.select(["name.with.dots"]).select(["path", "to", "value"])`
+- when `:` is present, everything before `:` is treated as the full cell name and everything after `:` is the nested selection path
 - numeric dotted segments become indexes, so `#users.0.name` resolves to `hash.select(["users", 0, "name"])`
+- numeric dotted segments after `:` also become indexes, so `?users:list.0.name` resolves to `query.select(["users"]).select(["list", 0, "name"])`
 - text containing hashformat structure such as `=`, `,`, `(`, `)`, or a leading `#`
   is parsed with the default hash parser
 - plain text such as `hello` or `42` is returned unchanged

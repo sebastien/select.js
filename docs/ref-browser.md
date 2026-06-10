@@ -14,7 +14,7 @@ Returns:
 - `hash`: cell for `location.hash`
 - `local(key, dflt, normalizerOrSerializer?, opts?)`: `localStorage` cell factory
 - `internal(name, value)`: in-memory shared cell factory
-- `parse(value)`: internal-reference and hashformat parser
+- `parse(value)`: internal-reference, `:` selection, and hashformat parser
 - `fetch(input, options?)`: fetch helper with content-type-aware decoding
 - `fetched(input, options?)`: reactive cell wrapper around `fetch(input, options?)`
 
@@ -167,6 +167,8 @@ query.format({ 0: "alpha", 1: "beta" })
 - `local()` defaults to JSON parse/stringify unless a custom serializer is provided
 - `internal()` creates per-browser shared cells that are not persisted
 - `parse()` resolves `@name.path`, `#name.path`, and `?name.path` references before attempting hashformat parsing
+- `parse()` also resolves `@name.with.dots:path.to.value`, `#name.with.dots:path.to.value`, and `?name.with.dots:path.to.value`
+- when `:` is present, the left side is the full cell name and the right side is the nested selection path
 - `fetch()` parses `METHOD:PATH?QUERY#DATA` and decodes responses by content type
 - write mode defaults to `replaceState`, with optional `pushState`
 
@@ -177,11 +179,16 @@ query.format({ 0: "alpha", 1: "beta" })
 - non-string values are returned unchanged
 - `@name` returns `internal("name")`
 - `@name.path.to.value` returns `internal("name").select(["path", "to", "value"])`
+- `@name.with.dots:path.to.value` returns `internal("name.with.dots").select(["path", "to", "value"])`
 - `#name` returns `hash.select(["name"])`
 - `#name.path.to.value` returns `hash.select(["name", "path", "to", "value"])`
+- `#name.with.dots:path.to.value` returns `hash.select(["name.with.dots"]).select(["path", "to", "value"])`
 - `?name` returns `query.select(["name"])`
 - `?name.path.to.value` returns `query.select(["name", "path", "to", "value"])`
+- `?name.with.dots:path.to.value` returns `query.select(["name.with.dots"]).select(["path", "to", "value"])`
+- when `:` is present, everything before `:` is treated as the full cell name
 - numeric dotted segments are coerced to indexes, so `#users.0.name` selects `["users", 0, "name"]`
+- numeric dotted segments after `:` are also coerced to indexes, so `?users:list.0.name` selects `["list", 0, "name"]` inside `query.select(["users"])`
 - strings that look like hashformat are parsed with `hash.parse(...)`
 - plain strings with no hashformat structure are returned unchanged
 
@@ -194,11 +201,20 @@ state.parse("@modal")
 state.parse("@form.user.name")
 // => same cell as state.internal("form").select(["user", "name"])
 
+state.parse("@form.user:name.first")
+// => same cell as state.internal("form.user").select(["name", "first"])
+
 state.parse("#user.name")
 // => same cell as state.hash.select(["user", "name"])
 
+state.parse("#user.settings:theme.current")
+// => same cell as state.hash.select(["user.settings"]).select(["theme", "current"])
+
 state.parse("?users.0.name")
 // => same cell as state.query.select(["users", 0, "name"])
+
+state.parse("?users:list.0.name")
+// => same cell as state.query.select(["users"]).select(["list", 0, "name"])
 
 state.parse("a=1,b=(2,3)")
 // => { a: 1, b: [2, 3] }
