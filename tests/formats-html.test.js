@@ -4,6 +4,7 @@ import { Window } from "happy-dom"
 let window
 let html
 let hi
+let asDate
 
 function setupGlobals(win) {
 	win.SyntaxError = SyntaxError
@@ -22,10 +23,10 @@ function setupGlobals(win) {
 	g.DOMParser = win.DOMParser
 }
 
-beforeAll(async () => {
+	beforeAll(async () => {
 	window = new Window({ url: "http://localhost:8000/formats" })
 	setupGlobals(window)
-	;({ html, hi } = await import("../src/js/select/formats.js"))
+	;({ html, hi, asDate } = await import("../src/js/select/formats.js"))
 })
 
 afterAll(() => {
@@ -56,5 +57,13 @@ describe("formats.html", () => {
 		expect(value.textContent).toBe("Tanzania")
 		expect(value.querySelectorAll("mark").length).toBe(2)
 		expect(value.querySelectorAll("mark")[0]?.textContent).toBe("an")
+	})
+
+	test("parses YYYY-MM-DD as UTC midnight", () => {
+		expect(asDate("2026-06-11").toISOString()).toBe("2026-06-11T00:00:00.000Z")
+	})
+
+	test("parses YYYY-MM-DDTHH:mm:SS as UTC", () => {
+		expect(asDate("2026-06-11T13:45:09").toISOString()).toBe("2026-06-11T13:45:09.000Z")
 	})
 })

@@ -105,11 +105,34 @@ function empty(value) {
 }
 
 function asDate(value) {
-	return value && typeof value === "number"
-		? new Date(value * 1000)
-		: value && value instanceof Date
-			? value
-			: new Date();
+	if (value instanceof Date) {
+		return value;
+	}
+	if (typeof value === "number") {
+		return new Date(value * 1000);
+	}
+	if (typeof value === "string") {
+		const source = value.trim();
+		if (!source) {
+			return new Date();
+		}
+		const match = source.match(
+			/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/,
+		);
+		if (match) {
+			return new Date(
+				Date.UTC(
+					Number(match[1]),
+					Number(match[2]) - 1,
+					Number(match[3]),
+					Number(match[4] ?? 0),
+					Number(match[5] ?? 0),
+					Number(match[6] ?? 0),
+				),
+			);
+		}
+	}
+	return new Date();
 }
 
 function asDateWithUtcFallback(value) {
@@ -140,6 +163,10 @@ function date(value) {
 	const month = d.getMonth() + 1;
 	const day = d.getDate();
 	return `${d.getFullYear()}-${month < 10 ? `0${month}` : `${month}`}-${day < 10 ? `0${day}` : `${day}`}`;
+}
+
+function day(value) {
+	return date(value);
 }
 
 function number(value, options = undefined) {
@@ -245,6 +272,7 @@ function swallow() {
 }
 
 function ago(value) {
+	value = asDate(value);
 	const source =
 		value && typeof value === "number"
 			? new Date(value * 1000)
@@ -411,6 +439,7 @@ export {
 	bool,
 	count,
 	currency,
+	day,
 	date,
 	datetime,
 	debug,

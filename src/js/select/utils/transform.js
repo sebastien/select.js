@@ -8,90 +8,218 @@
 // Pure collection transforms and immutable structural update helpers.
 
 import { cmp } from "./compare.js";
-import { extractor, predicate } from "./func.js";
+import { extractor, idem, predicate } from "./func.js";
 import { iitems, ivalues } from "./iter.js";
 import { index } from "./traverse.js";
-import { bool, clone, isObject, array, len, list } from "./values.js";
+import {
+	array,
+	bool,
+	clone,
+	empty,
+	isIterable,
+	isObject,
+	len,
+	list,
+} from "./values.js";
+
+// Function: iter
+// Iterates `value` with `(item, key, result, value)` semantics and returns the
+// accumulated result processed by `done`. Strings are treated as scalar values.
+function iter(
+	value,
+	step,
+	done = idem,
+	initial = undefined,
+	emptyValue = undefined,
+) {
+	let res = initial;
+	let current;
+	let key;
+	let count = 0;
+	if (value === undefined || value === null) {
+		return emptyValue === undefined
+			? done(res, undefined, undefined, value)
+			: emptyValue;
+	}
+	if (typeof value === "string") {
+		const rr = step(value, undefined, res, value);
+		res = rr === undefined ? res : rr;
+		return done(res, value, undefined, value);
+	}
+	if (Array.isArray(value)) {
+		for (let i = 0; i < value.length; i++) {
+			current = value[i];
+			key = i;
+			count += 1;
+			const rr = step(current, key, res, value);
+			if (rr === false) {
+				return done(res, current, key, value);
+			}
+			res = rr === undefined ? res : rr;
+		}
+	} else if (value instanceof Map) {
+		for (const [k, v] of value.entries()) {
+			current = v;
+			key = k;
+			count += 1;
+			const rr = step(current, key, res, value);
+			if (rr === false) {
+				return done(res, current, key, value);
+			}
+			res = rr === undefined ? res : rr;
+		}
+	} else if (value instanceof Set) {
+		let i = 0;
+		for (const v of value.values()) {
+			current = v;
+			key = i;
+			count += 1;
+			const rr = step(current, key, res, value);
+			if (rr === false) {
+				return done(res, current, key, value);
+			}
+			res = rr === undefined ? res : rr;
+			i += 1;
+		}
+	} else if (isObject(value)) {
+		for (const k in value) {
+			if (!Object.hasOwn(value, k)) {
+				continue;
+			}
+			current = value[k];
+			key = k;
+			count += 1;
+			const rr = step(current, key, res, value);
+			if (rr === false) {
+				return done(res, current, key, value);
+			}
+			res = rr === undefined ? res : rr;
+		}
+	} else if (isIterable(value)) {
+		let i = 0;
+		for (const v of value) {
+			current = v;
+			key = i;
+			count += 1;
+			const rr = step(current, key, res, value);
+			if (rr === false) {
+				return done(res, current, key, value);
+			}
+			res = rr === undefined ? res : rr;
+			i += 1;
+		}
+	} else {
+		const rr = step(value, undefined, res, value);
+		res = rr === undefined ? res : rr;
+		return done(res, value, undefined, value);
+	}
+	return count === 0
+		? emptyValue === undefined
+			? done(res, undefined, undefined, value)
+			: emptyValue
+		: done(res, current, key, value);
+}
+
+// Function: append
+// Appends `value` to `collection`, optionally preserving `key` when supported.
+function append(collection, value, key = undefined) {
+	if (Array.isArray(collection)) {
+		collection.push(value);
+		return collection;
+	}
+	if (collection instanceof Set) {
+		collection.add(value);
+		return collection;
+	}
+	if (collection instanceof Map) {
+		if (key !== undefined && !collection.has(key)) {
+			collection.set(key, value);
+			return collection;
+		}
+		let next = len(collection);
+		if (next < 0) {
+			next = 0;
+		}
+		while (collection.has(next)) {
+			next += 1;
+		}
+		collection.set(next, value);
+		return collection;
+	}
+	if (isObject(collection)) {
+		if (key !== undefined && !Object.hasOwn(collection, key)) {
+			collection[key] = value;
+			return collection;
+		}
+		let next = len(collection);
+		if (next < 0) {
+			next = 0;
+		}
+		while (Object.hasOwn(collection, next)) {
+			next += 1;
+		}
+		collection[next] = value;
+		return collection;
+	}
+	return key === undefined ? [value] : { [key]: value };
+}
+
+// Function: hasKey
+// Returns true when `value` contains `key` according to collection semantics.
+function hasKey(value, key) {
+	switch (value?.constructor) {
+		case Object:
+			return Object.hasOwn(value, key);
+		case Map:
+			return value.has(key);
+		case Set:
+			return value.has(key);
+		case Array:
+			return index(value, key) !== -1;
+		default:
+			return value === key;
+	}
+}
 
 // Function: map
 // Maps collection values while preserving array, object, map, and set shape.
 function map(value, func = undefined) {
 	func = typeof func !== "function" ? () => func : func;
-	switch (value) {
-		case null:
-		case undefined:
-		case true:
-		case false:
-			return func(value, undefined);
+	if (
+		value === null ||
+		value === undefined ||
+		value === true ||
+		value === false ||
+		typeof value === "string" ||
+		(!Array.isArray(value) &&
+			!(value instanceof Map) &&
+			!(value instanceof Set) &&
+			!isObject(value) &&
+			!isIterable(value))
+	) {
+		return func(value, undefined, value);
 	}
-	if (Array.isArray(value)) {
-		const res = new Array(value.length);
-		for (let i = 0; i < value.length; i++) {
-			res[i] = func(value[i], i);
-		}
-		return res;
-	}
-	if (value instanceof Map) {
-		const res = new Map();
-		for (const [k, v] of value.entries()) {
-			res.set(k, func(v, k));
-		}
-		return res;
-	}
-	if (value instanceof Set) {
-		const res = new Set();
-		let i = 0;
-		for (const v of value.values()) {
-			res.add(func(v, i));
-			i += 1;
-		}
-		return res;
-	}
-	if (isObject(value)) {
-		const res = {};
-		for (const k in value) {
-			if (Object.hasOwn(value, k)) {
-				res[k] = func(value[k], k);
-			}
-		}
-		return res;
-	}
-	return func(value, undefined);
+	const res =
+		Array.isArray(value) ||
+		value instanceof Map ||
+		value instanceof Set ||
+		isObject(value)
+			? empty(value)
+			: [];
+	iter(value, (v, k) => append(res, func(v, k, value), k));
+	return res;
 }
 
 // Function: reduce
 // Reduces collection values with `(result, value, key)` semantics.
 function reduce(value, func, initial) {
-	let res = initial;
-	switch (value?.constructor) {
-		case Array:
-			for (let i = 0; i < value.length; i++) {
-				res = func(res, value[i], i);
-			}
-			return res;
-		case Object:
-			for (const k in value) {
-				if (Object.hasOwn(value, k)) {
-					res = func(res, value[k], k);
-				}
-			}
-			return res;
-		case Map:
-			for (const [k, v] of value.entries()) {
-				res = func(res, v, k);
-			}
-			return res;
-		case Set: {
-			let i = 0;
-			for (const v of value.values()) {
-				res = func(res, v, i);
-				i += 1;
-			}
-			return res;
-		}
-		default:
-			return func(res, value, undefined);
-	}
+	return iter(
+		value,
+		(v, k, res, source) => func(res, v, k, source),
+		idem,
+		initial,
+		initial,
+	);
 }
 
 // Function: updated
@@ -126,56 +254,197 @@ function updated(value, key, other) {
 	}
 }
 
+// Function: swapped
+// Returns a copy of `value` with entries at `keya` and `keyb` swapped.
+function swapped(value, keya, keyb) {
+	if (keya === keyb) {
+		return value;
+	}
+	switch (value?.constructor) {
+		case Array: {
+			const res = value.slice();
+			const va = res[keya];
+			res[keya] = res[keyb];
+			res[keyb] = va;
+			return res;
+		}
+		case Object: {
+			const hasA = Object.hasOwn(value, keya);
+			const hasB = Object.hasOwn(value, keyb);
+			if (!hasA && !hasB) {
+				return value;
+			}
+			const res = { ...value };
+			const va = value[keya];
+			const vb = value[keyb];
+			if (hasB) {
+				res[keya] = vb;
+			} else {
+				delete res[keya];
+			}
+			if (hasA) {
+				res[keyb] = va;
+			} else {
+				delete res[keyb];
+			}
+			return res;
+		}
+		case Map: {
+			const hasA = value.has(keya);
+			const hasB = value.has(keyb);
+			if (!hasA && !hasB) {
+				return value;
+			}
+			const res = new Map(value);
+			const va = value.get(keya);
+			const vb = value.get(keyb);
+			if (hasB) {
+				res.set(keya, vb);
+			} else {
+				res.delete(keya);
+			}
+			if (hasA) {
+				res.set(keyb, va);
+			} else {
+				res.delete(keyb);
+			}
+			return res;
+		}
+		default:
+			return value;
+	}
+}
+
+const swap = swapped;
+
 // Function: sorted
 // Returns sorted copy of `values`, optionally by projection and ordering.
 function sorted(values, extractorFunc, ordering = 1, comparator = cmp) {
-	const arr = list(values);
+	const source =
+		values instanceof Map
+			? Array.from(values.entries())
+			: isObject(values)
+				? Object.entries(values)
+				: list(values);
+	const res = source.slice();
 	if (extractorFunc === undefined || extractorFunc === null) {
-		return arr.slice().sort((a, b) => ordering * comparator(a, b));
+		res.sort((a, b) => ordering * comparator(a, b));
+	} else if (comparator === cmp) {
+		res.sort(
+			(a, b) =>
+				ordering *
+				comparator(
+					Array.isArray(a) && a.length === 2 ? a[1] : a,
+					Array.isArray(b) && b.length === 2 ? b[1] : b,
+					extractorFunc,
+				),
+		);
+	} else {
+		const ext = extractor(extractorFunc);
+		res.sort(
+			(a, b) =>
+				ordering *
+				comparator(
+					ext(Array.isArray(a) && a.length === 2 ? a[1] : a),
+					ext(Array.isArray(b) && b.length === 2 ? b[1] : b),
+				),
+		);
 	}
-	if (comparator === cmp) {
-		return arr
-			.slice()
-			.sort((a, b) => ordering * comparator(a, b, extractorFunc));
+	if (values instanceof Map) {
+		return new Map(res);
 	}
-	const ext = extractor(extractorFunc);
-	return arr.slice().sort((a, b) => ordering * comparator(ext(a), ext(b)));
-}
-
-// Function: unique
-// Returns unique values from `values`, optionally by projection.
-function unique(values, extractorFunc) {
-	const arr = list(values);
-	if (extractorFunc === undefined || extractorFunc === null) {
-		return Array.from(new Set(arr));
-	}
-	const ext = extractor(extractorFunc);
-	const seen = new Set();
-	const res = [];
-	for (let i = 0; i < arr.length; i++) {
-		const v = arr[i];
-		const key = ext(v);
-		if (seen.has(key)) {
-			continue;
+	if (isObject(values)) {
+		const mapped = {};
+		for (let i = 0; i < res.length; i++) {
+			mapped[res[i][0]] = res[i][1];
 		}
-		seen.add(key);
-		res.push(v);
+		return mapped;
+	}
+	if (values instanceof Set) {
+		return new Set(res);
 	}
 	return res;
 }
 
-// Function: filter
-// Filters `values` using resolved predicate semantics.
-function filter(values, predicateOrExtractor) {
-	const arr = list(values);
-	const pred = predicate(predicateOrExtractor);
-	const res = [];
-	for (let i = 0; i < arr.length; i++) {
-		const v = arr[i];
-		if (pred(v, i)) {
-			res.push(v);
+// Function: unique
+// Returns unique values from `values`, optionally by projection, while preserving shape.
+function unique(values, extractorFunc) {
+	const ext =
+		extractorFunc === undefined || extractorFunc === null
+			? undefined
+			: extractor(extractorFunc);
+	const seen = new Set();
+	const res =
+		Array.isArray(values) ||
+		values instanceof Map ||
+		values instanceof Set ||
+		isObject(values)
+			? empty(values)
+			: [];
+	iter(values, (v, k) => {
+		const kk = ext ? ext(v, k, values) : v;
+		if (seen.has(kk)) {
+			return;
 		}
+		seen.add(kk);
+		append(res, v, k);
+	});
+	return res;
+}
+
+// Function: filter
+// Filters `values` using resolved predicate semantics while preserving shape.
+function filter(values, predicateOrExtractor) {
+	const pred = predicate(predicateOrExtractor);
+	if (
+		values === null ||
+		values === undefined ||
+		typeof values === "string" ||
+		(!Array.isArray(values) &&
+			!(values instanceof Map) &&
+			!(values instanceof Set) &&
+			!isObject(values) &&
+			!isIterable(values))
+	) {
+		return pred(values, undefined, values) ? values : undefined;
 	}
+	const res =
+		Array.isArray(values) ||
+		values instanceof Map ||
+		values instanceof Set ||
+		isObject(values)
+			? empty(values)
+			: [];
+	iter(values, (v, k) => (pred(v, k, values) ? append(res, v, k) : undefined));
+	return res;
+}
+
+// Function: mapfilter
+// Maps `values`, pruning entries where `processor` returns `undefined`.
+function mapfilter(values, processor) {
+	if (
+		values === null ||
+		values === undefined ||
+		typeof values === "string" ||
+		(!Array.isArray(values) &&
+			!(values instanceof Map) &&
+			!(values instanceof Set) &&
+			!isObject(values) &&
+			!isIterable(values))
+	) {
+		return processor(values, undefined, values);
+	}
+	const res =
+		Array.isArray(values) ||
+		values instanceof Map ||
+		values instanceof Set ||
+		isObject(values)
+			? empty(values)
+			: [];
+	iter(values, (v, k) => {
+		const mapped = processor(v, k, values);
+		return mapped === undefined ? undefined : append(res, mapped, k);
+	});
 	return res;
 }
 
@@ -183,29 +452,41 @@ function filter(values, predicateOrExtractor) {
 // Maps `values` with `func` and flattens mapped results one level deep.
 function flatmap(values, func) {
 	const res = [];
-	for (const [k, v] of iitems(values)) {
+	iter(values, (v, k) => {
 		for (const item of ivalues(func(v, k, values))) {
-			res.push(item);
+			append(res, item);
 		}
-	}
+	});
 	return res;
 }
 
 // Function: prune
-// Returns values that do not match the predicate.
+// Returns values that do not match the predicate while preserving shape.
 function prune(values, predicateOrExtractor) {
-	const arr = list(values);
 	const pred =
 		predicateOrExtractor === undefined || predicateOrExtractor === null
 			? (v) => bool(v)
 			: predicate(predicateOrExtractor);
-	const res = [];
-	for (let i = 0; i < arr.length; i++) {
-		const v = arr[i];
-		if (!pred(v, i)) {
-			res.push(v);
-		}
+	if (
+		values === null ||
+		values === undefined ||
+		typeof values === "string" ||
+		(!Array.isArray(values) &&
+			!(values instanceof Map) &&
+			!(values instanceof Set) &&
+			!isObject(values) &&
+			!isIterable(values))
+	) {
+		return pred(values, undefined, values) ? undefined : values;
 	}
+	const res =
+		Array.isArray(values) ||
+		values instanceof Map ||
+		values instanceof Set ||
+		isObject(values)
+			? empty(values)
+			: [];
+	iter(values, (v, k) => (!pred(v, k, values) ? append(res, v, k) : undefined));
 	return res;
 }
 
@@ -238,10 +519,18 @@ function pruned(value, ...removeKeys) {
 }
 
 // Function: slice
-// Returns an array slice after collection normalization.
+// Returns a positional slice while preserving supported container shapes.
 function slice(values, start = undefined, end = undefined) {
 	if (Array.isArray(values)) {
 		return values.slice(start, end);
+	}
+	if (values instanceof Map) {
+		const entries = Array.from(values.entries()).slice(start, end);
+		return new Map(entries);
+	}
+	if (values instanceof Set) {
+		const entries = Array.from(values.values()).slice(start, end);
+		return new Set(entries);
 	}
 	if (isObject(values)) {
 		const valueKeys = Object.keys(values).slice(start, end);
@@ -256,11 +545,17 @@ function slice(values, start = undefined, end = undefined) {
 }
 
 // Function: reverse
-// Returns `values` in reverse order while preserving array and object shape.
+// Returns `values` in reverse order while preserving supported container shapes.
 function reverse(values) {
 	if (Array.isArray(values)) {
 		const n = values.length;
 		return array(n, (i) => values[n - i - 1]);
+	}
+	if (values instanceof Map) {
+		return new Map(Array.from(values.entries()).reverse());
+	}
+	if (values instanceof Set) {
+		return new Set(Array.from(values.values()).reverse());
 	}
 	if (isObject(values)) {
 		const valueKeys = Object.keys(values);
@@ -275,8 +570,48 @@ function reverse(values) {
 }
 
 // Function: concat
-// Returns the concatenated list-normalized values of `a` and `b`.
+// Returns `a` with values from `b` appended, preserving `a` shape when possible.
 function concat(a, b) {
+	if (Array.isArray(a)) {
+		const res = a.slice();
+		for (const v of ivalues(b)) {
+			append(res, v);
+		}
+		return res;
+	}
+	if (a instanceof Set) {
+		const res = new Set(a);
+		for (const v of ivalues(b)) {
+			append(res, v);
+		}
+		return res;
+	}
+	if (a instanceof Map) {
+		const res = new Map(a);
+		if (b instanceof Map || isObject(b)) {
+			for (const [k, v] of iitems(b)) {
+				append(res, v, k);
+			}
+		} else {
+			for (const v of ivalues(b)) {
+				append(res, v);
+			}
+		}
+		return res;
+	}
+	if (isObject(a)) {
+		const res = { ...a };
+		if (b instanceof Map || isObject(b)) {
+			for (const [k, v] of iitems(b)) {
+				append(res, v, k);
+			}
+		} else {
+			for (const v of ivalues(b)) {
+				append(res, v);
+			}
+		}
+		return res;
+	}
 	return list(a).concat(list(b));
 }
 
@@ -285,11 +620,11 @@ function concat(a, b) {
 function resize(values, size, creator = (i) => i) {
 	const n = len(values);
 	if (n < size) {
-		const suffix = [];
+		let res = copy(values);
 		for (let i = n; i < size; i++) {
-			suffix.push(creator(i));
+			res = appended(res, creator(i));
 		}
-		return concat(values, suffix);
+		return res;
 	}
 	if (n > size) {
 		return slice(values, 0, size);
@@ -333,7 +668,7 @@ function grouped(values, extract, processor = undefined) {
 		(res, value, key) => {
 			const groupKey = ext(value, key, values);
 			const bucket = res[groupKey] || (res[groupKey] = []);
-			bucket.push(processor ? processor(value, key, values) : value);
+			append(bucket, processor ? processor(value, key, values) : value);
 			return res;
 		},
 		{},
@@ -348,7 +683,7 @@ function partition(values, predicateOrExtractor) {
 		return reduce(
 			list(values),
 			(res, value, key) => {
-				res[pred(value, key) ? 0 : 1].push(value);
+				append(res[pred(value, key) ? 0 : 1], value);
 				return res;
 			},
 			[[], []],
@@ -358,7 +693,7 @@ function partition(values, predicateOrExtractor) {
 		return reduce(
 			values,
 			(res, value, key) => {
-				res[pred(value, key) ? 0 : 1].set(key, value);
+				append(res[pred(value, key) ? 0 : 1], value, key);
 				return res;
 			},
 			[new Map(), new Map()],
@@ -368,7 +703,7 @@ function partition(values, predicateOrExtractor) {
 		return reduce(
 			values,
 			(res, value, key) => {
-				res[pred(value, key) ? 0 : 1].add(value);
+				append(res[pred(value, key) ? 0 : 1], value, key);
 				return res;
 			},
 			[new Set(), new Set()],
@@ -377,7 +712,7 @@ function partition(values, predicateOrExtractor) {
 	return reduce(
 		values,
 		(res, value, key) => {
-			res[pred(value, key) ? 0 : 1][key] = value;
+			append(res[pred(value, key) ? 0 : 1], value, key);
 			return res;
 		},
 		[{}, {}],
@@ -385,15 +720,48 @@ function partition(values, predicateOrExtractor) {
 }
 
 // Function: difference
-// Returns list-normalized values present in `a` but not in `b`.
+// Returns values from `a` that are not present in `b`, preserving shape.
 function difference(a, b) {
-	return filter(a, (value) => index(b, value) === -1);
+	switch (a?.constructor) {
+		case Object:
+		case Map:
+			return filter(a, (_, key) => !hasKey(b, key));
+		default:
+			return filter(a, (value) => !hasKey(b, value));
+	}
 }
 
 // Function: removeAt
-// Returns `values` without the entry at `index`.
+// Returns `values` without the entry at `index` or `key`.
 function removeAt(values, itemIndex) {
-	return filter(values, (_, indexValue) => indexValue !== itemIndex);
+	if (typeof itemIndex !== "number") {
+		return removed(values, itemIndex);
+	}
+	switch (values?.constructor) {
+		case Array: {
+			if (itemIndex < 0 || itemIndex >= values.length) {
+				return values;
+			}
+			const res = values.slice();
+			res.splice(itemIndex, 1);
+			return res;
+		}
+		case Object:
+		case Map:
+		case Set: {
+			const res = empty(values);
+			let i = 0;
+			iter(values, (v, k) => {
+				if (i !== itemIndex) {
+					append(res, v, k);
+				}
+				i += 1;
+			});
+			return res;
+		}
+		default:
+			return values;
+	}
 }
 
 // Function: removed
@@ -440,20 +808,45 @@ function removed(value, item) {
 }
 
 // Function: stripe
-// Returns values interleaved from even then odd positions.
+// Returns values interleaved from even then odd positions while preserving shape.
 function stripe(values) {
-	const items = list(values);
-	const n = items.length;
+	const source =
+		values instanceof Map
+			? Array.from(values.entries())
+			: isObject(values)
+				? Object.entries(values)
+				: list(values);
+	const n = source.length;
 	const midpoint = Math.floor(n / 2);
-	return array(
-		n,
-		(i) =>
-			items[
-				i < midpoint
-					? Math.min(n - 1, i * 2)
-					: Math.min(n - 1, 1 + (i - midpoint) * 2)
-			],
+	const order = array(n, (i) =>
+		i < midpoint
+			? Math.min(n - 1, i * 2)
+			: Math.min(n - 1, 1 + (i - midpoint) * 2),
 	);
+	if (values instanceof Map) {
+		const res = new Map();
+		for (let i = 0; i < order.length; i++) {
+			const entry = source[order[i]];
+			res.set(entry[0], entry[1]);
+		}
+		return res;
+	}
+	if (isObject(values)) {
+		const res = {};
+		for (let i = 0; i < order.length; i++) {
+			const entry = source[order[i]];
+			res[entry[0]] = entry[1];
+		}
+		return res;
+	}
+	if (values instanceof Set) {
+		const res = new Set();
+		for (let i = 0; i < order.length; i++) {
+			res.add(source[order[i]]);
+		}
+		return res;
+	}
+	return order.map((i) => source[i]);
 }
 
 // Function: combinations
@@ -504,49 +897,85 @@ function enumerate(...items) {
 // Function: prepended
 // Returns `collection` with `item` inserted at the beginning.
 function prepended(collection, item) {
-	if (Array.isArray(collection)) {
-		const res = collection.slice();
-		res.splice(0, 0, item);
-		return res;
-	}
-	if (isObject(collection)) {
-		const res = { 0: item };
-		for (const key in collection) {
-			if (Object.hasOwn(collection, key)) {
-				res[key] = collection[key];
-			}
-		}
-		return res;
-	}
-	return prepended(list(collection), item);
+	return inserted(collection, 0, item);
 }
 
 // Function: appended
 // Returns `collection` with `item` inserted at the end.
 function appended(collection, item) {
-	if (Array.isArray(collection)) {
-		const res = collection.slice();
-		res.push(item);
-		return res;
-	}
-	if (isObject(collection)) {
-		const res = { ...collection };
-		let i = Object.keys(res).length;
-		while (res[i] !== undefined) {
-			i += 1;
-		}
-		res[i] = item;
-		return res;
-	}
-	return appended(list(collection), item);
+	return inserted(collection, len(collection), item);
 }
 
 // Function: inserted
 // Returns `collection` with `item` inserted at `index`.
 function inserted(collection, insertionIndex, item) {
-	const res = Array.isArray(collection) ? copy(collection) : list(collection);
+	const size = len(collection);
 	const indexValue =
-		insertionIndex < 0 ? res.length + insertionIndex : insertionIndex;
+		insertionIndex < 0
+			? Math.max(0, size + insertionIndex)
+			: Math.min(insertionIndex, size);
+	if (Array.isArray(collection)) {
+		const res = collection.slice();
+		res.splice(indexValue, 0, item);
+		return res;
+	}
+	if (collection instanceof Set) {
+		const res = Array.from(collection.values());
+		res.splice(indexValue, 0, item);
+		return new Set(res);
+	}
+	if (collection instanceof Map) {
+		let key = indexValue;
+		if (key < 0) {
+			key = 0;
+		}
+		while (collection.has(key)) {
+			key += 1;
+		}
+		const res = new Map();
+		let i = 0;
+		let insertedItem = false;
+		for (const [k, v] of collection.entries()) {
+			if (!insertedItem && i === indexValue) {
+				res.set(key, item);
+				insertedItem = true;
+			}
+			res.set(k, v);
+			i += 1;
+		}
+		if (!insertedItem) {
+			res.set(key, item);
+		}
+		return res;
+	}
+	if (isObject(collection)) {
+		let key = indexValue;
+		if (key < 0) {
+			key = 0;
+		}
+		while (Object.hasOwn(collection, key)) {
+			key += 1;
+		}
+		const res = {};
+		let i = 0;
+		let insertedItem = false;
+		for (const k in collection) {
+			if (!Object.hasOwn(collection, k)) {
+				continue;
+			}
+			if (!insertedItem && i === indexValue) {
+				res[key] = item;
+				insertedItem = true;
+			}
+			res[k] = collection[k];
+			i += 1;
+		}
+		if (!insertedItem) {
+			res[key] = item;
+		}
+		return res;
+	}
+	const res = list(collection);
 	res.splice(indexValue, 0, item);
 	return res;
 }
@@ -659,6 +1088,7 @@ function assigned(scope, p, value, mergeValue = undefined, offset = 0) {
 }
 
 export {
+	append,
 	appended,
 	assigned,
 	clampsize,
@@ -672,8 +1102,11 @@ export {
 	flatten,
 	grouped,
 	grow,
+	hasKey,
 	inserted,
+	iter,
 	map,
+	mapfilter,
 	merge,
 	partition,
 	prepended,
@@ -687,6 +1120,8 @@ export {
 	slice,
 	sorted,
 	stripe,
+	swap,
+	swapped,
 	unique,
 	updated,
 };
