@@ -8,6 +8,7 @@
 // String case format helpers shared across modules.
 
 import { unwrap } from "./cells.js";
+import { MS_PER_DAY, numdate } from "./utils/dates.js";
 import { hi as htmlHi } from "./utils/html.js";
 import { bool, entries, idem, len, type } from "./utils.js";
 
@@ -25,6 +26,15 @@ const MONTH_NAMES = [
 	"November",
 	"December",
 ];
+const DAY_NAMES = [
+	"Monday",
+	"Tuesday",
+	"Wednesday",
+	"Thursday",
+	"Friday",
+	"Saturday",
+	"Sunday",
+]
 const numberFormatterDefault = new Intl.NumberFormat();
 const percentFormatterDefault = new Intl.NumberFormat(undefined, {
 	style: "percent",
@@ -104,12 +114,26 @@ function empty(value) {
 	return true;
 }
 
+function datePartsToDate(value) {
+	return new Date(
+		value[0],
+		(value[1] || 1) - 1,
+		value[2] || 1,
+		value[3] || 0,
+		value[4] || 0,
+		value[5] || 0,
+	)
+}
+
 function asDate(value) {
 	if (value instanceof Date) {
 		return value;
 	}
+	if (Array.isArray(value)) {
+		return datePartsToDate(value)
+	}
 	if (typeof value === "number") {
-		return new Date(value * 1000);
+		return Math.abs(value) >= MS_PER_DAY ? datePartsToDate(numdate(value)) : new Date(value * 1000)
 	}
 	if (typeof value === "string") {
 		const source = value.trim();
@@ -165,8 +189,24 @@ function date(value) {
 	return `${d.getFullYear()}-${month < 10 ? `0${month}` : `${month}`}-${day < 10 ? `0${day}` : `${day}`}`;
 }
 
+function month(value) {
+	const d = asDate(value)
+	const res = d.getMonth() + 1
+	return res < 10 ? `0${res}` : `${res}`
+}
+
+function monthname(value) {
+	return MONTH_NAMES[asDate(value).getMonth()] ?? ""
+}
+
 function day(value) {
-	return date(value);
+	const d = asDate(value)
+	const res = d.getDate()
+	return res < 10 ? `0${res}` : `${res}`
+}
+
+function dayname(value) {
+	return DAY_NAMES[(asDate(value).getDay() + 6) % 7] ?? ""
 }
 
 function number(value, options = undefined) {
@@ -272,13 +312,7 @@ function swallow() {
 }
 
 function ago(value) {
-	value = asDate(value);
-	const source =
-		value && typeof value === "number"
-			? new Date(value * 1000)
-			: value instanceof Date
-				? value
-				: null;
+	const source = asDate(value)
 	if (!source) {
 		return null;
 	}
@@ -316,20 +350,7 @@ function ago(value) {
 }
 
 function timetuple(value) {
-	return value && Array.isArray(value)
-		? new Date(
-				Date.UTC(
-					value[0],
-					value[1] - 1,
-					value[2],
-					value[3],
-					value[4],
-					value[5],
-				),
-			)
-		: value instanceof Date
-			? value
-			: null;
+	return value === undefined || value === null ? null : asDate(value)
 }
 
 const HTML_PARSER = globalThis.DOMParser ? new DOMParser() : null;
@@ -383,6 +404,8 @@ const FORMATS = {
 	count,
 	currency,
 	date,
+	day,
+	dayname,
 	datetime,
 	debug,
 	duration,
@@ -397,6 +420,8 @@ const FORMATS = {
 	head,
 	len,
 	localtime,
+	month,
+	monthname,
 	not,
 	number,
 	percent,
@@ -455,6 +480,7 @@ export {
 	json,
 	len,
 	localtime,
+	month,
 	not,
 	number,
 	percent,

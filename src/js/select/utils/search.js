@@ -106,7 +106,7 @@ function match(value, criteria) {
 				return false;
 			}
 		}
-	} else if (criteria instanceof Array) {
+	} else if (Array.isArray(criteria)) {
 		// We need to match ALL criteria.
 		for (const c of criteria) {
 			if (!match(value, c)) {

@@ -279,6 +279,38 @@ webcomponent("x-counter", Counter, { title: "Counter", count: 0 });
 <x-counter title="From attribute" count="3"></x-counter>
 ```
 
+Wrapped Select UI custom elements can bubble `pub()` events back into a Select
+parent via `ui-parent`. When a Select template contains a kebab-case custom
+element such as `<x-counter>`, Select injects `ui-parent` automatically unless
+the attribute is already present.
+
+```javascript
+const Stepper = ui(`
+  <button on:click="click" out="count"></button>
+`).does({
+  count: (_self, { count }) => count ?? 0,
+  click: (self, { count }) => self.pub("Increment", count ?? 1)
+});
+
+webcomponent("x-stepper", Stepper, { count: 2 });
+
+const Parent = ui(`
+  <section>
+    <x-stepper count="2"></x-stepper>
+    <output out="total"></output>
+  </section>
+`).sub({
+  Increment: (_self, { total }, event) => ({ total: (total ?? 0) + event.data }),
+});
+```
+
+When mounting a wrapped custom element outside a Select template tree, pass the
+parent instance id explicitly:
+
+```html
+<x-stepper ui-parent="ui-12" count="2"></x-stepper>
+```
+
 `webcomponent` also accepts pure render functions:
 
 ```javascript
@@ -305,6 +337,7 @@ Web component API:
 - `options.shadowMode` (default `"open"`): Shadow root mode.
 - `options.attributes`: Explicit mapping from attribute names to data keys.
 - `options.observedAttributes`: Additional observed attribute names.
+- `ui-parent`: Special host attribute that binds a wrapped Select UI custom element back to a mounted parent `UIInstance`.
 - `UIWebComponent`: Base class used internally and exported for extension.
 
 ### Component Instance Methods

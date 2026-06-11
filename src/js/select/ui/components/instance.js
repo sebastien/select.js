@@ -31,6 +31,49 @@ import {
 	snapshotReactiveDependencyRevisions,
 } from "./runtime.js";
 
+const UI_INSTANCES = new Map();
+const UI_PARENT_ATTRIBUTE = "ui-parent";
+let uiInstanceId = 0;
+
+function createUIInstanceId() {
+	uiInstanceId += 1;
+	return `ui-${uiInstanceId}`;
+}
+
+function getUIInstance(id) {
+	if (typeof id !== "string") {
+		return undefined;
+	}
+	const key = id.trim();
+	return key ? UI_INSTANCES.get(key) : undefined;
+}
+
+function registerUIInstance(instance) {
+	if (!instance?.id) {
+		return instance;
+	}
+	const current = UI_INSTANCES.get(instance.id);
+	if (current && current !== instance) {
+		log.warn("UIInstance: duplicate instance id, overriding registry entry", {
+			id: instance.id,
+			current,
+			incoming: instance,
+		});
+	}
+	UI_INSTANCES.set(instance.id, instance);
+	return instance;
+}
+
+function unregisterUIInstance(instance) {
+	if (!instance?.id) {
+		return instance;
+	}
+	if (UI_INSTANCES.get(instance.id) === instance) {
+		UI_INSTANCES.delete(instance.id);
+	}
+	return instance;
+}
+
 // Class: UIInstance
 // A mounted instance of a UITemplate. Manages data binding, event handling,
 // lifecycle, and rendering.
@@ -61,6 +104,60 @@ import {
 // - `_behaviorDeps`: Map? - behavior dependency tracking
 // - `_behaviorValues`: Map? - cached behavior results
 class UIInstance {
+	static _resolvePathNode(nodes, rootIndex, tailPath) {
+		let node = nodes[rootIndex];
+		if (tailPath) {
+			for (let i = 0; i < tailPath.length; i++) {
+				node = node ? node.childNodes[tailPath[i]] : node;
+			}
+		}
+		return node;
+	}
+
+	static _upgradeWebComponentHost(node, tagName) {
+		if (
+			!node ||
+			node.nodeType !== Node.ELEMENT_NODE ||
+			typeof tagName !== "string"
+		) {
+			return node;
+		}
+		const ctor = globalThis.customElements?.get(tagName);
+		if (!ctor || node instanceof ctor) {
+			return node;
+		}
+		const upgraded = document.createElement(tagName);
+		for (const attribute of node.attributes || []) {
+			upgraded.setAttribute(attribute.name, attribute.value);
+		}
+		while (node.firstChild) {
+			upgraded.appendChild(node.firstChild);
+		}
+		node.parentNode?.replaceChild(upgraded, node);
+		return upgraded;
+	}
+
+	static _applyTemplateWebComponents(nodes, template, parentId) {
+		const webcomponents = template?.webcomponents;
+		if (!parentId || !Array.isArray(webcomponents) || webcomponents.length === 0) {
+			return;
+		}
+		for (let i = 0; i < webcomponents.length; i++) {
+			const host = webcomponents[i];
+			let node = UIInstance._resolvePathNode(nodes, host.rootIndex, host.tailPath);
+			node = UIInstance._upgradeWebComponentHost(node, host.tagName);
+			if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+				continue;
+			}
+			if (!host.tailPath) {
+				nodes[host.rootIndex] = node;
+			}
+			if (!node.hasAttribute(UI_PARENT_ATTRIBUTE)) {
+				node.setAttribute(UI_PARENT_ATTRIBUTE, parentId);
+			}
+		}
+	}
+
 	static _applyComponentRootClass(nodes, template) {
 		if (!options.componentRootClass) {
 			return;
@@ -223,12 +320,17 @@ class UIInstance {
 	constructor(template, parent, options = undefined) {
 		this.template = template;
 		this.options = options || {};
+		const explicitId =
+			typeof this.options.id === "string" ? this.options.id.trim() : "";
+		this.id = explicitId || createUIInstanceId();
+		registerUIInstance(this);
 		const compiled = UIInstance._ensureCompiled(template);
 		// FIXME: This is on the hotpath
 		this.nodes = new Array(template.nodes.length);
 		for (let i = 0; i < template.nodes.length; i++) {
 			this.nodes[i] = template.nodes[i].cloneNode(true);
 		}
+		UIInstance._applyTemplateWebComponents(this.nodes, template, this.id);
 		UIInstance._applyComponentRootClass(this.nodes, template);
 		this.in = compiled.in ? compiled.in(this.nodes, this) : null;
 		// NOTE: Keep non-mutating slot resolution before `out` slots.
@@ -276,15 +378,10 @@ class UIInstance {
 				this.slots = null;
 			}
 		}
-		this.parent = parent;
 		this._isDisposed = false;
 		this.children = undefined;
-		if (parent) {
-			if (!parent.children) {
-				parent.children = new Set();
-			}
-			parent.children.add(this);
-		}
+		this.parent = undefined;
+		this.setParent(parent);
 		if (template.hasBindings) {
 			this.bind();
 		}
@@ -312,6 +409,21 @@ class UIInstance {
 		if (template.defaultData) {
 			this.set(template.defaultData);
 		}
+	}
+
+	setParent(parent) {
+		if (this.parent === parent) {
+			return this;
+		}
+		this.parent?.children?.delete(this);
+		this.parent = parent;
+		if (parent) {
+			if (!parent.children) {
+				parent.children = new Set();
+			}
+			parent.children.add(this);
+		}
+		return this;
 	}
 
 	_getRenderer() {
@@ -576,7 +688,8 @@ class UIInstance {
 			this.children.clear();
 			this.children = undefined;
 		}
-		this.parent?.children?.delete(this);
+		this.setParent(undefined);
+		unregisterUIInstance(this);
 		this._behaviorDeps = undefined;
 		this._behaviorValues = undefined;
 		this._behaviorDepRevisions = undefined;
@@ -726,7 +839,11 @@ class UIInstance {
 			target.node,
 			target.template?.inputProperty,
 		);
-		switch (target.node.nodeName) {
+		const nodeName = `${target.node.nodeName || ""}`;
+		const isCustomElement = nodeName.includes("-");
+		if (isCustomElement) {
+			event = `wc:${inputProperty}`;
+		} else switch (nodeName) {
 			case "INPUT":
 			case "TEXTAREA":
 			case "SELECT":
@@ -744,7 +861,9 @@ class UIInstance {
 		const listener = (event) => {
 			const data = this.data || {};
 			const slotValue = data[name];
-			const inputValue = getInputEventValue(target.node, event, inputProperty);
+			const inputValue = isCustomElement
+				? event?.detail?.current
+				: getInputEventValue(target.node, event, inputProperty);
 			if (inputValue === SKIP_INPUT_UPDATE) {
 				return;
 			}
@@ -1424,6 +1543,6 @@ class UIInstance {
 
 setUIInstanceClass(UIInstance);
 
-export { UIInstance };
+export { UIInstance, getUIInstance };
 
 // EOF

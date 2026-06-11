@@ -147,6 +147,12 @@ Important:
 ### Web Components
 
 Use `webcomponent(...)` when the task explicitly needs a native custom element.
+Wrapped Select UI custom elements can reconnect `pub()` bubbling to a mounted
+Select parent through the special `ui-parent` host attribute. When a Select
+template renders a kebab-case custom element such as `<x-counter>`, Select
+injects `ui-parent` automatically unless it is already set explicitly. When a
+wrapped custom element is mounted outside a Select template tree, set
+`ui-parent` manually to the parent instance id.
 
 ```javascript
 import ui, { webcomponent } from "@./ui.js"
@@ -156,6 +162,10 @@ const Badge = ui(`<span out="label"></span>`).does({
 })
 
 webcomponent("x-badge", Badge, { label: "Ready" })
+```
+
+```html
+<x-stepper ui-parent="ui-12" count="2"></x-stepper>
 ```
 
 Prefer plain Select UI components unless custom-element interop is required.

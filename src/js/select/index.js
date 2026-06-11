@@ -7,27 +7,28 @@
 // Module: select/index
 // Aggregates the core and companion modules into a single import surface.
 
-import cells from "./cells.js";
-import fastdom from "./fastdom.js";
-import icons from "./icons.js";
-import ui from "./ui/index.js";
-import browser from "./browser.js";
-import * as interaction from "./interaction.js";
-import * as routing from "./routing.js";
-import * as utils from "./utils.js";
-import $ from "./query.js";
+import browser from "./browser.js"
+import cells from "./cells.js"
+import * as dates from "./utils/dates.js"
+import fastdom from "./fastdom.js"
+import icons from "./icons.js"
+import * as interaction from "./interaction.js"
+import $ from "./query.js"
+import * as routing from "./routing.js"
+import ui from "./ui/index.js"
+import * as utils from "./utils.js"
 
-export * from "./cells.js";
-export * from "./fastdom.js";
-export * from "./browser.js";
-export * from "./icons.js";
-export * from "./ui/index.js";
-export * from "./interaction.js";
-export * from "./routing.js";
-export * from "./utils.js";
-export { expand } from "./cells.js";
-export { remap } from "./ui/index.js";
+export * from "./cells.js"
+export * from "./fastdom.js"
+export * from "./browser.js"
+export * from "./icons.js"
+export * from "./ui/index.js"
+export * from "./interaction.js"
+export * from "./routing.js"
+export * from "./utils.js"
+export { expand } from "./cells.js"
+export { remap } from "./ui/index.js"
 
-export { cells, fastdom, icons, interaction, routing, $, ui, utils, browser };
+export { cells, fastdom, icons, interaction, routing, $, ui, utils, browser, dates }
 
 // EOF

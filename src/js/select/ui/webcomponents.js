@@ -6,6 +6,10 @@
 
 // Module: select/ui/webcomponents
 // Web component bridge for UI templates and pure render functions.
+// Wrapped Select UI custom elements can bind back to a mounted parent
+// `UIInstance` through the special `ui-parent` host attribute. When a Select
+// template renders a kebab-case custom element, Select injects `ui-parent`
+// automatically unless it is already set explicitly.
 
 // ----------------------------------------------------------------------------
 //
@@ -15,6 +19,7 @@
 
 import { toCamelCase, toKebabCase } from "../formats.js";
 import { asText, isObject, Nothing } from "../utils.js";
+import { getUIInstance } from "./components/instance.js";
 import { log } from "./templates.js";
 
 // Constant: Disconnect
@@ -23,6 +28,7 @@ const Disconnect = Symbol.for("Disconnect");
 // Constant: Adopted
 // Lifecycle sentinel fired when a component is adopted into a new document.
 const Adopted = Symbol.for("Adopted");
+const UI_PARENT_ATTRIBUTE = "ui-parent";
 const BaseHTMLElement = globalThis.HTMLElement || class {};
 const documentStyleSheetCache = new WeakMap();
 
@@ -117,6 +123,7 @@ function collectObservedAttributes(initial, bindings, options) {
 			}
 		}
 	}
+	attributes.add(UI_PARENT_ATTRIBUTE);
 
 	return [...attributes];
 }
@@ -222,7 +229,8 @@ function cloneDocumentStyles(root, options) {
 
 // Class: UIWebComponent
 // Base custom element that binds a component factory to DOM attributes and
-// renders its template into `root`.
+// renders its template into `root`. For Select UI-backed custom elements,
+// `ui-parent` reconnects `pub()` bubbling to a mounted parent `UIInstance`.
 //
 // Attributes:
 // - `root`: ShadowRoot|HTMLElement - render target for the component
@@ -258,6 +266,10 @@ class UIWebComponent extends BaseHTMLElement {
 		this.attributeBindings = attributeBindings;
 		this.attributeProcessors = attributeProcessors;
 		this.options = options;
+		this.exposedKeys = new Set([
+			...(initial && typeof initial === "object" ? Object.keys(initial) : []),
+			...attributeBindings.values(),
+		]);
 		this.initialData = {
 			...(initial && typeof initial === "object" ? initial : {}),
 		};
@@ -266,6 +278,7 @@ class UIWebComponent extends BaseHTMLElement {
 		this.isInitialized = false;
 		this.attributeData = {};
 		this._ownedAttributeReactiveRefs = new Map();
+		this._internalReactiveSubs = new Map();
 		this.data = { ...this.initialData };
 	}
 
@@ -295,6 +308,38 @@ class UIWebComponent extends BaseHTMLElement {
 	_clearOwnedAttributeReactiveRefs() {
 		for (const key of this._ownedAttributeReactiveRefs.keys()) {
 			this._replaceOwnedAttributeReactiveRef(key, undefined);
+		}
+	}
+
+	_clearInternalReactiveSubs() {
+		for (const [cell, handler] of this._internalReactiveSubs.entries()) {
+			cell.unsub(handler);
+		}
+		this._internalReactiveSubs.clear();
+	}
+
+	_syncInternalReactiveSubs() {
+		this._clearInternalReactiveSubs();
+		const data = this.instance?.data;
+		if (!data || typeof data !== "object") {
+			return;
+		}
+		for (const key of this.exposedKeys) {
+			const value = data[key];
+			if (!value?.isReactive || typeof value.sub !== "function") {
+				continue;
+			}
+			let previous = value.get ? value.get() : value.value;
+			const handler = (current) => {
+				if (previous === current) {
+					return;
+				}
+				const prior = previous;
+				previous = current;
+				this.trigger(key, prior, current);
+			};
+			value.sub(handler);
+			this._internalReactiveSubs.set(value, handler);
 		}
 	}
 
@@ -348,18 +393,44 @@ class UIWebComponent extends BaseHTMLElement {
 		this.data = Object.assign({}, this.initialData, this.attributeData);
 	}
 
+	_resolveParentInstance() {
+		const parentId = this.getAttribute(UI_PARENT_ATTRIBUTE)?.trim();
+		if (!parentId) {
+			return undefined;
+		}
+		const parent = getUIInstance(parentId);
+		if (!parent) {
+			log.warn("UIWebComponent: ui-parent did not resolve to a mounted instance", {
+				attribute: UI_PARENT_ATTRIBUTE,
+				parentId,
+				host: this,
+			});
+		}
+		return parent;
+	}
+
+	_rebindParentInstance() {
+		if (this.instance?.setParent) {
+			this.instance.setParent(this._resolveParentInstance());
+		}
+	}
+
 	_renderUIComponent() {
 		if (!this.instance) {
-			this.instance = this.componentFactory.new(undefined, {
+			this.instance = this.componentFactory.new(this._resolveParentInstance(), {
 				nativeSlots: this.root !== this,
 			});
 			this.instance.set(this.data).mount(this.root);
+			this._syncInternalReactiveSubs();
 		} else {
+			this._rebindParentInstance();
 			this.instance.update(this.data);
+			this._syncInternalReactiveSubs();
 		}
 	}
 
 	_renderPureComponent() {
+		this._clearInternalReactiveSubs();
 		if (this.instance) {
 			this.instance.unmount();
 			this.instance = undefined;
@@ -414,6 +485,7 @@ class UIWebComponent extends BaseHTMLElement {
 
 	disconnectedCallback() {
 		this.trigger(Disconnect);
+		this._clearInternalReactiveSubs();
 		if (this.instance) {
 			this.instance.unmount();
 			this.instance = undefined;
@@ -432,6 +504,11 @@ class UIWebComponent extends BaseHTMLElement {
 			return;
 		}
 		const normalized = `${name}`.toLowerCase();
+		if (normalized === UI_PARENT_ATTRIBUTE) {
+			this._rebindParentInstance();
+			this.trigger(name, previous, current);
+			return;
+		}
 		const key =
 			this.attributeBindings.get(normalized) || toCamelCase(normalized);
 		const value = this._readAttributeValue(key, current, normalized);
@@ -479,7 +556,10 @@ class UIWebComponent extends BaseHTMLElement {
 // Defines and returns a custom element class bound to `componentFactory`.
 // Initializes attributes from `initial` and optional mapping in `options`.
 // Plain values in `initial` become default data, while function values act as
-// attribute processors for the matching attribute names.
+// attribute processors for the matching attribute names. The special
+// `ui-parent` host attribute can be used to rebind a wrapped Select UI custom
+// element to a mounted parent `UIInstance` so `pub()` events bubble through the
+// Select component tree again.
 function webcomponent(
 	name,
 	componentFactory,

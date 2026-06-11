@@ -5,6 +5,14 @@ let window
 let html
 let hi
 let asDate
+let date
+let day
+let time
+let datetime
+let month
+let format
+let timetuple
+let datenum
 
 function setupGlobals(win) {
 	win.SyntaxError = SyntaxError
@@ -26,7 +34,8 @@ function setupGlobals(win) {
 	beforeAll(async () => {
 	window = new Window({ url: "http://localhost:8000/formats" })
 	setupGlobals(window)
-	;({ html, hi, asDate } = await import("../src/js/select/formats.js"))
+	;({ html, hi, asDate, date, day, time, datetime, month, format, timetuple } = await import("../src/js/select/formats.js"))
+	;({ datenum } = await import("../src/js/select/utils/dates.js"))
 })
 
 afterAll(() => {
@@ -65,5 +74,46 @@ describe("formats.html", () => {
 
 	test("parses YYYY-MM-DDTHH:mm:SS as UTC", () => {
 		expect(asDate("2026-06-11T13:45:09").toISOString()).toBe("2026-06-11T13:45:09.000Z")
+	})
+
+	test("parses date tuples from the dates module", () => {
+		const value = asDate([2026, 6, 11, 13, 45, 9])
+		expect(value).toBeInstanceOf(Date)
+		expect(value.getFullYear()).toBe(2026)
+		expect(value.getMonth() + 1).toBe(6)
+		expect(value.getDate()).toBe(11)
+		expect(value.getHours()).toBe(13)
+		expect(value.getMinutes()).toBe(45)
+		expect(value.getSeconds()).toBe(9)
+	})
+
+	test("parses datenums from the dates module", () => {
+		const value = asDate(datenum(2026, 6, 11, 13, 45, 9))
+		expect(value.getFullYear()).toBe(2026)
+		expect(value.getMonth() + 1).toBe(6)
+		expect(value.getDate()).toBe(11)
+		expect(value.getHours()).toBe(13)
+		expect(value.getMinutes()).toBe(45)
+		expect(value.getSeconds()).toBe(9)
+	})
+
+	test("formats dates module values consistently", () => {
+		const tuple = [2026, 6, 11, 13, 45, 9]
+		expect(date(tuple)).toBe("2026-06-11")
+		expect(month(tuple)).toBe("06")
+		expect(day(tuple)).toBe("11")
+		expect(time(tuple)).toBe("13:45:09")
+		expect(datetime(tuple)).toBe("2026-06-11 13:45:09")
+		const value = timetuple(datenum(2026, 6, 11, 13, 45, 9))
+		expect(value).toBeInstanceOf(Date)
+		expect(value.getFullYear()).toBe(2026)
+		expect(value.getMonth() + 1).toBe(6)
+		expect(value.getDate()).toBe(11)
+	})
+
+	test("supports month and day name formats", () => {
+		const tuple = [2026, 6, 11, 13, 45, 9]
+		expect(format("monthname")(tuple)).toBe("June")
+		expect(format("dayname")(tuple)).toBe("Thursday")
 	})
 })

@@ -48,9 +48,18 @@
 		}
 
 		x-ui-counter,
-		x-pure-badge {
+		x-pure-badge,
+		x-ui-stepper {
 			display: block;
 			margin-top: 12px;
+		}
+
+		.readout {
+			margin-top: 12px;
+			padding: 10px 12px;
+			border-radius: 8px;
+			background: #f6f8fb;
+			font-family: ui-monospace, monospace;
 		}
 	</style>
 </head>
@@ -78,6 +87,12 @@
 				<button id="badge-label">toggle label</button>
 			</div>
 		</section>
+
+		<section class="panel">
+			<h2>Parent Pub/Sub Rebinding</h2>
+			<p>A wrapped kebab-case custom element inside a Select template now inherits <code>ui-parent</code> automatically. Use explicit <code>ui-parent</code> only when mounting the element outside the Select tree.</p>
+			<div id="event-demo"></div>
+		</section>
 	</div>
 
 	<script type="module">
@@ -100,6 +115,24 @@
 		})
 
 		webcomponent("x-ui-counter", Counter, { title: "Counter", count: 0 })
+
+		const Stepper = ui(`
+			<section style="display:grid;gap:8px;padding:10px;border:1px solid #cbe7d8;border-radius:8px;background:#f5fff8;">
+				<strong out="label">Stepper</strong>
+				<div>
+					<button on:click="decrement">-</button>
+					<span out="count" style="padding:0 8px;">0</span>
+					<button on:click="increment">+</button>
+				</div>
+			</section>
+		`).does({
+			label: (_self, { label }) => label ?? "Stepper",
+			count: (_self, { count }) => count ?? 0,
+			decrement: (self, { count }) => self.pub("Step", -Math.max(1, Number(count) || 0)),
+			increment: (self, { count }) => self.pub("Step", Math.max(1, Number(count) || 0)),
+		})
+
+		webcomponent("x-ui-stepper", Stepper, { label: "Nested Stepper", count: 2 })
 
 		const PureBadge = ({ label, tone }) => {
 			const root = document.createElement("div")
@@ -126,6 +159,17 @@
 		}
 
 		webcomponent("x-pure-badge", PureBadge, { label: "Ready", tone: "info" })
+
+		const EventDemo = ui(`
+			<section style="display:grid;gap:12px;">
+				<x-ui-stepper label="Nested Stepper" count="2"></x-ui-stepper>
+				<div class="readout">Parent total: <strong out="total">0</strong></div>
+			</section>
+		`).sub({
+			Step: (_self, { total }, event) => ({ total: (total ?? 0) + event.data }),
+		})
+
+		EventDemo.new().set({ total: 10 }).mount("#event-demo")
 
 		const counter = document.getElementById("counter")
 		document.getElementById("counter-dec").addEventListener("click", () => {

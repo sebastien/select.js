@@ -88,7 +88,22 @@ function selectionPathKey(path) {
 	return key;
 }
 
-function refreshSelections(owner, path) {
+function hasPathPrefix(path, prefix) {
+	if (!prefix || prefix.length === 0) {
+		return true;
+	}
+	if (!path || path.length < prefix.length) {
+		return false;
+	}
+	for (let i = 0; i < prefix.length; i++) {
+		if (!Object.is(path[i], prefix[i])) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function refreshSelections(owner, path, previous = undefined) {
 	if (!owner.selections) {
 		return;
 	}
@@ -97,7 +112,7 @@ function refreshSelections(owner, path) {
 	const refresh = (selection) => {
 		if (!seen.has(selection)) {
 			seen.add(selection);
-			selection.refresh();
+			selection.refresh(path, previous);
 		}
 	};
 	for (const selection of owner.selections.iter(path)) {
@@ -367,11 +382,11 @@ class Reactive {
 		return this;
 	}
 
-	// Subscribes `handler` to value changes. Handler receives (value, path, origin).
+	// Subscribes `handler` to value changes. Handler receives (value, path, origin, previous).
 	sub(handler, trigger = false) {
 		this.subs.push(handler);
 		if (trigger) {
-			handler(this.value, Nothing, this);
+			handler(this.value, Nothing, this, undefined);
 		}
 		return this;
 	}
@@ -399,13 +414,13 @@ class Reactive {
 		};
 	}
 
-	// Notifies all subscribers of change. Called with (value, path, origin).
-	pub(value, path, origin) {
+	// Notifies all subscribers of change. Called with (value, path, origin, previous).
+	pub(value, path, origin, previous = undefined) {
 		// TODO: Revisit pub and how it works. It should probably
 		// trigger the selections when it's a set, but not when
 		// propagating up.
 		for (const handler of this.subs) {
-			handler(value, path, origin);
+			handler(value, path, origin, previous);
 		}
 		return this;
 	}
@@ -567,24 +582,34 @@ class Selected extends Reactive {
 	}
 
 	// Refreshes value from parent and notifies subscribers.
-	refresh() {
+	refresh(changedPath = this.path, previous = undefined) {
 		// TODO: We could get a revision number from the parent and
 		// detect if it's dirty.
+		const nextChangedPath = changedPath === Nothing ? [] : (changedPath ?? []);
 		const value = access(this.parent.value, this.path);
-		this.previous = this.value;
+		const current = this.value;
+		this.previous = current;
 		this.value = value;
 		this.isPending = !!(value && typeof value.then === "function");
 		this.revision++;
-		if (this.selections) {
-			const seen = new Set();
-			for (const selection of this.selections.iter([])) {
-				if (selection !== this && !seen.has(selection)) {
-					seen.add(selection);
-					selection.refresh();
-				}
+		let publishedPath = Nothing;
+		let publishedValue = value;
+		let publishedPrevious = current;
+		if (hasPathPrefix(nextChangedPath, this.path)) {
+			publishedPath = nextChangedPath.slice(this.path.length);
+			if (publishedPath.length === 0) {
+				publishedPath = Nothing;
 			}
+			publishedValue = publishedPath ? access(value, publishedPath) : value;
+			publishedPrevious = previous;
+		} else if (hasPathPrefix(this.path, nextChangedPath)) {
+			const offset = this.path.slice(nextChangedPath.length);
+			publishedPrevious = offset.length ? access(previous, offset) : previous;
 		}
-		this.pub(value, this.path, this.parent);
+		if (this.selections) {
+			refreshSelections(this, publishedPath, publishedPrevious);
+		}
+		this.pub(publishedValue, publishedPath, this.parent, publishedPrevious);
 	}
 
 	// Sets value at this selection's path. Delegates to parent cell.
@@ -655,8 +680,8 @@ class Cell extends Reactive {
 		}
 	}
 
-	_refreshSelections(path) {
-		refreshSelections(this, path);
+	_refreshSelections(path, previous = undefined) {
+		refreshSelections(this, path, previous);
 	}
 
 	// Internal update implementation. Applies value, updates selections,
@@ -665,13 +690,13 @@ class Cell extends Reactive {
 		// TODO: Maybe patch?
 		path = pathify(path, Nothing);
 		value = this.normalizeValue(value, path);
+		const current = path ? access(this.value, path) : this.value;
 		if (!_force) {
 			if (path) {
-				const current = access(this.value, path);
 				if (Object.is(current, value)) {
 					return;
 				}
-			} else if (Object.is(this.value, value)) {
+			} else if (Object.is(current, value)) {
 				return;
 			}
 		}
@@ -684,20 +709,21 @@ class Cell extends Reactive {
 		this.value = updated;
 		this.isPending = !!(pending && typeof pending.then === "function");
 		this.revision++;
-		this._refreshSelections(path);
-		this.pub(value, path, this);
+		this._refreshSelections(path, current);
+		this.pub(value, path, this, current);
 		if (pending && typeof pending.then === "function") {
 			pending.then(
 				(resolved) => {
 					if (token !== this._promiseToken) {
 						return;
 					}
+					const previous = path ? access(this.value, path) : this.value;
 					this.previous = this.value;
 					this.value = path ? assigned(this.value, path, resolved) : resolved;
 					this.isPending = false;
 					this.revision++;
-					this._refreshSelections(path);
-					this.pub(resolved, path, this);
+					this._refreshSelections(path, previous);
+					this.pub(resolved, path, this, previous);
 				},
 				(error) => {
 					if (token !== this._promiseToken) {
@@ -914,7 +940,7 @@ class Derivation extends Reactive {
 			this.isPending = true;
 			if (publish) {
 				this.revision++;
-				this.pub(value, Nothing, this);
+				this.pub(value, Nothing, this, this.value);
 			}
 			value.then(
 				(resolved) => {
@@ -925,7 +951,7 @@ class Derivation extends Reactive {
 					this.value = resolved;
 					this.isPending = false;
 					this.revision++;
-					this.pub(resolved, Nothing, this);
+					this.pub(resolved, Nothing, this, this.previous);
 				},
 				(error) => {
 					if (token !== this._promiseToken) {
@@ -960,7 +986,7 @@ class Derivation extends Reactive {
 		this.isPending = false;
 		if (publish) {
 			this.revision++;
-			this.pub(value, Nothing, this);
+			this.pub(value, Nothing, this, this.previous);
 		}
 	}
 
@@ -1145,14 +1171,14 @@ class Switched extends Reactive {
 		return false;
 	}
 
-	_publish(value, path = Nothing, origin = this) {
+	_publish(value, path = Nothing, origin = this, previous = undefined) {
 		const nextPath = this.target instanceof Selected ? Nothing : path;
 		this.previous = this.value;
 		this.value = this.target?.value;
 		this.isPending = !!(this.value && typeof this.value.then === "function");
 		this.revision++;
-		refreshSelections(this, nextPath);
-		this.pub(value, nextPath, origin);
+		refreshSelections(this, nextPath, previous);
+		this.pub(value, nextPath, origin, previous);
 	}
 
 	_detachTarget() {
@@ -1175,8 +1201,8 @@ class Switched extends Reactive {
 			this.fallback.set(target, Nothing, true);
 		}
 		this.target = active;
-		const reactor = (value, path, origin) => {
-			this._publish(value, path, origin || active);
+		const reactor = (value, path, origin, previous) => {
+			this._publish(value, path, origin || active, previous);
 		};
 		this.targetReactor = reactor;
 		active.sub(reactor);
@@ -1186,7 +1212,7 @@ class Switched extends Reactive {
 		if (publish) {
 			this.revision++;
 			refreshSelections(this, Nothing);
-			this.pub(this.value, Nothing, active);
+			this.pub(this.value, Nothing, active, this.previous);
 		}
 	}
 
@@ -1196,7 +1222,7 @@ class Switched extends Reactive {
 			this.isPending = true;
 			if (publish) {
 				this.revision++;
-				this.pub(next, Nothing, this);
+				this.pub(next, Nothing, this, this.value);
 			}
 			next.then(
 				(resolved) => {

@@ -120,7 +120,7 @@ import ui from "@select/ui.js"
 
 ### Notable examples
 
-- [`examples/feature-webcomponent.html`](examples/feature-webcomponent.html): custom elements with `webcomponent(...)` for both Select UI templates and pure render functions.
+- [`examples/feature-webcomponent.html`](examples/feature-webcomponent.html): custom elements with `webcomponent(...)`, including parent event rebinding through implicit or explicit `ui-parent`.
 - [`examples/feature-icons.html`](examples/feature-icons.html): icon usage with default CDN collections and local JSON catalog.
 - [`examples/feature-template-load.html`](examples/feature-template-load.html): preload external templates with `ui.load(...)` and bind one behavior to multiple presentations with `.using(...)`.
 

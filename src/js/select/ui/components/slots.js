@@ -453,8 +453,8 @@ class UITemplateSlot {
 		return count ? res : null;
 	}
 
-	// Finds all inout prefixed attributes (currently `inout:value` and
-	// `inout:open`) in `nodes`.
+	// Finds all inout prefixed attributes (e.g. `inout:value`, `inout:text`) in
+	// `nodes`.
 	// Returns map of slotName -> [UITemplateSlot, ...].
 	static FindInOutAttr(nodes) {
 		const res = {};
@@ -467,10 +467,13 @@ class UITemplateSlot {
 				}
 				const toRemove = [];
 				for (const attr of node.attributes) {
-					if (attr.name !== "inout:value" && attr.name !== "inout:open") {
+					if (!attr.name.startsWith("inout:")) {
 						continue;
 					}
 					const inputProperty = attr.name.slice("inout:".length);
+					if (!inputProperty) {
+						continue;
+					}
 					const defaultKey = inputProperty || "value";
 					const key = `${attr.value || defaultKey}`.trim() || defaultKey;
 					toRemove.push(attr.name);

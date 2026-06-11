@@ -6,11 +6,10 @@ import { Window } from "happy-dom"
 const ROOT = path.resolve(__dirname, "..")
 const EXAMPLES_DIR = path.join(ROOT, "examples")
 const FIXTURES_DIR = path.join(ROOT, "tests", "fixtures", "examples")
-const DIST_BUNDLE_PATH = path.join(ROOT, "dist", "selectjs.min.js")
+const DIST_BUNDLE_PATH = path.join(ROOT, "dist", "selectjs.js")
 const HAS_DIST_BUNDLE = fs.existsSync(DIST_BUNDLE_PATH)
 const UPDATE_FIXTURES = process.env.UPDATE_FIXTURES === "1"
-
-let distBundlePromise: Promise<Record<string, any>> | undefined
+const EXAMPLE_TIMEOUT = 15000
 
 const EXAMPLE_INTERACTIONS: Record<string, (window: Window) => Promise<void> | void> = {
 	"app-filter": async (window) => {
@@ -216,9 +215,8 @@ function wrapIconsModule(mod: Record<string, any>) {
 	}
 }
 
-async function loadDistBundle() {
-	distBundlePromise ||= import(pathToFileURL(DIST_BUNDLE_PATH).href)
-	return distBundlePromise
+async function loadDistBundle(cacheKey: string) {
+	return import(withCacheKey(pathToFileURL(DIST_BUNDLE_PATH), cacheKey).href)
 }
 
 function resolveDistModule(bundle: Record<string, any>, specifier: string) {
@@ -256,6 +254,7 @@ function shouldIgnoreError(exampleName: string, error: unknown) {
 
 async function executeExample(examplePath: string, mode: "src" | "dist" = "src") {
 	const exampleName = path.basename(examplePath, ".html")
+	const cacheKey = `${mode}:${exampleName}:${Date.now()}:${Math.random()}`
 	const html = fs.readFileSync(examplePath, "utf8")
 	const window = new Window({ url: `http://localhost:8001/examples/${path.basename(examplePath)}` })
 	setupGlobals(window)
@@ -270,15 +269,15 @@ async function executeExample(examplePath: string, mode: "src" | "dist" = "src")
 	const importAlias = async (specifier: string) => {
 		if (specifier.startsWith("@./")) {
 			if (mode === "dist") {
-				return resolveDistModule(await loadDistBundle(), specifier)
+				return resolveDistModule(await loadDistBundle(cacheKey), specifier)
 			}
 			const p = path.join(ROOT, "src", "js", "select", specifier.replace("@./", ""))
-			const mod = await import(pathToFileURL(p).href)
+			const mod = await import(withCacheKey(pathToFileURL(p), cacheKey).href)
 			return specifier === "@./icons.js" ? wrapIconsModule(mod) : mod
 		}
 		if (specifier.startsWith("./") || specifier.startsWith("../")) {
 			const p = path.resolve(path.dirname(examplePath), specifier)
-			return import(pathToFileURL(p).href)
+			return import(withCacheKey(pathToFileURL(p), cacheKey).href)
 		}
 		return import(specifier)
 	}
@@ -302,6 +301,12 @@ function pathToFileURL(filePath: string) {
 	return new URL(`file://${resolved}`)
 }
 
+function withCacheKey(url: URL, cacheKey: string) {
+	const next = new URL(url.href)
+	next.searchParams.set("t", cacheKey)
+	return next
+}
+
 async function settle(window: Window) {
 	for (let i = 0; i < 6; i++) {
 		await Promise.resolve()
@@ -314,6 +319,7 @@ async function settle(window: Window) {
 function normalizeHtml(html: string) {
 	return html
 		.replace(/\sdata-state="[^"]*"/g, "")
+		.replace(/\sui-parent="ui-[^"]*"/g, "")
 		.replace(/\sstyle=""/g, "")
 		.replace(/\s+/g, " ")
 		.replace(/> </g, "><")
@@ -342,12 +348,12 @@ function assertFixture(exampleName: string, stage: "initial" | "interaction", ac
 	expect(actual).toBe(expected)
 }
 
-describe("examples integration", () => {
-	for (const example of listExamples()) {
-		test(example.name, async () => {
-			const window = await executeExample(example.path)
-			assertFixture(example.name, "initial", snapshotBody(window))
-			const interaction = EXAMPLE_INTERACTIONS[example.name]
+	describe("examples integration", () => {
+		for (const example of listExamples()) {
+			test(example.name, { timeout: EXAMPLE_TIMEOUT }, async () => {
+				const window = await executeExample(example.path)
+				assertFixture(example.name, "initial", snapshotBody(window))
+				const interaction = EXAMPLE_INTERACTIONS[example.name]
 			if (interaction) {
 				await interaction(window)
 				await settle(window)
@@ -358,13 +364,13 @@ describe("examples integration", () => {
 	}
 })
 
-if (HAS_DIST_BUNDLE) {
-	describe("examples integration (dist bundle)", () => {
-		for (const example of listExamples()) {
-			test(example.name, async () => {
-				const window = await executeExample(example.path, "dist")
-				assertFixture(example.name, "initial", snapshotBody(window))
-				const interaction = EXAMPLE_INTERACTIONS[example.name]
+	if (HAS_DIST_BUNDLE) {
+		describe("examples integration (dist bundle)", () => {
+			for (const example of listExamples()) {
+				test(example.name, { timeout: EXAMPLE_TIMEOUT }, async () => {
+					const window = await executeExample(example.path, "dist")
+					assertFixture(example.name, "initial", snapshotBody(window))
+					const interaction = EXAMPLE_INTERACTIONS[example.name]
 				if (interaction) {
 					await interaction(window)
 					await settle(window)

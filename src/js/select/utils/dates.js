@@ -1,0 +1,617 @@
+// Project: Select.js
+// Author:  Sebastien Pierre
+// License: BSD-3
+// Created: 2026-06-12
+// Updated: 2026-06-12
+
+// Module: select/utils/dates
+// Date arithmetic helpers using a linear millisecond encoding and a mixed
+// Julian/Gregorian calendar split at 1583-01-01.
+
+const MS_PER_MINUTE = 1000 * 60
+const MS_PER_HOUR = MS_PER_MINUTE * 60
+const MS_PER_DAY = MS_PER_HOUR * 24
+
+// Calendar constants
+const DAYS_PER_YEAR = 365
+const DAYS_PER_LEAP_YEAR = 366
+const DAYS_PER_4_YEARS = 1461
+const DAYS_PER_100_YEARS = 36524
+const DAYS_PER_400_YEARS = 146097
+
+const YEAR_MONTHS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+const YEAR_DAYS = YEAR_MONTHS.reduce((r, _, i) => {
+	r[i] = i === 0 ? 0 : r[i - 1] + YEAR_MONTHS[i - 1]
+	return r
+}, new Array(12))
+
+const LEAP_YEAR_MONTHS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+const LEAP_YEAR_DAYS = LEAP_YEAR_MONTHS.reduce((r, _, i) => {
+	r[i] = i === 0 ? 0 : r[i - 1] + LEAP_YEAR_MONTHS[i - 1]
+	return r
+}, new Array(12))
+
+const SPLIT_DAYS = 578191
+
+const Second = {
+	index: 6,
+	step: 1000,
+	offset: 0,
+	suffix: "s",
+	period: 60,
+}
+
+const Minute = {
+	index: 5,
+	step: MS_PER_MINUTE,
+	offset: 0,
+	suffix: "m",
+	period: 60,
+}
+
+const Hour = {
+	index: 4,
+	step: MS_PER_HOUR,
+	offset: 0,
+	suffix: "h",
+	period: 24,
+}
+
+const Day = {
+	index: 3,
+	step: MS_PER_DAY,
+	offset: 1,
+	suffix: "d",
+	period: 30.4375,
+}
+
+const Week = {
+	index: 2,
+	step: MS_PER_DAY * 7,
+	offset: 1,
+	suffix: "w",
+}
+
+const Month = {
+	index: 1,
+	step: DAYS_PER_4_YEARS * 1800000,
+	period: 12,
+	offset: 1,
+	suffix: "M",
+}
+
+const Year = {
+	index: 0,
+	step: (365 * 3 + 366) * MS_PER_HOUR * 6,
+	offset: 0,
+	suffix: "Y",
+}
+
+const by = Object.freeze({
+	second: Second,
+	minute: Minute,
+	hour: Hour,
+	day: Day,
+	week: Week,
+	month: Month,
+	year: Year,
+})
+
+const WeekDay = {
+	values: {
+		Monday: 0,
+		Tuesday: 1,
+		Wednesday: 2,
+		Thursday: 3,
+		Friday: 4,
+		Saturday: 5,
+		Sunday: 6,
+	},
+	names: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+}
+
+// ----------------------------------------------------------------------------
+//
+// CORE
+//
+// ----------------------------------------------------------------------------
+
+// Function: div
+// Integer division of `value` by `divisor`. When `period` is given, wraps the
+// quotient into that period with optional `offset`.
+function div(value, divisor, period, offset = 0) {
+	return period
+		? ((Math.floor(value / divisor) - offset) % period) + offset
+		: Math.floor(value / divisor)
+}
+
+// Function: divmul
+// Returns the largest multiple of `divisor` less than or equal to `value`.
+function divmul(value, divisor) {
+	return div(value, divisor) * divisor
+}
+
+// Function: isleap
+// Returns true when `year` is a leap year.
+function isleap(year) {
+	return year < 0 || year % 4 !== 0
+		? false
+		: year <= 1582
+			? true
+			: year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+}
+
+// Function: leaps
+// Returns the number of leap years from year 0 up to but excluding `year`.
+function leaps(year) {
+	if (year < 0) {
+		return 0
+	}
+
+	if (year <= 1582) {
+		return Math.floor(year / 4) + 1
+	}
+
+	const gregTotal =
+		Math.floor(year / 4) - Math.floor(year / 100) + Math.floor(year / 400) + 1
+
+	return gregTotal + 12
+}
+
+// Function: yeardays
+// Returns the number of days in `year`, or the cumulative day offset before
+// `month` when `month` is provided.
+function yeardays(year, month) {
+	return month === undefined
+		? isleap(year)
+			? 366
+			: 365
+		: isleap(year)
+			? LEAP_YEAR_DAYS[month - 1]
+			: YEAR_DAYS[month - 1]
+}
+
+// Function: monthdays
+// Returns the number of days in `month` of `year`.
+function monthdays(year, month) {
+	return isleap(year) ? LEAP_YEAR_MONTHS[month - 1] : YEAR_MONTHS[month - 1]
+}
+
+// Function: datedays
+// Returns the absolute day count up to the start of the given date.
+function datedays(year, month, day) {
+	return (
+		year * 365 +
+		leaps(year - 1) +
+		(month && month > 1 ? yeardays(year, month) : 0) +
+		(day && day > 1 ? day - 1 : 0)
+	)
+}
+
+// Function: datenum
+// Converts a `Date` or date components to the library's linear date number.
+function datenum(y, m = 1, d = 1, h = 0, mn = 0, s = 0) {
+	let year = y
+	if (year instanceof Date) {
+		s = year.getSeconds()
+		mn = year.getMinutes()
+		h = year.getHours()
+		m = year.getMonth() + 1
+		d = year.getDate()
+		year = year.getFullYear()
+	}
+
+	return (
+		datedays(year, m, d) * by.day.step +
+		h * by.hour.step +
+		mn * by.minute.step +
+		s * by.second.step
+	)
+}
+
+// Function: numdatej
+// Converts total days to year/day-of-year using Julian calendar rules.
+function numdatej(days) {
+	let y = 0
+	let d = 0
+	const c4 = Math.floor(days / DAYS_PER_4_YEARS)
+	y += c4 * 4
+	d = days - c4 * DAYS_PER_4_YEARS
+
+	if (d >= DAYS_PER_LEAP_YEAR) {
+		d -= DAYS_PER_LEAP_YEAR
+		y += 1
+		const c1 = Math.floor(d / DAYS_PER_YEAR)
+		y += c1
+		d -= c1 * DAYS_PER_YEAR
+	}
+	return { y, d }
+}
+
+// Function: numdateg
+// Converts total days to year/day-of-year using Gregorian calendar rules.
+function numdateg(days) {
+	let y = 0
+	let d = 0
+	let g = days - 12
+
+	const c400 = Math.floor(g / DAYS_PER_400_YEARS)
+	y += c400 * 400
+	g -= c400 * DAYS_PER_400_YEARS
+
+	let c100 = 0
+	if (g >= DAYS_PER_100_YEARS + 1) {
+		g -= DAYS_PER_100_YEARS + 1
+		c100 = 1
+		const c = Math.floor(g / DAYS_PER_100_YEARS)
+		const safeC = c > 2 ? 2 : c
+		c100 += safeC
+		g -= safeC * DAYS_PER_100_YEARS
+	}
+	y += c100 * 100
+
+	const isLeapCentury = c100 === 0
+
+	if (isLeapCentury) {
+		const c4 = Math.floor(g / DAYS_PER_4_YEARS)
+		y += c4 * 4
+		g -= c4 * DAYS_PER_4_YEARS
+
+		if (g >= DAYS_PER_LEAP_YEAR) {
+			const c1 = 1 + Math.floor((g - DAYS_PER_LEAP_YEAR) / DAYS_PER_YEAR)
+			y += c1
+			g -= DAYS_PER_LEAP_YEAR + (c1 - 1) * DAYS_PER_YEAR
+		}
+		d = g
+	} else {
+		if (g < DAYS_PER_4_YEARS - 1) {
+			const c1 = Math.floor(g / DAYS_PER_YEAR)
+			y += c1
+			d = g - c1 * DAYS_PER_YEAR
+		} else {
+			g -= DAYS_PER_4_YEARS - 1
+			y += 4
+
+			const c4 = Math.floor(g / DAYS_PER_4_YEARS)
+			y += c4 * 4
+			g -= c4 * DAYS_PER_4_YEARS
+
+			if (g >= DAYS_PER_LEAP_YEAR) {
+				const c1 = 1 + Math.floor((g - DAYS_PER_LEAP_YEAR) / DAYS_PER_YEAR)
+				y += c1
+				g -= DAYS_PER_LEAP_YEAR + (c1 - 1) * DAYS_PER_YEAR
+			}
+			d = g
+		}
+	}
+
+	return { y, d }
+}
+
+// Function: numdate
+// Converts a date number back to `[year, month, day, hour, minute, second]`.
+function numdate(n) {
+	const days = Math.floor(n / by.day.step)
+	let y = 0
+	let d = 0
+
+	if (days < SPLIT_DAYS) {
+		const res = numdatej(days)
+		y = res.y
+		d = res.d
+	} else {
+		const res = numdateg(days)
+		y = res.y
+		d = res.d
+	}
+
+	const daysArr = isleap(y) ? LEAP_YEAR_DAYS : YEAR_DAYS
+	let m = 11
+	while (m > 0 && daysArr[m] > d) {
+		m--
+	}
+
+	const day = d - daysArr[m] + 1
+
+	let remainder = n - days * by.day.step
+	const h = Math.floor(remainder / by.hour.step)
+	remainder -= h * by.hour.step
+	const mn = Math.floor(remainder / by.minute.step)
+	remainder -= mn * by.minute.step
+	const s = Math.floor(remainder / by.second.step)
+
+	return [y, m + 1, day, h, mn, s]
+}
+
+// Function: parts
+// Normalizes `value` into `[year, month, day, hour, minute, second]` parts.
+function parts(value) {
+	if (value === undefined) {
+		return parts(new Date())
+	}
+	if (value instanceof Date) {
+		return [
+			value.getFullYear(),
+			value.getMonth() + 1,
+			value.getDate(),
+			value.getHours(),
+			value.getMinutes(),
+			value.getSeconds(),
+		]
+	}
+	if (Array.isArray(value)) {
+		return [value[0], value[1] || 1, value[2] || 1, value[3] || 0, value[4] || 0, value[5] || 0]
+	}
+	return typeof value === "number" && value >= MS_PER_DAY
+		? numdate(value)
+		: [value, 1, 1, 0, 0, 0]
+}
+
+// Function: snap
+// Rounds `nd` down to the nearest multiple of `grain`.
+function snap(nd, grain) {
+	return divmul(nd, grain.step)
+}
+
+// Function: dist
+// Returns the approximate duration between two date numbers.
+function dist(d1, d2) {
+	const delta = Math.abs((d2 ?? 0) - d1)
+	const sign = d2 !== undefined && d2 < d1 ? -1 : 1
+
+	let remainder = delta
+	const years = Math.floor(remainder / by.year.step)
+	remainder %= by.year.step
+	const months = Math.floor(remainder / by.month.step)
+	remainder %= by.month.step
+	const days = Math.floor(remainder / by.day.step)
+	remainder %= by.day.step
+	const hours = Math.floor(remainder / by.hour.step)
+	remainder %= by.hour.step
+	const minutes = Math.floor(remainder / by.minute.step)
+	remainder %= by.minute.step
+	const seconds = Math.floor(remainder / by.second.step)
+
+	return [
+		sign * years,
+		sign * months,
+		sign * days,
+		sign * hours,
+		sign * minutes,
+		sign * seconds,
+	]
+}
+
+// Function: diffcal
+// Returns the exact calendar difference between two date numbers.
+function diffcal(n1, n2) {
+	let start = n1
+	let end = n2
+	let sign = 1
+	if (start > end) {
+		start = n2
+		end = n1
+		sign = -1
+	}
+
+	const d1 = numdate(start)
+	const d2 = numdate(end)
+
+	let years = d2[0] - d1[0]
+	let months = d2[1] - d1[1]
+	let days = d2[2] - d1[2]
+	let hours = d2[3] - d1[3]
+	let minutes = d2[4] - d1[4]
+	let seconds = d2[5] - d1[5]
+
+	if (seconds < 0) {
+		seconds += 60
+		minutes--
+	}
+	if (minutes < 0) {
+		minutes += 60
+		hours--
+	}
+	if (hours < 0) {
+		hours += 24
+		days--
+	}
+	if (days < 0) {
+		let pm = d2[1] - 1
+		let py = d2[0]
+		if (pm < 1) {
+			pm = 12
+			py--
+		}
+		days += monthdays(py, pm)
+		months--
+	}
+	if (months < 0) {
+		months += 12
+		years--
+	}
+
+	return [
+		sign * years === 0 ? 0 : sign * years,
+		sign * months === 0 ? 0 : sign * months,
+		sign * days === 0 ? 0 : sign * days,
+		sign * hours === 0 ? 0 : sign * hours,
+		sign * minutes === 0 ? 0 : sign * minutes,
+		sign * seconds === 0 ? 0 : sign * seconds,
+	]
+}
+
+// Function: weekday
+// Returns the weekday index for the given date. Monday is `0` by default.
+function weekday(year, month, day, firstDay = 0) {
+	const s = div(year, 100)
+	let sday =
+		1720996.5 -
+		s +
+		div(s, 4) +
+		Math.floor(365.25 * year) +
+		Math.floor(30.6001 * (month + 1)) +
+		day
+	sday -= div(sday, 7) * 7
+	const wday = (Math.floor(sday) + 1) % 7
+	return (wday + (7 - firstDay)) % 7
+}
+
+// Function: timezone
+// Returns the current timezone offset in milliseconds.
+function timezone() {
+	return new Date().getTimezoneOffset() * MS_PER_MINUTE
+}
+
+// Function: now
+// Returns the current date as `[year, month, day]`.
+function now() {
+	return date(new Date())
+}
+
+// Function: year
+// Returns the year component from `value`, or the current year when omitted.
+function year(value) {
+	return parts(value)[0]
+}
+
+// Function: month
+// Returns the month component from `value`, or the current month when omitted.
+function month(value) {
+	return parts(value)[1]
+}
+
+// Function: day
+// Returns the day component from `value`, or the current day when omitted.
+function day(value) {
+	return parts(value)[2]
+}
+
+// Function: hour
+// Returns the hour component from `value`, or the current hour when omitted.
+function hour(value) {
+	return parts(value)[3]
+}
+
+// Function: minute
+// Returns the minute component from `value`, or the current minute when omitted.
+function minute(value) {
+	return parts(value)[4]
+}
+
+// Function: second
+// Returns the second component from `value`, or the current second when omitted.
+function second(value) {
+	return parts(value)[5]
+}
+
+// Function: months
+// Returns the first day of every month in the year of `value`.
+function months(value = undefined) {
+	const p = parts(value)
+	const res = new Array(12)
+	for (let i = 0; i < 12; i++) {
+		res[i] = [p[0], i + 1, 1]
+	}
+	return res
+}
+
+// Function: days
+// Returns every day in the month of `value`.
+function days(value = undefined) {
+	const p = parts(value)
+	const n = monthdays(p[0], p[1])
+	const res = new Array(n)
+	for (let i = 0; i < n; i++) {
+		res[i] = [p[0], p[1], i + 1]
+	}
+	return res
+}
+
+// Function: week
+// Returns the start date of the calendar week containing `value`. `offset`
+// follows <weekday>, where Monday is `0` and Sunday is `6`.
+function week(value = undefined, offset = 0) {
+	const p = parts(value)
+	const wday = (weekday(p[0], p[1], p[2]) + 1) % 7
+	const delta = (wday - offset + 7) % 7
+	const n = datenum(p[0], p[1], p[2]) - delta * MS_PER_DAY
+	const res = numdate(n)
+	return [res[0], res[1], res[2]]
+}
+
+// Function: weeks
+// Returns the start date of each calendar week intersecting the month of
+// `value`. `offset` follows <weekday>, where Monday is `0` and Sunday is `6`.
+function weeks(value = undefined, offset = 0) {
+	const p = parts(value)
+	const endDay = monthdays(p[0], p[1])
+	const start = week([p[0], p[1], 1], offset)
+	const end = week([p[0], p[1], endDay], offset)
+	const span = Math.floor((datenum(end[0], end[1], end[2]) - datenum(start[0], start[1], start[2])) / (MS_PER_DAY * 7)) + 1
+	const res = new Array(span)
+	let current = datenum(start[0], start[1], start[2])
+	for (let i = 0; i < span; i++) {
+		const item = numdate(current)
+		res[i] = [item[0], item[1], item[2]]
+		current += MS_PER_DAY * 7
+	}
+	return res
+}
+
+// Function: date
+// Returns a date tuple from a date number, `Date`, or raw date parts.
+function date(y, m = undefined, d = undefined) {
+	return m === undefined && d === undefined && typeof y === "number" && y >= MS_PER_DAY
+		? numdate(y)
+		: y instanceof Date
+			? [y.getFullYear(), y.getMonth() + 1, y.getDate()]
+			: [y, m || 1, d || 1]
+}
+
+export {
+	MS_PER_MINUTE,
+	MS_PER_DAY,
+	YEAR_MONTHS,
+	YEAR_DAYS,
+	LEAP_YEAR_MONTHS,
+	LEAP_YEAR_DAYS,
+	SPLIT_DAYS,
+	Second,
+	Minute,
+	Hour,
+	Day,
+	Week,
+	Month,
+	Year,
+	by,
+	WeekDay,
+	div,
+	divmul,
+	isleap,
+	leaps,
+	yeardays,
+	monthdays,
+	datedays,
+	datenum,
+	numdate,
+	snap,
+	dist,
+	diffcal,
+	weekday,
+	timezone,
+	now,
+	year,
+	month,
+	day,
+	hour,
+	minute,
+	second,
+	months,
+	days,
+	week,
+	weeks,
+	date,
+}
+
+// EOF

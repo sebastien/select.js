@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { cell, derived } from "../src/js/select/cells.js"
+import { Nothing } from "../src/js/select/utils.js"
 
 function foreignReactive(initialValue) {
 	return {
@@ -153,5 +154,56 @@ describe("cells.derived", () => {
 		a.release()
 		b.release()
 		expect(root._selectionCache.size).toBe(0)
+	})
+
+	test("publishes previous value at changed path for direct cell updates", () => {
+		const root = cell({ user: { name: "Ada" } })
+		const seen = []
+
+		root.sub((value, path, _origin, previous) => {
+			seen.push({ value, path, previous })
+		})
+
+		root.set("Bea", ["user", "name"])
+
+		expect(seen).toEqual([
+			{ value: "Bea", path: ["user", "name"], previous: "Ada" },
+		])
+	})
+
+	test("publishes relative changed path and previous value for selected ancestors", () => {
+		const root = cell({ user: { name: "Ada", meta: { visits: 1 } } })
+		const user = root.select("user")
+		const seen = []
+
+		user.sub((value, path, _origin, previous) => {
+			seen.push({ value, path, previous })
+		})
+
+		root.set("Bea", ["user", "name"])
+		root.set(2, ["user", "meta", "visits"])
+
+		expect(seen).toEqual([
+			{ value: "Bea", path: ["name"], previous: "Ada" },
+			{ value: 2, path: ["meta", "visits"], previous: 1 },
+		])
+
+		user.release()
+	})
+
+	test("publishes previous selected value when an ancestor path is replaced", () => {
+		const root = cell({ user: { name: "Ada" } })
+		const name = root.select(["user", "name"])
+		const seen = []
+
+		name.sub((value, path, _origin, previous) => {
+			seen.push({ value, path, previous })
+		})
+
+		root.set({ name: "Bea" }, "user")
+
+		expect(seen).toEqual([{ value: "Bea", path: Nothing, previous: "Ada" }])
+
+		name.release()
 	})
 })

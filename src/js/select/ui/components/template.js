@@ -61,6 +61,7 @@ function remapCollection(value, f) {
 // - `when`: Object? - conditional slots map with predicates
 // - `outAttr`: Object? - attribute binding slots map
 // - `slots`: Array? - named content slots (<slot name="x">)
+// - `webcomponents`: Array? - compiled kebab-case custom element host paths
 // - `initializer`: function? - state factory function
 // - `behavior`: Object? - behavior methods map
 // - `subs`: Map? - event subscriptions map
@@ -93,6 +94,7 @@ class UITemplate {
 		this.ref = UITemplateSlot.Find("ref", nodes);
 		this.outAttr = UITemplateSlot.FindAttr("out:", nodes);
 		this.slots = this._findSlots(nodes);
+		this.webcomponents = this._findWebComponents(nodes);
 		this.initializer = undefined;
 		this.behavior = undefined;
 		this.subs = undefined;
@@ -128,6 +130,37 @@ class UITemplate {
 			}
 		}
 		return slots.length ? slots : null;
+	}
+
+	_findWebComponents(nodes) {
+		const webcomponents = [];
+		for (let i = 0; i < nodes.length; i++) {
+			const root = nodes[i];
+			if (!root || root.nodeType !== Node.ELEMENT_NODE) {
+				continue;
+			}
+			const candidates = [];
+			if (root.nodeName.includes("-")) {
+				candidates.push(root);
+			}
+			if (root.querySelectorAll) {
+				for (const node of root.querySelectorAll("*")) {
+					if (node.nodeName.includes("-")) {
+						candidates.push(node);
+					}
+				}
+			}
+			for (const node of candidates) {
+				const path = node === root ? [i] : UITemplateSlot.Path(node, root, [i]);
+				webcomponents.push({
+					path,
+					rootIndex: path[0],
+					tailPath: path.length > 1 ? path.slice(1) : null,
+					tagName: node.nodeName.toLowerCase(),
+				});
+			}
+		}
+		return webcomponents.length ? webcomponents : null;
 	}
 
 	// TODO: There's a question whether we should have Instance instead

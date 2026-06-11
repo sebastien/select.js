@@ -76,7 +76,7 @@ function meta(value, annotations = undefined) {
 		const symbols = Object.getOwnPropertySymbols(value);
 		for (let i = 0; i < symbols.length; i++) {
 			const key = Symbol.keyFor(symbols[i]);
-			if (key && key.startsWith(":")) {
+			if (key?.startsWith(":")) {
 				res[key.slice(1)] = value[symbols[i]];
 			}
 		}

@@ -127,4 +127,86 @@ describe("ui webcomponent projected children", () => {
 
 		window.close?.();
 	});
+
+	test("rebinds wrapped component pub events through ui-parent", async () => {
+		const window = new Window({ url: "http://localhost:8000/webcomponent" });
+		setupGlobals(window);
+		const { ui, webcomponent } = await import("../src/js/select/ui.js");
+
+		const Parent = ui(`
+			<section>
+				<output class="value" out="value"></output>
+			</section>
+		`).sub({
+			Increment: (self, { value }, event) => ({ value: value + event.data }),
+		});
+
+		const Child = ui(`
+			<button on:click="click" out="count"></button>
+		`).does({
+			count: (_self, { count }) => count,
+			click: (self, { count }) => self.pub("Increment", count),
+		});
+
+		const name = `x-pub-child-${Date.now()}`;
+		webcomponent(name, Child, { count: 0 });
+
+		const parent = Parent.new().set({ value: 1 }).mount(document.body);
+		const element = document.createElement(name);
+		element.setAttribute("count", "2");
+		element.setAttribute("ui-parent", parent.id);
+		document.body.appendChild(element);
+		await flush();
+
+		expect(element.instance.parent).toBe(parent);
+		element.shadowRoot
+			.querySelector("button")
+			.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		await flush();
+
+		expect(parent.nodes[0].querySelector(".value").textContent).toBe("3");
+
+		window.close?.();
+	});
+
+	test("implicitly binds kebab-case custom elements to their parent instance", async () => {
+		const window = new Window({ url: "http://localhost:8000/webcomponent" });
+		setupGlobals(window);
+		const { ui, webcomponent } = await import("../src/js/select/ui.js");
+
+		const Child = ui(`
+			<button on:click="click" out="count"></button>
+		`).does({
+			count: (_self, { count }) => count,
+			click: (self, { count }) => self.pub("Increment", count),
+		});
+
+		const name = `x-implicit-parent-${Date.now()}`;
+		webcomponent(name, Child, { count: 0 });
+
+		const Parent = ui(`
+			<section>
+				<output class="value" out="value"></output>
+				<${name} count="2"></${name}>
+			</section>
+		`).sub({
+			Increment: (_self, { value }, event) => ({ value: value + event.data }),
+		});
+
+		const parent = Parent.new().set({ value: 1 }).mount(document.body);
+		await flush();
+
+		const element = parent.nodes[0].querySelector(name);
+		expect(element.getAttribute("ui-parent")).toBe(parent.id);
+		expect(element.instance.parent).toBe(parent);
+
+		element.shadowRoot
+			.querySelector("button")
+			.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		await flush();
+
+		expect(parent.nodes[0].querySelector(".value").textContent).toBe("3");
+
+		window.close?.();
+	});
 });

@@ -619,6 +619,7 @@ const query = {
 	format: formatQuery,
 };
 
+const RE_NUMBER_TEXT = /^-?(?:\d+|\d+\.\d+)$/;
 const RE_VALUE_REFERENCE = /^([@?#])([^.?#:]+)(?:\.(.+))?$/;
 const RE_REQUEST_REFERENCE = /^([A-Z]+):([^?#]*)(\?[^#]*)?(?:#(.*))?$/;
 
@@ -1076,6 +1077,7 @@ class Browser {
 		if (typeof value !== "string") return value;
 		if (value === "true") return true;
 		if (value === "false") return false;
+		if (RE_NUMBER_TEXT.test(value)) return Number(value);
 		return looksLikeHashText(value) ? hash.parse(value) : value;
 	}
 
