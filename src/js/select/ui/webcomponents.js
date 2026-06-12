@@ -31,6 +31,98 @@ const Adopted = Symbol.for("Adopted");
 const UI_PARENT_ATTRIBUTE = "ui-parent";
 const BaseHTMLElement = globalThis.HTMLElement || class {};
 const documentStyleSheetCache = new WeakMap();
+const documentStyleSubscribers = new WeakMap();
+const documentStyleObservers = new WeakMap();
+
+function isStyleSheetNode(node) {
+	if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+		return false;
+	}
+	const tagName = node.tagName?.toLowerCase();
+	return tagName === "style" || (tagName === "link" && node.relList?.contains("stylesheet"));
+}
+
+function isStyleSheetMutation(mutation) {
+	if (isStyleSheetNode(mutation.target)) {
+		return true;
+	}
+	for (const node of mutation.addedNodes || []) {
+		if (isStyleSheetNode(node)) {
+			return true;
+		}
+	}
+	for (const node of mutation.removedNodes || []) {
+		if (isStyleSheetNode(node)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function getDocumentStylesSignature(doc) {
+	if (!doc?.head?.querySelectorAll) {
+		return "";
+	}
+	const nodes = doc.head.querySelectorAll("style,link[rel~='stylesheet']");
+	const signature = [];
+	for (let i = 0; i < nodes.length; i++) {
+		const node = nodes[i];
+		if (node.tagName?.toLowerCase() === "style") {
+			signature.push(`style:${node.id || ""}:${node.media || ""}:${node.textContent?.length || 0}`);
+		} else {
+			signature.push(
+				`link:${node.getAttribute("href") || ""}:${node.getAttribute("media") || ""}:${node.hasAttribute("disabled")}`,
+			);
+		}
+	}
+	return signature.join("|");
+}
+
+function watchDocumentStyles(doc, component) {
+	if (!doc?.head || typeof MutationObserver !== "function") {
+		return;
+	}
+	let subscribers = documentStyleSubscribers.get(doc);
+	if (!subscribers) {
+		subscribers = new Set();
+		documentStyleSubscribers.set(doc, subscribers);
+	}
+	subscribers.add(component);
+	if (documentStyleObservers.has(doc)) {
+		return;
+	}
+	const observer = new MutationObserver((mutations) => {
+		if (!mutations.some(isStyleSheetMutation)) {
+			return;
+		}
+		documentStyleSheetCache.delete(doc);
+		for (const subscriber of documentStyleSubscribers.get(doc) || []) {
+			subscriber._syncDocumentStyles?.();
+		}
+	});
+	observer.observe(doc.head, {
+		childList: true,
+		subtree: true,
+		attributes: true,
+		characterData: true,
+	});
+	documentStyleObservers.set(doc, observer);
+}
+
+function unwatchDocumentStyles(doc, component) {
+	const subscribers = documentStyleSubscribers.get(doc);
+	if (!subscribers) {
+		return;
+	}
+	subscribers.delete(component);
+	if (subscribers.size > 0) {
+		return;
+	}
+	documentStyleSubscribers.delete(doc);
+	const observer = documentStyleObservers.get(doc);
+	observer?.disconnect();
+	documentStyleObservers.delete(doc);
+}
 
 function parseAttributeValue(value) {
 	if (value === null) {
@@ -165,45 +257,22 @@ function buildDocumentStyleSheets(doc) {
 		return { sheets: [], fallbackNodes: [] };
 	}
 	const nodes = doc.head.querySelectorAll("style,link[rel~='stylesheet']");
-	const sheets = [];
 	const fallbackNodes = [];
-	const HTMLStyleElementType =
-		globalThis.HTMLStyleElement || doc.defaultView?.HTMLStyleElement;
-	const CSSStyleSheetType =
-		globalThis.CSSStyleSheet || doc.defaultView?.CSSStyleSheet;
 	for (let i = 0; i < nodes.length; i++) {
-		const node = nodes[i];
-		if (
-			HTMLStyleElementType &&
-			node instanceof HTMLStyleElementType &&
-			typeof CSSStyleSheetType === "function"
-		) {
-			try {
-				const sheet = new CSSStyleSheetType();
-				sheet.replaceSync(node.textContent || "");
-				sheets.push(sheet);
-				continue;
-			} catch (error) {
-				log.warn("UIWebComponent: could not adopt document style, details", {
-					node,
-					error,
-				});
-			}
-		}
-		fallbackNodes.push(node);
+		fallbackNodes.push(nodes[i]);
 	}
-	return { sheets, fallbackNodes };
+	return { sheets: [], fallbackNodes };
 }
 
 function getDocumentStyles(doc) {
 	const cached = documentStyleSheetCache.get(doc);
-	const headChildCount = doc?.head?.children?.length ?? 0;
-	if (cached && cached.headChildCount === headChildCount) {
+	const signature = getDocumentStylesSignature(doc);
+	if (cached && cached.signature === signature) {
 		return cached;
 	}
 	const value = {
 		...buildDocumentStyleSheets(doc),
-		headChildCount,
+		signature,
 	};
 	documentStyleSheetCache.set(doc, value);
 	return value;
@@ -211,20 +280,12 @@ function getDocumentStyles(doc) {
 
 function cloneDocumentStyles(root, options) {
 	if (options?.documentStyles === false) {
-		return;
+		return { sheets: [], fallbackNodes: [], headChildCount: 0 };
 	}
 	if (!root || root === document || !document?.head?.querySelectorAll) {
-		return;
+		return { sheets: [], fallbackNodes: [], headChildCount: 0 };
 	}
-	const { sheets, fallbackNodes } = getDocumentStyles(document);
-	if (sheets.length && "adoptedStyleSheets" in root) {
-		root.adoptedStyleSheets = [...(root.adoptedStyleSheets || []), ...sheets];
-	}
-	if (!("adoptedStyleSheets" in root) || fallbackNodes.length) {
-		for (let i = 0; i < fallbackNodes.length; i++) {
-			root.appendChild(fallbackNodes[i].cloneNode(true));
-		}
-	}
+	return getDocumentStyles(document);
 }
 
 // Class: UIWebComponent
@@ -260,7 +321,11 @@ class UIWebComponent extends BaseHTMLElement {
 				? this.shadowRoot || this.attachShadow({ mode: shadowMode })
 				: this;
 		if (this.root !== this) {
-			cloneDocumentStyles(this.root, options);
+			this._documentStyleHeadChildCount = -1;
+			this._documentStyleSheets = [];
+			this._documentStyleFallbackNodes = [];
+			this._syncDocumentStyles();
+			watchDocumentStyles(document, this);
 		}
 		this.componentFactory = componentFactory;
 		this.attributeBindings = attributeBindings;
@@ -309,6 +374,39 @@ class UIWebComponent extends BaseHTMLElement {
 		for (const key of this._ownedAttributeReactiveRefs.keys()) {
 			this._replaceOwnedAttributeReactiveRef(key, undefined);
 		}
+	}
+
+	_syncDocumentStyles() {
+		const root = this.root;
+		const styles = cloneDocumentStyles(root, this.options);
+		if (
+			!styles ||
+			this._documentStyleHeadChildCount === styles.signature ||
+			root === this
+		) {
+			return;
+		}
+		for (const node of this._documentStyleFallbackNodes || []) {
+			node.parentNode?.removeChild(node);
+		}
+		this._documentStyleFallbackNodes = [];
+		if ("adoptedStyleSheets" in root) {
+			const previous = this._documentStyleSheets || [];
+			const existing = root.adoptedStyleSheets || [];
+			root.adoptedStyleSheets = [
+				...existing.filter((sheet) => !previous.includes(sheet)),
+				...styles.sheets,
+			];
+		}
+		if (!("adoptedStyleSheets" in root) || styles.fallbackNodes.length) {
+			for (let i = 0; i < styles.fallbackNodes.length; i++) {
+				const clone = styles.fallbackNodes[i].cloneNode(true);
+				root.appendChild(clone);
+				this._documentStyleFallbackNodes.push(clone);
+			}
+		}
+		this._documentStyleSheets = styles.sheets;
+		this._documentStyleHeadChildCount = styles.signature;
 	}
 
 	_clearInternalReactiveSubs() {
@@ -469,6 +567,7 @@ class UIWebComponent extends BaseHTMLElement {
 	}
 
 	connectedCallback() {
+		this._syncDocumentStyles();
 		if (!this.isInitialized) {
 			this.attributeData = this.readAttributes();
 			this._syncOwnedAttributeReactiveRefs(this.attributeData);
@@ -492,6 +591,13 @@ class UIWebComponent extends BaseHTMLElement {
 		}
 		this._clearOwnedAttributeReactiveRefs();
 		this._clearPureNodes();
+		unwatchDocumentStyles(document, this);
+		for (const node of this._documentStyleFallbackNodes || []) {
+			node.parentNode?.removeChild(node);
+		}
+		this._documentStyleFallbackNodes = [];
+		this._documentStyleSheets = [];
+		this._documentStyleHeadChildCount = -1;
 		this.isInitialized = false;
 	}
 

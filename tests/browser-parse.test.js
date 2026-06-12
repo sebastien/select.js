@@ -30,13 +30,16 @@ describe("Browser.ref", () => {
 })
 
 describe("Browser.val", () => {
-	test("coerces standalone boolean and numeric strings and leaves references untouched", () => {
+	test("coerces standalone boolean and numeric strings and leaves hashformat text untouched", () => {
 		const instance = new Browser()
 		expect(instance.val("true")).toBe(true)
 		expect(instance.val("false")).toBe(false)
 		expect(instance.val("2026")).toBe(2026)
 		expect(instance.val("1.5")).toBe(1.5)
 		expect(instance.val("hello")).toBe("hello")
+		expect(instance.val("a,b,c")).toBe("a,b,c")
+		expect(instance.val("a=b")).toBe("a=b")
+		expect(instance.val("(a,b,c)")).toEqual(["a", "b", "c"])
 		expect(instance.val("@session.user:profile.name")).toBe(
 			"@session.user:profile.name",
 		)
@@ -57,6 +60,9 @@ describe("Browser.parse", () => {
 		expect(instance.parse("2026")).toBe(2026)
 		expect(instance.parse("1.5")).toBe(1.5)
 		expect(instance.parse("hello")).toBe("hello")
+		expect(instance.parse("a,b,c")).toBe("a,b,c")
+		expect(instance.parse("a=b")).toBe("a=b")
+		expect(instance.parse("(a,b,c)")).toEqual(["a", "b", "c"])
 	})
 
 	test("shared singleton parses booleans and numbers too", () => {

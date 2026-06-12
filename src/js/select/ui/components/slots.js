@@ -459,6 +459,22 @@ class UITemplateSlot {
 	static FindInOutAttr(nodes) {
 		const res = {};
 		let count = 0;
+		const createInOutSlot = (node, parent, rootIndex, inputProperty, key) => {
+			const path = UITemplateSlot.Path(node, parent, [rootIndex]);
+			const slot =
+				node.nodeType === Node.ELEMENT_NODE && node.nodeName.includes("-")
+					? new UIAttributeTemplateSlot(
+							node,
+							parent,
+							path,
+							inputProperty,
+							key,
+							node.getAttribute(inputProperty),
+						)
+					: new UITemplateSlot(node, parent, path);
+			slot.inputProperty = inputProperty;
+			return slot;
+		};
 		for (let i = 0; i < nodes.length; i++) {
 			const parent = nodes[i];
 			const processNode = (node) => {
@@ -477,12 +493,13 @@ class UITemplateSlot {
 					const defaultKey = inputProperty || "value";
 					const key = `${attr.value || defaultKey}`.trim() || defaultKey;
 					toRemove.push(attr.name);
-					const slot = new UITemplateSlot(
+					const slot = createInOutSlot(
 						node,
 						parent,
-						UITemplateSlot.Path(node, parent, [i]),
+						i,
+						inputProperty,
+						key,
 					);
-					slot.inputProperty = inputProperty;
 					if (res[key] === undefined) {
 						res[key] = [slot];
 					} else {

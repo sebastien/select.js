@@ -92,8 +92,7 @@ class RecordFormat {
 		}
 		if (Array.isArray(value))
 			return RecordFormat.SanitizeArray(value, warn, scope, details);
-		if (isObject(value))
-			return RecordFormat.SanitizeRecord(value, warn, scope);
+		if (isObject(value)) return RecordFormat.SanitizeRecord(value, warn, scope);
 		RecordFormat.WarnIssue(warn, scope, "unsupported location value pruned", {
 			type: typeof value,
 			value,
@@ -877,13 +876,7 @@ class LocalStorageCell extends Cell {
 }
 
 function looksLikeHashText(value) {
-	return (
-		value.startsWith("#") ||
-		value.includes("=") ||
-		value.includes(",") ||
-		value.includes("(") ||
-		value.includes(")")
-	);
+	return value.startsWith("(") && value.endsWith(")")
 }
 
 // Class: Browser
@@ -1097,24 +1090,26 @@ class Browser {
 		};
 	}
 
-	parseResponse(response) {
+	parseResponse(response, options) {
 		const contentType = `${response.headers.get("content-type") || ""}`
 			.toLowerCase()
 			.split(";")[0]
 			.trim();
+		let res = undefined;
 		if (contentType === "application/json" || contentType.endsWith("+json")) {
-			return response.json();
-		}
-		if (
+			res = response.json();
+		} else if (
 			contentType.startsWith("text/") ||
 			contentType === "application/xml" ||
 			contentType === "application/javascript" ||
 			contentType === "application/xhtml+xml" ||
 			contentType === "image/svg+xml"
 		) {
-			return response.text();
+			res = response.text();
+		} else {
+			res = response.blob();
 		}
-		return response.blob();
+		return options?.post ? res.then(options.post) : res;
 	}
 
 	fetched(input, options = undefined) {
@@ -1129,8 +1124,8 @@ class Browser {
 			throw new Error("browser.fetch: fetch is not available");
 		}
 		if (!request) {
-			const response = await fetcher(input, options);
-			return this.parseResponse(response);
+			const response = await fetcher.call(globalThis, input, options);
+			return this.parseResponse(response, options);
 		}
 		const headers = new Headers(options?.headers || undefined);
 		const init = {
@@ -1144,8 +1139,8 @@ class Browser {
 			}
 			init.body = JSON.stringify(sanitize(request.body));
 		}
-		const response = await fetcher(request.url, init);
-		return this.parseResponse(response);
+		const response = await fetcher.call(globalThis, request.url, init);
+		return this.parseResponse(response, options);
 	}
 }
 

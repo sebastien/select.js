@@ -209,4 +209,78 @@ describe("ui webcomponent projected children", () => {
 
 		window.close?.();
 	});
+
+	test("syncs exposed reactive keys through wc:* events for inout bindings", async () => {
+		const window = new Window({ url: "http://localhost:8000/webcomponent" });
+		setupGlobals(window);
+		const { cell } = await import("../src/js/select/cells.js");
+		const { ui, webcomponent } = await import("../src/js/select/ui.js");
+
+		const Child = ui(`<input inout:value="text" />`).init(() => ({
+			text: cell("Initial"),
+		}));
+
+		const name = `x-inout-text-${Date.now()}`;
+		webcomponent(name, Child, { text: String });
+
+		const Parent = ui(`
+			<section>
+				<${name} inout:text="value"></${name}>
+				<output class="value" out="value"></output>
+			</section>
+		`);
+
+		Parent.new().set({ value: "Initial" }).mount(document.body);
+		await flush();
+
+		const element = document.querySelector(name);
+		expect(element.getAttribute("text")).toBe("Initial");
+		const emitted = [];
+		element.addEventListener("wc:text", (event) => {
+			emitted.push(event.detail);
+		});
+
+		const input = element.shadowRoot.querySelector("input");
+		expect(input.value).toBe("Initial");
+		input.value = "Updated";
+		input.dispatchEvent(new Event("input", { bubbles: true }));
+		await flush();
+
+		expect(document.querySelector(".value").textContent).toBe("Updated");
+		expect(emitted.at(-1)).toEqual({
+			name: "text",
+			previous: "Initial",
+			current: "Updated",
+		});
+
+		window.close?.();
+	});
+
+	test("syncs document styles added after connect into shadow roots", async () => {
+		const window = new Window({ url: "http://localhost:8000/webcomponent" });
+		setupGlobals(window);
+		const { ui, webcomponent } = await import("../src/js/select/ui.js");
+
+		const Styled = ui(`<div class="token">Styled</div>`);
+		const name = `x-style-sync-${Date.now()}`;
+		webcomponent(name, Styled, {});
+
+		const element = document.createElement(name);
+		document.body.appendChild(element);
+		await flush();
+
+		const style = document.createElement("style");
+		style.textContent = ".token { color: rgb(1, 2, 3); }";
+		document.head.appendChild(style);
+		await flush();
+		await flush();
+
+		const shadowStyle = Array.from(
+			element.shadowRoot.querySelectorAll("style"),
+		).find((node) => node.textContent.includes(".token"));
+		const adoptedSheets = element.shadowRoot.adoptedStyleSheets || [];
+		expect(!!shadowStyle || adoptedSheets.length > 0).toBe(true);
+
+		window.close?.();
+	});
 });
