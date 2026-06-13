@@ -14,17 +14,6 @@ import { access, bool, isObject, isThenable, isAnnotable } from "./values.js";
 // BASIC HELPERS
 //
 // ----------------------------------------------------------------------------
-
-// Function: def
-// Returns the first argument that is not `undefined`.
-function def(...rest) {
-	for (const v of rest) {
-		if (v !== undefined) {
-			return v;
-		}
-	}
-}
-
 // Function: swallow
 // Returns the last argument in `args`.
 function swallow(...args) {
@@ -132,7 +121,9 @@ function collect(value, asObject = false) {
 							resolved,
 						]);
 					}
-					return Promise.all(pending).then((resolved) => collect(resolved, true));
+					return Promise.all(pending).then((resolved) =>
+						collect(resolved, true),
+					);
 				}
 			}
 			const res = {};
@@ -261,7 +252,6 @@ function memo(guards, functor) {
 export {
 	ary,
 	asTrue,
-	def,
 	extractor,
 	idem,
 	meta,

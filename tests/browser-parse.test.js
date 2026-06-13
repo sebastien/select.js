@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import browser, { Browser } from "../src/js/select/browser.js"
+import browser, { Browser, hash } from "../src/js/select/browser.js"
 
 describe("Browser.ref", () => {
 	test("returns undefined for non-reference values", () => {
@@ -69,6 +69,75 @@ describe("Browser.parse", () => {
 		expect(browser().parse("true")).toBe(true)
 		expect(browser().parse("false")).toBe(false)
 		expect(browser().parse("2026")).toBe(2026)
+	})
+})
+
+describe("hash.parse — path/flag semantics", () => {
+	test("#new -> {path:'new', new:true}", () => {
+		expect(hash.parse("#new")).toEqual({ path: "new", new: true })
+	})
+
+	test("#login/new -> {path:'login/new'} (slash → no flag)", () => {
+		expect(hash.parse("#login/new")).toEqual({ path: "login/new" })
+	})
+
+	test("#new,old -> {path:'new', new:true, old:true}", () => {
+		expect(hash.parse("#new,old")).toEqual({
+			path: "new",
+			new: true,
+			old: true,
+		})
+	})
+
+	test("#login/new,old -> {path:'login/new', old:true}", () => {
+		expect(hash.parse("#login/new,old")).toEqual({
+			path: "login/new",
+			old: true,
+		})
+	})
+
+	test("#new,old,foo=bar -> path+flags+key", () => {
+		expect(hash.parse("#new,old,foo=bar")).toEqual({
+			path: "new",
+			new: true,
+			old: true,
+			foo: "bar",
+		})
+	})
+
+	test("#new=10 -> {new:10} (no path)", () => {
+		expect(hash.parse("#new=10")).toEqual({ new: 10 })
+	})
+
+	test("#new=10,old -> {new:10, old:true}", () => {
+		expect(hash.parse("#new=10,old")).toEqual({ new: 10, old: true })
+	})
+
+	test("#a=1,b=2 -> {a:1, b:2}", () => {
+		expect(hash.parse("#a=1,b=2")).toEqual({ a: 1, b: 2 })
+	})
+
+	test("#(new,old) -> [new,old] (parenthesized → array)", () => {
+		expect(hash.parse("#(new,old)")).toEqual(["new", "old"])
+	})
+
+	test("#(a=1,b=2) -> {a:1, b:2}", () => {
+		expect(hash.parse("#(a=1,b=2)")).toEqual({ a: 1, b: 2 })
+	})
+})
+
+describe("hash.parse — edge cases", () => {
+	test("empty hash -> {}", () => {
+		expect(hash.parse("#")).toEqual({})
+		expect(hash.parse("")).toEqual({})
+	})
+
+	test("single bare token -> {path, token:true}", () => {
+		expect(hash.parse("flag")).toEqual({ path: "flag", flag: true })
+	})
+
+	test("path with trailing comma -> path-only", () => {
+		expect(hash.parse("#new,")).toEqual({ path: "new", new: true })
 	})
 })
 

@@ -14,6 +14,16 @@
 //
 // ----------------------------------------------------------------------------
 
+// Function: def
+// Returns the first argument that is not `undefined`.
+function def(...rest) {
+	for (const v of rest) {
+		if (v !== undefined) {
+			return v;
+		}
+	}
+}
+
 // Function: isObject
 // Returns true when `value` is a plain object.
 function isObject(value) {
@@ -510,6 +520,7 @@ export {
 	bool,
 	clone,
 	composite,
+	def,
 	dict,
 	empty,
 	expand,

@@ -240,6 +240,13 @@ class HashFormat extends RecordFormat {
 		super("browser.hash", serializer, warn);
 	}
 
+	parse(value, fallback = {}) {
+		const text = this.decodeText(value);
+		const parsed = this.safeParse(text, fallback);
+		if (Array.isArray(parsed)) return parsed;
+		return this.sanitizeRecord(parsed);
+	}
+
 	static DecodeComponent(value) {
 		if (!value?.includes("%")) return value;
 		try {
@@ -576,6 +583,48 @@ function formatRecord(value) {
 function parseHash(value) {
 	const source = `${value || ""}`.replace(/^#/, "");
 	if (!source) return {};
+	if (source.startsWith("(")) {
+		const parsed = HashFormat.ParseHash(source);
+		return normalizeHashValue(parsed);
+	}
+	const [sepIdx, sep] = HashFormat.NextSeparator(source, 0);
+	const firstSegment = sepIdx === null ? source : source.substring(0, sepIdx).trim();
+	if (firstSegment && sep !== "=") {
+		const pathValue = HashFormat.ParseAtom(firstSegment);
+		const pathStr = `${pathValue}`;
+		if (sep !== ",") {
+			return pathStr.includes("/")
+				? { path: pathValue }
+				: { path: pathValue, [pathStr]: true };
+		}
+		const remaining = source.substring(sepIdx + 1).trim();
+		if (!remaining) {
+			return pathStr.includes("/")
+				? { path: pathValue }
+				: { path: pathValue, [pathStr]: true };
+		}
+		const rest = normalizeHashValue(HashFormat.ParseHash(remaining));
+		if (Array.isArray(rest)) {
+			const result = { path: pathValue };
+			if (!pathStr.includes("/")) result[pathStr] = true;
+			for (let i = 0; i < rest.length; i++) result[rest[i]] = true;
+			return result;
+		}
+		if (typeof rest === "string") {
+			const result = { path: pathValue };
+			if (!pathStr.includes("/")) result[pathStr] = true;
+			result[rest] = true;
+			return result;
+		}
+		if (isObject(rest)) {
+			rest.path = pathValue;
+			if (!pathStr.includes("/")) rest[pathStr] = true;
+			return rest;
+		}
+		return pathStr.includes("/")
+			? { path: pathValue }
+			: { path: pathValue, [pathStr]: true };
+	}
 	const parsed = HashFormat.ParseHash(source);
 	return normalizeHashValue(parsed);
 }
@@ -764,7 +813,7 @@ class LocationState {
 			{
 				mode: this.mode,
 				merge: true,
-				normalize: (value) => this.hashFormat.sanitizeRecord(value),
+				normalize: (value) => Array.isArray(value) ? value : this.hashFormat.sanitizeRecord(value),
 				writer: (_value, settings) => this.writeURL(settings.mode),
 			},
 		);
@@ -879,8 +928,36 @@ function looksLikeHashText(value) {
 	return value.startsWith("(") && value.endsWith(")")
 }
 
+// Function: selectable
+// Wraps a cell into a callable function that doubles as a key-based selector.
+// When called with no arguments, returns the underlying cell.
+// When called with a key (and optional subpath), returns `cell.select(...)`.
+// All property access and methods are forwarded to the cell via Proxy.
+function selectable(cell) {
+	const fn = (key, path) => {
+		if (key === undefined || key === null) return cell
+		const keyPath = Array.isArray(key) ? key : [key]
+		if (path === undefined) return cell.select(keyPath)
+		const extraPath = Array.isArray(path) ? path : `${path}`.split(".")
+		return cell.select([...keyPath, ...extraPath])
+	}
+	return new Proxy(fn, {
+		get(_, p) {
+			if (p in fn) return fn[p]
+			const v = Reflect.get(cell, p)
+			return typeof v === "function" ? v.bind(cell) : v
+		},
+		set(_, p, v) { return Reflect.set(cell, p, v) },
+		has(_, p) { return p in fn || p in cell },
+	})
+}
+
 // Class: Browser
 // Browser-backed state manager for URL, hash, query, and local storage.
+//
+// `hash` and `query` are callable selectors: `state.hash("key")` returns a
+// `Selected` view at that key within the hash value. Call with no args to get
+// the underlying cell. `state.path` is a plain cell.
 //
 // Attributes:
 // - `location`: LocationState - shared URL state wrapper
@@ -891,8 +968,8 @@ function looksLikeHashText(value) {
 // - `locals`: Map - registered local storage cells
 // - `internals`: Map - internal named cells
 // - `path`: Cell - path state cell
-// - `query`: Cell - query state cell
-// - `hash`: Cell - hash state cell
+// - `query`: Cell (callable) - query state cell
+// - `hash`: Cell (callable) - hash state cell
 class Browser {
 	constructor(options = {}) {
 		this.location = new LocationState(options);
@@ -908,8 +985,8 @@ class Browser {
 		this.locals = new Map();
 		this.internals = new Map();
 		this.path = this.location.path;
-		this.query = this.location.query;
-		this.hash = this.location.hash;
+		this.query = selectable(this.location.query);
+		this.hash = selectable(this.location.hash);
 
 		this.local = this.local.bind(this);
 		this.internal = this.internal.bind(this);

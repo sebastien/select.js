@@ -272,14 +272,47 @@ describe("ui webcomponent projected children", () => {
 		const style = document.createElement("style");
 		style.textContent = ".token { color: rgb(1, 2, 3); }";
 		document.head.appendChild(style);
+		element._syncDocumentStyles();
 		await flush();
 		await flush();
 
-		const shadowStyle = Array.from(
-			element.shadowRoot.querySelectorAll("style"),
-		).find((node) => node.textContent.includes(".token"));
 		const adoptedSheets = element.shadowRoot.adoptedStyleSheets || [];
-		expect(!!shadowStyle || adoptedSheets.length > 0).toBe(true);
+		if (
+			"adoptedStyleSheets" in element.shadowRoot &&
+			typeof window.CSSStyleSheet?.prototype?.replaceSync === "function"
+		) {
+			expect(adoptedSheets.length).toBeGreaterThan(0);
+			expect(element.shadowRoot.querySelectorAll("style").length).toBe(0);
+		} else {
+			const shadowStyle = Array.from(
+				element.shadowRoot.querySelectorAll("style"),
+			).find((node) => node.textContent.includes(".token"));
+			expect(!!shadowStyle).toBe(true);
+		}
+
+		style.textContent = ".token { fill:  rgb(1, 2, 3); }";
+		element._syncDocumentStyles();
+		await flush();
+		await flush();
+		if (
+			"adoptedStyleSheets" in element.shadowRoot &&
+			typeof window.CSSStyleSheet?.prototype?.replaceSync === "function"
+		) {
+			expect(element.shadowRoot.adoptedStyleSheets.length).toBeGreaterThan(0);
+			expect(element.shadowRoot.querySelectorAll("style").length).toBe(0);
+			expect(
+				Array.from(element.shadowRoot.adoptedStyleSheets).some((sheet) =>
+					Array.from(sheet.cssRules || []).some((rule) =>
+						rule.cssText.includes("fill"),
+					),
+				),
+			).toBe(true);
+		} else {
+			const shadowStyle = Array.from(
+				element.shadowRoot.querySelectorAll("style"),
+			).find((node) => node.textContent.includes("fill"));
+			expect(!!shadowStyle).toBe(true);
+		}
 
 		window.close?.();
 	});

@@ -72,6 +72,7 @@ Notes:
 - hash fragments may start with `#`
 - query parsing ignores any trailing `#fragment`
 - legacy `a=1&b=2` query syntax is not supported by default
+- hash parsing treats a bare first value as a `path` key; see [Browser Reference](ref-browser.md#hash) for details
 
 ## Error Handling
 

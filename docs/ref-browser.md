@@ -96,6 +96,11 @@ Parsing rules:
 - special characters that force quoting include `&`, `,`, `(`, `)`, `=`, and `"`
 - any keyed entry inside `(...)` switches that group into object mode
 - bare items inside an object-mode group become boolean flags like `checked=T`
+- top-level parenthesized groups are parsed as arrays: `(a,b)` → `["a","b"]`
+- at the top level (outside parens), a bare first value (no `=`) becomes a `path` key:
+  - if the path value contains `/`, it sets `path` only (no boolean flag)
+  - without `/`, it also sets a boolean flag with the same name (`<value>: true`)
+- subsequent bare values after the first `,` become boolean flags
 
 Formatting rules:
 
@@ -115,6 +120,15 @@ hash.parse("#text=\"hello, world\",flag=T")
 
 hash.parse("(label=A,checked)")
 // => { label: "A", checked: true }
+
+hash.parse("#new,old")
+// => { path: "new", new: true, old: true }
+
+hash.parse("#login/new")
+// => { path: "login/new" }
+
+hash.parse("#(new,old)")
+// => ["new", "old"]
 
 hash.format({ z: 2, a: [1, 3], text: "hello, world" })
 // => "a=(1,3),text=\"hello, world\",z=2"

@@ -18,7 +18,7 @@
 // ----------------------------------------------------------------------------
 
 import { toCamelCase, toKebabCase } from "../formats.js";
-import { asText, isObject, Nothing } from "../utils.js";
+import { asText, def, isObject, Nothing } from "../utils.js";
 import { getUIInstance } from "./components/instance.js";
 import { log } from "./templates.js";
 
@@ -33,13 +33,20 @@ const BaseHTMLElement = globalThis.HTMLElement || class {};
 const documentStyleSheetCache = new WeakMap();
 const documentStyleSubscribers = new WeakMap();
 const documentStyleObservers = new WeakMap();
+const OPTIONS = {
+	shadow: true, // Shadow DOM by default
+	mode: "open", // Open Shadow DOM by default
+};
 
 function isStyleSheetNode(node) {
 	if (!node || node.nodeType !== Node.ELEMENT_NODE) {
 		return false;
 	}
 	const tagName = node.tagName?.toLowerCase();
-	return tagName === "style" || (tagName === "link" && node.relList?.contains("stylesheet"));
+	return (
+		tagName === "style" ||
+		(tagName === "link" && node.relList?.contains("stylesheet"))
+	);
 }
 
 function isStyleSheetMutation(mutation) {
@@ -59,6 +66,14 @@ function isStyleSheetMutation(mutation) {
 	return false;
 }
 
+function hashText(value) {
+	let hash = 0;
+	for (let i = 0; i < value.length; i++) {
+		hash = (hash * 31 + value.charCodeAt(i)) | 0;
+	}
+	return hash;
+}
+
 function getDocumentStylesSignature(doc) {
 	if (!doc?.head?.querySelectorAll) {
 		return "";
@@ -68,7 +83,10 @@ function getDocumentStylesSignature(doc) {
 	for (let i = 0; i < nodes.length; i++) {
 		const node = nodes[i];
 		if (node.tagName?.toLowerCase() === "style") {
-			signature.push(`style:${node.id || ""}:${node.media || ""}:${node.textContent?.length || 0}`);
+			const text = node.textContent || "";
+			signature.push(
+				`style:${node.id || ""}:${node.media || ""}:${text.length}:${hashText(text)}`,
+			);
 		} else {
 			signature.push(
 				`link:${node.getAttribute("href") || ""}:${node.getAttribute("media") || ""}:${node.hasAttribute("disabled")}`,
@@ -257,11 +275,34 @@ function buildDocumentStyleSheets(doc) {
 		return { sheets: [], fallbackNodes: [] };
 	}
 	const nodes = doc.head.querySelectorAll("style,link[rel~='stylesheet']");
+	const sheets = [];
 	const fallbackNodes = [];
+	const HTMLStyleElementType =
+		globalThis.HTMLStyleElement || doc.defaultView?.HTMLStyleElement;
+	const CSSStyleSheetType =
+		globalThis.CSSStyleSheet || doc.defaultView?.CSSStyleSheet;
 	for (let i = 0; i < nodes.length; i++) {
-		fallbackNodes.push(nodes[i]);
+		const node = nodes[i];
+		if (
+			HTMLStyleElementType &&
+			node instanceof HTMLStyleElementType &&
+			typeof CSSStyleSheetType === "function"
+		) {
+			try {
+				const sheet = new CSSStyleSheetType();
+				sheet.replaceSync(node.textContent || "");
+				sheets.push(sheet);
+				continue;
+			} catch (error) {
+				log.warn("UIWebComponent: could not adopt document style, details", {
+					node,
+					error,
+				});
+			}
+		}
+		fallbackNodes.push(node);
 	}
-	return { sheets: [], fallbackNodes };
+	return { sheets, fallbackNodes };
 }
 
 function getDocumentStyles(doc) {
@@ -280,10 +321,10 @@ function getDocumentStyles(doc) {
 
 function cloneDocumentStyles(root, options) {
 	if (options?.documentStyles === false) {
-		return { sheets: [], fallbackNodes: [], headChildCount: 0 };
+		return { sheets: [], fallbackNodes: [], signature: "" };
 	}
 	if (!root || root === document || !document?.head?.querySelectorAll) {
-		return { sheets: [], fallbackNodes: [], headChildCount: 0 };
+		return { sheets: [], fallbackNodes: [], signature: "" };
 	}
 	return getDocumentStyles(document);
 }
@@ -314,8 +355,8 @@ class UIWebComponent extends BaseHTMLElement {
 		options = {},
 	) {
 		super();
-		const useShadow = options.shadow !== false;
-		const shadowMode = options.shadowMode || "open";
+		const useShadow = def(options.shadow, OPTIONS.shadow) !== false;
+		const shadowMode = def(options.mode, OPTIONS.mode) || "open";
 		this.root =
 			useShadow && typeof this.attachShadow === "function"
 				? this.shadowRoot || this.attachShadow({ mode: shadowMode })
@@ -498,11 +539,14 @@ class UIWebComponent extends BaseHTMLElement {
 		}
 		const parent = getUIInstance(parentId);
 		if (!parent) {
-			log.warn("UIWebComponent: ui-parent did not resolve to a mounted instance", {
-				attribute: UI_PARENT_ATTRIBUTE,
-				parentId,
-				host: this,
-			});
+			log.warn(
+				"UIWebComponent: ui-parent did not resolve to a mounted instance",
+				{
+					attribute: UI_PARENT_ATTRIBUTE,
+					parentId,
+					host: this,
+				},
+			);
 		}
 		return parent;
 	}
@@ -705,7 +749,9 @@ function webcomponent(
 	registry.define(name, WebComponent);
 	return WebComponent;
 }
+webcomponent.options = OPTIONS;
 
 export { Adopted, Disconnect, UIWebComponent, webcomponent };
+export default webcomponent;
 
 // EOF
