@@ -1,6 +1,20 @@
 import { describe, expect, test } from "bun:test"
 import browser, { Browser, hash } from "../src/js/select/browser.js"
 
+async function expectResponseError(promise, status, statusText) {
+	try {
+		await promise
+		throw new Error("expected fetch to reject")
+	} catch (error) {
+		expect(error).toBeInstanceOf(Error)
+		expect(error.message).toBe(
+			`HTTP ${status}${statusText ? ` ${statusText}` : ""}`,
+		)
+		expect(error.status).toBe(status)
+		expect(error.response).toBeInstanceOf(Response)
+	}
+}
+
 describe("Browser.ref", () => {
 	test("returns undefined for non-reference values", () => {
 		const instance = new Browser()
@@ -138,6 +152,71 @@ describe("hash.parse — edge cases", () => {
 
 	test("path with trailing comma -> path-only", () => {
 		expect(hash.parse("#new,")).toEqual({ path: "new", new: true })
+	})
+})
+
+describe("Browser.fetch", () => {
+	test("rejects non-OK direct fetch responses", async () => {
+		const instance = new Browser()
+		const originalFetch = globalThis.fetch
+		globalThis.fetch = async (input) => {
+			expect(input).toBe("/missing")
+			return new Response('{"error":"missing"}', {
+				status: 404,
+				statusText: "Not Found",
+				headers: { "content-type": "application/json" },
+			})
+		}
+
+		try {
+			await expectResponseError(instance.fetch("/missing"), 404, "Not Found")
+		} finally {
+			globalThis.fetch = originalFetch
+		}
+	})
+
+	test("rejects non-OK shorthand fetch responses", async () => {
+		const instance = new Browser()
+		const originalFetch = globalThis.fetch
+		globalThis.fetch = async (input, options) => {
+			expect(input).toBe("/submit")
+			expect(options.method).toBe("POST")
+			expect(options.headers.get("content-type")).toBe("application/json")
+			expect(options.body).toBe('{"name":"Ada"}')
+			return new Response("broken", {
+				status: 500,
+				statusText: "Server Error",
+				headers: { "content-type": "text/plain" },
+			})
+		}
+
+		try {
+			await expectResponseError(
+				instance.fetch("POST:/submit#name=Ada"),
+				500,
+				"Server Error",
+			)
+		} finally {
+			globalThis.fetch = originalFetch
+		}
+	})
+
+	test("fetched keeps non-OK failures on the cell promise", async () => {
+		const originalFetch = globalThis.fetch
+		globalThis.fetch = async () =>
+			new Response("missing", {
+				status: 404,
+				statusText: "Not Found",
+				headers: { "content-type": "text/plain" },
+			})
+
+		try {
+			const state = browser().fetched("/missing")
+			expect(state.isReactive).toBe(true)
+			await expectResponseError(state.value, 404, "Not Found")
+		} finally {
+			globalThis.fetch = originalFetch
+		}
 	})
 })
 

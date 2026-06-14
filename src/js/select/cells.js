@@ -1614,6 +1614,17 @@ function effect(inputs, effector) {
 const walk = Reactive.Walk;
 const expand = Reactive.Expand;
 
+Object.assign(cell, {
+	derived,
+	switched,
+	deferred,
+	selected,
+	unwrap,
+	effect,
+	walk,
+	expand,
+});
+
 export {
 	Cell,
 	cell,
@@ -1632,8 +1643,9 @@ export {
 	unwrap,
 	walk,
 };
-export default Object.assign(cells, {
-	cell,
+
+export default Object.assign(cell, {
+	map: cells,
 	derived,
 	switched,
 	deferred,

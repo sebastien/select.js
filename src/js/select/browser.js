@@ -639,6 +639,15 @@ class Browser {
 		return options?.post ? res.then(options.post) : res;
 	}
 
+	failResponse(response) {
+		const error = new Error(
+			`HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`,
+		);
+		error.response = response;
+		error.status = response.status;
+		throw error;
+	}
+
 	fetched(input, options = undefined) {
 		return cell(this.fetch(input, options));
 	}
@@ -652,6 +661,9 @@ class Browser {
 		}
 		if (!request) {
 			const response = await fetcher.call(globalThis, input, options);
+			if (!response.ok) {
+				this.failResponse(response);
+			}
 			return this.parseResponse(response, options);
 		}
 		const headers = new Headers(options?.headers || undefined);
@@ -667,6 +679,9 @@ class Browser {
 			init.body = JSON.stringify(sanitize(request.body));
 		}
 		const response = await fetcher.call(globalThis, request.url, init);
+		if (!response.ok) {
+			this.failResponse(response);
+		}
 		return this.parseResponse(response, options);
 	}
 }
@@ -675,7 +690,11 @@ class Browser {
 // Returns the shared `Browser` singleton, creating it with `options` when
 // needed.
 function browser(options = {}) {
-	return browser.SINGLETON ?? (browser.SINGLETON = new Browser(options));
+	const win = typeof globalThis !== "undefined" ? globalThis.window : undefined;
+	if (!browser.SINGLETON || browser.SINGLETON.win !== win) {
+		browser.SINGLETON = new Browser(options);
+	}
+	return browser.SINGLETON;
 }
 
 export { Browser, browser, hash, query, record };

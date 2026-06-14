@@ -308,7 +308,7 @@ function applyNamedProcessors(
 		if (descriptor.each) {
 			// NOTE: Starred processors act on the expanded collection shape, not on
 			// the reactive wrapper that may hold it.
-			current = resolveRenderableValue(current);
+			current = processor.type === "component" ? unwrap(current) : resolveRenderableValue(current);
 			current = mapProcessorCollection(current, (item, itemIndex) =>
 				applyNamedProcessor(
 					processor,

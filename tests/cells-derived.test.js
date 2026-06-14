@@ -37,7 +37,7 @@ describe("cells.derived", () => {
 	})
 
 	test("default export creates multiple cells from plain object input", () => {
-		const { name, age } = cells({ name: "Ada", age: 37 })
+		const { name, age } = cells.map({ name: "Ada", age: 37 })
 		const seen = []
 
 		name.sub((value) => seen.push(value))
