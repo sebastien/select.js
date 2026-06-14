@@ -403,7 +403,7 @@ const main = async () => {
 	const playwright = await import("playwright").catch(() => null);
 	if (!playwright) {
 		console.error(
-			"Missing dependency: playwright. Run `npm install` before `npm run bench:inspector`.",
+			"Missing dependency: playwright. Run `bun install` before `bun run bench:inspector`.",
 		);
 		process.exitCode = 1;
 		return;

@@ -4,12 +4,10 @@
   "workspaces": {
     "": {
       "name": "select",
-      "dependencies": {
-        "playwright": "^1.59.1",
-      },
       "devDependencies": {
-        "eslint": "^10.2.1",
+        "eslint": "^10.3.0",
         "happy-dom": "^20.9.0",
+        "playwright": "^1.60.0",
         "preact": "^10.29.1",
         "solid-js": "^1.9.12",
       },
