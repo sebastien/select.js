@@ -271,8 +271,8 @@ function nth(values, indexValue) {
 
 // Function: count
 // Counts all values or values matching a predicate.
-function count(values, predicateOrExtractor = undefined) {
-	return icount(values, predicateOrExtractor);
+function count(values, predicateOrExtractor = undefined, max = undefined) {
+	return icount(values, predicateOrExtractor, max);
 }
 
 // Function: found

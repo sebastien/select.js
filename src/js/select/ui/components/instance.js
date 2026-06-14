@@ -232,7 +232,6 @@ class UIInstance {
 				self?._fuseReactiveTopLevel(key, current, next);
 				merged[key] = current;
 			} else if (current?.isReactive && !next?.isReactive) {
-				self?._clearReactiveTopLevelFusion(key);
 				current.set(next);
 				merged[key] = current;
 			} else {

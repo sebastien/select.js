@@ -189,6 +189,7 @@ describe("utils.collections", () => {
 		])
 		expect(mapfilter("alpha", (value) => value.toUpperCase())).toBe("ALPHA")
 		expect(count(rows, "active")).toBe(2)
+		expect(count(rows, "active", 1)).toBe(1)
 		expect(found(rows, { id: 2 }, "id")).toBe(rows[1])
 		expect(first(rows, (row) => row.active)).toBe(rows[0])
 		expect(last(rows, (row) => row.active)).toBe(rows[2])
@@ -254,6 +255,10 @@ describe("utils.collections", () => {
 		read = 0
 		expect(count(values(), "active")).toBe(5)
 		expect(read).toBe(10)
+
+		read = 0
+		expect(count(values(), "active", 2)).toBe(2)
+		expect(read).toBe(3)
 	})
 
 	test("supports public iterator traversal counterparts", () => {
@@ -267,6 +272,7 @@ describe("utils.collections", () => {
 		expect(ilast(rows, (row) => row.active)).toBe(rows[2])
 		expect(inth(rows, -2)).toBe(rows[1])
 		expect(icount(rows, "active")).toBe(2)
+		expect(icount(rows, "active", 1)).toBe(1)
 		expect(ifound(rows, { id: 2 }, "id")).toBe(rows[1])
 		expect(ihead(rows, 2)).toEqual([rows[0], rows[1]])
 		expect(ihead(rows, -1)).toEqual([rows[0], rows[1]])

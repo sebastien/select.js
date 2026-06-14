@@ -243,11 +243,18 @@ function inth(values, indexValue) {
 
 // Function: icount
 // Counts all values or values matching a predicate.
-function icount(values, predicateOrExtractor = undefined) {
+function icount(values, predicateOrExtractor = undefined, max = undefined) {
 	let res = 0;
+	const limit = max === undefined || max === null ? undefined : max;
+	if (limit !== undefined && limit <= 0) {
+		return 0;
+	}
 	if (predicateOrExtractor === undefined || predicateOrExtractor === null) {
 		for (const _ of iitems(values)) {
 			res += 1;
+			if (limit !== undefined && res >= limit) {
+				return res;
+			}
 		}
 		return res;
 	}
@@ -255,6 +262,9 @@ function icount(values, predicateOrExtractor = undefined) {
 	for (const [k, v] of iitems(values)) {
 		if (pred(v, k, values)) {
 			res += 1;
+			if (limit !== undefined && res >= limit) {
+				return res;
+			}
 		}
 	}
 	return res;

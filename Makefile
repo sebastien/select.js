@@ -1,5 +1,5 @@
 ##  SDK Bootstrapping
 SDK_PATH=deps/sdk
 MODULES=std js mise
-include $(if $(SDK_PATH),$(shell test ! -e "$(SDK_PATH)/setup.mk" && git clone git@github.com:littletoolkit/littlesdk.mk.git "$(SDK_PATH)";echo "$(SDK_PATH)/setup.mk"))
+include $(if $(SDK_PATH),$(shell test ! -e "$(SDK_PATH)/setup.mk" && git clone git@github.com:littletoolkit/littlesdk.git "$(SDK_PATH)";echo "$(SDK_PATH)/setup.mk"))
 # EOF
