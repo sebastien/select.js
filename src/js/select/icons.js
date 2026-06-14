@@ -14,6 +14,76 @@ const log = logger("select.icons");
 const ICON_NAME = "__ICON_NAME__";
 const ICON_SOURCE = "__ICON_SOURCE__";
 const ICON_RETRY_DELAYS = [250, 500, 1000];
+const SVG_ALLOWED_TAGS = new Set([
+	"svg",
+	"g",
+	"path",
+	"circle",
+	"rect",
+	"line",
+	"polyline",
+	"polygon",
+	"ellipse",
+	"defs",
+	"lineargradient",
+	"radialgradient",
+	"stop",
+	"clippath",
+	"mask",
+	"title",
+	"desc",
+	"use",
+]);
+const SVG_ALLOWED_ATTRS = new Set([
+	"class",
+	"cx",
+	"cy",
+	"d",
+	"fill",
+	"fill-opacity",
+	"fill-rule",
+	"height",
+	"id",
+	"mask",
+	"maskcontentunits",
+	"maskunits",
+	"offset",
+	"opacity",
+	"points",
+	"preserveaspectratio",
+	"r",
+	"role",
+	"rx",
+	"ry",
+	"stroke",
+	"stroke-dasharray",
+	"stroke-dashoffset",
+	"stroke-linecap",
+	"stroke-linejoin",
+	"stroke-miterlimit",
+	"stroke-opacity",
+	"stroke-width",
+	"transform",
+	"viewbox",
+	"width",
+	"x",
+	"x1",
+	"x2",
+	"xlink:href",
+	"xmlns",
+	"y",
+	"y1",
+	"y2",
+	"href",
+	"gradienttransform",
+	"gradientunits",
+	"clip-path",
+	"clip-rule",
+	"clipPathUnits",
+	"stop-color",
+	"stop-opacity",
+	"vector-effect",
+].map((_) => _.toLowerCase()));
 // Constant: IconContainer
 // Shared hidden SVG container used to host loaded symbols.
 const IconContainer = Object.entries({
@@ -84,6 +154,88 @@ function parseIconName(name, source) {
 	];
 }
 
+function isLocalSvgReference(value) {
+	const text = `${value || ""}`.trim();
+	if (!text) {
+		return false;
+	}
+	if (text[0] === "#") {
+		return true;
+	}
+	if (text.startsWith("url(")) {
+		const inner = text.substring(4, text.length - 1).trim();
+		const quote = inner[0];
+		const ref =
+			(quote === '"' || quote === "'") && inner[inner.length - 1] === quote
+				? inner.substring(1, inner.length - 1).trim()
+				: inner;
+		return ref[0] === "#";
+	}
+	return false;
+}
+
+function isSafeSvgAttribute(name, value) {
+	const key = name.toLowerCase();
+	if (key.startsWith("on") || !SVG_ALLOWED_ATTRS.has(key)) {
+		return false;
+	}
+	if (key === "href" || key === "xlink:href") {
+		return isLocalSvgReference(value);
+	}
+	if (
+		(key === "fill" ||
+			key === "stroke" ||
+			key === "clip-path" ||
+			key === "mask") &&
+		`${value || ""}`.includes("url(")
+	) {
+		return isLocalSvgReference(value);
+	}
+	return true;
+}
+
+function sanitizeSvgNode(node) {
+	if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+		return null;
+	}
+	const tagName = node.tagName.toLowerCase();
+	if (!SVG_ALLOWED_TAGS.has(tagName)) {
+		return null;
+	}
+	const result = document.createElementNS(SVG, node.tagName);
+	for (const attr of Array.from(node.attributes || [])) {
+		if (isSafeSvgAttribute(attr.name, attr.value)) {
+			result.setAttribute(attr.name, attr.value);
+		}
+	}
+	for (const child of Array.from(node.childNodes || [])) {
+		if (child.nodeType === Node.ELEMENT_NODE) {
+			const sanitized = sanitizeSvgNode(child);
+			if (sanitized) {
+				result.appendChild(sanitized);
+			}
+		} else if (child.nodeType === Node.TEXT_NODE) {
+			result.appendChild(document.createTextNode(child.textContent || ""));
+		}
+	}
+	return result;
+}
+
+function sanitizeSvgMarkup(text, name) {
+	// Some icons have extra information, like XML PI, comments, doctype.
+	// SEE: https://unpkg.com/devicons@1.8.0/!SVG/python.svg
+	const i = text.indexOf("<svg");
+	if (i < 0) {
+		throw new Error(`Could not find <svg> in icon "${name}", got: ${text}`);
+	}
+	const doc = new DOMParser().parseFromString(text.substring(i), "image/svg+xml");
+	const svg = doc.documentElement;
+	if (svg?.tagName.toLowerCase() !== "svg") {
+		throw new Error(`Could not parse <svg> in icon "${name}"`);
+	}
+	return sanitizeSvgNode(svg);
+}
+
 // Function: load
 // Loads the SVG symbol for `name` from `source`, appends it to `container`,
 // and returns a promise for the created `<symbol>`.
@@ -118,16 +270,10 @@ function load(
 		const res = fetch(url)
 			.then((_) => _.text())
 			.then((text) => {
-				// Some icons have extra information, like XML PI, comments, doctype.
-				// SEE: https://unpkg.com/devicons@1.8.0/!SVG/python.svg
-				const i = text.indexOf("<svg");
-				if (i < 0) {
-					throw new Error(
-						`Could not find <svg> in icon "${name}", got: ${text}`,
-					);
+				const icon = sanitizeSvgMarkup(text, name);
+				if (icon) {
+					symbol.replaceChildren(icon);
 				}
-				symbol.innerHTML = text.substring(i);
-				const icon = symbol.firstChild;
 				// TODO: Typically the main SVG node has `width`, `height` and
 				// `viewBox`, which we should use to get the ideal size.
 				if (icon?.attributes) {
@@ -142,9 +288,11 @@ function load(
 						text,
 					});
 				}
-				Object.entries(source.style ?? {}).forEach(([k, v]) => {
-					icon.setAttribute(k, `${v}`);
-				});
+				for (const [k, v] of Object.entries(source.style ?? {})) {
+					if (icon && isSafeSvgAttribute(k, `${v}`)) {
+						icon.setAttribute(k, `${v}`);
+					}
+				}
 				if (!container.parentElement) {
 					document.body.appendChild(container);
 				}

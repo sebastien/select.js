@@ -150,6 +150,63 @@ describe("icons.load", () => {
 		expect(cache.size).toBe(1)
 		expect(container.children.length).toBe(1)
 	})
+
+	test("preserves basic svg shapes", async () => {
+		globalThis.fetch = () =>
+			response('<svg viewBox="0 0 1 1"><path d="M0 0h1v1z"/></svg>')
+		const cache = new Map()
+		const container = makeContainer()
+
+		const symbol = await load("square", "lucide", container, cache)
+		const icon = symbol?.firstElementChild
+
+		expect(icon?.tagName.toLowerCase()).toBe("svg")
+		expect(icon?.getAttribute("viewBox")).toBe("0 0 1 1")
+		expect(icon?.querySelector("path")?.getAttribute("d")).toBe("M0 0h1v1z")
+	})
+
+	test("removes disallowed active elements", async () => {
+		globalThis.fetch = () =>
+			response('<svg viewBox="0 0 1 1"><script/><path d="M0 0h1v1z"/></svg>')
+		const cache = new Map()
+		const container = makeContainer()
+
+		const symbol = await load("square", "lucide", container, cache)
+		const icon = symbol?.firstElementChild
+
+		expect(icon?.querySelector("script")).toBeNull()
+		expect(icon?.querySelector("path")).not.toBeNull()
+	})
+
+	test("removes event handler attributes", async () => {
+		globalThis.fetch = () =>
+			response('<svg viewBox="0 0 1 1" onclick="x"><path d="M0 0h1v1z" onclick="x"/></svg>')
+		const cache = new Map()
+		const container = makeContainer()
+
+		const symbol = await load("square", "lucide", container, cache)
+		const icon = symbol?.firstElementChild
+		const path = icon?.querySelector("path")
+
+		expect(icon?.hasAttribute("onclick")).toBe(false)
+		expect(path?.hasAttribute("onclick")).toBe(false)
+	})
+
+	test("strips non-local url attributes", async () => {
+		globalThis.fetch = () =>
+			response(
+				'<svg viewBox="0 0 1 1"><defs><linearGradient id="g"><stop offset="0" stop-color="#000"/></linearGradient></defs><path fill="url(#g)" href="#g" xlink:href="https://bad.invalid/icon.svg#x"/></svg>',
+			)
+		const cache = new Map()
+		const container = makeContainer()
+
+		const symbol = await load("square", "lucide", container, cache)
+		const path = symbol?.querySelector("path")
+
+		expect(path?.getAttribute("fill")).toBe("url(#g)")
+		expect(path?.getAttribute("href")).toBe("#g")
+		expect(path?.hasAttribute("xlink:href")).toBe(false)
+	})
 })
 
 // EOF

@@ -21,6 +21,9 @@ Each collection is mapped to a source URL template:
 
 This gives access to all Iconify/Icônes families through a CDN endpoint.
 
+Remote SVG markup is parsed through a conservative allowlist before insertion.
+Basic icon geometry is preserved, but richer SVG features may be stripped.
+
 ## Basic usage
 
 ```javascript
