@@ -8,9 +8,8 @@ Known baseline at planning time: `bun test` fails in `tests/ui-processor-reactiv
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 002 | Make Browser.fetch handle non-OK responses deliberately | P1 | S | - | TODO |
-| 003 | Retry icon loads after transient failures | P1 | S | - | TODO |
-| 004 | Sanitize remote SVG icons before DOM insertion | P1 | M | 003 | TODO |
+| 002 | Make Browser.fetch handle non-OK responses deliberately | P1 | S | - | DONE |
+| 004 | Sanitize remote SVG icons before DOM insertion | P1 | M | - | TODO |
 | 005 | Require explicit dist verification for package artifacts | P2 | S | - | TODO |
 | 006 | Reuse document style snapshots across web component subscribers | P2 | S | - | TODO |
 | 007 | Prune empty reactive selection registry branches | P2 | S | - | TODO |
@@ -22,7 +21,6 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJE
 
 ## Dependency Notes
 
-- Plan 004 depends on 003 because both touch `src/js/select/icons.js`; land the smaller retry/cache behavior first to reduce merge and review risk.
 - Plan 009 depends on 008 because lockfile/package-manager policy should be settled before moving dependencies between manifest sections.
 - Plan 010 depends on 004 only if the sanitizer changes documented icon-source trust boundaries; otherwise it can be done independently.
 

@@ -13,6 +13,7 @@ const SVG = "http://www.w3.org/2000/svg";
 const log = logger("select.icons");
 const ICON_NAME = "__ICON_NAME__";
 const ICON_SOURCE = "__ICON_SOURCE__";
+const ICON_RETRY_DELAYS = [250, 500, 1000];
 // Constant: IconContainer
 // Shared hidden SVG container used to host loaded symbols.
 const IconContainer = Object.entries({
@@ -96,8 +97,16 @@ function load(
 	const url = (source?.url || IconSources[source]?.url || IconDefaults.url)
 		.replace(ICON_NAME, name)
 		.replace(ICON_SOURCE, source);
-	if (cache.has(url)) {
-		return Promise.resolve(cache.get(url));
+	const entry = cache.get(url);
+	if (entry?.status === "pending") {
+		return entry.promise;
+	} else if (entry?.status === "success") {
+		return Promise.resolve(entry.value);
+	} else if (
+		entry?.status === "failure" &&
+		(entry.attempts > ICON_RETRY_DELAYS.length || Date.now() < entry.retryAt)
+	) {
+		return Promise.resolve();
 	} else {
 		const symbol = document.createElementNS(
 			"http://www.w3.org/2000/svg",
@@ -105,6 +114,7 @@ function load(
 		);
 		symbol.id = `icon-${name}-${source}`;
 		container.appendChild(symbol);
+		const attempts = (entry?.attempts || 0) + 1;
 		const res = fetch(url)
 			.then((_) => _.text())
 			.then((text) => {
@@ -138,17 +148,25 @@ function load(
 				if (!container.parentElement) {
 					document.body.appendChild(container);
 				}
-				cache.set(url, symbol);
+				cache.set(url, { status: "success", attempts, value: symbol });
 				return symbol;
 			})
 			.catch((reason) => {
+				cache.set(url, {
+					status: "failure",
+					attempts,
+					retryAt: Date.now() + (ICON_RETRY_DELAYS[attempts - 1] || 0),
+				});
+				if (!symbol.firstChild && symbol.parentNode === container) {
+					container.removeChild(symbol);
+				}
 				log.warn(`icons.load: could not load icon from <${url}>, details`, {
 					name,
 					reason,
 					symbol,
 				});
 			});
-		cache.set(url, res);
+		cache.set(url, { status: "pending", attempts, promise: res });
 		return res;
 	}
 }
