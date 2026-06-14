@@ -177,6 +177,49 @@ describe("cells.derived", () => {
 		expect(root._selectionCache.size).toBe(0)
 	})
 
+	test("prunes empty selection branches after releasing the last nested selection", () => {
+		const root = cell({ user: { name: "Ada" } })
+		const name = root.select(["user", "name"])
+
+		expect(root.selections.scope(["user", "name"])).toBeInstanceOf(Map)
+
+		name.release()
+
+		expect(root.selections.scope(["user", "name"])).toBeUndefined()
+		expect(root.selections.scope(["user"])).toBeUndefined()
+		expect(root._selectionCache.size).toBe(0)
+	})
+
+	test("keeps sibling selection branches when releasing one nested selection", () => {
+		const root = cell({ user: { name: "Ada", meta: { visits: 1 } } })
+		const name = root.select(["user", "name"])
+		const meta = root.select(["user", "meta"])
+
+		name.release()
+
+		expect(root.selections.scope(["user", "name"])).toBeUndefined()
+		expect(root.selections.scope(["user", "meta"])).toBeInstanceOf(Map)
+		expect(root.selections.scope(["user"])).toBeInstanceOf(Map)
+
+		meta.release()
+		expect(root._selectionCache.size).toBe(0)
+	})
+
+	test("keeps ancestor selection branches when releasing a child selection", () => {
+		const root = cell({ user: { name: "Ada" } })
+		const user = root.select("user")
+		const name = root.select(["user", "name"])
+
+		name.release()
+
+		expect(root.selections.scope(["user"])).toBeInstanceOf(Map)
+		expect(root.selections.get(["user"]).includes(user)).toBe(true)
+		expect(root.selections.scope(["user", "name"])).toBeUndefined()
+
+		user.release()
+		expect(root._selectionCache.size).toBe(0)
+	})
+
 	test("publishes previous value at changed path for direct cell updates", () => {
 		const root = cell({ user: { name: "Ada" } })
 		const seen = []

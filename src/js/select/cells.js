@@ -248,11 +248,22 @@ class Selections {
 
 	// Removes `value` from selections at `path`.
 	remove(path, value) {
-		const scope = this.scope(path);
-		if (!scope) {
-			return false;
+		path = Array.isArray(path)
+			? path
+			: path !== undefined && path !== null
+				? [path]
+				: [];
+		let scope = this.selections;
+		const stack = [];
+		for (let i = 0; i < path.length; i++) {
+			const key = path[i];
+			if (!scope.has(key)) {
+				return false;
+			}
+			stack.push([scope, key]);
+			scope = scope.get(key);
 		}
-		const l = scope ? scope.get(Something) : undefined;
+		const l = scope.get(Something);
 		if (!l) {
 			return false;
 		}
@@ -261,7 +272,14 @@ class Selections {
 			return false;
 		}
 		l.splice(i, 1);
-		// TODO: We should clean up the node
+		if (l.length === 0) {
+			scope.delete(Something);
+			for (let i = stack.length - 1; i >= 0 && scope.size === 0; i--) {
+				const [parent, key] = stack[i];
+				parent.delete(key);
+				scope = parent;
+			}
+		}
 		return true;
 	}
 }
