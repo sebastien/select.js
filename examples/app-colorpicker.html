@@ -120,7 +120,7 @@
       <div class="channel">
         <label out="label">Component</label>
         <input inout="value" type="range" min="0" max="255" />
-        <input inout="value" type="text" inputmode="numeric" pattern="[0-9]*" />
+        <input inout="value" type="number" min="0" max="255" step="1" inputmode="numeric" />
       </div>
     </template>
     <template id="ColorPicker">
@@ -173,13 +173,13 @@
       })
 
       const ColorPicker = ui("#ColorPicker").init(() => {
-      	const red = cell(100);
-      	const green = cell(130);
-      	const blue = cell(10);
-      	const color = derived([red, green, blue], (red, green, blue) => {
-      		return `rgb(${red},${green},${blue})`;
-      	})
-      	return {red, green, blue, color}
+	       const red = cell(100);
+	       const green = cell(130);
+	       const blue = cell(10);
+	       const color = derived([red, green, blue], ([red, green, blue]) => {
+	       	return `rgb(${red},${green},${blue})`;
+	       })
+	       return {red, green, blue, color}
       }).does({
       	// TODO: If we were able to keep track of what is used, we could only
       	// re-trigger the behaviors that have changed.

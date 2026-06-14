@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Select UI ― Sortable Lists and Tree</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script type="importmap">
+      {"imports": {"@./": "../src/js/select/" } }
+    </script>
+    <style>
+      * {
+      	box-sizing: border-box;
+      }
+
+      body {
+      	font-family: system-ui, sans-serif;
+      	margin: 0;
+      	padding: 20px;
+      	max-width: 900px;
+      	margin: 0 auto;
+      	color: #172033;
+      }
+
+      main {
+      	margin: 0;
+      	padding: 0;
+      }
+
+      h1 {
+      	margin: 0 0 12px;
+      	font-size: 2rem;
+      	line-height: 1.1;
+      }
+
+      p {
+      	margin: 0;
+      	max-width: 70ch;
+      	color: #52607a;
+      	line-height: 1.5;
+      }
+
+      #ui {
+		margin-top: 20px;
+		border: 1px solid #ddd;
+		border-radius: 8px;
+		padding: 16px;
+		background: #fff;
+      }
+
+      .app {
+      	display: grid;
+      	gap: 20px;
+      }
+
+      .lists {
+      	display: grid;
+      	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      	gap: 24px;
+      }
+
+      .list {
+      	display: grid;
+      	gap: 16px;
+      	padding: 16px;
+      	border: 1px solid #e5e5e5;
+      	border-radius: 8px;
+      	background: #fafafa;
+      }
+
+      .list header {
+      	display: grid;
+      	gap: 6px;
+      }
+
+      .list h2 {
+      	margin: 0;
+      	font-size: 1rem;
+      }
+
+      .list small {
+      	color: #66748d;
+      }
+
+      .items {
+      	position: relative;
+      	display: flex;
+      	gap: 12px;
+      	min-height: 88px;
+      	padding: 12px;
+      	border-radius: 6px;
+      	background: #fff;
+      	border: 1px dashed #d6dbe6;
+      }
+
+      		.items[data-axis="y"] {
+      flex-direction: column;
+      		}
+
+      		.items[data-axis="x"] {
+      flex-direction: row;
+      align-items: stretch;
+      flex-wrap: wrap;
+      		}
+
+      .card {
+		position: relative;
+       	display: grid;
+      	gap: 6px;
+      	padding: 16px 18px;
+      	border: 1px solid #dfe5f2;
+      	border-radius: 8px;
+      	background: #fff;
+      	text-align: left;
+      	cursor: grab;
+      	transition: transform 140ms ease, opacity 140ms ease, box-shadow 140ms ease;
+      }
+
+      		.items[data-axis="x"] .card {
+      min-width: 128px;
+      		}
+
+      .card:hover {
+      	transform: translateY(-1px);
+      	box-shadow: 0 8px 16px rgba(56, 71, 102, 0.08);
+      }
+
+      		.card:active {
+      cursor: grabbing;
+      		}
+
+      		.card.is-dragging-source {
+      opacity: 0.32;
+      transform: scale(0.98);
+      		}
+
+      		.card.is-dragging-source-hidden {
+      display: none;
+      		}
+
+      .sortable-placeholder {
+      	display: grid;
+      	place-items: center;
+      	border-radius: 8px;
+      	border: 2px solid rgba(77, 109, 255, 0.9);
+      	background: rgba(108, 129, 255, 0.12);
+      	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+      	pointer-events: none;
+      }
+
+      		.sortable-placeholder strong,
+      		.sortable-placeholder span {
+      opacity: 0;
+      		}
+
+      		.card strong {
+      font-size: 0.98rem;
+      		}
+
+      		.card span {
+      font-size: 0.8rem;
+      color: #647089;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      		}
+
+      .list[data-axis="y"] .card::before,
+      .list[data-axis="x"] .card::before {
+      	content: "";
+      	position: absolute;
+      	inset: 0;
+      	border-radius: 8px;
+      	border: 1px solid rgba(91, 127, 255, 0.08);
+      	pointer-events: none;
+      }
+
+      .legend {
+      	display: flex;
+      	gap: 10px;
+      	flex-wrap: wrap;
+      }
+
+      .legend code {
+      	display: inline-flex;
+       	padding: 6px 10px;
+       	border-radius: 999px;
+       	background: #f3f4f6;
+       	color: #3952b6;
+       	font-size: 0.8rem;
+      }
+
+      .tree-panel {
+		display: grid;
+		gap: 14px;
+		margin-top: 20px;
+      }
+
+      .tree-panel header {
+		display: grid;
+		gap: 6px;
+      }
+
+      .tree-panel h2 {
+		margin: 0;
+		font-size: 1rem;
+      }
+
+      .tree-panel p {
+		max-width: 68ch;
+      }
+
+      .tree {
+		display: grid;
+		gap: 12px;
+      }
+
+      .tree-list {
+		display: grid;
+		gap: 8px;
+		padding: 10px;
+		border: 1px solid #e5e5e5;
+		border-radius: 8px;
+		background: #fafafa;
+      }
+
+      .tree-node {
+		display: grid;
+		gap: 6px;
+      }
+
+	  .tree-node > .card {
+		width: 100%;
+		padding: 10px 12px;
+		gap: 4px;
+	  }
+
+	  .tree-node.is-dragging-source {
+		opacity: 0.32;
+		transform: scale(0.98);
+	  }
+
+	  .tree-node.is-dragging-source-hidden {
+		display: none;
+	  }
+
+      .tree-children {
+		display: grid;
+		gap: 6px;
+		margin-left: 14px;
+		padding-left: 10px;
+		border-left: 1px solid #dde3ee;
+      }
+
+      		.sortable-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 999;
+      		}
+
+      .sortable-preview {
+      	position: fixed;
+      left: 0;
+      top: 0;
+      pointer-events: none;
+      opacity: 0.92;
+      transform: scale(1.02);
+      transform-origin: top left;
+      transition:
+      	width 90ms cubic-bezier(0.22, 1, 0.36, 1),
+      	height 90ms cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: left, top, width, height;
+      	filter: drop-shadow(0 12px 24px rgba(43, 52, 76, 0.18));
+      }
+
+      @media (max-width: 720px) {
+       	main {
+       		padding: 0;
+       	}
+
+      .lists {
+      	grid-template-columns: 1fr;
+      }
+
+      	.list {
+      		padding: 16px;
+      	}
+
+      	.items[data-axis="x"] {
+      		overflow-x: auto;
+      	}
+
+       	#ui {
+       		padding: 14px;
+       	}
+
+		.tree-children {
+			margin-left: 10px;
+			padding-left: 10px;
+		}
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Sortable Structures</h1>
+      <p>
+        This app example shows sortable lists on both axes and a draggable tree, all powered by the same drag primitive.
+      </p>
+      <div id="ui"></div>
+    </main>
+    <div id="sortable-overlay" class="sortable-overlay"></div>
+    <template id="SortableItem">
+      <button class="card" on:mousedown="startSort" out:data-sortable-item="id" out:data-index="index">
+        <strong out="label"></strong>
+        <span out="meta"></span>
+      </button>
+    </template>
+    <template id="SortableList">
+      <section class="list" out:data-axis="axis">
+        <header>
+          <h2 out="title"></h2>
+          <small out="description"></small>
+        </header>
+        <div class="items" out="items" out:data-sortable-list="id" out:data-axis="axis">
+          <div>Empty</div>
+        </div>
+      </section>
+    </template>
+    <template id="SortableApp">
+      <div class="app">
+        <div class="lists" out="lists"></div>
+        <section class="tree-panel">
+          <header>
+            <h2>Tree</h2>
+            <p>Drag nodes between branches or reorder siblings inside a branch.</p>
+          </header>
+          <div class="tree" out="tree"></div>
+        </section>
+      </div>
+    </template>
+
+      <template id="TreeNode">
+        <article class="tree-node" out:data-sortable-item="id" out:data-index="index">
+          <button class="card" on:mousedown="startSort">
+            <strong out="label"></strong>
+            <span out="meta"></span>
+          </button>
+          <div class="tree-children" out="children" out:data-sortable-list="childListId" out:data-axis="y">
+          </div>
+        </article>
+      </template>
+
+      <template id="TreeList">
+        <div class="tree-list" out="items" out:data-sortable-list="id" out:data-axis="y">
+        </div>
+      </template>
+    <script type="module">
+      import { sortable } from "@./interaction.js"
+      import { ui } from "@./ui.js"
+
+      // ----------------------------------------------------------------------------
+      // SORTABLE PRIMITIVES
+      // ----------------------------------------------------------------------------
+
+      function moveItem(lists, source, drop) {
+      	if (!drop) {
+      		return lists
+      	}
+      	const res = []
+      	let moved
+      	for (let i = 0; i < lists.length; i++) {
+      		const list = lists[i]
+      		if (list.id === source.listId) {
+      			const items = []
+      			for (let j = 0; j < list.items.length; j++) {
+      				const item = list.items[j]
+      				if (item.id === source.itemId) {
+      					moved = item
+      					continue
+      				}
+      				items.push(item)
+      			}
+      			res.push({ ...list, items })
+      		} else {
+      			res.push({ ...list, items: [...list.items] })
+      		}
+      	}
+      	if (!moved) {
+      		return lists
+      	}
+      	for (let i = 0; i < res.length; i++) {
+      		const list = res[i]
+      		if (list.id !== drop.listId) {
+      			continue
+      		}
+		const items = [...list.items]
+		let index = drop.index
+		if (index < 0) {
+			index = 0
+		} else if (index > items.length) {
+      			index = items.length
+      		}
+      		items.splice(index, 0, moved)
+      		res[i] = { ...list, items }
+      		return res
+      	}
+      	return lists
+      }
+
+      // ----------------------------------------------------------------------------
+      // UI
+      // ----------------------------------------------------------------------------
+
+		let app
+		const TREE_INDENT = 24
+		const TREE_DEPTH_BIAS = 0.2
+
+		function startSortable(event, optionsOrDrop) {
+			if (event.button !== 0) {
+				return
+			}
+			const options = typeof optionsOrDrop === "function" ? { onDrop: optionsOrDrop } : (optionsOrDrop || {})
+			sortable(event, {
+				overlay: document.getElementById("sortable-overlay"),
+				...options,
+			})
+		}
+
+      const SortableItem = ui("#SortableItem").does({
+        meta: (_self, { axis, index }) => `${axis.toUpperCase()} / ${index + 1}`,
+        startSort: (_self, _data, event) => {
+			startSortable(event, ({ source, drop }) => {
+				const next = moveItem(app.data.lists, source, drop)
+				if (next !== app.data.lists) {
+					app.update({ lists: next })
+				}
+			})
+        },
+      })
+
+		function moveTreeItem(nodes, source, drop, event) {
+			if (!drop) {
+				return nodes
+			}
+			const removed = removeTreeItem(nodes, source.itemId)
+			if (!removed.moved) {
+				return nodes
+			}
+			const target = drop.parentPath
+				? { parentPath: drop.parentPath, index: drop.index }
+				: resolveTreeDrop(removed.items, source, drop, { event })
+			if (!target || target.parentPath.includes(source.itemId)) {
+				return nodes
+			}
+			const inserted = insertTreeItem(removed.items, target.parentPath, target.index, removed.moved)
+			return inserted.inserted ? inserted.items : nodes
+		}
+
+		function removeTreeItem(nodes, itemId) {
+			const res = []
+			let moved
+			let changed = false
+			for (let i = 0; i < nodes.length; i++) {
+				const node = nodes[i]
+				if (node.id === itemId) {
+					moved = node
+					changed = true
+					continue
+				}
+				if (node.children && node.children.length) {
+					const next = removeTreeItem(node.children, itemId)
+					if (next.moved) {
+						moved = next.moved
+						changed = true
+						res.push({ ...node, children: next.items })
+						continue
+					}
+				}
+				res.push(node)
+			}
+			return { items: changed ? res : nodes, moved }
+		}
+
+		function treeListId(path) {
+			if (!path.length) {
+				return "tree"
+			}
+			return `tree/${path.join("/")}`
+		}
+
+		function listPathFromId(listId) {
+			if (!listId || listId === "tree") {
+				return []
+			}
+			const parts = listId.split("/")
+			return parts[0] === "tree" ? parts.slice(1) : parts
+		}
+
+		function getTreeChildren(nodes, path) {
+			let items = nodes
+			for (let i = 0; i < path.length; i++) {
+				let next = null
+				for (let j = 0; j < items.length; j++) {
+					if (items[j].id === path[i]) {
+						next = items[j]
+						break
+					}
+				}
+				if (!next) {
+					return []
+				}
+				items = next.children || []
+			}
+			return items
+		}
+
+		function getTreeNode(nodes, path) {
+			let items = nodes
+			let node = null
+			for (let i = 0; i < path.length; i++) {
+				node = null
+				for (let j = 0; j < items.length; j++) {
+					if (items[j].id === path[i]) {
+						node = items[j]
+						break
+					}
+				}
+				if (!node) {
+					return null
+				}
+				items = node.children || []
+			}
+			return node
+		}
+
+		function lastVisiblePath(nodes, path) {
+			const next = getTreeNode(nodes, path)
+			if (!next) {
+				return path
+			}
+			const children = next.children || []
+			if (!children.length) {
+				return path
+			}
+			const last = children[children.length - 1]
+			return lastVisiblePath(nodes, [...path, last.id])
+		}
+
+		function previousTreePath(nodes, listPath, index) {
+			const items = getTreeChildren(nodes, listPath)
+			if (index > 0 && items[index - 1]) {
+				return lastVisiblePath(nodes, [...listPath, items[index - 1].id])
+			}
+			return listPath.length ? listPath : null
+		}
+
+		function roundStep(value) {
+			return value < 0 ? Math.ceil(value - 0.5) : Math.floor(value + 0.5)
+		}
+
+		function treeDepth(state, previousPath) {
+			if (!state || !previousPath) {
+				return previousPath ? previousPath.length - 1 : 0
+			}
+			const origin = listPathFromId(state.source?.listId).length
+			let left = state.left
+			if (left === undefined && state.event) {
+				left = state.event.clientX - (state.grab?.x || 0)
+			}
+			if (left === undefined) {
+				left = state.box.left
+			}
+			const raw = (left - state.box.left) / TREE_INDENT
+			const dx = state.pointer?.dx || 0
+			const bias = dx > 0 ? TREE_DEPTH_BIAS : dx < 0 ? -TREE_DEPTH_BIAS : 0
+			const max = previousPath.length
+			return Math.max(0, Math.min(max, origin + roundStep(raw + bias)))
+		}
+
+		function indexAfterPath(nodes, parentPath, path) {
+			const items = getTreeChildren(nodes, parentPath)
+			const siblingId = path[parentPath.length]
+			for (let i = 0; i < items.length; i++) {
+				if (items[i].id === siblingId) {
+					return i + 1
+				}
+			}
+			return items.length
+		}
+
+		function resolveTreeDrop(nodes, source, drop, state) {
+			state = state || {}
+			state.source = state.source || source
+			const listPath = listPathFromId(drop.listId)
+			if (drop.index === 0) {
+				return { parentPath: listPath, index: 0 }
+			}
+			const previousPath = previousTreePath(nodes, listPath, drop.index)
+			if (!previousPath) {
+				return { parentPath: [], index: 0 }
+			}
+			const depth = treeDepth(state, previousPath)
+			if (depth >= previousPath.length) {
+				const parentNode = getTreeNode(nodes, previousPath)
+				return {
+					parentPath: previousPath,
+					index: parentNode?.children?.length || 0,
+				}
+			}
+			const parentPath = previousPath.slice(0, depth)
+			return {
+				parentPath,
+				index: indexAfterPath(nodes, parentPath, previousPath),
+			}
+		}
+
+		function insertTreeItem(nodes, parentPath, index, item, path = []) {
+			if (path.length === parentPath.length) {
+				const items = [...nodes]
+				let nextIndex = index
+				if (nextIndex < 0) {
+					nextIndex = 0
+				} else if (nextIndex > items.length) {
+					nextIndex = items.length
+				}
+				items.splice(nextIndex, 0, item)
+				return { items, inserted: true }
+			}
+			const res = []
+			for (let i = 0; i < nodes.length; i++) {
+				const node = nodes[i]
+				if (parentPath[path.length] === node.id) {
+					const next = insertTreeItem(node.children || [], parentPath, index, item, [...path, node.id])
+					if (next.inserted) {
+						res.push({ ...node, children: next.items })
+						for (let j = i + 1; j < nodes.length; j++) {
+							res.push(nodes[j])
+						}
+						return { items: res, inserted: true }
+					}
+				}
+				res.push(node)
+			}
+			return { items: nodes, inserted: false }
+		}
+
+		const TreeNode = ui("#TreeNode").does({
+			childListId: (_self, { path }) => treeListId(path),
+			meta: (_self, { depth, children }) => {
+				const count = children?.length || 0
+				return `L${depth + 1} · ${count}`
+			},
+			children: (_self, { children, depth, path }) => {
+				const res = []
+				const items = children || []
+				for (let i = 0; i < items.length; i++) {
+					res.push(TreeNode({ ...items[i], depth: depth + 1, index: i, path: [...path, items[i].id] }))
+				}
+				return res
+			},
+			startSort: (_self, _data, event) => {
+				let removed = null
+				startSortable(event, {
+					place: (drop, state) => {
+						removed = removed || removeTreeItem(app.data.tree, state.source.itemId)
+						if (!removed.moved) {
+							return false
+						}
+						const target = resolveTreeDrop(removed.items, state.source, drop, state)
+						if (!target || target.parentPath.includes(state.source.itemId)) {
+							return false
+						}
+						const listId = treeListId(target.parentPath)
+						const listNode = document.querySelector(`[data-sortable-list="${listId}"]`)
+						return listNode ? { listNode, listId, parentPath: target.parentPath, index: target.index } : false
+					},
+					onDrop: ({ source, drop, event }) => {
+					const next = moveTreeItem(app.data.tree, source, drop, event)
+					if (next !== app.data.tree) {
+						app.update({ tree: next })
+					}
+					},
+				})
+			},
+		})
+
+		const TreeList = ui("#TreeList").does({
+			items: (_self, { items, depth, path }) => {
+				const res = []
+				for (let i = 0; i < items.length; i++) {
+					res.push(TreeNode({ ...items[i], depth, index: i, path: [...path, items[i].id] }))
+				}
+				return res
+			},
+		})
+
+      const SortableList = ui("#SortableList").does({
+        items: (_self, { items, axis }) => {
+      		const res = []
+      		for (let i = 0; i < items.length; i++) {
+      			res.push(SortableItem({ ...items[i], axis, index: i }))
+      		}
+      		return res
+      	},
+      })
+
+      const SortableApp = ui("#SortableApp").does({
+        lists: (_self, { lists }) => {
+          const res = []
+          for (let i = 0; i < lists.length; i++) {
+            res.push(SortableList(lists[i]))
+          }
+          return res
+        },
+			tree: (_self, { tree }) => [TreeList({ id: "tree", depth: 0, path: [], items: tree })],
+      })
+
+      app = SortableApp.new().set({
+      	lists: [
+      		{
+      			id: "vertical",
+      			title: "Vertical List",
+      			description: "Midpoint insertion on the Y axis.",
+      			axis: "y",
+      			items: [
+      				{ id: "brief", label: "Brief" },
+      				{ id: "research", label: "Research" },
+      				{ id: "wireframe", label: "Wireframe" },
+      				{ id: "review", label: "Review" },
+      			],
+      		},
+      		{
+      			id: "horizontal",
+      			title: "Horizontal List",
+      			description: "The same primitive resolves insertion on the X axis.",
+      			axis: "x",
+      			items: [
+      				{ id: "amber", label: "Amber" },
+      				{ id: "violet", label: "Violet" },
+      				{ id: "teal", label: "Teal" },
+      				{ id: "coral", label: "Coral" },
+      			],
+      		},
+        ],
+			tree: [
+				{
+					id: "plan",
+					label: "Plan",
+					children: [
+						{
+							id: "brief",
+							label: "Brief",
+							children: [],
+						},
+						{
+							id: "research",
+							label: "Research",
+							children: [
+								{
+									id: "notes",
+									label: "Notes",
+									children: [],
+								},
+								{
+									id: "references",
+									label: "References",
+									children: [],
+								},
+							],
+						},
+					],
+				},
+				{
+					id: "build",
+					label: "Build",
+					children: [
+						{
+							id: "design",
+							label: "Design",
+							children: [],
+						},
+						{
+							id: "api",
+							label: "API",
+							children: [],
+						},
+					],
+				},
+				{
+					id: "ship",
+					label: "Ship",
+					children: [
+						{
+							id: "release",
+							label: "Release",
+							children: [],
+						},
+					],
+				},
+			],
+      })
+      app.mount("#ui")
+    </script>
+  </body>
+</html>
