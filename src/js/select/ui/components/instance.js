@@ -1322,6 +1322,7 @@ class UIInstance {
 							!hasTrackedNonReactiveObjectDeps(data, deps)
 						) {
 							v = this._behaviorValues.get(k);
+							if (v === undefined && binding?.defaultValue !== undefined) v = binding.defaultValue
 							if (withProcessors && processors?.length) {
 								const processed = applyNamedProcessors(
 									this,
@@ -1372,6 +1373,7 @@ class UIInstance {
 							? resolveSourceValue(renderData, sourceKey)
 							: resolveExpandedSourceValue(renderData, sourceKey);
 					}
+					if (v === undefined && binding?.defaultValue !== undefined) v = binding.defaultValue
 
 					if (
 						hasBehavior &&
@@ -1446,12 +1448,14 @@ class UIInstance {
 						for (const slot of slots) {
 							const attrValue = slot.node.getAttribute(slot.attrName);
 							v = hasBehavior(this, renderData, attrValue, slot.node);
+							if (v === undefined && binding?.defaultValue !== undefined) v = binding.defaultValue
 							if (
 								this._trackAsyncBehaviorValue(
 									`${k}:${slot.attrName}`,
 									v,
 									(resolved) => {
 										let next = resolved;
+										if (next === undefined && binding?.defaultValue !== undefined) next = binding.defaultValue
 										if (processors?.length) {
 											const processed = applyNamedProcessors(
 												this,
@@ -1495,6 +1499,7 @@ class UIInstance {
 						continue;
 					}
 					v = resolveSourceValue(renderData, sourceKey);
+					if (v === undefined && binding?.defaultValue !== undefined) v = binding.defaultValue
 					if (v !== undefined && processors?.length) {
 						const processed = applyNamedProcessors(
 							this,

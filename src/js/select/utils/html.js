@@ -101,6 +101,7 @@ function hi(text, query, creator = undefined) {
 						node = creator(text);
 					} else {
 						node = document.createElement("mark");
+						node.classList.add("hi");
 						node.appendChild(document.createTextNode(text));
 					}
 				}

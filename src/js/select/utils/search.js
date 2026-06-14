@@ -97,6 +97,26 @@ function match(value, criteria) {
 	if (!criteria) {
 		return true;
 	}
+	// We support different types of values for matching
+	switch (value?.constructor) {
+		case Array:
+			for (const v of value) {
+				if (match(v, criteria)) {
+					return true;
+				}
+			}
+			return false;
+		case Object:
+			for (const k in value) {
+				if (match(value[k], criteria)) {
+					return true;
+				}
+			}
+			return false;
+		case undefined:
+			return false;
+	}
+	// No we match the value (a number/boolean/string) against the criteria.
 	if (criteria instanceof RegExp) {
 		if (value === undefined || value === null) {
 			return false;

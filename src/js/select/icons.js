@@ -30,7 +30,8 @@ const IconContainer = Object.entries({
 
 const IconDefaults = {
 	url: `https://api.iconify.design/${ICON_SOURCE}/${ICON_NAME}.svg`,
-	source: undefined,
+	name: "file-question-mark",
+	source: "lucide",
 	size: [24, 24],
 	style: {
 		stroke: "var(--color-icon,var(--color-text),currentColor)",
@@ -68,9 +69,13 @@ const Cache = new Map();
 // Splits `name` into `[iconName, iconSource]`, preserving `source` as the
 // fallback when no source prefix is embedded in `name`.
 function parseIconName(name, source) {
-	// if (!name) {
-	// 	return [IconDefaults.name, source || IconDefaults.source];
-	// }
+	if (!name) {
+		console.error("icons.parseIconName: missing icon name, details", {
+			name,
+			source,
+		});
+		return [IconDefaults.name, source || IconDefaults.source];
+	}
 	const i = name.indexOf(":");
 	return [
 		(i > 0 ? name.substring(i + 1) : name) || IconDefaults.name,

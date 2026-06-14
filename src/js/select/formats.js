@@ -34,7 +34,7 @@ const DAY_NAMES = [
 	"Friday",
 	"Saturday",
 	"Sunday",
-]
+];
 const numberFormatterDefault = new Intl.NumberFormat();
 const percentFormatterDefault = new Intl.NumberFormat(undefined, {
 	style: "percent",
@@ -122,7 +122,7 @@ function datePartsToDate(value) {
 		value[3] || 0,
 		value[4] || 0,
 		value[5] || 0,
-	)
+	);
 }
 
 function asDate(value) {
@@ -130,10 +130,12 @@ function asDate(value) {
 		return value;
 	}
 	if (Array.isArray(value)) {
-		return datePartsToDate(value)
+		return datePartsToDate(value);
 	}
 	if (typeof value === "number") {
-		return Math.abs(value) >= MS_PER_DAY ? datePartsToDate(numdate(value)) : new Date(value * 1000)
+		return Math.abs(value) >= MS_PER_DAY
+			? datePartsToDate(numdate(value))
+			: new Date(value * 1000);
 	}
 	if (typeof value === "string") {
 		const source = value.trim();
@@ -190,23 +192,23 @@ function date(value) {
 }
 
 function month(value) {
-	const d = asDate(value)
-	const res = d.getMonth() + 1
-	return res < 10 ? `0${res}` : `${res}`
+	const d = asDate(value);
+	const res = d.getMonth() + 1;
+	return res < 10 ? `0${res}` : `${res}`;
 }
 
 function monthname(value) {
-	return MONTH_NAMES[asDate(value).getMonth()] ?? ""
+	return MONTH_NAMES[asDate(value).getMonth()] ?? "";
 }
 
 function day(value) {
-	const d = asDate(value)
-	const res = d.getDate()
-	return res < 10 ? `0${res}` : `${res}`
+	const d = asDate(value);
+	const res = d.getDate();
+	return res < 10 ? `0${res}` : `${res}`;
 }
 
 function dayname(value) {
-	return DAY_NAMES[(asDate(value).getDay() + 6) % 7] ?? ""
+	return DAY_NAMES[(asDate(value).getDay() + 6) % 7] ?? "";
 }
 
 function number(value, options = undefined) {
@@ -312,7 +314,7 @@ function swallow() {
 }
 
 function ago(value) {
-	const source = asDate(value)
+	const source = asDate(value);
 	if (!source) {
 		return null;
 	}
@@ -350,7 +352,7 @@ function ago(value) {
 }
 
 function timetuple(value) {
-	return value === undefined || value === null ? null : asDate(value)
+	return value === undefined || value === null ? null : asDate(value);
 }
 
 const HTML_PARSER = globalThis.DOMParser ? new DOMParser() : null;

@@ -14,6 +14,7 @@
 // ----------------------------------------------------------------------------
 
 import { logger, type } from "../utils.js"
+import { parseHashValue } from "../utils/hashfmt.js"
 
 const HTML = new DOMParser()
 
@@ -183,13 +184,20 @@ class TemplateParser {
 			parts[i] = parts[i].trim()
 			if (!parts[i]) return null
 		}
-		const sourceKey = parts[0]
+		const keyExpr = parts[0]
+		const qmark = keyExpr.indexOf("?")
+		const sourceKey = qmark >= 0 ? keyExpr.substring(0, qmark).trim() : keyExpr
+		let defaultValue
+		if (qmark >= 0) {
+			const defaultText = keyExpr.substring(qmark + 1).trim()
+			if (defaultText) defaultValue = parseHashValue(defaultText)
+		}
 		if (!sourceKey) return null
 		if (validateSource && !/^[A-Za-z0-9_$-]+$/.test(sourceKey)) return null
 		const processors =
 			parts.length > 1 ? TemplateParser.ParseProcessorList(parts.slice(1)) : []
 		if (!processors) return null
-		return { sourceKey, processors }
+		return { sourceKey, defaultValue, processors }
 	}
 
 	static ParseBindingPath(expr, allowDotted = true) {
