@@ -119,7 +119,7 @@ class TemplateParser {
 
 	static _WhenComparators = ["!==", "==", "!=", ">=", "<=", "~?", "=", ">", "<"]
 	static _ReBindingPath = /^[A-Za-z_$][A-Za-z0-9_$-]*$/
-	static _ReProcessorName = /^\*?[A-Za-z_$][A-Za-z0-9_$-]*$/
+	static _ReProcessorName = /^\*?[A-Za-z_$][A-Za-z0-9_$.-]*$/
 
 	static ParseProcessorToken(expr) {
 		const source = typeof expr === "string" ? expr.trim() : ""

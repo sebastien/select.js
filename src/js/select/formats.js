@@ -12,29 +12,32 @@ import { MS_PER_DAY, numdate } from "./utils/dates.js";
 import { hi as htmlHi } from "./utils/html.js";
 import { bool, entries, idem, len, type } from "./utils.js";
 
-const MONTH_NAMES = [
-	"January",
-	"February",
-	"March",
-	"April",
-	"May",
-	"June",
-	"July",
-	"August",
-	"September",
-	"October",
-	"November",
-	"December",
-];
-const DAY_NAMES = [
-	"Monday",
-	"Tuesday",
-	"Wednesday",
-	"Thursday",
-	"Friday",
-	"Saturday",
-	"Sunday",
-];
+const DEFAULTS = {
+	MONTH_NAMES: [
+		"January",
+		"February",
+		"March",
+		"April",
+		"May",
+		"June",
+		"July",
+		"August",
+		"September",
+		"October",
+		"November",
+		"December",
+	],
+	DAY_NAMES: [
+		"Monday",
+		"Tuesday",
+		"Wednesday",
+		"Thursday",
+		"Friday",
+		"Saturday",
+		"Sunday",
+	],
+	CURRENCY: "USD",
+};
 const numberFormatterDefault = new Intl.NumberFormat();
 const percentFormatterDefault = new Intl.NumberFormat(undefined, {
 	style: "percent",
@@ -198,7 +201,7 @@ function month(value) {
 }
 
 function monthname(value) {
-	return MONTH_NAMES[asDate(value).getMonth()] ?? "";
+	return DEFAULTS.MONTH_NAMES[asDate(value).getMonth()] ?? "";
 }
 
 function day(value) {
@@ -208,7 +211,7 @@ function day(value) {
 }
 
 function dayname(value) {
-	return DAY_NAMES[(asDate(value).getDay() + 6) % 7] ?? "";
+	return DEFAULTS.DAY_NAMES[(asDate(value).getDay() + 6) % 7] ?? "";
 }
 
 function number(value, options = undefined) {
@@ -223,25 +226,25 @@ function number(value, options = undefined) {
 
 function currency(value, code = "USD", options = undefined) {
 	const n = typeof value === "number" ? value : Number(value);
+	const currency = typeof code === "string" ? code : undefined;
 	if (!Number.isFinite(n)) {
 		return "";
 	}
 	if (options) {
 		return new Intl.NumberFormat(undefined, {
 			style: "currency",
-			currency: code || "USD",
+			currency: currency ?? DEFAULTS.CURRENCY,
 			...options,
 		}).format(n);
 	}
-	const c = code || "USD";
-	if (c === "USD") {
+	if (!currency) {
 		return currencyFormatterDefault.format(n);
 	}
-	let formatter = currencyFormatters.get(c);
+	let formatter = currencyFormatters.get(currency);
 	if (!formatter) {
 		formatter = new Intl.NumberFormat(undefined, {
 			style: "currency",
-			currency: c,
+			currency,
 		});
 		currencyFormatters.set(c, formatter);
 	}
@@ -347,7 +350,7 @@ function ago(value) {
 	}
 	const dateYear = source.getFullYear();
 	const currentYear = now.getFullYear();
-	const dateText = `On ${MONTH_NAMES[source.getMonth()]}, ${source.getDate()}`;
+	const dateText = `On ${DEFAULTS.MONTH_NAMES[source.getMonth()]}, ${source.getDate()}`;
 	return dateYear === currentYear ? dateText : `${dateText}, ${dateYear}`;
 }
 
@@ -459,6 +462,7 @@ function format(name, ...value) {
 }
 
 export {
+	DEFAULTS,
 	ago,
 	active,
 	asDate,

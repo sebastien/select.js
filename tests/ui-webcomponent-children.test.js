@@ -316,4 +316,61 @@ describe("ui webcomponent projected children", () => {
 
 		window.close?.();
 	});
+
+	test("syncs one document style mutation across multiple shadow roots", async () => {
+		const window = new Window({ url: "http://localhost:8000/webcomponent" });
+		setupGlobals(window);
+		const { ui, webcomponent } = await import("../src/js/select/ui.js");
+		const hasAdoptedRule = (root, text) =>
+			Array.from(root.adoptedStyleSheets || []).some((sheet) =>
+				Array.from(sheet.cssRules || []).some((rule) => rule.cssText.includes(text)),
+			);
+		const getShadowStyle = (root, text) =>
+			Array.from(root.querySelectorAll("style")).find((node) =>
+				node.textContent.includes(text),
+			);
+		const waitForStyleSync = async (text) => {
+			for (let i = 0; i < 10; i++) {
+				await flush();
+				if (
+					(hasAdoptedRule(first.shadowRoot, text) ||
+						getShadowStyle(first.shadowRoot, text)) &&
+					(hasAdoptedRule(second.shadowRoot, text) ||
+						getShadowStyle(second.shadowRoot, text))
+				) {
+					return;
+				}
+			}
+		};
+
+		const Styled = ui(`<div class="shared-token">Styled</div>`);
+		const name = `x-style-fanout-${Date.now()}`;
+		webcomponent(name, Styled, {});
+
+		const first = document.createElement(name);
+		const second = document.createElement(name);
+		document.body.appendChild(first);
+		document.body.appendChild(second);
+		await flush();
+
+		const style = document.createElement("style");
+		style.textContent = ".shared-token { color: rgb(1, 2, 3); }";
+		document.head.appendChild(style);
+		await waitForStyleSync(".shared-token");
+
+		if (hasAdoptedRule(first.shadowRoot, ".shared-token")) {
+			expect(first.shadowRoot.adoptedStyleSheets.length).toBeGreaterThan(0);
+			expect(hasAdoptedRule(second.shadowRoot, ".shared-token")).toBe(true);
+			expect(first.shadowRoot.querySelectorAll("style").length).toBe(0);
+			expect(second.shadowRoot.querySelectorAll("style").length).toBe(0);
+		} else {
+			const firstStyle = getShadowStyle(first.shadowRoot, ".shared-token");
+			const secondStyle = getShadowStyle(second.shadowRoot, ".shared-token");
+			expect(!!firstStyle).toBe(true);
+			expect(!!secondStyle).toBe(true);
+			expect(firstStyle).not.toBe(secondStyle);
+		}
+
+		window.close?.();
+	});
 });

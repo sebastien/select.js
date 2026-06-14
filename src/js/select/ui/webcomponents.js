@@ -33,6 +33,7 @@ const BaseHTMLElement = globalThis.HTMLElement || class {};
 const documentStyleSheetCache = new WeakMap();
 const documentStyleSubscribers = new WeakMap();
 const documentStyleObservers = new WeakMap();
+const documentStyleSyncTasks = new WeakMap();
 const OPTIONS = {
 	shadow: true, // Shadow DOM by default
 	mode: "open", // Open Shadow DOM by default
@@ -51,6 +52,12 @@ function isStyleSheetNode(node) {
 
 function isStyleSheetMutation(mutation) {
 	if (isStyleSheetNode(mutation.target)) {
+		return true;
+	}
+	if (
+		mutation.type === "characterData" &&
+		isStyleSheetNode(mutation.target?.parentNode)
+	) {
 		return true;
 	}
 	for (const node of mutation.addedNodes || []) {
@@ -113,10 +120,18 @@ function watchDocumentStyles(doc, component) {
 		if (!mutations.some(isStyleSheetMutation)) {
 			return;
 		}
-		documentStyleSheetCache.delete(doc);
-		for (const subscriber of documentStyleSubscribers.get(doc) || []) {
-			subscriber._syncDocumentStyles?.();
+		if (documentStyleSyncTasks.has(doc)) {
+			return;
 		}
+		const task = setTimeout(() => {
+			documentStyleSyncTasks.delete(doc);
+			documentStyleSheetCache.delete(doc);
+			const styles = getDocumentStyles(doc);
+			for (const subscriber of documentStyleSubscribers.get(doc) || []) {
+				subscriber._syncDocumentStyles?.(styles);
+			}
+		}, 0);
+		documentStyleSyncTasks.set(doc, task);
 	});
 	observer.observe(doc.head, {
 		childList: true,
@@ -137,6 +152,11 @@ function unwatchDocumentStyles(doc, component) {
 		return;
 	}
 	documentStyleSubscribers.delete(doc);
+	const task = documentStyleSyncTasks.get(doc);
+	if (task !== undefined) {
+		clearTimeout(task);
+		documentStyleSyncTasks.delete(doc);
+	}
 	const observer = documentStyleObservers.get(doc);
 	observer?.disconnect();
 	documentStyleObservers.delete(doc);
@@ -417,9 +437,9 @@ class UIWebComponent extends BaseHTMLElement {
 		}
 	}
 
-	_syncDocumentStyles() {
+	_syncDocumentStyles(styles) {
 		const root = this.root;
-		const styles = cloneDocumentStyles(root, this.options);
+		styles = styles || cloneDocumentStyles(root, this.options);
 		if (
 			!styles ||
 			this._documentStyleHeadChildCount === styles.signature ||

@@ -287,4 +287,30 @@ describe("ui processor reactive handling", () => {
 		document.body.innerHTML = "";
 		window.close?.();
 	});
+
+	test("supports dotted processor names in out bindings", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui, format } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="ProcessorDottedNameRepro">
+				<span out="contactDetails|Element.ContactDetails"></span>
+			</template>
+		`;
+
+		registerFormat(format, "Element.ContactDetails", (value) => `contact:${value}`);
+
+		const instance = ui("ProcessorDottedNameRepro")
+			.new()
+			.set({ contactDetails: "Alice" })
+			.mount("#app");
+
+		expect(document.querySelector("#app span")?.textContent).toBe("contact:Alice");
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
 });
