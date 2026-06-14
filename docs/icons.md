@@ -42,38 +42,26 @@ install("ui-icon")
 <ui-icon icon="mdi:account" size="2em"></ui-icon>
 ```
 
-## Using a local JSON catalog
+## Custom sources
 
-You can pass a catalog to `install(..., { sources })` as:
-
-- a URL string
-- a `{ sources: ... }` object
-- a raw Iconify collections object
+If you need to point icons at another CDN or mirror, pass a `source` object with a
+`url` template:
 
 ```javascript
 import { install } from "@./icons.js"
 
-const catalog = await fetch("../src/js/select.icons.json").then((r) => r.json())
-install("ui-icon-local", { sources: catalog })
+install("ui-icon-cdn", {
+    source: {
+        url: "https://cdn.example.com/__ICON_SOURCE__/__ICON_NAME__.svg",
+    },
+})
 ```
 
-## Generating `select.icons.json`
+The same `source` value can also be passed directly to `icon(...)` for one-off
+icons.
 
-Use the generator script to refresh the local catalog:
-
-```bash
-src/sh/select.icon.sh
-```
-
-Options:
-
-- `--json-out <path>`: write JSON to a custom path.
-- `--stdout`: print JSON to stdout.
-- `--no-json`: skip file write (use with `--stdout`).
-
-By default it writes:
-
-- `src/js/select.icons.json`
+Remote SVG markup is parsed through a conservative allowlist before insertion,
+so only basic geometry and safe attributes are preserved.
 
 ## Named transforms
 

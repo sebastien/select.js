@@ -9,13 +9,13 @@ Known baseline at planning time: `bun test` fails in `tests/ui-processor-reactiv
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
 | 002 | Make Browser.fetch handle non-OK responses deliberately | P1 | S | - | DONE |
-| 004 | Sanitize remote SVG icons before DOM insertion | P1 | M | - | TODO |
-| 005 | Require explicit dist verification for package artifacts | P2 | S | - | TODO |
-| 006 | Reuse document style snapshots across web component subscribers | P2 | S | - | TODO |
-| 007 | Prune empty reactive selection registry branches | P2 | S | - | TODO |
-| 008 | Align package manifests and lockfiles | P2 | S | - | TODO |
-| 009 | Move Playwright out of runtime dependencies | P2 | S | 008 | TODO |
-| 010 | Fix stale icon catalog documentation | P3 | S | 004 | TODO |
+| 004 | Sanitize remote SVG icons before DOM insertion | P1 | M | - | DONE |
+| 005 | Require explicit dist verification for package artifacts | P2 | S | - | DONE |
+| 006 | Reuse document style snapshots across web component subscribers | P2 | S | - | DONE |
+| 007 | Prune empty reactive selection registry branches | P2 | S | - | DONE |
+| 008 | Align package manifests and lockfiles | P2 | S | - | DONE |
+| 009 | Move Playwright out of runtime dependencies | P2 | S | 008 | DONE |
+| 010 | Fix stale icon catalog documentation | P3 | S | 004 | DONE |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale).
 
