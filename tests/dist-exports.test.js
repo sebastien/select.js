@@ -5,6 +5,8 @@ import { Window } from "happy-dom"
 
 const ROOT = path.resolve(__dirname, "..")
 const DIST_BUNDLE_PATH = path.join(ROOT, "dist", "selectjs.min.js")
+const HAS_DIST_BUNDLE = fs.existsSync(DIST_BUNDLE_PATH)
+const REQUIRE_DIST = process.env.REQUIRE_DIST === "1"
 
 function setupGlobals() {
 	const window = new Window()
@@ -43,6 +45,10 @@ function pathToFileURL(filePath) {
 	return new URL(`file://${resolved}`)
 }
 
+function missingDistMessage(filePath) {
+	return `Missing dist artifact: ${path.relative(ROOT, filePath)}. Run \`make dist\` or \`bun run test:dist\` before requiring dist verification.`
+}
+
 describe("dist bundle export surface", () => {
 	test("source index keeps explicit overlapping exports", async () => {
 		const window = setupGlobals()
@@ -53,19 +59,23 @@ describe("dist bundle export surface", () => {
 		window.close()
 	})
 
-	test.if(fs.existsSync(DIST_BUNDLE_PATH))(
-		"dist bundle matches critical source exports",
-		async () => {
-			const window = setupGlobals()
-			const source = await import(pathToFileURL(path.join(ROOT, "src/js/select/index.js")).href)
-			const dist = await import(pathToFileURL(DIST_BUNDLE_PATH).href)
-			for (const name of ["expand", "len", "remap", "type", "ui"]) {
-				expect(typeof dist[name]).toBe(typeof source[name])
-				expect(dist[name]).toBeDefined()
+	test("dist bundle matches critical source exports", async () => {
+		if (!HAS_DIST_BUNDLE) {
+			if (REQUIRE_DIST) {
+				throw new Error(missingDistMessage(DIST_BUNDLE_PATH))
 			}
-			window.close()
-		},
-	)
+			return
+		}
+
+		const window = setupGlobals()
+		const source = await import(pathToFileURL(path.join(ROOT, "src/js/select/index.js")).href)
+		const dist = await import(pathToFileURL(DIST_BUNDLE_PATH).href)
+		for (const name of ["expand", "len", "remap", "type", "ui"]) {
+			expect(typeof dist[name]).toBe(typeof source[name])
+			expect(dist[name]).toBeDefined()
+		}
+		window.close()
+	})
 })
 
 // EOF

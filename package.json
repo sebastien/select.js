@@ -22,6 +22,7 @@
 	"scripts": {
 		"build": "make dist",
 		"test": "bun test",
+		"test:dist": "make dist && REQUIRE_DIST=1 bun test tests/dist-exports.test.js tests/int-examples.test.ts",
 		"test:int": "bun test tests/int-examples.test.ts",
 		"test:int:update": "UPDATE_FIXTURES=1 bun test tests/int-examples.test.ts",
 		"bench:inspector": "node scripts/bench-inspector.mjs",

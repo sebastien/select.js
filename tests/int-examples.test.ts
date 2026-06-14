@@ -8,8 +8,13 @@ const EXAMPLES_DIR = path.join(ROOT, "examples")
 const FIXTURES_DIR = path.join(ROOT, "tests", "fixtures", "examples")
 const DIST_BUNDLE_PATH = path.join(ROOT, "dist", "selectjs.js")
 const HAS_DIST_BUNDLE = fs.existsSync(DIST_BUNDLE_PATH)
+const REQUIRE_DIST = process.env.REQUIRE_DIST === "1"
 const UPDATE_FIXTURES = process.env.UPDATE_FIXTURES === "1"
 const EXAMPLE_TIMEOUT = 15000
+
+function missingDistMessage(filePath: string) {
+	return `Missing dist artifact: ${path.relative(ROOT, filePath)}. Run \`make dist\` or \`bun run test:dist\` before requiring dist verification.`
+}
 
 const EXAMPLE_INTERACTIONS: Record<string, (window: Window) => Promise<void> | void> = {
 	"app-filter": async (window) => {
@@ -331,24 +336,33 @@ function assertFixture(exampleName: string, stage: "initial" | "interaction", ac
 	expect(actual).toBe(expected)
 }
 
+if (!REQUIRE_DIST) {
 	describe("examples integration", () => {
 		for (const example of listExamples()) {
 			test(example.name, { timeout: EXAMPLE_TIMEOUT }, async () => {
 				const window = await executeExample(example.path)
 				assertFixture(example.name, "initial", snapshotBody(window))
 				const interaction = EXAMPLE_INTERACTIONS[example.name]
-			if (interaction) {
-				await interaction(window)
-				await settle(window)
-				assertFixture(example.name, "interaction", snapshotBody(window))
-			}
-			window.close()
-		})
-	}
-})
+				if (interaction) {
+					await interaction(window)
+					await settle(window)
+					assertFixture(example.name, "interaction", snapshotBody(window))
+				}
+				window.close()
+			})
+		}
+	})
+}
 
-	if (HAS_DIST_BUNDLE) {
+	if (HAS_DIST_BUNDLE || REQUIRE_DIST) {
 		describe("examples integration (dist bundle)", () => {
+			if (!HAS_DIST_BUNDLE) {
+				test("requires built dist bundle", () => {
+					throw new Error(missingDistMessage(DIST_BUNDLE_PATH))
+				})
+				return
+			}
+
 			for (const example of listExamples()) {
 				test(example.name, { timeout: EXAMPLE_TIMEOUT }, async () => {
 					const window = await executeExample(example.path, "dist")
