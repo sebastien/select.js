@@ -85,7 +85,7 @@ function unregisterUIInstance(instance) {
 // - `out`: Object? - output slot bindings
 // - `inout`: Object? - bidirectional slot bindings
 // - `ref`: Object? - reference slot bindings (single slots)
-// - `on`: Object? - event slot bindings
+// - `_on`: Object? - event slot bindings
 // - `when`: Object? - conditional slot bindings
 // - `outAttr`: Object? - attribute slot bindings
 // - `slots`: Array<UIContentSlot>? - named content slots
@@ -337,7 +337,7 @@ class UIInstance {
 		// anchor nodes with comment boundaries. If `on` slots are resolved after
 		// that mutation, index-based node paths can drift for later siblings and
 		// event handlers may bind to wrong/missing nodes.
-		this.on = compiled.on ? compiled.on(this.nodes, this) : null;
+		this._on = compiled.on ? compiled.on(this.nodes, this) : null;
 		this.when = compiled.when ? compiled.when(this.nodes, this) : null;
 		this.outAttr = compiled.outAttr ? compiled.outAttr(this.nodes, this) : null;
 		this.inout = compiled.inout ? compiled.inout(this.nodes, this) : null;
@@ -743,8 +743,8 @@ class UIInstance {
 		if (!this._domListeners) {
 			this._domListeners = [];
 		}
-		for (const k in this.on) {
-			for (const slot of this.on[k]) {
+		for (const k in this._on) {
+			for (const slot of this._on[k]) {
 				this._bindEvent(k, slot);
 			}
 		}

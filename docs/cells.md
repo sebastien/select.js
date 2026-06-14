@@ -9,6 +9,7 @@ and lightweight pub/sub.
 ### Primitives:
 
 - `cell(value?)`: Creates a mutable reactive `Cell` instance.
+- `cells(value|object)`: Default export. Creates a single mutable reactive `Cell`, or a plain object of cells when given a plain object.
 - `browser(options?)`: Creates browser-backed cells for `path`, `query`, `hash`, `localStorage`, and in-memory shared state.
 	- Query and hash use the same hashformat serializer by default (`a=1,b=(2,3)`).
 - `deferred(value?, delay)`: Creates a mutable reactive `Deferred` cell that debounces updates by the given delay.
@@ -67,6 +68,17 @@ count.set(1)
 count.set(2)
 ```
 
+Multiple cell declaration example:
+
+```javascript
+import cells from "@./cells.js"
+
+const { name, age } = cells({ name: "Ada", age: 37 })
+
+name.set("Adele")
+age.set(38)
+```
+
 Browser-backed state example:
 
 ```javascript
@@ -120,6 +132,7 @@ export const counter = (initial = 0) => {
 ### The `cell` module:
 
 - `cell(value?)`: Creates a mutable reactive `Cell` instance.
+- `cells(value|object)`: Default export. Returns a single cell for non-object values, or an object of cells for plain-object input.
 - `browser(options?)`: Creates `{ path, query, hash, local, internal }` browser-backed reactive helpers.
 - `deferred(value?, delay)`: Creates a mutable reactive `Deferred` cell that debounces updates.
 - `derived(template, processor?, initial?)`: Creates a reactive derivation from a template containing cells.

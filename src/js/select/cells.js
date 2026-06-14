@@ -60,6 +60,15 @@ function isReactiveSource(value) {
 	);
 }
 
+function isPlainObject(value) {
+	return (
+		value !== null &&
+		value !== undefined &&
+		typeof value === "object" &&
+		Object.getPrototypeOf(value) === Object.prototype
+	);
+}
+
 // ----------------------------------------------------------------------------
 //
 // SECTION: Path Utilities
@@ -1188,7 +1197,10 @@ class Switched extends Reactive {
 			return;
 		}
 		this.target.unsub(this.targetReactor);
-		if (this.target !== this.fallback && typeof this.target.release === "function") {
+		if (
+			this.target !== this.fallback &&
+			typeof this.target.release === "function"
+		) {
 			this.target.release();
 		}
 		this.target = undefined;
@@ -1245,11 +1257,11 @@ class Switched extends Reactive {
 										message: error.message,
 										stack: error.stack,
 										cause: error.cause,
-								  }
+									}
 								: {
 										name: typeof error,
 										message: String(error),
-								  },
+									},
 						currentValue: this.value,
 						previousValue: this.previous,
 						resolvedInputs: this.expanded,
@@ -1445,6 +1457,30 @@ function cell(value) {
 	return new Cell(value);
 }
 
+// Function: cells
+// Factory that creates either a single Cell or a map of Cells.
+//
+// Parameters:
+// - `value`: any - initial cell value, or a plain object of values
+//
+// Returns: Cell|Object
+//
+// Example:
+// ```javascript
+// const { name, age } = cells({ name: "Ada", age: 37 })
+// name.set("Adele")
+// ```
+function cells(value) {
+	if (!isPlainObject(value)) {
+		return cell(value);
+	}
+	const res = {};
+	for (const key in value) {
+		res[key] = cell(value[key]);
+	}
+	return res;
+}
+
 // Function: deferred
 // Factory that creates a new Deferred (debounced) cell.
 //
@@ -1581,6 +1617,7 @@ const expand = Reactive.Expand;
 export {
 	Cell,
 	cell,
+	cells,
 	Deferred,
 	Derivation,
 	deferred,
@@ -1595,17 +1632,14 @@ export {
 	unwrap,
 	walk,
 };
-export default Object.assign(cell, {
+export default Object.assign(cells, {
+	cell,
 	derived,
 	switched,
 	deferred,
 	selected,
 	unwrap,
 	effect,
-	// TODO: We may want to deprecate these
-	select: selected,
-	defer: deferred,
-	derive: derived,
 	walk,
 	expand,
 });

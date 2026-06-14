@@ -18,6 +18,16 @@ console.log(count.value); // 0
 count.set(1);
 ```
 
+The default export also supports declaring multiple cells from a plain object:
+
+```javascript
+import cells from "./cells.js";
+
+const { name, age } = cells({ name: "Ada", age: 37 });
+name.set("Adele");
+age.set(38);
+```
+
 ### Derivations
 A `Derivation` is a reactive value computed from one or more source cells. It recomputes automatically when its dependencies change.
 
@@ -93,6 +103,7 @@ state.set(2, "a.b");
 ### The `cell` module:
 
 - `cell(value?)`: Factory function to create a new `Cell` instance.
+- `cells(value|object)`: Default export. Returns a `Cell` for non-object values, or an object of `Cell` instances for plain-object input.
 - `browser(options?)`: Factory that returns browser-backed `path`, `query`, `hash`, `local(key, dflt, opts?)`, and `internal(name, value)` cells.
 	- Default `query`/`hash` serialization uses hashformat syntax (for example `a=1,b=(2,3)`).
 - `deferred(value?, delay)`: Factory function to create a new `Deferred` cell instance for debounced updates.

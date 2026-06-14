@@ -86,7 +86,7 @@
 
 <body>
 	<h1>Scoped Events</h1>
-	<p>This example demonstrates <code>emit()</code>, <code>on()</code>, and <code>off()</code> for runtime event subscriptions alongside template-time <code>.sub()</code>.</p>
+	<p>This example demonstrates <code>pub()</code>, <code>on()</code>, and <code>off()</code> for runtime event publication and subscriptions alongside template-time <code>.sub()</code>.</p>
 
 	<div id="App"></div>
 
@@ -116,10 +116,10 @@
 		const Counter = ui("#Counter").does({
 			count: (_self, { count }) => count,
 			increment: (self, { count, id }) => {
-				self.emit("CountChanged", { id, count: count + 1, action: "increment" })
+				self.pub("CountChanged", { id, count: count + 1, action: "increment" })
 			},
 			decrement: (self, { count, id }) => {
-				self.emit("CountChanged", { id, count: count - 1, action: "decrement" })
+				self.pub("CountChanged", { id, count: count - 1, action: "decrement" })
 			}
 		})
 

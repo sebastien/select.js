@@ -241,17 +241,6 @@ function resolveDistModule(bundle: Record<string, any>, specifier: string) {
 	return bundle
 }
 
-function shouldIgnoreError(exampleName: string, error: unknown) {
-	const message = `${error instanceof Error ? error.message : error}`
-	if (exampleName === "feature-events" && message.includes("app.on is not a function")) {
-		return true
-	}
-	if (exampleName === "feature-icons" && message.includes("Cannot destructure property 'size'")) {
-		return true
-	}
-	return false
-}
-
 async function executeExample(examplePath: string, mode: "src" | "dist" = "src") {
 	const exampleName = path.basename(examplePath, ".html")
 	const cacheKey = `${mode}:${exampleName}:${Date.now()}:${Math.random()}`
@@ -282,13 +271,7 @@ async function executeExample(examplePath: string, mode: "src" | "dist" = "src")
 		return import(specifier)
 	}
 
-	try {
-		await run(importAlias)
-	} catch (error) {
-		if (!shouldIgnoreError(exampleName, error)) {
-			throw error
-		}
-	}
+	await run(importAlias)
 	await settle(window)
 	return window
 }

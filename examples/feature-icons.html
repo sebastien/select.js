@@ -148,7 +148,7 @@
 				<article class="preview">
 					<h3>Programmatic <code>icon(...)</code></h3>
 					<div out="programmatic" class="icon-row"></div>
-					<div class="muted">Uses <code>icon(name, { source, size })</code>.</div>
+					<div class="muted">Uses <code>icon(name, source, { size })</code>.</div>
 				</article>
 
 				<article class="preview">
@@ -194,7 +194,7 @@
 			const source = cell("lucide")
 			const name = cell("home")
 			const size = cell("1.5em")
-			const qualified = derived([source, name], (src, iconName) => {
+			const qualified = derived([source, name], ([src, iconName]) => {
 				const normalized = `${iconName ?? ""}`.trim() || "home"
 				return `${src}:${normalized}`
 			})
@@ -210,10 +210,9 @@
 				programmatic: (_self, { source, size, qualified }) => {
 				const node = document.createElement("span")
 				node.className = "icon-row"
-				node.appendChild(icon(qualified.value.split(":")[1], {
-					source: source.value,
-					size: size.value,
-				}))
+					node.appendChild(icon(qualified.value.split(":")[1], source.value, {
+						size: size.value,
+					}))
 				node.append(` ${qualified.value}`)
 				return node
 			},

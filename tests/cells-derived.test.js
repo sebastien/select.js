@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { cell, derived } from "../src/js/select/cells.js"
+import cells, { cell, derived } from "../src/js/select/cells.js"
 import { Nothing } from "../src/js/select/utils.js"
 
 function foreignReactive(initialValue) {
@@ -28,6 +28,27 @@ function foreignReactive(initialValue) {
 }
 
 describe("cells.derived", () => {
+	test("default export stays backward compatible for single values", () => {
+		const value = cells(42)
+
+		expect(value).toBeInstanceOf(Object)
+		expect(value.isReactive).toBe(true)
+		expect(value.value).toBe(42)
+	})
+
+	test("default export creates multiple cells from plain object input", () => {
+		const { name, age } = cells({ name: "Ada", age: 37 })
+		const seen = []
+
+		name.sub((value) => seen.push(value))
+		name.set("Adele")
+		age.set(38)
+
+		expect(name.value).toBe("Adele")
+		expect(age.value).toBe(38)
+		expect(seen).toEqual(["Adele"])
+	})
+
 	test("single-input processor receives exactly one unwrapped value", () => {
 		const source = cell("alpha")
 		const calls = []
