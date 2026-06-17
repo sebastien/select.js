@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
-// Updated: 2026-06-02
+// Updated: 2026-06-18
 
 // Module: select/ui/components/runtime
 // Shared rendering helpers for component templates and instances.

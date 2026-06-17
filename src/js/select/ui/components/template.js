@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
-// Updated: 2026-06-02
+// Updated: 2026-06-13
 
 // Module: select/ui/components/template
 // Reusable UI template class and template mapping helpers.

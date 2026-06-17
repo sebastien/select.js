@@ -2,6 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-15
+// Updated: 2026-06-15
 
 // Module: select/utils/hashfmt
 // Compact hash-format (hashfmt) parser and formatter. Serializes scalars,

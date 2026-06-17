@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2015-02-27
-// Updated: 2026-06-02
+// Updated: 2026-06-03
 
 // Module: select
 // A jQuery-like library for DOM and SVG manipulation targeting modern browsers.

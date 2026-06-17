@@ -1,6 +1,21 @@
 import { describe, expect, test } from "bun:test"
 import browser, { Browser, hash } from "../src/js/select/browser.js"
 
+function snapshotGlobal(key) {
+	return {
+		had: Object.hasOwn(globalThis, key),
+		descriptor: Object.getOwnPropertyDescriptor(globalThis, key),
+	}
+}
+
+function restoreGlobal(key, snapshot) {
+	if (snapshot.had) {
+		Object.defineProperty(globalThis, key, snapshot.descriptor)
+	} else {
+		delete globalThis[key]
+	}
+}
+
 async function expectResponseError(promise, status, statusText) {
 	try {
 		await promise
@@ -83,6 +98,59 @@ describe("Browser.parse", () => {
 		expect(browser().parse("true")).toBe(true)
 		expect(browser().parse("false")).toBe(false)
 		expect(browser().parse("2026")).toBe(2026)
+	})
+})
+
+describe("Browser.option", () => {
+	test("uses the OPTIONS singleton and * references", () => {
+		const snapshot = snapshotGlobal("OPTIONS")
+		try {
+			delete globalThis.OPTIONS
+			const instance = new Browser({ options: { theme: "light" } })
+			const theme = instance.option("theme")
+
+			expect(globalThis.OPTIONS).toEqual({ theme: "light" })
+			expect(theme.value).toBe("light")
+			expect(instance.parse("*theme").value).toBe("light")
+
+			globalThis.OPTIONS = { theme: "dark", nested: { mode: "night" } }
+			expect(theme.value).toBe("dark")
+			expect(instance.parse("*nested.mode").value).toBe("night")
+
+			theme.set("blue")
+			expect(globalThis.OPTIONS.theme).toBe("blue")
+		} finally {
+			restoreGlobal("OPTIONS", snapshot)
+		}
+	})
+
+	test("switches sources at runtime", () => {
+		const optionsSnapshot = snapshotGlobal("OPTIONS")
+		const altSnapshot = snapshotGlobal("ALT_OPTIONS")
+		const testSnapshot = snapshotGlobal("TEST_OPTIONS")
+		try {
+			delete globalThis.OPTIONS
+			delete globalThis.ALT_OPTIONS
+			delete globalThis.TEST_OPTIONS
+			globalThis.TEST_OPTIONS = { theme: "light" }
+			const instance = new Browser({ options: "TEST_OPTIONS" })
+
+			expect(instance.option("theme").value).toBe("light")
+
+			instance.option.source("ALT_OPTIONS")
+			expect(globalThis.ALT_OPTIONS).toEqual({})
+			expect(instance.option("theme").value).toBeUndefined()
+
+			globalThis.ALT_OPTIONS = { theme: "dark" }
+			expect(instance.option("theme").value).toBe("dark")
+
+			instance.parse("*theme").set("blue")
+			expect(globalThis.ALT_OPTIONS.theme).toBe("blue")
+		} finally {
+			restoreGlobal("ALT_OPTIONS", altSnapshot)
+			restoreGlobal("TEST_OPTIONS", testSnapshot)
+			restoreGlobal("OPTIONS", optionsSnapshot)
+		}
 	})
 })
 
@@ -201,7 +269,27 @@ describe("Browser.fetch", () => {
 		}
 	})
 
-	test("fetched keeps non-OK failures on the cell promise", async () => {
+	test("treats a function second argument as post callback", async () => {
+		const instance = new Browser()
+		const originalFetch = globalThis.fetch
+		globalThis.fetch = async (input, options) => {
+			expect(input).toBe("/value")
+			expect(options).toBeUndefined()
+			return new Response("hello", {
+				headers: { "content-type": "text/plain" },
+			})
+		}
+
+		try {
+			await expect(instance.fetch("/value", (value) => `${value}!`)).resolves.toBe(
+				"hello!",
+			)
+		} finally {
+			globalThis.fetch = originalFetch
+		}
+	})
+
+	test("fetched absorbs non-OK failures into the cell state", async () => {
 		const originalFetch = globalThis.fetch
 		globalThis.fetch = async () =>
 			new Response("missing", {
@@ -213,7 +301,9 @@ describe("Browser.fetch", () => {
 		try {
 			const state = browser().fetched("/missing")
 			expect(state.isReactive).toBe(true)
-			await expectResponseError(state.value, 404, "Not Found")
+			await new Promise((resolve) => setTimeout(resolve, 0))
+			expect(state.value).toBeUndefined()
+			expect(state.isPending).toBe(false)
 		} finally {
 			globalThis.fetch = originalFetch
 		}

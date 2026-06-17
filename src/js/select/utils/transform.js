@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
-// Updated: 2026-06-02
+// Updated: 2026-06-12
 
 // Module: select/utils/transform
 // Pure collection transforms and immutable structural update helpers.

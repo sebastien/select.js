@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-05-07
-// Updated: 2026-06-02
+// Updated: 2026-06-18
 
 // Module: select.cells
 // Reactive state management with cells and derivations. Provides observable
@@ -140,15 +140,19 @@ function refreshSelections(owner, path, previous = undefined) {
 	}
 }
 
-function parseReactiveOptions(initial, strategy) {
+function parseReactiveOptions(initial, strategy, pending) {
 	let shouldInitialize = true;
 	let updateStrategy = "join";
+	let pendingStrategy = "keep";
 	if (initial && typeof initial === "object" && !Array.isArray(initial)) {
 		if (initial.initial !== undefined) {
 			shouldInitialize = !!initial.initial;
 		}
 		if (typeof initial.strategy === "string") {
 			updateStrategy = initial.strategy;
+		}
+		if (typeof initial.pending === "string") {
+			pendingStrategy = initial.pending;
 		}
 	} else if (typeof initial === "string") {
 		updateStrategy = initial;
@@ -158,9 +162,13 @@ function parseReactiveOptions(initial, strategy) {
 	if (typeof strategy === "string") {
 		updateStrategy = strategy;
 	}
+	if (typeof pending === "string") {
+		pendingStrategy = pending;
+	}
 	return {
 		shouldInitialize,
 		updateStrategy,
+		pendingStrategy: pendingStrategy === "clear" ? "clear" : "keep",
 	};
 }
 
@@ -298,7 +306,7 @@ class Selections {
 // - `isReactive`: boolean - always true
 // - `value`: any - current value
 // - `previous`: any - previous value before last update
-// - `isPending`: boolean - true when current value is a pending promise
+// - `isPending`: boolean - true when current value is waiting on async work
 // - `revision`: number - monotonically increasing change counter (-1 if empty)
 // - `subs`: Array<function> - subscriber callbacks
 // - `selections`: Selections? - registry for nested property selections
@@ -308,9 +316,6 @@ class Reactive {
 	static Unwrap(value) {
 		let next = value;
 		while (isReactiveValue(next)) {
-			if (next.isPending) {
-				return undefined;
-			}
 			next = next.value;
 		}
 		return next && typeof next.then === "function" ? undefined : next;
@@ -357,6 +362,7 @@ class Reactive {
 		this.selections = undefined;
 		this._selectionCache = new Map();
 		this._normalizer = undefined;
+		this._pendingPath = undefined;
 	}
 
 	get label() {
@@ -617,7 +623,13 @@ class Selected extends Reactive {
 		const current = this.value;
 		this.previous = current;
 		this.value = value;
-		this.isPending = !!(value && typeof value.then === "function");
+		const pendingPath = this.parent?._pendingPath;
+		this.isPending = !!(
+			this.parent?.isPending &&
+			(pendingPath === Nothing ||
+				hasPathPrefix(this.path, pendingPath) ||
+				hasPathPrefix(pendingPath, this.path))
+		);
 		this.revision++;
 		let publishedPath = Nothing;
 		let publishedValue = value;
@@ -647,6 +659,12 @@ class Selected extends Reactive {
 			path ? [...this.path, ...path] : this.path,
 			force,
 		);
+	}
+
+	// Clears the selected value by setting it to `undefined`.
+	clear(path = Nothing, force = false) {
+		path = pathify(path, Nothing);
+		return this.parent.clear(path ? [...this.path, ...path] : this.path, force);
 	}
 
 	// Merges `value` into current selected value at optional `path`.
@@ -691,6 +709,9 @@ class Selected extends Reactive {
 // A reactive container for a single value. Notifies subscribers on change.
 // Supports nested property updates via `set(value, path)`.
 //
+// Attributes:
+// - `pending`: string - pending value mode (`"keep"` or `"clear"`)
+//
 // Example:
 // ```javascript
 // const c = cell({ count: 0 })
@@ -699,9 +720,11 @@ class Selected extends Reactive {
 // ```
 
 class Cell extends Reactive {
-	constructor(value = Nothing) {
+	constructor(value = Nothing, pending = "keep") {
 		super();
 		this._promiseToken = 0;
+		this.pending = pending === "clear" ? "clear" : "keep";
+		this._pendingPrevious = undefined;
 		if (value !== Nothing) {
 			this._update(value, Nothing, true);
 		}
@@ -733,20 +756,49 @@ class Cell extends Reactive {
 			path && value && typeof value.then === "function" ? value : updated;
 		const token = ++this._promiseToken;
 		this.previous = this.value;
-		this.value = updated;
-		this.isPending = !!(pending && typeof pending.then === "function");
+		this._pendingPath = undefined;
+		if (pending && typeof pending.then === "function") {
+			this.isPending = true;
+			this._pendingPath = path;
+			this._pendingPrevious = this.value;
+			if (this.pending === "clear") {
+				this.value = path ? assigned(this.value, path, undefined) : undefined;
+			}
+		} else {
+			this.value = updated;
+			this.isPending = false;
+			this._pendingPrevious = undefined;
+		}
 		this.revision++;
 		this._refreshSelections(path, current);
-		this.pub(value, path, this, current);
+		this.pub(
+			pending && typeof pending.then === "function"
+				? this.pending === "clear"
+					? undefined
+					: this.value
+				: value,
+			path,
+			this,
+			current,
+		);
 		if (pending && typeof pending.then === "function") {
 			pending.then(
 				(resolved) => {
 					if (token !== this._promiseToken) {
 						return;
 					}
-					const previous = path ? access(this.value, path) : this.value;
+					const previous =
+						this.pending === "clear"
+							? path
+								? access(this._pendingPrevious, path)
+								: this._pendingPrevious
+							: path
+								? access(this.value, path)
+								: this.value;
 					this.previous = this.value;
 					this.value = path ? assigned(this.value, path, resolved) : resolved;
+					this._pendingPath = undefined;
+					this._pendingPrevious = undefined;
 					this.isPending = false;
 					this.revision++;
 					this._refreshSelections(path, previous);
@@ -756,6 +808,8 @@ class Cell extends Reactive {
 					if (token !== this._promiseToken) {
 						return;
 					}
+					this._pendingPath = undefined;
+					this._pendingPrevious = undefined;
 					this.isPending = false;
 					log.error("Cell._update: cell promise rejected, details", {
 						cell: this.label,
@@ -785,6 +839,12 @@ class Cell extends Reactive {
 	set(value, path = Nothing, force = false) {
 		// TODO: Should detect a change
 		this._update(value, path, force);
+		return this;
+	}
+
+	// Clears value (at optional `path`) by setting it to `undefined`.
+	clear(path = Nothing, force = false) {
+		this._update(undefined, path, force);
 		return this;
 	}
 
@@ -875,23 +935,28 @@ class Deferred extends Cell {
 // - `processor`: function? - transforms expanded template values
 // - `reactors`: Array<function> - internal subscription handlers
 // - `expanded`: any - current expanded (non-reactive) template values
+// - `pending`: string - pending value mode (`"keep"` or `"clear"`)
 class Derivation extends Reactive {
 	constructor(
 		template,
 		processor = undefined,
 		initial = true,
 		updateStrategy = "join",
+		pending = "keep",
 	) {
 		super();
 		this.template = template;
 		this.processor = processor;
 		this.updateStrategy = Derivation.UpdateStrategy(updateStrategy);
+		this.pending = pending === "clear" ? "clear" : "keep";
 		this.reactors = [];
 		this.sources = [];
 		this.acquired = [];
 		this.isBound = false;
 		this.expanded = Reactive.Expand(template);
 		this._promiseToken = 0;
+		this._pendingPath = undefined;
+		this._pendingPrevious = undefined;
 		this.revision = initial ? 0 : -1;
 		if (initial) {
 			if (
@@ -962,20 +1027,34 @@ class Derivation extends Reactive {
 
 	_apply(value, publish = true) {
 		const token = ++this._promiseToken;
+		this.previous = this.value;
 		const isPromise = !!(value && typeof value.then === "function");
 		if (isPromise) {
 			this.isPending = true;
+			this._pendingPath = Nothing;
+			this._pendingPrevious = this.value;
+			if (this.pending === "clear") {
+				this.value = undefined;
+			}
 			if (publish) {
 				this.revision++;
-				this.pub(value, Nothing, this, this.value);
+				this.pub(
+					this.pending === "clear" ? undefined : this.value,
+					Nothing,
+					this,
+					this.previous,
+				);
 			}
 			value.then(
 				(resolved) => {
 					if (token !== this._promiseToken) {
 						return;
 					}
-					this.previous = this.value;
+					this.previous =
+						this.pending === "clear" ? this._pendingPrevious : this.value;
 					this.value = resolved;
+					this._pendingPath = undefined;
+					this._pendingPrevious = undefined;
 					this.isPending = false;
 					this.revision++;
 					this.pub(resolved, Nothing, this, this.previous);
@@ -984,6 +1063,8 @@ class Derivation extends Reactive {
 					if (token !== this._promiseToken) {
 						return;
 					}
+					this._pendingPath = undefined;
+					this._pendingPrevious = undefined;
 					this.isPending = false;
 					log.error("Derivation._apply: derived promise rejected, details", {
 						cell: this.label,
@@ -1010,6 +1091,8 @@ class Derivation extends Reactive {
 		}
 		this.previous = this.value;
 		this.value = value;
+		this._pendingPath = undefined;
+		this._pendingPrevious = undefined;
 		this.isPending = false;
 		if (publish) {
 			this.revision++;
@@ -1139,17 +1222,26 @@ class Derivation extends Reactive {
 	}
 }
 
+// Class: Switched
+// A reactive value that follows a dynamic target reactive selected by inputs.
+//
+// Attributes:
+// - `inputs`: any - input template used to resolve the current target
+// - `resolver`: function? - turns expanded inputs into a target reactive/value
+// - `pending`: string - pending value mode (`"keep"` or `"clear"`)
 class Switched extends Reactive {
 	constructor(
 		inputs,
 		resolver = undefined,
 		initial = true,
 		updateStrategy = "join",
+		pending = "keep",
 	) {
 		super();
 		this.inputs = inputs;
 		this.resolver = resolver;
 		this.updateStrategy = Derivation.UpdateStrategy(updateStrategy);
+		this.pending = pending === "clear" ? "clear" : "keep";
 		this.reactors = [];
 		this.sources = [];
 		this.acquired = [];
@@ -1159,6 +1251,8 @@ class Switched extends Reactive {
 		this.targetReactor = undefined;
 		this.fallback = new Cell();
 		this._promiseToken = 0;
+		this._pendingPath = undefined;
+		this._pendingPrevious = undefined;
 		this.revision = initial ? 0 : -1;
 		if (initial) {
 			if (
@@ -1202,7 +1296,9 @@ class Switched extends Reactive {
 		const nextPath = this.target instanceof Selected ? Nothing : path;
 		this.previous = this.value;
 		this.value = this.target?.value;
-		this.isPending = !!(this.value && typeof this.value.then === "function");
+		this._pendingPath = this.target?._pendingPath;
+		this._pendingPrevious = this.target?._pendingPrevious;
+		this.isPending = !!this.target?.isPending;
 		this.revision++;
 		refreshSelections(this, nextPath, previous);
 		this.pub(value, nextPath, origin, previous);
@@ -1225,7 +1321,7 @@ class Switched extends Reactive {
 		this.targetReactor = undefined;
 	}
 
-	_attachTarget(target, publish = true) {
+	_attachTarget(target, publish = true, previous = undefined) {
 		const active = isReactiveSource(target) ? target : this.fallback;
 		if (active === this.fallback) {
 			this.fallback.set(target, Nothing, true);
@@ -1236,9 +1332,16 @@ class Switched extends Reactive {
 		};
 		this.targetReactor = reactor;
 		active.sub(reactor);
-		this.previous = this.value;
+		this.previous =
+			previous !== undefined
+				? previous
+				: this.isPending && this.pending === "clear"
+					? this._pendingPrevious
+					: this.value;
 		this.value = active.value;
-		this.isPending = !!(this.value && typeof this.value.then === "function");
+		this._pendingPath = active._pendingPath;
+		this._pendingPrevious = active._pendingPrevious;
+		this.isPending = !!active.isPending;
 		if (publish) {
 			this.revision++;
 			refreshSelections(this, Nothing);
@@ -1246,25 +1349,38 @@ class Switched extends Reactive {
 		}
 	}
 
-	_switch(next, publish = true) {
+	_switch(next, publish = true, previous = undefined) {
 		const token = ++this._promiseToken;
 		if (next && typeof next.then === "function") {
+			this.previous = this.value;
 			this.isPending = true;
+			this._pendingPath = Nothing;
+			this._pendingPrevious = this.value;
+			if (this.pending === "clear") {
+				this.value = undefined;
+			}
 			if (publish) {
 				this.revision++;
-				this.pub(next, Nothing, this, this.value);
+				this.pub(
+					this.pending === "clear" ? undefined : this.value,
+					Nothing,
+					this,
+					this.previous,
+				);
 			}
 			next.then(
 				(resolved) => {
 					if (token !== this._promiseToken) {
 						return;
 					}
-					this._switch(resolved, publish);
+					this._switch(resolved, publish, this._pendingPrevious);
 				},
 				(error) => {
 					if (token !== this._promiseToken) {
 						return;
 					}
+					this._pendingPath = undefined;
+					this._pendingPrevious = undefined;
 					this.isPending = false;
 					log.error("Switched._switch: switched promise rejected, details", {
 						cell: this.label,
@@ -1290,7 +1406,7 @@ class Switched extends Reactive {
 		}
 		this._detachTarget();
 		this.isPending = false;
-		this._attachTarget(next, publish);
+		this._attachTarget(next, publish, previous);
 	}
 
 	_recompute(force = false) {
@@ -1461,6 +1577,7 @@ class Switched extends Reactive {
 //
 // Parameters:
 // - `value`: any - initial cell value
+// - `pending`: string|object? - pending mode or `{ pending }` options object
 //
 // Returns: Cell
 //
@@ -1471,8 +1588,11 @@ class Switched extends Reactive {
 // c.set(100)  // Logs: 100
 // ```
 
-function cell(value) {
-	return new Cell(value);
+function cell(value, pending = "keep") {
+	return new Cell(
+		value,
+		typeof pending === "object" ? pending.pending : pending,
+	);
 }
 
 // Function: cells
@@ -1519,6 +1639,8 @@ function deferred(value, delay) {
 // - `template`: any - source shape (cell, list of cells, or map of cells)
 // - `processor`: function? - transforms unwrapped expanded shape passed as one argument
 // - `initial`: boolean? - compute initial value immediately (default true)
+// - `strategy`: string? - async update strategy (`"join"`, `"immediate"`, `"incremental"`)
+// - `pending`: string? - pending value mode (`"keep"` or `"clear"`)
 //
 // Returns: Derivation
 //
@@ -1531,20 +1653,28 @@ function deferred(value, delay) {
 // a.set(5)  // Logs: "Sum: 7"
 // ```
 
-function derived(template, processor, initial, strategy) {
-	const { shouldInitialize, updateStrategy } = parseReactiveOptions(
-		initial,
-		strategy,
+function derived(template, processor, initial, strategy, pending) {
+	const { shouldInitialize, updateStrategy, pendingStrategy } =
+		parseReactiveOptions(initial, strategy, pending);
+	return new Derivation(
+		template,
+		processor,
+		shouldInitialize,
+		updateStrategy,
+		pendingStrategy,
 	);
-	return new Derivation(template, processor, shouldInitialize, updateStrategy);
 }
 
-function switched(inputs, resolver, initial, strategy) {
-	const { shouldInitialize, updateStrategy } = parseReactiveOptions(
-		initial,
-		strategy,
+function switched(inputs, resolver, initial, strategy, pending) {
+	const { shouldInitialize, updateStrategy, pendingStrategy } =
+		parseReactiveOptions(initial, strategy, pending);
+	return new Switched(
+		inputs,
+		resolver,
+		shouldInitialize,
+		updateStrategy,
+		pendingStrategy,
 	);
-	return new Switched(inputs, resolver, shouldInitialize, updateStrategy);
 }
 
 function selected(parent, path) {
@@ -1655,8 +1785,8 @@ export {
 	expand,
 	Reactive,
 	Selected,
-	selected,
 	Switched,
+	selected,
 	switched,
 	unwrap,
 	walk,

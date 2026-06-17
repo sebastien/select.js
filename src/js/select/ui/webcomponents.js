@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-05-15
-// Updated: 2026-06-02
+// Updated: 2026-06-18
 
 // Module: select/ui/webcomponents
 // Web component bridge for UI templates and pure render functions.
@@ -34,6 +34,7 @@ const documentStyleSheetCache = new WeakMap();
 const documentStyleSubscribers = new WeakMap();
 const documentStyleObservers = new WeakMap();
 const documentStyleSyncTasks = new WeakMap();
+const documentStyleHeadHooks = new WeakMap();
 const OPTIONS = {
 	shadow: true, // Shadow DOM by default
 	mode: "open", // Open Shadow DOM by default
@@ -81,6 +82,77 @@ function hashText(value) {
 	return hash;
 }
 
+function scheduleDocumentStyleSync(doc) {
+	if (!doc || documentStyleSyncTasks.has(doc)) {
+		return;
+	}
+	const task = setTimeout(() => {
+		documentStyleSyncTasks.delete(doc);
+		documentStyleSheetCache.delete(doc);
+		const styles = getDocumentStyles(doc);
+		for (const subscriber of documentStyleSubscribers.get(doc) || []) {
+			subscriber._syncDocumentStyles?.(styles);
+		}
+	}, 0);
+	documentStyleSyncTasks.set(doc, task);
+}
+
+function hookDocumentHead(doc) {
+	const head = doc?.head;
+	if (!head || documentStyleHeadHooks.has(doc)) {
+		return;
+	}
+	const originalAppendChild = head.appendChild;
+	const originalInsertBefore = head.insertBefore;
+	const originalReplaceChild = head.replaceChild;
+	const originalRemoveChild = head.removeChild;
+	const scheduleIfNeeded = (node) => {
+		if (isStyleSheetNode(node)) {
+			scheduleDocumentStyleSync(doc);
+		}
+	};
+	head.appendChild = function appendChild(node) {
+		const result = originalAppendChild.call(this, node);
+		scheduleIfNeeded(node);
+		return result;
+	};
+	head.insertBefore = function insertBefore(node, referenceNode) {
+		const result = originalInsertBefore.call(this, node, referenceNode);
+		scheduleIfNeeded(node);
+		return result;
+	};
+	head.replaceChild = function replaceChild(node, referenceNode) {
+		const result = originalReplaceChild.call(this, node, referenceNode);
+		scheduleIfNeeded(node);
+		scheduleIfNeeded(referenceNode);
+		return result;
+	};
+	head.removeChild = function removeChild(node) {
+		const result = originalRemoveChild.call(this, node);
+		scheduleIfNeeded(node);
+		return result;
+	};
+	documentStyleHeadHooks.set(doc, {
+		head,
+		appendChild: originalAppendChild,
+		insertBefore: originalInsertBefore,
+		replaceChild: originalReplaceChild,
+		removeChild: originalRemoveChild,
+	});
+}
+
+function unhookDocumentHead(doc) {
+	const hooks = documentStyleHeadHooks.get(doc);
+	if (!hooks) {
+		return;
+	}
+	hooks.head.appendChild = hooks.appendChild;
+	hooks.head.insertBefore = hooks.insertBefore;
+	hooks.head.replaceChild = hooks.replaceChild;
+	hooks.head.removeChild = hooks.removeChild;
+	documentStyleHeadHooks.delete(doc);
+}
+
 function getDocumentStylesSignature(doc) {
 	if (!doc?.head?.querySelectorAll) {
 		return "";
@@ -107,6 +179,7 @@ function watchDocumentStyles(doc, component) {
 	if (!doc?.head || typeof MutationObserver !== "function") {
 		return;
 	}
+	hookDocumentHead(doc);
 	let subscribers = documentStyleSubscribers.get(doc);
 	if (!subscribers) {
 		subscribers = new Set();
@@ -120,18 +193,7 @@ function watchDocumentStyles(doc, component) {
 		if (!mutations.some(isStyleSheetMutation)) {
 			return;
 		}
-		if (documentStyleSyncTasks.has(doc)) {
-			return;
-		}
-		const task = setTimeout(() => {
-			documentStyleSyncTasks.delete(doc);
-			documentStyleSheetCache.delete(doc);
-			const styles = getDocumentStyles(doc);
-			for (const subscriber of documentStyleSubscribers.get(doc) || []) {
-				subscriber._syncDocumentStyles?.(styles);
-			}
-		}, 0);
-		documentStyleSyncTasks.set(doc, task);
+		scheduleDocumentStyleSync(doc);
 	});
 	observer.observe(doc.head, {
 		childList: true,
@@ -160,6 +222,7 @@ function unwatchDocumentStyles(doc, component) {
 	const observer = documentStyleObservers.get(doc);
 	observer?.disconnect();
 	documentStyleObservers.delete(doc);
+	unhookDocumentHead(doc);
 }
 
 function parseAttributeValue(value) {
@@ -631,6 +694,7 @@ class UIWebComponent extends BaseHTMLElement {
 	}
 
 	connectedCallback() {
+		watchDocumentStyles(document, this)
 		this._syncDocumentStyles();
 		if (!this.isInitialized) {
 			this.attributeData = this.readAttributes();

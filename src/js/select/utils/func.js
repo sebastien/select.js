@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
-// Updated: 2026-06-02
+// Updated: 2026-06-14
 
 // Module: select/utils/func
 // Function composition, defaults, and memoization helpers.

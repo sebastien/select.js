@@ -1,8 +1,8 @@
 // Project: Select.js
 // Author:  Sebastien Pierre
 // License: BSD-3
-// Created: 2026-06-12
-// Updated: 2026-06-12
+// Created: 2026-06-13
+// Updated: 2026-06-13
 
 // Module: select/utils/dates
 // Date arithmetic helpers using a linear millisecond encoding and a mixed

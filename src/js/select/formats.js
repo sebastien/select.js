@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-05-15
-// Updated: 2026-06-02
+// Updated: 2026-06-18
 
 // Module: select/formats
 // String case format helpers shared across modules.
@@ -12,6 +12,7 @@ import { MS_PER_DAY, numdate } from "./utils/dates.js";
 import { hi as htmlHi } from "./utils/html.js";
 import { bool, entries, idem, len, type } from "./utils.js";
 
+const NA = "―";
 const DEFAULTS = {
 	MONTH_NAMES: [
 		"January",
@@ -88,6 +89,18 @@ function attr(value) {
 
 function not(value) {
 	return !bool(value);
+}
+
+function defined(value) {
+	return value !== undefined;
+}
+
+function yesno(value) {
+	return value === undefined || value === null
+		? NA
+		: bool(value)
+			? "yes"
+			: "no";
 }
 
 function item(value, index) {
@@ -401,28 +414,29 @@ function debug(value, scope) {
 }
 
 const FORMATS = {
-	ago,
 	active,
+	ago,
 	asDate,
 	attr,
 	bool,
 	count,
 	currency,
 	date,
+	datetime,
 	day,
 	dayname,
-	datetime,
 	debug,
+	defined,
 	duration,
 	empty,
 	entries,
-	html,
+	head,
 	hi,
+	html,
 	idem,
 	index,
 	item,
 	json,
-	head,
 	len,
 	localtime,
 	month,
@@ -438,6 +452,7 @@ const FORMATS = {
 	toKebabCase,
 	type,
 	unwrap: unwrapped,
+	yesno,
 };
 
 function format(name, ...value) {
@@ -463,26 +478,30 @@ function format(name, ...value) {
 
 export {
 	DEFAULTS,
-	ago,
+	FORMATS,
+	NA,
 	active,
+	ago,
 	asDate,
 	attr,
 	bool,
 	count,
 	currency,
-	day,
 	date,
 	datetime,
+	day,
 	debug,
+	defined,
 	duration,
 	empty,
 	entries,
-	FORMATS,
 	format,
-	html,
+	head,
 	hi,
+	html,
 	idem,
 	index,
+	item,
 	json,
 	len,
 	localtime,
@@ -494,12 +513,11 @@ export {
 	text,
 	time,
 	timetuple,
-	item,
-	head,
 	toCamelCase,
 	toKebabCase,
 	type,
 	unwrapped as unwrap,
+	yesno,
 };
 
 // EOF

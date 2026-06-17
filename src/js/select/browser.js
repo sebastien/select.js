@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-05-07
-// Updated: 2026-06-02
+// Updated: 2026-06-18
 
 // Module: select/browser
 // Browser-backed reactive state for URL and local storage. The browser API
@@ -20,9 +20,17 @@ import {
 	path as pathify,
 	sanitize,
 } from "./utils.js";
-import { hash, HashFormat, looksLikeHashText, query, RecordFormat } from "./utils/hashfmt.js";
+import {
+	HashFormat,
+	hash,
+	looksLikeHashText,
+	query,
+	RecordFormat,
+} from "./utils/hashfmt.js";
 
 const log = logger("select.browser");
+const OPTIONS_SINGLETON = "OPTIONS";
+const OPTION_SOURCES = new Map();
 
 class PathFormat {
 	constructor(warn) {
@@ -122,7 +130,7 @@ const record = {
 };
 
 const RE_NUMBER_TEXT = /^-?(?:\d+|\d+\.\d+)$/;
-const RE_VALUE_REFERENCE = /^([@?#])([^.?#:]+)(?:\.(.+))?$/;
+const RE_VALUE_REFERENCE = /^([@?#*])([^.?#*:]+)(?:\.(.+))?$/;
 const RE_REQUEST_REFERENCE = /^([A-Z]+):([^?#]*)(\?[^#]*)?(?:#(.*))?$/;
 
 const JSONSerializer = {
@@ -267,7 +275,8 @@ class LocationState {
 			{
 				mode: this.mode,
 				merge: true,
-				normalize: (value) => Array.isArray(value) ? value : this.hashFormat.sanitizeRecord(value),
+				normalize: (value) =>
+					Array.isArray(value) ? value : this.hashFormat.sanitizeRecord(value),
 				writer: (_value, settings) => this.writeURL(settings.mode),
 			},
 		);
@@ -378,28 +387,121 @@ class LocalStorageCell extends Cell {
 	}
 }
 
+function isOptionSource(value) {
+	return typeof value === "string" && value.length > 0;
+}
+
+function isEmptyOptionValue(value) {
+	if (value === undefined || value === null) return true;
+	if (Array.isArray(value)) return value.length === 0;
+	return isObject(value) ? Object.keys(value).length === 0 : false;
+}
+
+function defineGlobalOptionSource(source, preset = undefined) {
+	const existing = Object.getOwnPropertyDescriptor(globalThis, source);
+	let raw = existing
+		? existing.get
+			? existing.get.call(globalThis)
+			: existing.value
+		: preset;
+	if (raw === undefined) {
+		raw = preset;
+	}
+	if (raw === undefined) {
+		raw = {};
+	}
+	const cell = new LocalStorageCell(source, raw, {
+		merge: true,
+		normalizer: sanitize,
+		writer: (value) => {
+			raw = value;
+		},
+	});
+	const store = {
+		source,
+		cell,
+		get value() {
+			return raw;
+		},
+		sync(next) {
+			raw = next === undefined ? {} : next;
+			if (!eq(cell.value, raw)) {
+				cell.sync(raw);
+			}
+		},
+		install() {
+			try {
+				Object.defineProperty(globalThis, source, {
+					configurable: true,
+					enumerable: true,
+					get() {
+						return raw;
+					},
+					set(next) {
+						store.sync(next);
+					},
+				});
+			} catch (error) {
+				log.warn("select.browser: failed to install global options source", {
+					source,
+					error,
+				});
+			}
+		},
+	};
+	store.install();
+	cell.sync(raw);
+	return store;
+}
+
+function getGlobalOptionSource(source = OPTIONS_SINGLETON, preset = undefined) {
+	const key = isOptionSource(source) ? source : OPTIONS_SINGLETON;
+	let store = OPTION_SOURCES.get(key);
+	if (!store) {
+		store = defineGlobalOptionSource(key, preset);
+		OPTION_SOURCES.set(key, store);
+	} else {
+		store.install();
+		if (preset !== undefined && isEmptyOptionValue(store.cell.value)) {
+			store.sync(sanitize(preset));
+		}
+	}
+	return store;
+}
+
 // Function: selectable
 // Wraps a cell into a callable function that doubles as a key-based selector.
 // When called with no arguments, returns the underlying cell.
 // When called with a key (and optional subpath), returns `cell.select(...)`.
 // All property access and methods are forwarded to the cell via Proxy.
-function selectable(cell) {
+function selectable(target, methods = {}) {
+	const getCell = typeof target === "function" ? target : () => target;
 	const fn = (key, path) => {
-		if (key === undefined || key === null) return cell
-		const keyPath = Array.isArray(key) ? key : [key]
-		if (path === undefined) return cell.select(keyPath)
-		const extraPath = Array.isArray(path) ? path : `${path}`.split(".")
-		return cell.select([...keyPath, ...extraPath])
-	}
+		const cell = getCell();
+		if (!cell || key === undefined || key === null) return cell;
+		const keyPath = Array.isArray(key) ? key : [key];
+		if (path === undefined) return cell.select(keyPath);
+		const extraPath = Array.isArray(path) ? path : `${path}`.split(".");
+		return cell.select([...keyPath, ...extraPath]);
+	};
+	Object.assign(fn, methods);
 	return new Proxy(fn, {
 		get(_, p) {
-			if (p in fn) return fn[p]
-			const v = Reflect.get(cell, p)
-			return typeof v === "function" ? v.bind(cell) : v
+			if (p in fn) return fn[p];
+			const cell = getCell();
+			if (!cell) return undefined;
+			const v = Reflect.get(cell, p);
+			return typeof v === "function" ? v.bind(cell) : v;
 		},
-		set(_, p, v) { return Reflect.set(cell, p, v) },
-		has(_, p) { return p in fn || p in cell },
-	})
+		set(_, p, v) {
+			const cell = getCell();
+			return cell ? Reflect.set(cell, p, v) : false;
+		},
+		has(_, p) {
+			const cell = getCell();
+			return p in fn || (!!cell && p in cell);
+		},
+	});
 }
 
 // Class: Browser
@@ -434,9 +536,27 @@ class Browser {
 				: JSONSerializer;
 		this.locals = new Map();
 		this.internals = new Map();
+		this._optionSource = undefined;
+		this._optionStore = undefined;
 		this.path = this.location.path;
 		this.query = selectable(this.location.query);
 		this.hash = selectable(this.location.hash);
+		this.option = selectable(
+			() => this._optionStore?.cell,
+			{
+				source: (source, preset = undefined) => {
+					this.setOptionSource(source, preset);
+					return this.option;
+				},
+			},
+		);
+		const optionSource = isOptionSource(options.options)
+			? options.options
+			: OPTIONS_SINGLETON;
+		const optionPreset = isOptionSource(options.options)
+			? undefined
+			: options.options;
+		this.setOptionSource(optionSource, optionPreset);
 
 		this.local = this.local.bind(this);
 		this.internal = this.internal.bind(this);
@@ -446,6 +566,15 @@ class Browser {
 		this.fetch = this.fetch.bind(this);
 
 		this.bind();
+	}
+
+	setOptionSource(source = OPTIONS_SINGLETON, preset = undefined) {
+		const nextSource = isOptionSource(source) ? source : OPTIONS_SINGLETON;
+		const nextPreset =
+			isObject(preset) || Array.isArray(preset) ? sanitize(preset) : preset;
+		this._optionStore = getGlobalOptionSource(nextSource, nextPreset);
+		this._optionSource = nextSource;
+		return this.option;
 	}
 
 	bind() {
@@ -562,7 +691,7 @@ class Browser {
 	parseReference(value) {
 		if (typeof value === "string" && value.includes(":")) {
 			const type = value[0];
-			if (type === "@" || type === "#" || type === "?") {
+			if (type === "@" || type === "#" || type === "?" || type === "*") {
 				const separator = value.indexOf(":");
 				if (separator <= 1) return null;
 				const name = value.substring(1, separator);
@@ -572,7 +701,9 @@ class Browser {
 						? this.internal(name)
 						: type === "#"
 							? this.hash.select([name])
-							: this.query.select([name]);
+							: type === "?"
+								? this.query.select([name])
+								: this.option(name);
 				return path?.length ? root.select(path) : root;
 			}
 		}
@@ -583,6 +714,9 @@ class Browser {
 		if (type === "@") {
 			const cell = this.internal(name);
 			return path?.length ? cell.select(path) : cell;
+		}
+		if (type === "*") {
+			return path?.length ? this.option(name, path) : this.option(name);
 		}
 		const root = type === "#" ? this.hash : this.query;
 		return path?.length ? root.select([name, ...path]) : root.select([name]);
@@ -653,6 +787,21 @@ class Browser {
 	}
 
 	async fetch(input, options = undefined) {
+		const post =
+			typeof options === "function"
+				? options
+				: typeof options?.post === "function"
+					? options.post
+					: undefined;
+		const fetchOptions =
+			!options || typeof options === "function"
+				? undefined
+				: options.post !== undefined
+					? { ...options }
+					: options;
+		if (fetchOptions && fetchOptions.post !== undefined) {
+			delete fetchOptions.post;
+		}
 		const request = this.parseRequest(input);
 		const fetcher =
 			typeof globalThis.fetch === "function" ? globalThis.fetch : undefined;
@@ -660,15 +809,15 @@ class Browser {
 			throw new Error("browser.fetch: fetch is not available");
 		}
 		if (!request) {
-			const response = await fetcher.call(globalThis, input, options);
+			const response = await fetcher.call(globalThis, input, fetchOptions);
 			if (!response.ok) {
 				this.failResponse(response);
 			}
-			return this.parseResponse(response, options);
+			return this.parseResponse(response, post ? { ...fetchOptions, post } : fetchOptions);
 		}
-		const headers = new Headers(options?.headers || undefined);
+		const headers = new Headers(fetchOptions?.headers || undefined);
 		const init = {
-			...options,
+			...fetchOptions,
 			method: request.method,
 			headers,
 		};
@@ -682,7 +831,7 @@ class Browser {
 		if (!response.ok) {
 			this.failResponse(response);
 		}
-		return this.parseResponse(response, options);
+		return this.parseResponse(response, post ? { ...fetchOptions, post } : fetchOptions);
 	}
 }
 

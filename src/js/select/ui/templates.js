@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-05-15
-// Updated: 2026-06-02
+// Updated: 2026-06-18
 
 // Module: select/ui/templates
 // HTML template parsing, data path parsing, and DOM binding helpers.

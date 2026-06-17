@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
-// Updated: 2026-06-02
+// Updated: 2026-06-03
 
 // Module: select/utils/selection
 // Selection helpers for item lookup, membership, mutation, and circular

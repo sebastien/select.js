@@ -2,6 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-16
+// Updated: 2026-06-16
 
 // Module: select/interaction/drag
 // Drag interaction helpers.

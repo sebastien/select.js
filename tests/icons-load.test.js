@@ -1,7 +1,8 @@
 // Project: Select.js
 // Author:  Sebastien Pierre
 // License: BSD-3
-// Created: 2026-06-17
+// Created: 2026-06-18
+// Updated: 2026-06-18
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test"
 import { Window } from "happy-dom"

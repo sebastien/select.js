@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-05-07
-// Updated: 2026-06-02
+// Updated: 2026-06-15
 import * as dates from "./utils/dates.js"
 import sel from "./utils/selection.js"
 import search from "./utils/search.js"

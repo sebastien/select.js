@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-04-23
-// Updated: 2026-06-02
+// Updated: 2026-06-18
 
 // Module: select/icons
 // SVG icon registry and loader utilities.

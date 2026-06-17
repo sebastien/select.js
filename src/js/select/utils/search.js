@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-03
-// Updated: 2026-06-03
+// Updated: 2026-06-15
 
 // Module: select/utils/search
 // Predicate combinators and text-search helpers.
