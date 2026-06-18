@@ -200,7 +200,7 @@ describe("ui processor reactive handling", () => {
 		document.body.innerHTML = `
 			<div id="app"></div>
 			<template id="ProcessorEachPipelineRepro">
-				<div out="actions|*item|debug|Action"></div>
+				<div out="actions|*item|capture|Action"></div>
 			</template>
 			<template id="Action">
 				<span out="summary"></span>
@@ -208,10 +208,10 @@ describe("ui processor reactive handling", () => {
 		`;
 
 		const logs = [];
-		const originalLog = console.log;
-		console.log = (...args) => {
-			logs.push(args);
-		};
+		registerFormat(format, "capture", (value) => {
+			logs.push(value);
+			return value;
+		});
 
 		const Action = ui("#Action").does({
 			summary: (_self, data) =>
@@ -219,27 +219,23 @@ describe("ui processor reactive handling", () => {
 		});
 		registerFormat(format, "Action", Action);
 
-		try {
-			const instance = ui("ProcessorEachPipelineRepro")
-				.new()
-				.set({ actions: ["alpha", "beta"] })
-				.mount("#app");
+		const instance = ui("ProcessorEachPipelineRepro")
+			.new()
+			.set({ actions: ["alpha", "beta"] })
+			.mount("#app");
 
-			expect(
-				Array.from(document.querySelectorAll("#app span")).map((node) =>
-					(node.textContent || "").trim(),
-				),
-			).toEqual(["alpha:0", "beta:1"]);
-			expect(logs.length).toBe(2);
-			expect(logs[0][1].value.index).toBe(0);
-			expect(logs[1][1].value.index).toBe(1);
+		expect(
+			Array.from(document.querySelectorAll("#app span")).map((node) =>
+				(node.textContent || "").trim(),
+			),
+		).toEqual(["alpha:0", "beta:1"]);
+		expect(logs.length).toBe(2);
+		expect(logs[0].index).toBe(0);
+		expect(logs[1].index).toBe(1);
 
-			instance.unmount();
-		} finally {
-			console.log = originalLog;
-			document.body.innerHTML = "";
-			window.close?.();
-		}
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
 	});
 
 	test("reapplies starred component processors for cached behavior values", async () => {

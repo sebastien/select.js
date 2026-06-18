@@ -11,7 +11,7 @@ const getType = (value) =>
 
 const withPath = (path, key) => `${path}.${key}`
 
-const Item = ui(`<li class="pl-2"><span class="mono dim small" out="label"></span> <span out="value"></span></li>`).does({
+const Item = ui(`<li class="pl-2"><span class="mono dim small" out="label"></span> <span out-replace="value"></span></li>`).does({
 	label: (_self, { key }) => `${key}:`,
 	value: (_self, { value, path }) => InspectValue({ value, path }),
 })
@@ -46,34 +46,24 @@ const InspectScalar = ui(`<span out="text"></span>`).does({
 	text: (_self, { value }) => `${value}`,
 })
 
-const InspectBranch = ui(`<span out="value"></span>`).does({
-	value: (_self, { kind, value, path }) => {
-		switch (kind) {
-			case "object":
-			case "map":
-				return InspectDict({ value, path })
-			case "array":
-				return InspectList({ value, path })
-			default:
-				return InspectScalar({ value })
-		}
-	},
-})
-
 const InspectValue = ({ value, path = "$" }) => {
-	return InspectBranch({ kind: getType(value), value, path, $key: path })
+	switch (getType(value)) {
+		case "object":
+		case "map":
+			return InspectDict({ value, path, $key: path })
+		case "array":
+			return InspectList({ value, path, $key: path })
+		default:
+			return InspectScalar({ value, $key: path })
+	}
 }
 
-const InspectorRoot = ui(`<div out="content"></div>`).does({
-	content: (_self, { value }) => InspectValue({ value, path: "$" }),
-})
-
 export const createApp = async (root, initialValue) => {
-	const instance = InspectorRoot.new()
-	instance.set({ value: initialValue }).mount(root)
+	const instance = InspectDict.new()
+	instance.set({ value: initialValue, path: "$" }).mount(root)
 	return {
 		update(nextValue) {
-			instance.update({ value: nextValue })
+			instance.update({ value: nextValue, path: "$" })
 		},
 		dispose() {
 			instance.unmount()

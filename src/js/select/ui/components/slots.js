@@ -821,8 +821,18 @@ class UISlot {
 				classes.push(cls);
 			}
 			const styles = [];
-			for (const prop of this.node.style) {
-				styles.push([prop, this.node.style.getPropertyValue(prop)]);
+			const style = this.node.style;
+			if (style) {
+				if (typeof style[Symbol.iterator] === "function") {
+					for (const prop of style) {
+						styles.push([prop, style.getPropertyValue(prop)]);
+					}
+				} else {
+					for (let i = 0; i < style.length; i++) {
+						const prop = style[i];
+						styles.push([prop, style.getPropertyValue(prop)]);
+					}
+				}
 			}
 			this.replaceNodeMerge = { attrs, classes, styles };
 		}
@@ -1021,6 +1031,27 @@ class UISlot {
 			}
 		}
 		return fallbackKey;
+	}
+
+	_hasExplicitCollectionItemKey(item, fallbackKey) {
+		if (
+			item instanceof AppliedUITemplate &&
+			item.data &&
+			typeof item.data === "object"
+		) {
+			const keyed = item.data.$key;
+			return keyed !== undefined && keyed !== null && keyed !== fallbackKey;
+		}
+		return false;
+	}
+
+	_hasExplicitCollectionKeys(data) {
+		for (let i = 0; i < data.length; i++) {
+			if (this._hasExplicitCollectionItemKey(data[i], i)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	_firstMappedNode(value) {
@@ -1229,70 +1260,56 @@ class UISlot {
 
 		if (isList) {
 			const previousLength = this._listLength || 0;
-			if (this._listKeyMode === undefined) {
-				this._listKeyMode = "index";
+			const explicitKeys = this._hasExplicitCollectionKeys(data);
+			if (this._listKeyMode !== (explicitKeys ? "stable" : "index")) {
+				this._clearMapped();
+				previous = null;
 			}
-			if (
-				this._listKeyMode === "index" &&
-				previousLength > 0 &&
-				data.length !== previousLength
-			) {
-				this._listKeyMode = "stable";
-				const previousEntries = Array.from(this.mapping.entries());
-				this.mapping.clear();
-				for (let i = 0; i < previousEntries.length; i++) {
-					const [indexKey, mapped] = previousEntries[i];
-					const previousData = this._listItems?.[indexKey];
-					const stableKey = this._resolveCollectionItemKey(
-						previousData,
-						indexKey,
-					);
-					this.mapping.set(stableKey, mapped);
+			this._listKeyMode = explicitKeys ? "stable" : "index";
+			if (explicitKeys) {
+				const nextKeys = new Array(data.length);
+				for (let i = 0; i < data.length; i++) {
+					const item = data[i];
+					const key = this._resolveCollectionItemKey(item, i);
+					nextKeys[i] = key;
+					previous = this._renderMapped(key, item, previous);
 				}
-				if (this._listKeys) {
-					for (let i = 0; i < this._listKeys.length; i++) {
-						const previousIndex = this._listKeys[i];
-						const previousData = this._listItems?.[previousIndex];
-						this._listKeys[i] = this._resolveCollectionItemKey(
-							previousData,
-							previousIndex,
-						);
+				const previousKeys = this._listKeys;
+				if (previousKeys) {
+					const nextKeySet = new Set(nextKeys);
+					for (let i = 0; i < previousKeys.length; i++) {
+						const key = previousKeys[i];
+						if (nextKeySet.has(key)) {
+							continue;
+						}
+						const v = this.mapping.get(key);
+						if (v !== undefined) {
+							this._removeMappedValue(v);
+							this.mapping.delete(key);
+						}
 					}
 				}
-			}
-			const nextKeys = new Array(data.length);
-			const stableKeys = this._listKeyMode === "stable";
-			for (let i = 0; i < data.length; i++) {
-				const item = data[i];
-				const key = stableKeys ? this._resolveCollectionItemKey(item, i) : i;
-				nextKeys[i] = key;
-				previous = this._renderMapped(key, item, previous);
-			}
-			const previousKeys = this._listKeys;
-			if (previousKeys) {
-				const nextKeySet = new Set(nextKeys);
-				for (let i = 0; i < previousKeys.length; i++) {
-					const key = previousKeys[i];
-					if (nextKeySet.has(key)) {
-						continue;
-					}
-					const v = this.mapping.get(key);
-					if (v !== undefined) {
-						this._removeMappedValue(v);
-						this.mapping.delete(key);
-					}
-				}
+				this._listKeys = nextKeys;
 			} else {
-				const previousLength = this._listLength || 0;
-				for (let i = data.length; i < previousLength; i++) {
+				const nextKeys = new Array(data.length);
+				const commonLength = Math.min(data.length, previousLength);
+				for (let i = 0; i < commonLength; i++) {
+					nextKeys[i] = i;
+					previous = this._renderMapped(i, data[i], previous);
+				}
+				for (let i = previousLength - 1; i >= data.length; i--) {
 					const v = this.mapping.get(i);
 					if (v !== undefined) {
 						this._removeMappedValue(v);
 						this.mapping.delete(i);
 					}
 				}
+				for (let i = previousLength; i < data.length; i++) {
+					nextKeys[i] = i;
+					previous = this._renderMapped(i, data[i], previous);
+				}
+				this._listKeys = nextKeys;
 			}
-			this._listKeys = nextKeys;
 			this._listLength = data.length;
 			this._listItems = data;
 		} else if (isDict) {
