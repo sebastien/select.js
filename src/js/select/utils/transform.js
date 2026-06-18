@@ -184,6 +184,9 @@ function hasKey(value, key) {
 // Function: map
 // Maps collection values while preserving array, object, map, and set shape.
 function map(value, func = undefined) {
+	if (value === null || value === undefined) {
+		return value;
+	}
 	func = typeof func !== "function" ? () => func : func;
 	if (
 		value === null ||
@@ -395,6 +398,9 @@ function unique(values, extractorFunc) {
 // Function: filter
 // Filters `values` using resolved predicate semantics while preserving shape.
 function filter(values, predicateOrExtractor) {
+	if (values === null || values === undefined) {
+		return values;
+	}
 	const pred = predicate(predicateOrExtractor);
 	if (
 		values === null ||

@@ -12,7 +12,7 @@ let datetime
 let month
 let format
 let timetuple
-let datenum
+let fromTimestamp
 
 function setupGlobals(win) {
 	win.SyntaxError = SyntaxError
@@ -35,7 +35,7 @@ function setupGlobals(win) {
 	window = new Window({ url: "http://localhost:8000/formats" })
 	setupGlobals(window)
 	;({ html, hi, asDate, date, day, time, datetime, month, format, timetuple } = await import("../src/js/select/formats.js"))
-	;({ datenum } = await import("../src/js/select/utils/dates.js"))
+	;({ fromTimestamp } = await import("../src/js/select/utils/dates.js"))
 })
 
 afterAll(() => {
@@ -87,14 +87,14 @@ describe("formats.html", () => {
 		expect(value.getSeconds()).toBe(9)
 	})
 
-	test("parses datenums from the dates module", () => {
-		const value = asDate(datenum(2026, 6, 11, 13, 45, 9))
-		expect(value.getFullYear()).toBe(2026)
-		expect(value.getMonth() + 1).toBe(6)
-		expect(value.getDate()).toBe(11)
-		expect(value.getHours()).toBe(13)
-		expect(value.getMinutes()).toBe(45)
-		expect(value.getSeconds()).toBe(9)
+	test("parses epoch timestamps in seconds", () => {
+		const value = asDate(1781185509)
+		expect(value.toISOString()).toBe("2026-06-11T13:45:09.000Z")
+	})
+
+	test("does not treat DateNum values as epoch timestamps", () => {
+		const value = asDate(fromTimestamp(1781185509))
+		expect(value.getUTCFullYear()).not.toBe(2026)
 	})
 
 	test("formats dates module values consistently", () => {
@@ -104,11 +104,11 @@ describe("formats.html", () => {
 		expect(day(tuple)).toBe("11")
 		expect(time(tuple)).toBe("13:45:09")
 		expect(datetime(tuple)).toBe("2026-06-11 13:45:09")
-		const value = timetuple(datenum(2026, 6, 11, 13, 45, 9))
+		const value = timetuple(1781185509)
 		expect(value).toBeInstanceOf(Date)
-		expect(value.getFullYear()).toBe(2026)
-		expect(value.getMonth() + 1).toBe(6)
-		expect(value.getDate()).toBe(11)
+		expect(value.getUTCFullYear()).toBe(2026)
+		expect(value.getUTCMonth() + 1).toBe(6)
+		expect(value.getUTCDate()).toBe(11)
 	})
 
 	test("supports month and day name formats", () => {

@@ -330,7 +330,7 @@ class HTTPClient {
 			response.status === 425 ||
 			response.status === 429 ||
 			response.status >= 500
-		)
+		);
 	}
 
 	async fetch(url, options = undefined) {
@@ -356,7 +356,10 @@ class HTTPClient {
 					return response;
 				}
 				error = await this.responseError(response);
-				if (!this.retryable(response) || !(await this.retry?.continues(error))) {
+				if (
+					!this.retryable(response) ||
+					!(await this.retry?.continues(error))
+				) {
 					return response;
 				}
 			} catch (caught) {

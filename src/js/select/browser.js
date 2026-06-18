@@ -11,6 +11,13 @@
 
 import { Cell, cell } from "./cells.js";
 import {
+	HashFormat,
+	hash,
+	looksLikeHashText,
+	query,
+	RecordFormat,
+} from "./utils/hashfmt.js";
+import {
 	access,
 	assigned,
 	eq,
@@ -20,13 +27,6 @@ import {
 	path as pathify,
 	sanitize,
 } from "./utils.js";
-import {
-	HashFormat,
-	hash,
-	looksLikeHashText,
-	query,
-	RecordFormat,
-} from "./utils/hashfmt.js";
 
 const log = logger("select.browser");
 const OPTIONS_SINGLETON = "OPTIONS";
@@ -541,15 +541,12 @@ class Browser {
 		this.path = this.location.path;
 		this.query = selectable(this.location.query);
 		this.hash = selectable(this.location.hash);
-		this.option = selectable(
-			() => this._optionStore?.cell,
-			{
-				source: (source, preset = undefined) => {
-					this.setOptionSource(source, preset);
-					return this.option;
-				},
+		this.option = selectable(() => this._optionStore?.cell, {
+			source: (source, preset = undefined) => {
+				this.setOptionSource(source, preset);
+				return this.option;
 			},
-		);
+		});
 		const optionSource = isOptionSource(options.options)
 			? options.options
 			: OPTIONS_SINGLETON;
@@ -759,12 +756,19 @@ class Browser {
 		let res;
 		if (contentType === "application/json" || contentType.endsWith("+json")) {
 			res = response.json();
+		} else if (contentType === "image/svg+xml") {
+			res = response
+				.text()
+				.then(
+					(text) =>
+						new DOMParser().parseFromString(text, "image/svg+xml")
+							.documentElement,
+				);
 		} else if (
 			contentType.startsWith("text/") ||
 			contentType === "application/xml" ||
 			contentType === "application/javascript" ||
-			contentType === "application/xhtml+xml" ||
-			contentType === "image/svg+xml"
+			contentType === "application/xhtml+xml"
 		) {
 			res = response.text();
 		} else {
@@ -813,7 +817,10 @@ class Browser {
 			if (!response.ok) {
 				this.failResponse(response);
 			}
-			return this.parseResponse(response, post ? { ...fetchOptions, post } : fetchOptions);
+			return this.parseResponse(
+				response,
+				post ? { ...fetchOptions, post } : fetchOptions,
+			);
 		}
 		const headers = new Headers(fetchOptions?.headers || undefined);
 		const init = {
@@ -831,7 +838,10 @@ class Browser {
 		if (!response.ok) {
 			this.failResponse(response);
 		}
-		return this.parseResponse(response, post ? { ...fetchOptions, post } : fetchOptions);
+		return this.parseResponse(
+			response,
+			post ? { ...fetchOptions, post } : fetchOptions,
+		);
 	}
 }
 

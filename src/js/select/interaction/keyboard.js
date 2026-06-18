@@ -10,11 +10,12 @@
 // Function: autoresize
 // Resizes a textarea-like `event.target` to fit its scroll height.
 function autoresize(event) {
-	const node = event.target
-	node.style.height = "auto"
-	const style = globalThis.window.getComputedStyle(node)
-	const border = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth)
-	node.style.height = `${border + node.scrollHeight}px`
+	const node = event.target;
+	node.style.height = "auto";
+	const style = globalThis.window.getComputedStyle(node);
+	const border =
+		parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+	node.style.height = `${border + node.scrollHeight}px`;
 }
 
 // Constant: Keyboard
@@ -48,27 +49,27 @@ const Keyboard = {
 		META_R: 92,
 	},
 	Key(event) {
-		return event ? (event.key ?? event.keyIdentifier ?? null) : null
+		return event ? (event.key ?? event.keyIdentifier ?? null) : null;
 	},
 	Code(event) {
-		return event ? (event.keyCode ?? null) : null
+		return event ? (event.keyCode ?? null) : null;
 	},
 	Char(event) {
-		const key = Keyboard.Key(event)
-		return !key ? null : key.length === 1 ? key : key === "Enter" ? "\n" : null
+		const key = Keyboard.Key(event);
+		return !key ? null : key.length === 1 ? key : key === "Enter" ? "\n" : null;
 	},
 	IsControl(event) {
-		const key = Keyboard.Key(event)
-		return !!(key && key.length > 1)
+		const key = Keyboard.Key(event);
+		return !!(key && key.length > 1);
 	},
 	HasModifier(event) {
-		return !!(event && (event.altKey || event.ctrlKey))
+		return !!(event && (event.altKey || event.ctrlKey));
 	},
-}
+};
 
-const keyboard = Keyboard
+const keyboard = Keyboard;
 
-export { keyboard, Keyboard, autoresize }
-export default keyboard
+export { autoresize, Keyboard, keyboard };
+export default keyboard;
 
 // EOF

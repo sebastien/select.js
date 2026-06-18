@@ -7,8 +7,8 @@
 // Module: select/utils/compare
 // Equality, length, and comparison helpers.
 
-import { extractor } from "./func.js"
-import { isObject } from "./values.js"
+import { extractor } from "./func.js";
+import { isObject } from "./values.js";
 
 // ----------------------------------------------------------------------------
 //
@@ -105,7 +105,7 @@ function eq(a, b, limit = undefined) {
 // Compares `a` and `b`, optionally after extractor projection.
 function cmp(a, b, extractorFunc) {
 	if (extractorFunc !== undefined && extractorFunc !== null) {
-		const ext = extractor(extractorFunc)
+		const ext = extractor(extractorFunc);
 		a = ext(a);
 		b = ext(b);
 	}

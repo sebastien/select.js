@@ -14,10 +14,15 @@
 //
 // ----------------------------------------------------------------------------
 
-export { AppliedUITemplate, UIEvent } from "./components/model.js";
-export { COMPONENTS, component, Dynamic, lazy, options } from "./components/registry.js";
 export { UIInstance } from "./components/instance.js";
-export { UITemplate } from "./components/template.js";
+export { AppliedUITemplate, UIEvent } from "./components/model.js";
+export {
+	COMPONENTS,
+	component,
+	Dynamic,
+	lazy,
+	options,
+} from "./components/registry.js";
 export {
 	UIAttributeSlot,
 	UIAttributeTemplateSlot,
@@ -27,5 +32,6 @@ export {
 	UISlot,
 	UITemplateSlot,
 } from "./components/slots.js";
+export { UITemplate } from "./components/template.js";
 
 // EOF

@@ -62,6 +62,7 @@ function lazy(loader, placeholder = null) {
 		return tmpl ? tmpl(data) : placeholder;
 	};
 }
+
 export { COMPONENTS, component, Dynamic, lazy, options };
 
 // EOF

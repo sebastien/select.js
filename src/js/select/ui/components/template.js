@@ -7,9 +7,9 @@
 // Module: select/ui/components/template
 // Reusable UI template class and template mapping helpers.
 
-import { AppliedUITemplate } from "./model.js";
-import { UIInstance } from "./instance.js";
 import { TemplateParser } from "../templates.js";
+import { UIInstance } from "./instance.js";
+import { AppliedUITemplate } from "./model.js";
 import { UITemplateSlot } from "./slots.js";
 
 function remapCollection(value, f) {
@@ -92,7 +92,10 @@ class UITemplate {
 		);
 		this.hasBindings = !!(this.on || this.in || this.inout);
 		this.ref = UITemplateSlot.Find("ref", nodes);
-		this.outAttr = UITemplateSlot.FindAttr("out:", nodes);
+		this.outAttr = UITemplateSlot.MergeMaps(
+			UITemplateSlot.FindAttr("out:", nodes),
+			UITemplateSlot.FindAttr("out-", nodes),
+		);
 		this.slots = this._findSlots(nodes);
 		this.webcomponents = this._findWebComponents(nodes);
 		this.initializer = undefined;
@@ -118,9 +121,7 @@ class UITemplate {
 				const name = slotNode.getAttribute("name") || "default";
 				const fallback = slotNode.childNodes ? [...slotNode.childNodes] : [];
 				const path =
-					slotNode === root
-						? [i]
-						: UITemplateSlot.Path(slotNode, root, [i]);
+					slotNode === root ? [i] : UITemplateSlot.Path(slotNode, root, [i]);
 				slots.push({
 					name,
 					fallback,

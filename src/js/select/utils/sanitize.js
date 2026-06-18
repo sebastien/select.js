@@ -7,7 +7,7 @@
 // Module: select/utils/sanitize
 // Recursive sanitizer for data, keys, and text values.
 
-import { isObject } from "./values.js"
+import { isObject } from "./values.js";
 
 // ----------------------------------------------------------------------------
 //
@@ -26,56 +26,56 @@ import { isObject } from "./values.js"
 // - onDrop: function | undefined - Receives notifications for dropped values.
 class Sanitizer {
 	constructor(options = {}) {
-		this.dropUndefined = options.dropUndefined !== false
-		this.compactArrays = options.compactArrays !== false
-		this.keepNonPlainObjects = options.keepNonPlainObjects !== false
+		this.dropUndefined = options.dropUndefined !== false;
+		this.compactArrays = options.compactArrays !== false;
+		this.keepNonPlainObjects = options.keepNonPlainObjects !== false;
 		this.sanitizeTextHook =
 			typeof options.sanitizeText === "function"
 				? options.sanitizeText
-				: undefined
+				: undefined;
 		this.sanitizeKeyHook =
 			typeof options.sanitizeKey === "function"
 				? options.sanitizeKey
-				: undefined
+				: undefined;
 		this.sanitizeScalarHook =
 			typeof options.sanitizeScalar === "function"
 				? options.sanitizeScalar
-				: undefined
+				: undefined;
 		this.onDrop =
-			typeof options.onDrop === "function" ? options.onDrop : undefined
+			typeof options.onDrop === "function" ? options.onDrop : undefined;
 	}
 
 	// Function: notify
 	// Invokes drop callback with `reason` and optional `details`.
 	notify(reason, details = undefined) {
-		if (this.onDrop) this.onDrop(reason, details)
+		if (this.onDrop) this.onDrop(reason, details);
 	}
 
 	// Function: sanitize
 	// Sanitizes any input `value` according to sanitizer options.
 	sanitize(value) {
-		return this.sanitizeAny(value, undefined, undefined)
+		return this.sanitizeAny(value, undefined, undefined);
 	}
 
 	// Function: sanitizeAny
 	// Sanitizes `value` according to its runtime type.
 	sanitizeAny(value, key, parent) {
 		if (value === undefined && this.dropUndefined) {
-			this.notify("undefined", { key, parent, value })
-			return undefined
+			this.notify("undefined", { key, parent, value });
+			return undefined;
 		}
-		if (Array.isArray(value)) return this.sanitizeArray(value)
-		if (isObject(value)) return this.sanitizeObject(value)
+		if (Array.isArray(value)) return this.sanitizeArray(value);
+		if (isObject(value)) return this.sanitizeObject(value);
 		if (
 			value !== null &&
 			typeof value === "object" &&
 			!this.keepNonPlainObjects
 		) {
-			this.notify("unsupported-object", { key, parent, value })
-			return undefined
+			this.notify("unsupported-object", { key, parent, value });
+			return undefined;
 		}
-		if (typeof value === "string") return this.sanitizeText(value, key, parent)
-		return this.sanitizeScalar(value, key, parent)
+		if (typeof value === "string") return this.sanitizeText(value, key, parent);
+		return this.sanitizeScalar(value, key, parent);
 	}
 
 	// Function: sanitizeText
@@ -83,18 +83,18 @@ class Sanitizer {
 	sanitizeText(value, key, parent) {
 		return this.sanitizeTextHook
 			? this.sanitizeTextHook(value, { key, parent, sanitizer: this })
-			: value
+			: value;
 	}
 
 	// Function: sanitizeKey
 	// Sanitizes object `key` using the configured key hook when available.
 	sanitizeKey(key, value, parent) {
-		if (!this.sanitizeKeyHook) return key
+		if (!this.sanitizeKeyHook) return key;
 		return this.sanitizeKeyHook(key, {
 			value,
 			parent,
 			sanitizer: this,
-		})
+		});
 	}
 
 	// Function: sanitizeScalar
@@ -102,40 +102,40 @@ class Sanitizer {
 	sanitizeScalar(value, key, parent) {
 		return this.sanitizeScalarHook
 			? this.sanitizeScalarHook(value, { key, parent, sanitizer: this })
-			: value
+			: value;
 	}
 
 	// Function: sanitizeArray
 	// Sanitizes array entries and optionally compacts dropped values.
 	sanitizeArray(value) {
-		const res = []
+		const res = [];
 		for (let i = 0; i < value.length; i++) {
-			const item = this.sanitizeAny(value[i], i, value)
+			const item = this.sanitizeAny(value[i], i, value);
 			if (item === undefined && this.dropUndefined) {
-				if (!this.compactArrays) res.push(undefined)
-				continue
+				if (!this.compactArrays) res.push(undefined);
+				continue;
 			}
-			res.push(item)
+			res.push(item);
 		}
-		return res
+		return res;
 	}
 
 	// Function: sanitizeObject
 	// Sanitizes object keys and values, skipping dropped entries.
 	sanitizeObject(value) {
-		const res = {}
+		const res = {};
 		for (const k in value) {
-			if (!Object.hasOwn(value, k)) continue
-			const safeKey = this.sanitizeKey(k, value[k], value)
+			if (!Object.hasOwn(value, k)) continue;
+			const safeKey = this.sanitizeKey(k, value[k], value);
 			if (safeKey === undefined || safeKey === null || safeKey === "") {
-				this.notify("key", { key: k, value: value[k], parent: value })
-				continue
+				this.notify("key", { key: k, value: value[k], parent: value });
+				continue;
 			}
-			const item = this.sanitizeAny(value[k], safeKey, value)
-			if (item === undefined && this.dropUndefined) continue
-			res[safeKey] = item
+			const item = this.sanitizeAny(value[k], safeKey, value);
+			if (item === undefined && this.dropUndefined) continue;
+			res[safeKey] = item;
 		}
-		return res
+		return res;
 	}
 }
 
@@ -145,29 +145,29 @@ class Sanitizer {
 //
 // ----------------------------------------------------------------------------
 
-const DEFAULT_SANITIZER = new Sanitizer()
-const SANITIZER_BY_OPTIONS = new WeakMap()
+const DEFAULT_SANITIZER = new Sanitizer();
+const SANITIZER_BY_OPTIONS = new WeakMap();
 
 // Function: sanitizer
 // Returns a cached sanitizer instance for `options`.
 function sanitizer(options = undefined) {
-	if (!options) return DEFAULT_SANITIZER
-	if (options instanceof Sanitizer) return options
-	let cached = SANITIZER_BY_OPTIONS.get(options)
+	if (!options) return DEFAULT_SANITIZER;
+	if (options instanceof Sanitizer) return options;
+	let cached = SANITIZER_BY_OPTIONS.get(options);
 	if (!cached) {
-		cached = new Sanitizer(options)
-		SANITIZER_BY_OPTIONS.set(options, cached)
+		cached = new Sanitizer(options);
+		SANITIZER_BY_OPTIONS.set(options, cached);
 	}
-	return cached
+	return cached;
 }
 
 // Function: sanitize
 // Sanitizes `value` using the resolved sanitizer for `options`.
 function sanitize(value, options = undefined) {
-	return sanitizer(options).sanitize(value)
+	return sanitizer(options).sanitize(value);
 }
-sanitize.value = (value, options = undefined) => sanitize(value, options)
+sanitize.value = (value, options = undefined) => sanitize(value, options);
 
-export { Sanitizer, sanitize, sanitizer }
+export { Sanitizer, sanitize, sanitizer };
 
 // EOF

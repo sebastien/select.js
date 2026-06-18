@@ -12,24 +12,26 @@ import { log } from "../templates.js";
 
 import { UIEvent } from "./model.js";
 import { options } from "./registry.js";
-import { UIContentSlot, UITemplateSlot, setUIInstanceClass } from "./slots.js";
 import {
-	SKIP_INPUT_UPDATE,
 	applyNamedProcessors,
 	createTrackingProxy,
 	finalizeRenderProcessorValue,
+	formatBindingSource,
 	getInputBindingProperty,
 	getInputEventValue,
 	hasTrackedNonReactiveObjectDeps,
 	isThenable,
+	resolveBindingValue,
 	resolveExpandedSourceValue,
 	resolveRenderableValue,
 	resolveSourceValue,
 	resolveTemplateTokens,
+	SKIP_INPUT_UPDATE,
 	scheduleRenderTask,
 	setNodeText,
 	snapshotReactiveDependencyRevisions,
 } from "./runtime.js";
+import { setUIInstanceClass, UIContentSlot, UITemplateSlot } from "./slots.js";
 
 const UI_INSTANCES = new Map();
 const UI_PARENT_ATTRIBUTE = "ui-parent";
@@ -139,12 +141,20 @@ class UIInstance {
 
 	static _applyTemplateWebComponents(nodes, template, parentId) {
 		const webcomponents = template?.webcomponents;
-		if (!parentId || !Array.isArray(webcomponents) || webcomponents.length === 0) {
+		if (
+			!parentId ||
+			!Array.isArray(webcomponents) ||
+			webcomponents.length === 0
+		) {
 			return;
 		}
 		for (let i = 0; i < webcomponents.length; i++) {
 			const host = webcomponents[i];
-			let node = UIInstance._resolvePathNode(nodes, host.rootIndex, host.tailPath);
+			let node = UIInstance._resolvePathNode(
+				nodes,
+				host.rootIndex,
+				host.tailPath,
+			);
 			node = UIInstance._upgradeWebComponentHost(node, host.tagName);
 			if (!node || node.nodeType !== Node.ELEMENT_NODE) {
 				continue;
@@ -356,9 +366,7 @@ class UIInstance {
 					}
 				}
 				if (node) {
-					const placeholder = document.createComment(
-						`slot:${slotDef.name}`,
-					);
+					const placeholder = document.createComment(`slot:${slotDef.name}`);
 					if (tailPath) {
 						node.parentNode?.replaceChild(placeholder, node);
 					} else {
@@ -391,7 +399,7 @@ class UIInstance {
 		this._reactiveDataRefs = undefined;
 		this._domListeners = undefined;
 		this._effectTeardowns = undefined;
-		this._asyncBehaviorTokens = new Map();
+		this._asyncBehaviorTokens = undefined;
 		this._behaviorDeps = undefined;
 		this._behaviorValues = undefined;
 		this._behaviorDepRevisions = undefined;
@@ -460,11 +468,12 @@ class UIInstance {
 	}
 
 	_collectReactiveDataRefs(data) {
-		const refs = new Set();
+		let refs = null;
 		if (data && typeof data === "object") {
 			for (const k in data) {
 				const v = data[k];
 				if (v?.isReactive) {
+					refs = refs ?? new Set();
 					refs.add(v);
 				}
 			}
@@ -495,6 +504,9 @@ class UIInstance {
 
 	_syncOwnedReactiveRefs(data) {
 		const refs = this._collectReactiveDataRefs(data);
+		if (!refs) {
+			return;
+		}
 		if (this._ownedReactiveRefs === undefined) {
 			this._ownedReactiveRefs = new Set();
 		}
@@ -518,16 +530,22 @@ class UIInstance {
 
 	syncReactiveDataSubs(data) {
 		const refs = this._collectReactiveDataRefs(data);
+		if (!refs && !this._reactiveDataSubs) {
+			return;
+		}
 		if (this._reactiveDataSubs === undefined) {
 			this._reactiveDataSubs = new Map();
 		}
 		const renderer = this._getRenderer();
 		for (const cell of this._reactiveDataSubs.keys()) {
-			if (!refs.has(cell)) {
+			if (!refs?.has(cell)) {
 				cell.unsub(renderer);
 				this._releaseReactiveRef(cell);
 				this._reactiveDataSubs.delete(cell);
 			}
+		}
+		if (!refs) {
+			return;
 		}
 		for (const cell of refs) {
 			if (!this._reactiveDataSubs.has(cell)) {
@@ -628,8 +646,7 @@ class UIInstance {
 		};
 		internal.sub(fusion.internalHandler);
 		upstream.sub(fusion.upstreamHandler);
-		this._reactiveTopLevelFusions =
-			this._reactiveTopLevelFusions ?? new Map();
+		this._reactiveTopLevelFusions = this._reactiveTopLevelFusions ?? new Map();
 		this._reactiveTopLevelFusions.set(key, fusion);
 		return internal;
 	}
@@ -782,15 +799,16 @@ class UIInstance {
 				}
 				const data = this.data || {};
 				let payload = data;
-				if (target.binding?.sourceKey) {
-					payload = resolveSourceValue(data, target.binding.sourceKey);
+				const bindingSource = formatBindingSource(target.binding);
+				if (bindingSource) {
+					payload = resolveBindingValue(data, target.binding, false);
 					if (target.binding.processors?.length) {
 						payload = applyNamedProcessors(
 							this,
 							data,
 							payload,
 							target.binding.processors,
-							target.binding.sourceKey,
+							bindingSource,
 							{ expandFunctions: false },
 						);
 					}
@@ -843,21 +861,22 @@ class UIInstance {
 		const isCustomElement = nodeName.includes("-");
 		if (isCustomElement) {
 			event = `wc:${inputProperty}`;
-		} else switch (nodeName) {
-			case "INPUT":
-			case "TEXTAREA":
-			case "SELECT":
-				event = "input";
-				break;
-			case "DETAILS":
-				event = "toggle";
-				break;
-			case "FORM":
-				event = "submit";
-				break;
-			default:
-				event = "click";
-		}
+		} else
+			switch (nodeName) {
+				case "INPUT":
+				case "TEXTAREA":
+				case "SELECT":
+					event = "input";
+					break;
+				case "DETAILS":
+					event = "toggle";
+					break;
+				case "FORM":
+					event = "submit";
+					break;
+				default:
+					event = "click";
+			}
 		const listener = (event) => {
 			const data = this.data || {};
 			const slotValue = data[name];
@@ -986,6 +1005,7 @@ class UIInstance {
 		if (!isThenable(value)) {
 			return false;
 		}
+		this._asyncBehaviorTokens = this._asyncBehaviorTokens ?? new Map();
 		const token = (this._asyncBehaviorTokens.get(key) || 0) + 1;
 		this._asyncBehaviorTokens.set(key, token);
 		value.then(
@@ -1308,7 +1328,7 @@ class UIInstance {
 						continue;
 					}
 					const binding = withProcessors ? slots?.[0]?.template?.binding : null;
-					const sourceKey = binding?.sourceKey || k;
+					const sourceKey = formatBindingSource(binding) || k;
 					const processors = binding?.processors || null;
 					const hasBehavior = behavior?.[sourceKey];
 
@@ -1322,7 +1342,8 @@ class UIInstance {
 							!hasTrackedNonReactiveObjectDeps(data, deps)
 						) {
 							v = this._behaviorValues.get(k);
-							if (v === undefined && binding?.defaultValue !== undefined) v = binding.defaultValue
+							if (v === undefined && binding?.defaultValue !== undefined)
+								v = binding.defaultValue;
 							if (withProcessors && processors?.length) {
 								const processed = applyNamedProcessors(
 									this,
@@ -1369,11 +1390,18 @@ class UIInstance {
 							v = hasBehavior(this, renderData, null);
 						}
 					} else {
-						v = processors?.length
-							? resolveSourceValue(renderData, sourceKey)
-							: resolveExpandedSourceValue(renderData, sourceKey);
+						v = binding
+							? resolveBindingValue(
+									renderData,
+									binding,
+									!processors?.length,
+								)
+							: processors?.length
+								? resolveSourceValue(renderData, sourceKey)
+								: resolveExpandedSourceValue(renderData, sourceKey);
 					}
-					if (v === undefined && binding?.defaultValue !== undefined) v = binding.defaultValue
+					if (v === undefined && binding?.defaultValue !== undefined)
+						v = binding.defaultValue;
 
 					if (
 						hasBehavior &&
@@ -1440,7 +1468,7 @@ class UIInstance {
 					const slots = this.outAttr[k];
 					const binding = slots?.[0]?.template.binding;
 					const sourceKey =
-						binding?.sourceKey || slots?.[0]?.template.slotName || k;
+						formatBindingSource(binding) || slots?.[0]?.template.slotName || k;
 					const processors = binding?.processors;
 					const hasBehavior = behavior?.[sourceKey];
 					let v;
@@ -1448,14 +1476,19 @@ class UIInstance {
 						for (const slot of slots) {
 							const attrValue = slot.node.getAttribute(slot.attrName);
 							v = hasBehavior(this, renderData, attrValue, slot.node);
-							if (v === undefined && binding?.defaultValue !== undefined) v = binding.defaultValue
+							if (v === undefined && binding?.defaultValue !== undefined)
+								v = binding.defaultValue;
 							if (
 								this._trackAsyncBehaviorValue(
 									`${k}:${slot.attrName}`,
 									v,
 									(resolved) => {
 										let next = resolved;
-										if (next === undefined && binding?.defaultValue !== undefined) next = binding.defaultValue
+										if (
+											next === undefined &&
+											binding?.defaultValue !== undefined
+										)
+											next = binding.defaultValue;
 										if (processors?.length) {
 											const processed = applyNamedProcessors(
 												this,
@@ -1498,8 +1531,11 @@ class UIInstance {
 						}
 						continue;
 					}
-					v = resolveSourceValue(renderData, sourceKey);
-					if (v === undefined && binding?.defaultValue !== undefined) v = binding.defaultValue
+					v = binding
+						? resolveBindingValue(renderData, binding, false)
+						: resolveSourceValue(renderData, sourceKey);
+					if (v === undefined && binding?.defaultValue !== undefined)
+						v = binding.defaultValue;
 					if (v !== undefined && processors?.length) {
 						const processed = applyNamedProcessors(
 							this,
@@ -1548,6 +1584,6 @@ class UIInstance {
 
 setUIInstanceClass(UIInstance);
 
-export { UIInstance, getUIInstance };
+export { getUIInstance, UIInstance };
 
 // EOF

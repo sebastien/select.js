@@ -118,8 +118,10 @@
     </div>
     <template id="ColorComponent">
       <div class="channel">
-        <label out="label">Component</label>
-        <input inout="value" type="range" min="0" max="255" />
+        <label>
+          <span out="label">Component</span>
+          <input inout="value" type="range" min="0" max="255" />
+        </label>
         <input inout="value" type="number" min="0" max="255" step="1" inputmode="numeric" />
       </div>
     </template>

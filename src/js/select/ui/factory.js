@@ -13,12 +13,6 @@
 //
 // ----------------------------------------------------------------------------
 
-import {
-	HTML,
-	log,
-	pruneTemplateWhitespace,
-	TemplateRegistry,
-} from "./templates.js";
 import { FORMATS, format } from "../formats.js";
 import {
 	COMPONENTS,
@@ -26,11 +20,18 @@ import {
 	options,
 	UITemplate,
 } from "./components.js";
+import {
+	HTML,
+	log,
+	pruneTemplateWhitespace,
+	TemplateRegistry,
+} from "./templates.js";
 
 const TEMPLATE_RESOURCES = new Map();
 const TEMPLATE_RESOURCE_LOADS = new Map();
 const TEMPLATE_NAME_STACKS = new Map();
 const STYLE_RESOURCES = new Map();
+const SVG_RESOURCES = new Map();
 
 function cloneSubs(subs) {
 	if (!subs) {
@@ -268,6 +269,9 @@ function getTemplateResource(ref, scope = document) {
 async function load(url, scope = document) {
 	const parsed = parseResourceReference(url, scope);
 	const resourceURL = parsed?.url ?? normalizeResourceURL(url, scope);
+	if (SVG_RESOURCES.has(resourceURL)) {
+		return SVG_RESOURCES.get(resourceURL);
+	}
 	if (STYLE_RESOURCES.has(resourceURL)) {
 		return STYLE_RESOURCES.get(resourceURL);
 	}
@@ -297,6 +301,13 @@ async function load(url, scope = document) {
 			target.appendChild(style);
 			const resource = { url: resourceURL, type: "css", node: style };
 			STYLE_RESOURCES.set(resourceURL, resource);
+			return resource;
+		}
+		if (/\.svg(?:\?|$)/i.test(resourceURL)) {
+			const doc = new DOMParser().parseFromString(source, "image/svg+xml");
+			const node = doc.documentElement;
+			const resource = { url: resourceURL, type: "svg", node };
+			SVG_RESOURCES.set(resourceURL, resource);
 			return resource;
 		}
 		const doc = HTML.parseFromString(source, "text/html");

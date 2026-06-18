@@ -512,8 +512,6 @@ function clone(value, key = undefined) {
 }
 
 export {
-	Nothing,
-	Something,
 	access,
 	array,
 	atom,
@@ -526,6 +524,7 @@ export {
 	expand,
 	flyweight,
 	freeze,
+	isAnnotable,
 	isArrayLike,
 	isEmpty,
 	isIterable,
@@ -533,13 +532,14 @@ export {
 	isNullish,
 	isObject,
 	isReactive,
-	isWalkable,
 	isThenable,
-	isAnnotable,
+	isWalkable,
 	keys,
 	len,
 	list,
+	Nothing,
 	recycle,
+	Something,
 	set,
 	singleton,
 	str,

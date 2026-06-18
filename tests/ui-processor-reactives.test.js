@@ -309,4 +309,150 @@ describe("ui processor reactive handling", () => {
 		document.body.innerHTML = "";
 		window.close?.();
 	});
+
+	test("maps out bindings into unwrapped objects for function processors", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { cell } = await import("../src/js/select/index.js");
+		const { ui, format } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="ProcessorMappedOutFunctionRepro">
+				<span out="a:b,c:d|capture"></span>
+			</template>
+		`;
+
+		let seen = null;
+		registerFormat(format, "capture", (value) => {
+			seen = value;
+			return JSON.stringify(value);
+		});
+
+		const instance = ui("ProcessorMappedOutFunctionRepro")
+			.new()
+			.set({ b: cell("alpha"), d: cell("beta") })
+			.mount("#app");
+
+		expect(seen).toEqual({ a: "alpha", c: "beta" });
+		expect(document.querySelector("#app span")?.textContent).toBe(
+			'{"a":"alpha","c":"beta"}',
+		);
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
+	test("maps out bindings into raw objects for component processors", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { cell } = await import("../src/js/select/index.js");
+		const { ui, format } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="ProcessorMappedOutComponentRepro">
+				<div out="a:b,c:d|ProbeComponent"></div>
+			</template>
+		`;
+
+		const ProbeComponent = ui(`<span out="flag"></span>`).does({
+			flag: (_self, data) =>
+				data.a?.isReactive === true && data.c?.isReactive === true
+					? "reactive"
+					: "plain",
+		});
+		registerFormat(format, "ProbeComponent", ProbeComponent);
+
+		const instance = ui("ProcessorMappedOutComponentRepro")
+			.new()
+			.set({ b: cell("alpha"), d: cell("beta") })
+			.mount("#app");
+
+		expect(document.querySelector("#app span")?.textContent).toBe("reactive");
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
+	test("maps on payload bindings without unwrapping reactive values", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { cell } = await import("../src/js/select/index.js");
+		const { ui } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="ProcessorMappedEventRepro">
+				<button on:click="a:b,c:d!Ping">Ping</button>
+			</template>
+		`;
+
+		let seen = null;
+		const instance = ui("ProcessorMappedEventRepro")
+			.sub({
+				Ping: (_self, _data, event) => {
+					seen = event.data;
+				},
+			})
+			.new()
+			.set({ b: cell("alpha"), d: cell("beta") })
+			.mount("#app");
+
+		document
+			.querySelector("#app button")
+			?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+		expect(seen?.a?.isReactive).toBe(true);
+		expect(seen?.c?.isReactive).toBe(true);
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
+	test("keeps on payload function processors raw for mapped bindings", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { cell } = await import("../src/js/select/index.js");
+		const { ui, format } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="ProcessorMappedEventProcessorRepro">
+				<button on:click="a:b,c:d|capture!Ping">Ping</button>
+			</template>
+		`;
+
+		let captured = null;
+		let seen = null;
+		registerFormat(format, "capture", (value) => {
+			captured = value;
+			return value;
+		});
+
+		const instance = ui("ProcessorMappedEventProcessorRepro")
+			.sub({
+				Ping: (_self, _data, event) => {
+					seen = event.data;
+				},
+			})
+			.new()
+			.set({ b: cell("alpha"), d: cell("beta") })
+			.mount("#app");
+
+		document
+			.querySelector("#app button")
+			?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+		expect(captured?.a?.isReactive).toBe(true);
+		expect(captured?.c?.isReactive).toBe(true);
+		expect(seen).toBe(captured);
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
 });

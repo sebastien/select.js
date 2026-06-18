@@ -14,11 +14,11 @@ function bind(node, handlers) {
 	if (handlers) {
 		for (const [name, handler] of Object.entries(handlers)) {
 			for (const target of Array.isArray(node) ? node : [node]) {
-				target.addEventListener(name, handler)
+				target.addEventListener(name, handler);
 			}
 		}
 	}
-	return node
+	return node;
 }
 
 // Function: unbind
@@ -28,26 +28,26 @@ function unbind(node, handlers) {
 	if (handlers) {
 		for (const [name, handler] of Object.entries(handlers)) {
 			for (const target of Array.isArray(node) ? node : [node]) {
-				target.removeEventListener(name, handler)
+				target.removeEventListener(name, handler);
 			}
 		}
 	}
-	return node
+	return node;
 }
 
 // Function: target
 // Walks up from `node` until `pred(node)` returns true.
 function target(node, pred) {
 	while (node && node.nodeType === Node.ELEMENT_NODE) {
-		if (pred(node)) return node
-		node = node.parentNode
+		if (pred(node)) return node;
+		node = node.parentNode;
 	}
-	return undefined
+	return undefined;
 }
 
-const core = { bind, unbind, target }
+const core = { bind, unbind, target };
 
-export { bind, unbind, target, core }
-export default core
+export { bind, core, target, unbind };
+export default core;
 
 // EOF

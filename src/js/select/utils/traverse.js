@@ -7,6 +7,7 @@
 // Module: select/utils/traverse
 // Read-only traversal, lookup, path access, and recursive remapping helpers.
 
+import { extractor, predicate } from "./func.js";
 import {
 	icount,
 	ientries,
@@ -19,7 +20,6 @@ import {
 	inth,
 	ipick,
 } from "./iter.js";
-import { extractor, predicate } from "./func.js";
 import { access, isObject } from "./values.js";
 
 // ----------------------------------------------------------------------------
@@ -393,16 +393,16 @@ export {
 	count,
 	each,
 	entries,
+	extractor,
 	find,
 	first,
 	found,
-	extractor,
 	get,
 	has,
+	head,
 	index,
 	isin,
 	iter,
-	head,
 	last,
 	nth,
 	path,

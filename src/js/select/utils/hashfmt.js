@@ -26,10 +26,10 @@
 //
 // ----------------------------------------------------------------------------
 
-const RE_HASH_ESCAPE = /[&,()="']/
-const RE_HASH_NUMBER = /^-?\d+(_?\d+)*(\.\d+)?$/
+const RE_HASH_ESCAPE = /[&,()="']/;
+const RE_HASH_NUMBER = /^-?\d+(_?\d+)*(\.\d+)?$/;
 
-import { isObject } from "./values.js"
+import { isObject } from "./values.js";
 
 // ----------------------------------------------------------------------------
 //
@@ -246,11 +246,11 @@ class HashFormat extends RecordFormat {
 // Decodes `%`-encoded URI components in `value`, returning the raw value
 // on error.
 function decodeComponent(value) {
-	if (!value?.includes("%")) return value
+	if (!value?.includes("%")) return value;
 	try {
-		return decodeURIComponent(value)
+		return decodeURIComponent(value);
 	} catch (_error) {
-		return value
+		return value;
 	}
 }
 
@@ -262,16 +262,14 @@ function decodeComponent(value) {
 // - Numbers → decimal string
 // - Strings → quoted with `"` when they contain `&,( )="\''`
 function formatAtom(value) {
-	if (value === undefined) return "undefined"
-	if (value === null) return "_"
-	if (value === true) return "T"
-	if (value === false) return "F"
+	if (value === undefined) return "undefined";
+	if (value === null) return "_";
+	if (value === true) return "T";
+	if (value === false) return "F";
 	if (typeof value === "number")
-		return Number.isFinite(value) ? `${value}` : ""
-	const text = `${value}`
-	return RE_HASH_ESCAPE.test(text)
-		? `"${text.replaceAll('"', '\\"')}"`
-		: text
+		return Number.isFinite(value) ? `${value}` : "";
+	const text = `${value}`;
+	return RE_HASH_ESCAPE.test(text) ? `"${text.replaceAll('"', '\\"')}"` : text;
 }
 
 // Function: iFormat
@@ -285,32 +283,32 @@ function* iFormat(value, depth = 0) {
 		typeof value === "number" ||
 		typeof value === "boolean"
 	) {
-		yield formatAtom(value)
-		return
+		yield formatAtom(value);
+		return;
 	}
-	if (depth > 0) yield "("
+	if (depth > 0) yield "(";
 	if (Array.isArray(value)) {
 		for (let i = 0; i < value.length; i++) {
-			yield* iFormat(value[i], depth + 1)
-			if (i < value.length - 1) yield ","
+			yield* iFormat(value[i], depth + 1);
+			if (i < value.length - 1) yield ",";
 		}
 	} else if (isObject(value)) {
-		const keys = Object.keys(value).sort()
+		const keys = Object.keys(value).sort();
 		for (let i = 0; i < keys.length; i++) {
-			const key = keys[i]
-			yield `${key}=`
-			yield* iFormat(value[key], depth + 1)
-			if (i < keys.length - 1) yield ","
+			const key = keys[i];
+			yield `${key}=`;
+			yield* iFormat(value[key], depth + 1);
+			if (i < keys.length - 1) yield ",";
 		}
 	}
-	if (depth > 0) yield ")"
+	if (depth > 0) yield ")";
 }
 
 // Function: formatHashValue
 // Formats `value` into a complete hashfmt string by joining the
 // `iFormat` generator output.
 function formatHashValue(value) {
-	return [...iFormat(value)].join("")
+	return [...iFormat(value)].join("");
 }
 
 // Function: nextSeparator
@@ -318,19 +316,19 @@ function formatHashValue(value) {
 // or `'` character, respecting quoting. Returns `[index, separatorChar]`
 // or `[null, null]` when no separator is found.
 function nextSeparator(value, offset = 0) {
-	let quoted = false
+	let quoted = false;
 	for (let i = offset; i < value.length; i++) {
-		const c = value[i]
+		const c = value[i];
 		if ((c === '"' || c === "'") && value[i - 1] !== "\\") {
-			quoted = !quoted
-			if (quoted) return [i, c]
-			continue
+			quoted = !quoted;
+			if (quoted) return [i, c];
+			continue;
 		}
 		if (!quoted && (c === "," || c === "=" || c === "(" || c === ")")) {
-			return [i, c]
+			return [i, c];
 		}
 	}
-	return [null, null]
+	return [null, null];
 }
 
 // Function: parseAtom
@@ -342,17 +340,17 @@ function nextSeparator(value, offset = 0) {
 // - Numbers (with optional `_` separators) → `Number`
 // - Otherwise → decoded string
 function parseAtom(value) {
-	const decode = decodeComponent(value)
-	if (value === "") return ""
-	if (decode === "_" || decode === "null") return null
-	if (decode === "undefined") return undefined
-	if (decode === "T" || decode === "true") return true
-	if (decode === "F" || decode === "false") return false
+	const decode = decodeComponent(value);
+	if (value === "") return "";
+	if (decode === "_" || decode === "null") return null;
+	if (decode === "undefined") return undefined;
+	if (decode === "T" || decode === "true") return true;
+	if (decode === "F" || decode === "false") return false;
 	if (RE_HASH_NUMBER.test(decode)) {
-		const parsed = Number(decode.replaceAll("_", ""))
-		if (!Number.isNaN(parsed)) return parsed
+		const parsed = Number(decode.replaceAll("_", ""));
+		if (!Number.isNaN(parsed)) return parsed;
 	}
-	return decode
+	return decode;
 }
 
 // Function: parseHashText
@@ -362,153 +360,151 @@ function parseAtom(value) {
 // Notice: the caller is responsible for sanitizing the input value
 // (e.g. stripping control characters) before calling.
 function parseHashText(value) {
-	const source = `${value ?? ""}`
-	const root = []
-	const stack = [root]
-	const indexStack = [{ key: undefined, index: 0, mode: "array" }]
-	let key
-	let keyBlocked = false
-	let index = 0
-	let rawStart = -1
-	let rawQuote = '"'
-	let cursor = 0
-	const current = () => stack[stack.length - 1]
-	const currentContext = () => indexStack[indexStack.length - 1]
+	const source = `${value ?? ""}`;
+	const root = [];
+	const stack = [root];
+	const indexStack = [{ key: undefined, index: 0, mode: "array" }];
+	let key;
+	let keyBlocked = false;
+	let index = 0;
+	let rawStart = -1;
+	let rawQuote = '"';
+	let cursor = 0;
+	const current = () => stack[stack.length - 1];
+	const currentContext = () => indexStack[indexStack.length - 1];
 	const promoteCurrentToObject = () => {
-		const ctx = currentContext()
-		if (ctx.mode === "object") return
+		const ctx = currentContext();
+		if (ctx.mode === "object") return;
 		if (!Array.isArray(current())) {
-			ctx.mode = "object"
-			return
+			ctx.mode = "object";
+			return;
 		}
-		const parent = stack[stack.length - 2]
-		const parentRef = indexStack[indexStack.length - 1]
-		const replacement = {}
+		const parent = stack[stack.length - 2];
+		const parentRef = indexStack[indexStack.length - 1];
+		const replacement = {};
 		for (let i = 0; i < current().length; i++) {
-			const item = current()[i]
-			if (item !== undefined) replacement[`${item}`] = true
+			const item = current()[i];
+			if (item !== undefined) replacement[`${item}`] = true;
 		}
-		if (parent) parent[parentRef.key ?? parentRef.index] = replacement
-		stack[stack.length - 1] = replacement
-		ctx.mode = "object"
-	}
+		if (parent) parent[parentRef.key ?? parentRef.index] = replacement;
+		stack[stack.length - 1] = replacement;
+		ctx.mode = "object";
+	};
 	const commit = (atom, forcedKey = undefined) => {
-		const container = current()
-		const targetKey = forcedKey !== undefined ? forcedKey : key
+		const container = current();
+		const targetKey = forcedKey !== undefined ? forcedKey : key;
 		if (targetKey !== undefined) {
-			promoteCurrentToObject()
-			current()[targetKey] = atom
-			return
+			promoteCurrentToObject();
+			current()[targetKey] = atom;
+			return;
 		}
 		if (currentContext().mode === "object") {
-			if (atom !== undefined) current()[`${atom}`] = true
-			return
+			if (atom !== undefined) current()[`${atom}`] = true;
+			return;
 		}
-		if (Array.isArray(container)) container.push(atom)
-		else container[index] = atom
-	}
+		if (Array.isArray(container)) container.push(atom);
+		else container[index] = atom;
+	};
 	while (cursor < source.length) {
 		if (rawStart >= 0) {
-			const quote = source.indexOf(rawQuote, cursor)
+			const quote = source.indexOf(rawQuote, cursor);
 			if (quote < 0) {
 				const raw = decodeComponent(
 					source.substring(rawStart).replaceAll(`\\${rawQuote}`, rawQuote),
-				)
-				if (raw !== "") commit(raw)
-				break
+				);
+				if (raw !== "") commit(raw);
+				break;
 			}
 			if (source[quote - 1] === "\\") {
-				cursor = quote + 1
-				continue
+				cursor = quote + 1;
+				continue;
 			}
 			const raw = decodeComponent(
 				source.substring(rawStart, quote).replaceAll(`\\${rawQuote}`, rawQuote),
-			)
-			if (raw !== "") commit(raw)
-			rawStart = -1
-			cursor = quote + 1
-			continue
+			);
+			if (raw !== "") commit(raw);
+			rawStart = -1;
+			cursor = quote + 1;
+			continue;
 		}
-		const [sepIndex, sep] = nextSeparator(source, cursor)
-		const end = sepIndex === null ? source.length : sepIndex
-		const token = source.substring(cursor, end).trim()
+		const [sepIndex, sep] = nextSeparator(source, cursor);
+		const end = sepIndex === null ? source.length : sepIndex;
+		const token = source.substring(cursor, end).trim();
 		if (sep === "=") {
-			const nextKey = decodeComponent(token)
-			key = nextKey
-			keyBlocked = nextKey === undefined || nextKey === ""
-			if (!keyBlocked) promoteCurrentToObject()
-			cursor = sepIndex + 1
-			continue
+			const nextKey = decodeComponent(token);
+			key = nextKey;
+			keyBlocked = nextKey === undefined || nextKey === "";
+			if (!keyBlocked) promoteCurrentToObject();
+			cursor = sepIndex + 1;
+			continue;
 		}
 		if (!keyBlocked && token !== "") {
 			if (currentContext().mode === "object" && key === undefined) {
-				const nextKey = decodeComponent(token)
-				if (nextKey !== undefined && nextKey !== "") commit(true, nextKey)
+				const nextKey = decodeComponent(token);
+				if (nextKey !== undefined && nextKey !== "") commit(true, nextKey);
 			} else {
-				const atom = parseAtom(token)
-				if (atom !== "") commit(atom)
+				const atom = parseAtom(token);
+				if (atom !== "") commit(atom);
 			}
 		}
 		if (sep === ",") {
-			key = undefined
-			keyBlocked = false
-			if (currentContext().mode === "array") index += 1
-			cursor = sepIndex + 1
-			continue
+			key = undefined;
+			keyBlocked = false;
+			if (currentContext().mode === "array") index += 1;
+			cursor = sepIndex + 1;
+			continue;
 		}
 		if (sep === '"' || sep === "'") {
-			rawStart = sepIndex + 1
-			rawQuote = sep
-			cursor = rawStart
-			continue
+			rawStart = sepIndex + 1;
+			rawQuote = sep;
+			cursor = rawStart;
+			continue;
 		}
 		if (sep === "(") {
 			if (keyBlocked) {
-				cursor = sepIndex + 1
-				continue
+				cursor = sepIndex + 1;
+				continue;
 			}
-			const nested = []
-			commit(nested)
-			stack.push(nested)
-			indexStack.push({ key, index, mode: "array" })
-			key = undefined
-			keyBlocked = false
-			index = 0
-			cursor = sepIndex + 1
-			continue
+			const nested = [];
+			commit(nested);
+			stack.push(nested);
+			indexStack.push({ key, index, mode: "array" });
+			key = undefined;
+			keyBlocked = false;
+			index = 0;
+			cursor = sepIndex + 1;
+			continue;
 		}
 		if (sep === ")") {
 			if (stack.length > 1) {
-				stack.pop()
-				const previous = indexStack.pop()
-				key = previous?.key
-				index = previous?.index ?? 0
+				stack.pop();
+				const previous = indexStack.pop();
+				key = previous?.key;
+				index = previous?.index ?? 0;
 			}
-			cursor = sepIndex + 1
-			continue
+			cursor = sepIndex + 1;
+			continue;
 		}
-		break
+		break;
 	}
 	const result =
-		stack[0][0] !== undefined && stack[0].length === 1
-			? stack[0][0]
-			: stack[0]
-	if (Array.isArray(result) || isObject(result)) return result
-	if (result === undefined) return {}
-	return { 0: result }
+		stack[0][0] !== undefined && stack[0].length === 1 ? stack[0][0] : stack[0];
+	if (Array.isArray(result) || isObject(result)) return result;
+	if (result === undefined) return {};
+	return { 0: result };
 }
 
 // Function: isArrayLikeRecord
 // Returns true when `value` is an object whose keys are sequential
 // positive integers `"0"`, `"1"`, ... `"N-1"`.
 function isArrayLikeRecord(value) {
-	if (!isObject(value)) return false
-	const keys = Object.keys(value)
-	if (!keys.length) return false
+	if (!isObject(value)) return false;
+	const keys = Object.keys(value);
+	if (!keys.length) return false;
 	for (let i = 0; i < keys.length; i++) {
-		if (keys[i] !== `${i}`) return false
+		if (keys[i] !== `${i}`) return false;
 	}
-	return true
+	return true;
 }
 
 // Function: normalizeHashValue
@@ -517,37 +513,37 @@ function isArrayLikeRecord(value) {
 // and typed scalars untouched.
 function normalizeHashValue(value) {
 	if (Array.isArray(value)) {
-		const res = new Array(value.length)
+		const res = new Array(value.length);
 		for (let i = 0; i < value.length; i++)
-			res[i] = normalizeHashValue(value[i])
-		return res
+			res[i] = normalizeHashValue(value[i]);
+		return res;
 	}
 	if (isArrayLikeRecord(value)) {
-		const keys = Object.keys(value)
-		const res = new Array(keys.length)
+		const keys = Object.keys(value);
+		const res = new Array(keys.length);
 		for (let i = 0; i < keys.length; i++) {
-			const key = keys[i]
-			res[i] = normalizeHashValue(value[key])
+			const key = keys[i];
+			res[i] = normalizeHashValue(value[key]);
 		}
-		return res
+		return res;
 	}
 	if (isObject(value)) {
-		const res = {}
-		const keys = Object.keys(value)
+		const res = {};
+		const keys = Object.keys(value);
 		for (let i = 0; i < keys.length; i++) {
-			const key = keys[i]
-			res[key] = normalizeHashValue(value[key])
+			const key = keys[i];
+			res[key] = normalizeHashValue(value[key]);
 		}
-		return res
+		return res;
 	}
-	return value
+	return value;
 }
 
 // Function: looksLikeHashText
 // Returns true when `value` looks like a hashfmt expression (starts
 // with `(` and ends with `)`).
 function looksLikeHashText(value) {
-	return value.startsWith("(") && value.endsWith(")")
+	return value.startsWith("(") && value.endsWith(")");
 }
 
 // ----------------------------------------------------------------------------
@@ -573,11 +569,11 @@ function looksLikeHashText(value) {
 // parseHashValue("1,2,3")              // [1, 2, 3]
 // ```
 function parseHashValue(value) {
-	const parsed = parseHashText(value)
-	const normalized = normalizeHashValue(parsed)
+	const parsed = parseHashText(value);
+	const normalized = normalizeHashValue(parsed);
 	if (Array.isArray(normalized) && normalized.length === 1)
-		return normalized[0]
-	return normalized
+		return normalized[0];
+	return normalized;
 }
 
 // Function: parseHash
@@ -585,59 +581,60 @@ function parseHashValue(value) {
 // Strips a leading `#`, applies path-detection semantics for bare
 // first tokens, and normalizes the result.
 function parseHash(value) {
-	const source = `${value || ""}`.replace(/^#/, "")
-	if (!source) return {}
+	const source = `${value || ""}`.replace(/^#/, "");
+	if (!source) return {};
 	if (source.startsWith("(")) {
-		const parsed = parseHashText(source)
-		return normalizeHashValue(parsed)
+		const parsed = parseHashText(source);
+		return normalizeHashValue(parsed);
 	}
-	const [sepIdx, sep] = nextSeparator(source, 0)
-	const firstSegment = sepIdx === null ? source : source.substring(0, sepIdx).trim()
+	const [sepIdx, sep] = nextSeparator(source, 0);
+	const firstSegment =
+		sepIdx === null ? source : source.substring(0, sepIdx).trim();
 	if (firstSegment && sep !== "=") {
-		const pathValue = parseAtom(firstSegment)
-		const pathStr = `${pathValue}`
+		const pathValue = parseAtom(firstSegment);
+		const pathStr = `${pathValue}`;
 		if (sep !== ",") {
 			return pathStr.includes("/")
 				? { path: pathValue }
-				: { path: pathValue, [pathStr]: true }
+				: { path: pathValue, [pathStr]: true };
 		}
-		const remaining = source.substring(sepIdx + 1).trim()
+		const remaining = source.substring(sepIdx + 1).trim();
 		if (!remaining) {
 			return pathStr.includes("/")
 				? { path: pathValue }
-				: { path: pathValue, [pathStr]: true }
+				: { path: pathValue, [pathStr]: true };
 		}
-		const rest = normalizeHashValue(parseHashText(remaining))
+		const rest = normalizeHashValue(parseHashText(remaining));
 		if (Array.isArray(rest)) {
-			const result = { path: pathValue }
-			if (!pathStr.includes("/")) result[pathStr] = true
-			for (let i = 0; i < rest.length; i++) result[rest[i]] = true
-			return result
+			const result = { path: pathValue };
+			if (!pathStr.includes("/")) result[pathStr] = true;
+			for (let i = 0; i < rest.length; i++) result[rest[i]] = true;
+			return result;
 		}
 		if (typeof rest === "string") {
-			const result = { path: pathValue }
-			if (!pathStr.includes("/")) result[pathStr] = true
-			result[rest] = true
-			return result
+			const result = { path: pathValue };
+			if (!pathStr.includes("/")) result[pathStr] = true;
+			result[rest] = true;
+			return result;
 		}
 		if (isObject(rest)) {
-			rest.path = pathValue
-			if (!pathStr.includes("/")) rest[pathStr] = true
-			return rest
+			rest.path = pathValue;
+			if (!pathStr.includes("/")) rest[pathStr] = true;
+			return rest;
 		}
 		return pathStr.includes("/")
 			? { path: pathValue }
-			: { path: pathValue, [pathStr]: true }
+			: { path: pathValue, [pathStr]: true };
 	}
-	const parsed = parseHashText(source)
-	return normalizeHashValue(parsed)
+	const parsed = parseHashText(source);
+	return normalizeHashValue(parsed);
 }
 
 // Function: formatHash
 // Formats `value` as a hashfmt string, normalizing array-like
 // records to arrays first.
 function formatHash(value) {
-	return formatHashValue(normalizeHashValue(value))
+	return formatHashValue(normalizeHashValue(value));
 }
 
 // Function: parseQuery
@@ -645,18 +642,18 @@ function formatHash(value) {
 // `?` or `#` and any trailing `#` fragment, then parses and
 // normalizes.
 function parseQuery(value) {
-	const text = `${value || ""}`.replace(/^[?#]/, "")
-	const i = text.indexOf("#")
-	const source = i >= 0 ? text.slice(0, i) : text
-	if (!source) return {}
-	const parsed = parseHashText(source)
-	return normalizeHashValue(parsed)
+	const text = `${value || ""}`.replace(/^[?#]/, "");
+	const i = text.indexOf("#");
+	const source = i >= 0 ? text.slice(0, i) : text;
+	if (!source) return {};
+	const parsed = parseHashText(source);
+	return normalizeHashValue(parsed);
 }
 
 // Function: formatQuery
 // Formats `value` as a hashfmt string suitable for query strings.
 function formatQuery(value) {
-	return formatHashValue(normalizeHashValue(value))
+	return formatHashValue(normalizeHashValue(value));
 }
 
 // ----------------------------------------------------------------------------
@@ -668,12 +665,12 @@ function formatQuery(value) {
 const hash = {
 	parse: parseHash,
 	format: formatHash,
-}
+};
 
 const query = {
 	parse: parseQuery,
 	format: formatQuery,
-}
+};
 
 export {
 	decodeComponent,
@@ -681,8 +678,8 @@ export {
 	formatHash,
 	formatHashValue,
 	formatQuery,
-	hash,
 	HashFormat,
+	hash,
 	iFormat,
 	isArrayLikeRecord,
 	looksLikeHashText,
@@ -694,9 +691,9 @@ export {
 	parseHashValue,
 	parseQuery,
 	query,
-	RecordFormat,
 	RE_HASH_ESCAPE,
 	RE_HASH_NUMBER,
-}
+	RecordFormat,
+};
 
 // EOF

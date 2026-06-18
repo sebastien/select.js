@@ -538,6 +538,24 @@ Render data to the DOM. Content can be text, HTML, or nested components.
 <span out="amount|formatRange+min+units.suffix"></span>
 ```
 
+The binding side can also map data paths into an object before the processor
+pipeline runs:
+
+```html
+<div out="a:b|Proc"></div>
+<div out="a:b,c:d|Proc"></div>
+```
+
+These resolve as:
+
+- `a:b|Proc` -> `Proc({ a: data.b })`
+- `a:b,c:d|Proc` -> `Proc({ a: data.b, c: data.d })`
+
+Unwrapping follows the usual processor rules:
+
+- function processors receive unwrapped/renderable mapped values
+- component/template processors receive raw/reactive mapped values
+
 Use `*` to apply a processor to each item of a collection:
 
 ```html
@@ -645,6 +663,7 @@ Effect expression forms:
 - `!EventName`: publish event only, payload defaults to current data
 - `path.to.value!EventName`: publish event with payload from data path
 - `path.to.value|processorA|processorB!EventName`: publish event with payload transformed by processors
+- `a:b,c:d!EventName`: publish an object payload built from multiple data paths
 - `!EventName.`: publish event and stop propagation
 - `!EventName-`: publish event and prevent default
 - `!EventName.-` (or `!EventName-.`): publish event, stop propagation, and prevent default
@@ -674,12 +693,18 @@ Effect expression forms:
 <!-- Publish payload with processors -->
 <button on:click="item.total|asCurrency!CheckoutTotal">Checkout</button>
 
+<!-- Publish mapped object payload -->
+<button on:click="id:item.id,total:item.total!Checkout"></button>
+
 <!-- Form submit -->
 <form on:submit="handleSubmit">...</form>
 
 <!-- Multiple events on same element -->
 <button on:click="save" on:mouseenter="highlight">Save</button>
 ```
+
+For `on:<event>` publish payloads, mapped values and processor inputs stay raw:
+reactive values are not unwrapped automatically.
 
 ```javascript
 .does({

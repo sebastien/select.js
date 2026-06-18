@@ -694,7 +694,7 @@ class UIWebComponent extends BaseHTMLElement {
 	}
 
 	connectedCallback() {
-		watchDocumentStyles(document, this)
+		watchDocumentStyles(document, this);
 		this._syncDocumentStyles();
 		if (!this.isInitialized) {
 			this.attributeData = this.readAttributes();

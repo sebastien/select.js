@@ -13,11 +13,11 @@
 //
 // ----------------------------------------------------------------------------
 
-import { expand, isPascalCase, microtask } from "../../utils.js";
 import { unwrap } from "../../cells.js";
 import { FORMATS } from "../../formats.js";
+import { expand, isPascalCase, microtask } from "../../utils.js";
 
-import { log, TemplateParser, isInputNode } from "../templates.js";
+import { isInputNode, log, TemplateParser } from "../templates.js";
 
 const SLOT_DEFAULT_KEY = "_";
 const SKIP_INPUT_UPDATE = Symbol("skip-input-update");
@@ -76,6 +76,14 @@ function resolveSourceValue(data, sourceKey) {
 	return resolveDataPath(data, normalizedKey.split("."));
 }
 
+function formatBindingSource(binding) {
+	if (!binding) return "";
+	if (binding.sourceMap?.length) {
+		return TemplateParser.FormatBindingSourceMap(binding.sourceMap);
+	}
+	return binding.sourceKey || "";
+}
+
 function resolveRenderableValue(value) {
 	return unwrap(expand(value));
 }
@@ -83,6 +91,33 @@ function resolveRenderableValue(value) {
 function resolveExpandedSourceValue(data, sourceKey) {
 	const value = resolveSourceValue(data, sourceKey);
 	return value === undefined ? undefined : resolveRenderableValue(value);
+}
+
+function resolveMappedSourceValue(data, sourceMap, expandValues = false) {
+	if (!sourceMap?.length) return undefined;
+	const result = {};
+	for (let i = 0; i < sourceMap.length; i++) {
+		const entry = sourceMap[i];
+		const value = resolveSourceValue(
+			data,
+			TemplateParser.FormatBindingPath(entry.path),
+		);
+		result[entry.key] =
+			expandValues && value !== undefined
+				? resolveRenderableValue(value)
+				: value;
+	}
+	return result;
+}
+
+function resolveBindingValue(data, binding, expandValues = false) {
+	if (!binding) return undefined;
+	if (binding.sourceMap?.length) {
+		return resolveMappedSourceValue(data, binding.sourceMap, expandValues);
+	}
+	return expandValues
+		? resolveExpandedSourceValue(data, binding.sourceKey)
+		: resolveSourceValue(data, binding.sourceKey);
 }
 
 function scheduleRenderTask(fn) {
@@ -186,8 +221,7 @@ function normalizeProcessorDescriptor(processor) {
 		return null;
 	}
 	return {
-		raw:
-			processor.raw || TemplateParser.FormatProcessorToken(processor),
+		raw: processor.raw || TemplateParser.FormatProcessorToken(processor),
 		each: processor.each === true,
 		name: processor.name,
 		args: Array.isArray(processor.args) ? processor.args : [],
@@ -295,12 +329,15 @@ function applyNamedProcessors(
 		const processor = resolveNamedProcessor(self, descriptor.name);
 		if (!processor) {
 			const availableProcessors = Object.keys(FORMATS).sort();
-			log.warn(`UIInstance.render: processor not found: ${descriptor.name}, details`, {
-				processor: descriptor.name,
-				sourceKey,
-				availableProcessors,
-				instance: self,
-			});
+			log.warn(
+				`UIInstance.render: processor not found: ${descriptor.name}, details`,
+				{
+					processor: descriptor.name,
+					sourceKey,
+					availableProcessors,
+					instance: self,
+				},
+			);
 			continue;
 		}
 		lastProcessorType = processor.type;
@@ -308,7 +345,10 @@ function applyNamedProcessors(
 		if (descriptor.each) {
 			// NOTE: Starred processors act on the expanded collection shape, not on
 			// the reactive wrapper that may hold it.
-			current = processor.type === "component" ? unwrap(current) : resolveRenderableValue(current);
+			current =
+				processor.type === "component"
+					? unwrap(current)
+					: resolveRenderableValue(current);
 			current = mapProcessorCollection(current, (item, itemIndex) =>
 				applyNamedProcessor(
 					processor,
@@ -365,7 +405,9 @@ function applyNamedProcessors(
 }
 
 function finalizeRenderProcessorValue(value, lastProcessorType = null) {
-	return lastProcessorType === "component" ? value : resolveRenderableValue(value);
+	return lastProcessorType === "component"
+		? value
+		: resolveRenderableValue(value);
 }
 
 function resolveTemplateTokens(self, tokens, data) {
@@ -525,21 +567,24 @@ function isThenable(value) {
 }
 
 export {
-	SLOT_DEFAULT_KEY,
-	SKIP_INPUT_UPDATE,
 	applyNamedProcessors,
 	createTrackingProxy,
 	createWhenPredicate,
 	finalizeRenderProcessorValue,
+	formatBindingSource,
 	getInputBindingProperty,
 	getInputEventValue,
 	hasTrackedNonReactiveObjectDeps,
 	isThenable,
+	resolveBindingValue,
 	resolveDataPath,
 	resolveExpandedSourceValue,
+	resolveMappedSourceValue,
 	resolveRenderableValue,
 	resolveSourceValue,
 	resolveTemplateTokens,
+	SKIP_INPUT_UPDATE,
+	SLOT_DEFAULT_KEY,
 	scheduleRenderTask,
 	setNodeText,
 	snapshotReactiveDependencyRevisions,

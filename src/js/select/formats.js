@@ -8,7 +8,6 @@
 // String case format helpers shared across modules.
 
 import { unwrap } from "./cells.js";
-import { MS_PER_DAY, numdate } from "./utils/dates.js";
 import { hi as htmlHi } from "./utils/html.js";
 import { bool, entries, idem, len, type } from "./utils.js";
 
@@ -49,6 +48,7 @@ const currencyFormatterDefault = new Intl.NumberFormat(undefined, {
 	currency: "USD",
 });
 const currencyFormatters = new Map();
+const LOCAL_TIME = Symbol("localtime");
 
 function active(value) {
 	return value ? "active" : "";
@@ -131,100 +131,111 @@ function empty(value) {
 }
 
 function datePartsToDate(value) {
+	const tz = value[6];
+	let offset = 0;
+	if (typeof tz === "number" && Number.isFinite(tz)) {
+		offset = tz;
+	} else if (typeof tz === "string") {
+		if (tz !== "Z") {
+			const match = tz.match(/^([+-])(\d{2}):?(\d{2})$/);
+			if (match) {
+				offset =
+					(Number(match[2]) * 60 + Number(match[3])) *
+					(match[1] === "+" ? 1 : -1);
+			}
+		}
+	}
 	return new Date(
-		value[0],
-		(value[1] || 1) - 1,
-		value[2] || 1,
-		value[3] || 0,
-		value[4] || 0,
-		value[5] || 0,
+		Date.UTC(
+			value[0],
+			(value[1] || 1) - 1,
+			value[2] || 1,
+			value[3] || 0,
+			value[4] || 0,
+			value[5] || 0,
+		) -
+			offset * 60000,
 	);
 }
 
 function asDate(value) {
+	if (value?.[LOCAL_TIME]) {
+		return value.date;
+	}
 	if (value instanceof Date) {
 		return value;
 	}
 	if (Array.isArray(value)) {
 		return datePartsToDate(value);
 	}
-	if (typeof value === "number") {
-		return Math.abs(value) >= MS_PER_DAY
-			? datePartsToDate(numdate(value))
-			: new Date(value * 1000);
+	if (typeof value === "number" && Number.isFinite(value)) {
+		return new Date(value * 1000);
 	}
 	if (typeof value === "string") {
 		const source = value.trim();
 		if (!source) {
 			return new Date();
 		}
+		if (/^-?\d+(?:\.\d+)?$/.test(source)) {
+			return new Date(Number(source) * 1000);
+		}
 		const match = source.match(
-			/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/,
+			/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?(Z|[+-]\d{2}:?\d{2})?$/,
 		);
 		if (match) {
-			return new Date(
-				Date.UTC(
-					Number(match[1]),
-					Number(match[2]) - 1,
-					Number(match[3]),
-					Number(match[4] ?? 0),
-					Number(match[5] ?? 0),
-					Number(match[6] ?? 0),
-				),
-			);
+			return datePartsToDate([
+				Number(match[1]),
+				Number(match[2]),
+				Number(match[3]),
+				Number(match[4] ?? 0),
+				Number(match[5] ?? 0),
+				Number(match[6] ?? 0),
+				match[7],
+			]);
 		}
 	}
 	return new Date();
 }
 
-function asDateWithUtcFallback(value) {
-	if (value instanceof Date) {
-		return value;
-	}
-	if (typeof value === "number") {
-		return new Date(value * 1000);
-	}
-	if (typeof value !== "string") {
-		return asDate(value);
-	}
-	const source = value.trim();
-	if (!source) {
-		return new Date();
-	}
-	// Treat timezone-less ISO-like strings as UTC so local rendering is stable.
-	const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(source);
-	const normalized =
-		hasTimezone || !/^\d{4}-\d{2}-\d{2}/.test(source)
-			? source
-			: `${source.replace(" ", "T")}Z`;
-	return new Date(normalized);
+function timestamp(value) {
+	return Math.floor(asDate(value).getTime() / 1000);
 }
 
 function date(value) {
+	const local = value?.[LOCAL_TIME] === true;
 	const d = asDate(value);
-	const month = d.getMonth() + 1;
-	const day = d.getDate();
-	return `${d.getFullYear()}-${month < 10 ? `0${month}` : `${month}`}-${day < 10 ? `0${day}` : `${day}`}`;
+	const year = local ? d.getFullYear() : d.getUTCFullYear();
+	const month = (local ? d.getMonth() : d.getUTCMonth()) + 1;
+	const day = local ? d.getDate() : d.getUTCDate();
+	return `${year}-${month < 10 ? `0${month}` : `${month}`}-${day < 10 ? `0${day}` : `${day}`}`;
 }
 
 function month(value) {
+	const local = value?.[LOCAL_TIME] === true;
 	const d = asDate(value);
-	const res = d.getMonth() + 1;
+	const res = (local ? d.getMonth() : d.getUTCMonth()) + 1;
 	return res < 10 ? `0${res}` : `${res}`;
 }
 
 function monthname(value) {
-	return DEFAULTS.MONTH_NAMES[asDate(value).getMonth()] ?? "";
+	const local = value?.[LOCAL_TIME] === true;
+	const d = asDate(value);
+	return DEFAULTS.MONTH_NAMES[local ? d.getMonth() : d.getUTCMonth()] ?? "";
 }
 
 function day(value) {
+	const local = value?.[LOCAL_TIME] === true;
 	const d = asDate(value);
-	const res = d.getDate();
+	const res = local ? d.getDate() : d.getUTCDate();
 	return res < 10 ? `0${res}` : `${res}`;
 }
 
 function dayname(value) {
-	return DEFAULTS.DAY_NAMES[(asDate(value).getDay() + 6) % 7] ?? "";
+	const local = value?.[LOCAL_TIME] === true;
+	const d = asDate(value);
+	return (
+		DEFAULTS.DAY_NAMES[((local ? d.getDay() : d.getUTCDay()) + 6) % 7] ?? ""
+	);
 }
 
 function number(value, options = undefined) {
@@ -279,21 +290,26 @@ function percent(value, options = undefined) {
 }
 
 function time(value) {
+	const local = value?.[LOCAL_TIME] === true;
 	const d = asDate(value);
-	const hours = d.getHours();
-	const minutes = d.getMinutes();
-	const seconds = d.getSeconds();
+	const hours = local ? d.getHours() : d.getUTCHours();
+	const minutes = local ? d.getMinutes() : d.getUTCMinutes();
+	const seconds = local ? d.getSeconds() : d.getUTCSeconds();
 	return `${hours < 10 ? `0${hours}` : `${hours}`}:${minutes < 10 ? `0${minutes}` : `${minutes}`}:${seconds < 10 ? `0${seconds}` : `${seconds}`}`;
 }
 
 function datetime(value) {
-	const d = asDate(value);
-	return `${date(d)} ${time(d)}`;
+	return `${date(value)} ${time(value)}`;
 }
 
 function localtime(value) {
-	const d = asDateWithUtcFallback(value);
-	return `${date(d)} ${time(d)}`;
+	return {
+		[LOCAL_TIME]: true,
+		date: asDate(value),
+		toString() {
+			return `${date(this)} ${time(this)}`;
+		},
+	};
 }
 
 const durationUnits = [
@@ -330,6 +346,7 @@ function swallow() {
 }
 
 function ago(value) {
+	const local = value?.[LOCAL_TIME] === true;
 	const source = asDate(value);
 	if (!source) {
 		return null;
@@ -361,9 +378,9 @@ function ago(value) {
 	if (diffInWeeks < 4) {
 		return `${prefix}${diffInWeeks}w${suffix}`;
 	}
-	const dateYear = source.getFullYear();
-	const currentYear = now.getFullYear();
-	const dateText = `On ${DEFAULTS.MONTH_NAMES[source.getMonth()]}, ${source.getDate()}`;
+	const dateYear = local ? source.getFullYear() : source.getUTCFullYear();
+	const currentYear = local ? now.getFullYear() : now.getUTCFullYear();
+	const dateText = `On ${DEFAULTS.MONTH_NAMES[local ? source.getMonth() : source.getUTCMonth()]}, ${local ? source.getDate() : source.getUTCDate()}`;
 	return dateYear === currentYear ? dateText : `${dateText}, ${dateYear}`;
 }
 
@@ -445,6 +462,7 @@ const FORMATS = {
 	number,
 	percent,
 	swallow,
+	timestamp,
 	text,
 	time,
 	timetuple,
@@ -477,9 +495,6 @@ function format(name, ...value) {
 }
 
 export {
-	DEFAULTS,
-	FORMATS,
-	NA,
 	active,
 	ago,
 	asDate,
@@ -487,6 +502,7 @@ export {
 	bool,
 	count,
 	currency,
+	DEFAULTS,
 	date,
 	datetime,
 	day,
@@ -495,6 +511,7 @@ export {
 	duration,
 	empty,
 	entries,
+	FORMATS,
 	format,
 	head,
 	hi,
@@ -506,10 +523,12 @@ export {
 	len,
 	localtime,
 	month,
+	NA,
 	not,
 	number,
 	percent,
 	swallow,
+	timestamp,
 	text,
 	time,
 	timetuple,

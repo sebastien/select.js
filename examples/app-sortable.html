@@ -13,12 +13,11 @@
       }
 
       body {
-      	font-family: system-ui, sans-serif;
-      	margin: 0;
-      	padding: 20px;
-      	max-width: 900px;
-      	margin: 0 auto;
-      	color: #172033;
+		font-family: system-ui, sans-serif;
+		padding: 20px;
+		max-width: 900px;
+		margin: 0 auto;
+		color: #172033;
       }
 
       main {
@@ -316,11 +315,11 @@
       </button>
     </template>
     <template id="SortableList">
-      <section class="list" out:data-axis="axis">
-        <header>
-          <h2 out="title"></h2>
-          <small out="description"></small>
-        </header>
+	      <section class="list" out:data-axis="axis">
+	        <header>
+	          <h2 out="title">List</h2>
+	          <small out="description"></small>
+	        </header>
         <div class="items" out="items" out:data-sortable-list="id" out:data-axis="axis">
           <div>Empty</div>
         </div>
@@ -467,7 +466,7 @@
 					changed = true
 					continue
 				}
-				if (node.children && node.children.length) {
+				if (node.children?.length) {
 					const next = removeTreeItem(node.children, itemId)
 					if (next.moved) {
 						moved = next.moved

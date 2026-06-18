@@ -9,6 +9,14 @@ without a build step.
 
 For icon loading and `<ui-icon>` usage, see [`docs/icons.md`](./icons.md).
 
+Binding note:
+
+- `out` and `on:<event>` payload expressions support mapped object syntax such as
+  `a:b|Proc` or `a:b,c:d|Proc`.
+- In `out`, function processors receive unwrapped mapped values while
+  component/template processors receive raw/reactive mapped values.
+- In `on:<event>` publish payloads, mapped values stay raw/reactive.
+
 ### Template creation:
 
 - `ui(selection, scope?)`: Main entry point for creating templates.

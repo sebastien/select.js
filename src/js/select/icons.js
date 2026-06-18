@@ -34,56 +34,58 @@ const SVG_ALLOWED_TAGS = new Set([
 	"desc",
 	"use",
 ]);
-const SVG_ALLOWED_ATTRS = new Set([
-	"class",
-	"cx",
-	"cy",
-	"d",
-	"fill",
-	"fill-opacity",
-	"fill-rule",
-	"height",
-	"id",
-	"mask",
-	"maskcontentunits",
-	"maskunits",
-	"offset",
-	"opacity",
-	"points",
-	"preserveaspectratio",
-	"r",
-	"role",
-	"rx",
-	"ry",
-	"stroke",
-	"stroke-dasharray",
-	"stroke-dashoffset",
-	"stroke-linecap",
-	"stroke-linejoin",
-	"stroke-miterlimit",
-	"stroke-opacity",
-	"stroke-width",
-	"transform",
-	"viewbox",
-	"width",
-	"x",
-	"x1",
-	"x2",
-	"xlink:href",
-	"xmlns",
-	"y",
-	"y1",
-	"y2",
-	"href",
-	"gradienttransform",
-	"gradientunits",
-	"clip-path",
-	"clip-rule",
-	"clipPathUnits",
-	"stop-color",
-	"stop-opacity",
-	"vector-effect",
-].map((_) => _.toLowerCase()));
+const SVG_ALLOWED_ATTRS = new Set(
+	[
+		"class",
+		"cx",
+		"cy",
+		"d",
+		"fill",
+		"fill-opacity",
+		"fill-rule",
+		"height",
+		"id",
+		"mask",
+		"maskcontentunits",
+		"maskunits",
+		"offset",
+		"opacity",
+		"points",
+		"preserveaspectratio",
+		"r",
+		"role",
+		"rx",
+		"ry",
+		"stroke",
+		"stroke-dasharray",
+		"stroke-dashoffset",
+		"stroke-linecap",
+		"stroke-linejoin",
+		"stroke-miterlimit",
+		"stroke-opacity",
+		"stroke-width",
+		"transform",
+		"viewbox",
+		"width",
+		"x",
+		"x1",
+		"x2",
+		"xlink:href",
+		"xmlns",
+		"y",
+		"y1",
+		"y2",
+		"href",
+		"gradienttransform",
+		"gradientunits",
+		"clip-path",
+		"clip-rule",
+		"clipPathUnits",
+		"stop-color",
+		"stop-opacity",
+		"vector-effect",
+	].map((_) => _.toLowerCase()),
+);
 // Constant: IconContainer
 // Shared hidden SVG container used to host loaded symbols.
 const IconContainer = Object.entries({
@@ -228,7 +230,10 @@ function sanitizeSvgMarkup(text, name) {
 	if (i < 0) {
 		throw new Error(`Could not find <svg> in icon "${name}", got: ${text}`);
 	}
-	const doc = new DOMParser().parseFromString(text.substring(i), "image/svg+xml");
+	const doc = new DOMParser().parseFromString(
+		text.substring(i),
+		"image/svg+xml",
+	);
 	const svg = doc.documentElement;
 	if (svg?.tagName.toLowerCase() !== "svg") {
 		throw new Error(`Could not parse <svg> in icon "${name}"`);
@@ -493,7 +498,7 @@ function install(name = "ui-icon", options = {}) {
 	}
 }
 
-export { icon, install, load, Cache, IconContainer, IconSources };
+export { Cache, IconContainer, IconSources, icon, install, load };
 export default Object.assign(icon, {
 	load,
 	install,

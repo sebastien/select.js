@@ -10,12 +10,7 @@
 
 import { eq } from "./compare.js";
 import { extractor, predicate } from "./func.js";
-import {
-	isArrayLike,
-	isIterable,
-	isMapLike,
-	isWalkable,
-} from "./values.js";
+import { isArrayLike, isIterable, isMapLike, isWalkable } from "./values.js";
 
 // ----------------------------------------------------------------------------
 //
@@ -35,32 +30,32 @@ import {
 // ```
 function* iquery(value, path, offset = 0, sep = ".") {
 	if (typeof path === "string") {
-		yield* iquery(value, path.split(sep), offset, sep)
-		return
+		yield* iquery(value, path.split(sep), offset, sep);
+		return;
 	}
 	if (!Array.isArray(path)) {
-		return
+		return;
 	}
-	let current = value
+	let current = value;
 	for (let i = offset; i < path.length; i++) {
-		const k = path[i]
+		const k = path[i];
 		if (typeof k === "string" && k.endsWith("*")) {
-			const kk = k.slice(0, -1)
-			const next = current?.[kk]
+			const kk = k.slice(0, -1);
+			const next = current?.[kk];
 			if (next === undefined || next === null) {
-				return
+				return;
 			}
 			for (const vv of ivalues(next)) {
-				yield* iquery(vv, path, i + 1, sep)
+				yield* iquery(vv, path, i + 1, sep);
 			}
-			return
+			return;
 		}
-		current = current?.[k]
+		current = current?.[k];
 		if (current === undefined && i < path.length - 1) {
-			return
+			return;
 		}
 	}
-	yield current
+	yield current;
 }
 
 // Function: ivalues
@@ -68,26 +63,26 @@ function* iquery(value, path, offset = 0, sep = ".") {
 function* ivalues(value) {
 	if (isArrayLike(value)) {
 		for (let i = 0; i < value.length; i++) {
-			yield value[i]
+			yield value[i];
 		}
 	} else if (value instanceof Map) {
 		for (const v of value.values()) {
-			yield v
+			yield v;
 		}
 	} else if (value instanceof Set) {
 		for (const v of value.values()) {
-			yield v
+			yield v;
 		}
 	} else if (value?.constructor === Object) {
 		for (const k in value) {
-			yield value[k]
+			yield value[k];
 		}
 	} else if (typeof value !== "string" && isIterable(value)) {
 		for (const v of value) {
-			yield v
+			yield v;
 		}
 	} else {
-		yield value
+		yield value;
 	}
 }
 
@@ -95,7 +90,7 @@ function* ivalues(value) {
 // Maps `values` with `func` and yields flattened results one level deep.
 function* iflatmap(values, func) {
 	for (const [k, v] of iitems(values)) {
-		yield* ivalues(func(v, k, values))
+		yield* ivalues(func(v, k, values));
 	}
 }
 
@@ -527,13 +522,13 @@ export {
 	icount,
 	ientries,
 	ifind,
-	iflatmap,
 	ifirst,
+	iflatmap,
 	ifound,
 	ihead,
 	iindex,
-	ikeys,
 	iitems,
+	ikeys,
 	ilast,
 	ileaves,
 	inth,

@@ -7,7 +7,7 @@
 // Module: select/utils/func
 // Function composition, defaults, and memoization helpers.
 
-import { access, bool, isObject, isThenable, isAnnotable } from "./values.js";
+import { access, bool, isAnnotable, isObject, isThenable } from "./values.js";
 
 // ----------------------------------------------------------------------------
 //
@@ -254,8 +254,8 @@ export {
 	asTrue,
 	extractor,
 	idem,
-	meta,
 	memo,
+	meta,
 	named,
 	pipe,
 	pipeline,

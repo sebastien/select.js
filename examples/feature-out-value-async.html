@@ -50,12 +50,16 @@
 	<template id="App">
 		<div class="panel">
 			<div class="row">
-				<label>Type source text:</label>
-				<input inout="source" placeholder="Type here" />
+				<label>
+					Type source text:
+					<input inout="source" placeholder="Type here" />
+				</label>
 			</div>
 			<div class="row">
-				<label>Async target (bound with <code>out:value</code>):</label>
-				<input out:value="delayedValue" readonly />
+				<label>
+					Async target (bound with <code>out:value</code>):
+					<input out:value="delayedValue" readonly />
+				</label>
 			</div>
 			<div class="row note" out="status">Waiting…</div>
 		</div>

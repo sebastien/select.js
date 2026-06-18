@@ -20,9 +20,9 @@ function logger(scope) {
 		log: (...args) => console.log(`[${scope}]`, ...args),
 		warn: (...args) => console.warn(`[${scope}]`, ...args),
 		error: (...args) => console.error(`[${scope}]`, ...args),
-	}
+	};
 }
 
-export { logger }
+export { logger };
 
 // EOF

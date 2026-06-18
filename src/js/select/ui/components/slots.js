@@ -8,12 +8,12 @@
 // Template slot descriptors and mounted slot renderers.
 
 import { asText, eq } from "../../utils.js";
-import { log, TemplateParser, isInputNode } from "../templates.js";
+import { isInputNode, log, TemplateParser } from "../templates.js";
 
 import { AppliedUITemplate } from "./model.js";
 import {
-	SLOT_DEFAULT_KEY,
 	createWhenPredicate,
+	SLOT_DEFAULT_KEY,
 	setNodeText,
 } from "./runtime.js";
 
@@ -151,7 +151,11 @@ class UITemplateSlot {
 			const outKey = node.getAttribute("out")?.trim();
 			if (outKey) {
 				const parsedOut = TemplateParser.ParseOutAttributeBinding(outKey);
-				if (parsedOut.mode === "binding" && parsedOut.binding?.sourceKey) {
+				if (
+					parsedOut.mode === "binding" &&
+					parsedOut.binding?.sourceKey &&
+					!parsedOut.binding?.sourceMap?.length
+				) {
 					return parsedOut.binding.sourceKey;
 				}
 				const tokens = parsedOut.template?.tokens || [];
@@ -170,16 +174,21 @@ class UITemplateSlot {
 			}
 			const inferred = new Set();
 			for (const attr of node.attributes || []) {
-				if (!attr.name.startsWith("out:")) {
+				const prefix = attr.name.startsWith("out:")
+					? "out:"
+					: attr.name.startsWith("out-")
+						? "out-"
+						: null;
+				if (!prefix) {
 					continue;
 				}
-				const attrName = attr.name.slice("out:".length);
+				const attrName = attr.name.slice(prefix.length);
 				const slotName = attr.value || attrName;
-				const parsedOut = TemplateParser.ParseOutAttributeBinding(
-					slotName,
-				);
+				const parsedOut = TemplateParser.ParseOutAttributeBinding(slotName);
 				if (parsedOut.mode === "binding") {
-					const key = parsedOut.binding?.sourceKey;
+					const key = parsedOut.binding?.sourceMap?.length
+						? null
+						: parsedOut.binding?.sourceKey;
 					if (key) {
 						inferred.add(key);
 					}
@@ -342,7 +351,9 @@ class UITemplateSlot {
 						const slotName = attr.value || attrName;
 						const parsed = TemplateParser.ParseOutAttributeBinding(slotName);
 						const binding = parsed.binding;
-						const sourceKey = binding?.sourceKey ?? slotName;
+						const sourceKey = binding?.sourceMap?.length
+							? TemplateParser.FormatBindingSourceMap(binding.sourceMap)
+							: (binding?.sourceKey ?? slotName);
 						const processorsKey =
 							TemplateParser.FormatProcessorList(binding?.processors) || "";
 						const bindingKey =
@@ -419,7 +430,7 @@ class UITemplateSlot {
 						const handlerName =
 							parsed.mode === "handler"
 								? parsed.handlerName || eventType
-								: `!${parsed.publishEvent}:${parsed.binding?.sourceKey || "data"}`;
+								: `!${parsed.publishEvent}:${parsed.binding?.sourceMap?.length ? TemplateParser.FormatBindingSourceMap(parsed.binding.sourceMap) : parsed.binding?.sourceKey || "data"}`;
 						toRemove.push(attr.name);
 
 						const slot = new UIEventTemplateSlot(
@@ -490,13 +501,7 @@ class UITemplateSlot {
 					const defaultKey = inputProperty || "value";
 					const key = `${attr.value || defaultKey}`.trim() || defaultKey;
 					toRemove.push(attr.name);
-					const slot = createInOutSlot(
-						node,
-						parent,
-						i,
-						inputProperty,
-						key,
-					);
+					const slot = createInOutSlot(node, parent, i, inputProperty, key);
 					if (res[key] === undefined) {
 						res[key] = [slot];
 					} else {
@@ -561,6 +566,11 @@ class UIAttributeTemplateSlot {
 	}
 }
 class UIAttributeSlot {
+	static NamespaceURIs = {
+		xlink: "http://www.w3.org/1999/xlink",
+		xml: "http://www.w3.org/XML/1998/namespace",
+		xmlns: "http://www.w3.org/2000/xmlns/",
+	};
 	constructor(node, template, parent) {
 		this.node = node;
 		this.template = template;
@@ -700,6 +710,22 @@ class UIAttributeSlot {
 	}
 
 	_renderAttr(value) {
+		const colon = this.attrName.indexOf(":");
+		if (colon > 0) {
+			const prefix = this.attrName.slice(0, colon);
+			const localName = this.attrName.slice(colon + 1);
+			const ns = UIAttributeSlot.NamespaceURIs[prefix];
+			if (ns) {
+				if (value == null || value === false) {
+					this.node.removeAttributeNS(ns, localName);
+				} else if (value === true) {
+					this.node.setAttributeNS(ns, this.attrName, "");
+				} else {
+					this.node.setAttributeNS(ns, this.attrName, String(value));
+				}
+				return;
+			}
+		}
 		if (value == null || value === false) {
 			this.node.removeAttribute(this.attrName);
 		} else if (value === true) {
@@ -896,16 +922,30 @@ class UISlot {
 	// Mounts `instance` at `nextNode` position within this.node.
 	_mountInstance(instance, nextNode) {
 		this._mergeReplaceNodeDecorationsInNodes(instance.nodes);
-		const fragment = document.createDocumentFragment();
-		for (let i = 0; i < instance.nodes.length; i++) {
-			fragment.appendChild(instance.nodes[i]);
-		}
 		const parentNode =
 			this.replaceNode && this.replaceEnd?.parentNode
 				? this.replaceEnd.parentNode
 				: this.node;
 		if (!parentNode) {
 			return;
+		}
+		if (instance.nodes.length === 1) {
+			const node = instance.nodes[0];
+			if (nextNode && nextNode.parentNode === parentNode) {
+				parentNode.insertBefore(node, nextNode);
+			} else if (
+				this.replaceNode &&
+				this.replaceEnd?.parentNode === parentNode
+			) {
+				parentNode.insertBefore(node, this.replaceEnd);
+			} else {
+				parentNode.appendChild(node);
+			}
+			return;
+		}
+		const fragment = document.createDocumentFragment();
+		for (let i = 0; i < instance.nodes.length; i++) {
+			fragment.appendChild(instance.nodes[i]);
 		}
 		if (nextNode && nextNode.parentNode === parentNode) {
 			parentNode.insertBefore(fragment, nextNode);
@@ -1103,7 +1143,10 @@ class UISlot {
 		if (previous?.parentNode) {
 			return previous.nextSibling;
 		}
-		return this._nextMappedNodeAfterKey(key) || (this.replaceNode ? this.replaceEnd : null);
+		return (
+			this._nextMappedNodeAfterKey(key) ||
+			(this.replaceNode ? this.replaceEnd : null)
+		);
 	}
 
 	_renderMapped(k, item, previous) {
@@ -1124,7 +1167,10 @@ class UISlot {
 				r = this.node;
 			} else if (item instanceof Node) {
 				this._mergeReplaceNodeDecorations(item);
-				this._mountInstance({ nodes: [item] }, this._nextMountNode(k, previous));
+				this._mountInstance(
+					{ nodes: [item] },
+					this._nextMountNode(k, previous),
+				);
 				r = item;
 			} else {
 				r = document.createTextNode(asText(item));
@@ -1517,6 +1563,7 @@ class UIContentSlot {
 }
 
 export {
+	setUIInstanceClass,
 	UIAttributeSlot,
 	UIAttributeTemplateSlot,
 	UIContentSlot,
@@ -1524,7 +1571,6 @@ export {
 	UIEventTemplateSlot,
 	UISlot,
 	UITemplateSlot,
-	setUIInstanceClass,
 };
 
 // EOF

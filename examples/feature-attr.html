@@ -144,8 +144,9 @@
 	</template>
 
 	<script type="module">
-		import ui from "@./ui.js"
 		import { cell } from "@./cells.js"
+		import ui from "@./ui.js"
+
 		ui.format("upper", (value) => `${value ?? ""}`.toUpperCase())
 		ui.format("em", (value) => `${value ?? ""}em`)
 		ui.format("measure", (value, scale, suffix) =>
