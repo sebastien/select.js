@@ -742,6 +742,12 @@ Key inference from `out`/`out:*` on the same element:
 - `when="!?"` + `out="slot"` => `when="!?slot"`
 - `when` + `out:href="mailto:${.}"` => `when="."`
 
+Logical conjunction is supported with `&` between complete `when` clauses:
+
+- `when="focus&history"`
+- `when="!focus&history"`
+- `when="?focus&history=ready"`
+
 If key inference is requested but no `out` slot exists, `when` stays as a
 regular HTML attribute and an error is logged.
 

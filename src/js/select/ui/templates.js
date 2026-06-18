@@ -317,6 +317,42 @@ class TemplateParser {
 
 	static ParseWhenShorthand(expr) {
 		const source = typeof expr === "string" ? expr.trim() : ""
+		const parseSingleWhen = (input) => {
+			const text = typeof input === "string" ? input.trim() : ""
+			const comparison = parseWhenComparison(text)
+			if (comparison) return comparison
+			let i = 0
+			let negate = false
+			let queryDefined = false
+			if (text[i] === "!") {
+				negate = true
+				i++
+			}
+			if (text[i] === "?") {
+				queryDefined = true
+				i++
+			}
+			const bindingExpr = text.slice(i).trim()
+			let key
+			let processors = []
+			if (bindingExpr) {
+				const binding = TemplateParser.ParsePipedBinding(bindingExpr, false)
+				if (!binding) return null
+				const path = TemplateParser.ParseBindingPath(binding.sourceKey, true)
+				if (!path) return null
+				key = path.join(".")
+				processors = binding.processors
+			}
+			if (!bindingExpr && text.length > 0 && i === 0) return null
+			const mode = queryDefined
+				? negate
+					? TemplateParser.UNDEFINED
+					: TemplateParser.DEFINED
+				: negate
+					? TemplateParser.FALSY
+					: TemplateParser.TRUTHY
+			return { key, processors, mode, operator: null, rawValue: null, value: undefined }
+		}
 		const parseWhenLiteral = (raw) => {
 			const value = raw.trim()
 			if (!value.length) return ""
@@ -346,33 +382,17 @@ class TemplateParser {
 			}
 			return null
 		}
-		const comparison = parseWhenComparison(source)
-		if (comparison) return comparison
-		let i = 0
-		let negate = false
-		let queryDefined = false
-		if (source[i] === "!") {
-			negate = true
-			i++
+		if (source.includes("&")) {
+			const parts = source.split("&")
+			const clauses = new Array(parts.length)
+			for (let i = 0; i < parts.length; i++) {
+				const clause = parseSingleWhen(parts[i])
+				if (!clause) return null
+				clauses[i] = clause
+			}
+			return { clauses }
 		}
-		if (source[i] === "?") {
-			queryDefined = true
-			i++
-		}
-		const bindingExpr = source.slice(i).trim()
-		let key
-		let processors = []
-		if (bindingExpr) {
-			const binding = TemplateParser.ParsePipedBinding(bindingExpr, false)
-			if (!binding) return null
-			const path = TemplateParser.ParseBindingPath(binding.sourceKey, true)
-			if (!path) return null
-			key = path.join(".")
-			processors = binding.processors
-		}
-		if (!bindingExpr && source.length > 0 && i === 0) return null
-		const mode = queryDefined ? (negate ? TemplateParser.UNDEFINED : TemplateParser.DEFINED) : (negate ? TemplateParser.FALSY : TemplateParser.TRUTHY)
-		return { key, processors, mode, operator: null, rawValue: null, value: undefined }
+		return parseSingleWhen(source)
 	}
 
 	static EvaluateWhen(mode, value) {

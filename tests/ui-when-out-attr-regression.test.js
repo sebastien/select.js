@@ -47,6 +47,64 @@ function setupGlobals(window) {
 }
 
 describe("ui when + out attribute regression", () => {
+	test("logical and shorthand supports falsy and truthy clauses", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="WhenLogicalAndShorthandRepro">
+				<div class="ready" when="!focus&history">ready</div>
+			</template>
+		`;
+
+		const instance = ui("WhenLogicalAndShorthandRepro").new().mount("#app");
+
+		instance.set({ focus: false, history: true });
+		expect(document.querySelector("#app .ready")?.textContent?.trim()).toBe(
+			"ready",
+		);
+
+		instance.set({ focus: true, history: true });
+		expect(document.querySelector("#app .ready")).toBeNull();
+
+		instance.set({ focus: false, history: false });
+		expect(document.querySelector("#app .ready")).toBeNull();
+
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
+	test("logical and shorthand supports mixed clause types", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="WhenLogicalAndMixedRepro">
+				<div class="ready" when="?focus&history=ready">ready</div>
+			</template>
+		`;
+
+		const instance = ui("WhenLogicalAndMixedRepro").new().mount("#app");
+
+		instance.set({ focus: false, history: "ready" });
+		expect(document.querySelector("#app .ready")?.textContent?.trim()).toBe(
+			"ready",
+		);
+
+		instance.set({ focus: false, history: "pending" });
+		expect(document.querySelector("#app .ready")).toBeNull();
+
+		instance.set({ focus: undefined, history: "ready" });
+		expect(document.querySelector("#app .ready")).toBeNull();
+
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
 	test("baseline conditional item renders only the checked disc", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);

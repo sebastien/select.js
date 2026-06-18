@@ -413,6 +413,7 @@ In template mode, placeholders support optional processor pipelines (`${path|For
 - `when="!slot"`: show when `slot` is falsy
 - `when="?slot"`: show when `slot !== undefined`
 - `when="!?slot"`: show when `slot === undefined`
+- `when="!focus&history"`: show when all clauses are true
 
 `when` also accepts processor pipelines:
 
@@ -421,6 +422,15 @@ In template mode, placeholders support optional processor pipelines (`${path|For
 - `when="?slot|FormatterA|FormatterB"`
 
 `when` uses the same `ui.formats` registry as `out`.
+
+`when` also accepts logical conjunction with `&` between complete shorthand clauses:
+
+- `when="focus&history"`
+- `when="!focus&history"`
+- `when="?focus&history=ready"`
+
+Each side of `&` must be a complete valid `when` clause. `when` still does not
+evaluate arbitrary JavaScript.
 
 `when` also accepts safe comparison expressions in the form `{slot}{op}{raw_value}`:
 

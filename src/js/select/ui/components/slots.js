@@ -209,14 +209,13 @@ class UITemplateSlot {
 			);
 
 			if (parsed) {
-				let whenKey = parsed.key;
-				const whenProcessors = parsed.processors || [];
-				const whenOperator = parsed.operator || null;
-				const whenComparisonValue = parsed.value;
-				const whenRawValue = parsed.rawValue || "";
-				if (!whenKey) {
-					whenKey = inferWhenKeyFromOutAttr(node);
-					if (!whenKey) {
+				const clauses = parsed.clauses || [parsed];
+				for (let i = 0; i < clauses.length; i++) {
+					if (clauses[i].key) {
+						continue;
+					}
+					clauses[i].key = inferWhenKeyFromOutAttr(node);
+					if (!clauses[i].key) {
 						log.error(
 							"UITemplate: unable to infer [when] key from [out], details",
 							{
@@ -237,15 +236,11 @@ class UITemplateSlot {
 				}
 
 				node.removeAttribute("when");
-				slot.predicate = createWhenPredicate(
-					parsed.mode,
-					whenKey,
-					whenProcessors,
-					whenOperator,
-					whenComparisonValue,
-				);
+				slot.predicate = createWhenPredicate(parsed);
 				slot.predicatePlaceholder = document.createComment(expr || "when");
-				const groupKey = `${parsed.mode}:${whenKey}:${TemplateParser.FormatProcessorList(whenProcessors)}:${whenOperator || ""}:${whenRawValue}`;
+				const groupKey = parsed.clauses?.length
+					? `and:${expr}`
+					: `${parsed.mode}:${parsed.key}:${TemplateParser.FormatProcessorList(parsed.processors || [])}:${parsed.operator || ""}:${parsed.rawValue || ""}`;
 				if (res[groupKey] === undefined) {
 					res[groupKey] = [slot];
 				} else {
@@ -261,6 +256,8 @@ class UITemplateSlot {
 				node,
 				supported: [
 					'when="slot"',
+					'when="slot&other"',
+					'when="!focus&history"',
 					'when="!slot"',
 					'when="?slot"',
 					'when="!?slot"',

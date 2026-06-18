@@ -421,7 +421,7 @@ function resolveTemplateTokens(self, tokens, data) {
 	return result;
 }
 
-function createWhenPredicate(
+function createSingleWhenPredicate(
 	mode,
 	key,
 	processors = undefined,
@@ -439,6 +439,35 @@ function createWhenPredicate(
 			);
 		return TemplateParser.EvaluateWhen(mode, resolved);
 	};
+}
+
+function createWhenPredicate(parsed) {
+	if (parsed?.clauses?.length) {
+		const predicates = new Array(parsed.clauses.length);
+		for (let i = 0; i < parsed.clauses.length; i++) {
+			const clause = parsed.clauses[i];
+			predicates[i] = createSingleWhenPredicate(
+				clause.mode,
+				clause.key,
+				clause.processors,
+				clause.operator,
+				clause.value,
+			);
+		}
+		return (self, data) => {
+			for (let i = 0; i < predicates.length; i++) {
+				if (!predicates[i](self, data)) return false;
+			}
+			return true;
+		};
+	}
+	return createSingleWhenPredicate(
+		parsed?.mode,
+		parsed?.key,
+		parsed?.processors,
+		parsed?.operator,
+		parsed?.value,
+	);
 }
 
 function createTrackingProxy(data) {
