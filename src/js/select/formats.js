@@ -103,6 +103,10 @@ function yesno(value) {
 			: "no";
 }
 
+function disabled(value) {
+	return bool(value) ? undefined : "";
+}
+
 function item(value, index) {
 	switch (value?.constructor) {
 		case String:
@@ -444,6 +448,7 @@ const FORMATS = {
 	dayname,
 	debug,
 	defined,
+	disabled,
 	duration,
 	empty,
 	entries,
@@ -508,6 +513,7 @@ export {
 	day,
 	debug,
 	defined,
+	disabled,
 	duration,
 	empty,
 	entries,

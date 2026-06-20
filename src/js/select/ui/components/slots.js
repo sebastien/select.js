@@ -1094,6 +1094,19 @@ class UISlot {
 		return false;
 	}
 
+	_isSameCollectionItem(current, previous) {
+		if (Object.is(current, previous)) {
+			return true;
+		}
+		if (
+			current instanceof AppliedUITemplate &&
+			previous instanceof AppliedUITemplate
+		) {
+			return current.template === previous.template && eq(current.data, previous.data);
+		}
+		return eq(current, previous);
+	}
+
 	_firstMappedNode(value) {
 		if (isUIInstance(value)) {
 			for (let i = 0; i < value.nodes.length; i++) {
@@ -1337,6 +1350,35 @@ class UISlot {
 				}
 				this._listKeys = nextKeys;
 			} else {
+				if (
+					this._listKeyMode === "index" &&
+					this._listItems &&
+					data.length > previousLength
+				) {
+					let appendOnly = true;
+					for (let i = 0; i < previousLength; i++) {
+						if (!this._isSameCollectionItem(data[i], this._listItems[i])) {
+							appendOnly = false;
+							break;
+						}
+					}
+					if (appendOnly) {
+						const nextKeys = this._listKeys || new Array(data.length);
+						previous =
+							previousLength > 0
+								? this._lastMappedNode(this.mapping.get(previousLength - 1))
+								: null;
+						for (let i = previousLength; i < data.length; i++) {
+							nextKeys[i] = i;
+							previous = this._renderMapped(i, data[i], previous);
+						}
+						nextKeys.length = data.length;
+						this._listKeys = nextKeys;
+						this._listLength = data.length;
+						this._listItems = data;
+						return;
+					}
+				}
 				const nextKeys = new Array(data.length);
 				const commonLength = Math.min(data.length, previousLength);
 				for (let i = 0; i < commonLength; i++) {

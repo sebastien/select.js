@@ -37,11 +37,11 @@ import {
 	logger,
 	Nothing,
 	path as pathify,
-	remap,
 	Something,
 } from "./utils.js";
 
 const log = logger("select.cells");
+let refreshStamp = 0;
 
 function isReactiveValue(value) {
 	return (
@@ -112,28 +112,73 @@ function hasPathPrefix(path, prefix) {
 	return true;
 }
 
+function walkReactiveSources(value, visitor, path = []) {
+	if (value === null || value === undefined || typeof value !== "object") {
+		return;
+	}
+	if (isReactiveSource(value)) {
+		visitor(value, path);
+		return;
+	}
+	if (Array.isArray(value)) {
+		for (let i = 0; i < value.length; i++) {
+			path.push(i);
+			walkReactiveSources(value[i], visitor, path);
+			path.pop();
+		}
+	} else if (Object.getPrototypeOf(value) === Object.prototype) {
+		for (const k in value) {
+			path.push(k);
+			walkReactiveSources(value[k], visitor, path);
+			path.pop();
+		}
+	}
+}
+
+function expandReactiveValue(value) {
+	if (isReactiveValue(value)) {
+		return Reactive.Unwrap(value);
+	}
+	if (value === null || value === undefined || typeof value !== "object") {
+		return value;
+	}
+	if (Array.isArray(value)) {
+		const n = value.length;
+		const res = new Array(n);
+		for (let i = 0; i < n; i++) {
+			res[i] = expandReactiveValue(value[i]);
+		}
+		return res;
+	}
+	if (Object.getPrototypeOf(value) === Object.prototype) {
+		const res = {};
+		for (const k in value) {
+			res[k] = expandReactiveValue(value[k]);
+		}
+		return res;
+	}
+	return value;
+}
+
 function refreshSelections(owner, path, previous = undefined) {
 	if (!owner.selections) {
 		return;
 	}
 	path = path === Nothing ? [] : path;
-	const seen = new Set();
+	const stamp = ++refreshStamp;
 	const refresh = (selection) => {
-		if (!seen.has(selection)) {
-			seen.add(selection);
+		if (selection._refreshStamp !== stamp) {
+			selection._refreshStamp = stamp;
 			selection.refresh(path, previous);
 		}
 	};
-	for (const selection of owner.selections.iter(path)) {
-		refresh(selection);
-	}
+	owner.selections.each(path, refresh);
 	if (path?.length) {
 		for (let i = path.length - 1; i >= 0; i--) {
-			const ancestorPath = i === 0 ? [] : path.slice(0, i);
-			const ancestors = owner.selections.get(ancestorPath);
+			const ancestors = owner.selections.get(path, i);
 			if (ancestors) {
-				for (const selection of ancestors) {
-					refresh(selection);
+				for (let j = 0; j < ancestors.length; j++) {
+					refresh(ancestors[j]);
 				}
 			}
 		}
@@ -189,6 +234,28 @@ class Selections {
 		this.selections = new Map();
 	}
 
+	// Calls `visitor` for all registered entries under `path`.
+	each(path, visitor) {
+		const scope = path instanceof Map ? path : this.scope(path);
+		if (scope) {
+			this._eachScope(scope, visitor);
+		}
+	}
+
+	_eachScope(scope, visitor) {
+		for (const [k, v] of scope.entries()) {
+			if (k !== Something) {
+				this._eachScope(v, visitor);
+			}
+		}
+		const l = scope.get(Something);
+		if (l) {
+			for (let i = 0; i < l.length; i++) {
+				visitor(l[i]);
+			}
+		}
+	}
+
 	// Yields all registered entries under `path` (depth-first iteration).
 	*iter(path) {
 		if (path instanceof Map) {
@@ -216,14 +283,16 @@ class Selections {
 	}
 
 	// Returns the scope map at `path`. Creates if `create` is true.
-	scope(path, create = false) {
+	scope(path, create = false, length = undefined) {
 		path = Array.isArray(path)
 			? path
 			: path !== undefined && path !== null
 				? [path]
 				: [];
+		const n = length === undefined ? path.length : length;
 		let scope = this.selections;
-		for (const key of path) {
+		for (let i = 0; i < n; i++) {
+			const key = path[i];
 			if (scope.has(key)) {
 				scope = scope.get(key);
 			} else if (create) {
@@ -238,8 +307,8 @@ class Selections {
 	}
 
 	// Returns selection array at `path`.
-	get(path) {
-		const scope = this.scope(path);
+	get(path, length = undefined) {
+		const scope = this.scope(path, false, length);
 		return scope ? scope.get(Something) : undefined;
 	}
 
@@ -345,10 +414,7 @@ class Reactive {
 
 	// Recursively expands `value` by replacing reactive cells with their values.
 	static Expand(value) {
-		return remap(value, (v) => Reactive.Unwrap(v), {
-			deep: true,
-			descend: (v) => !(v?.isReactive === true),
-		});
+		return expandReactiveValue(value);
 	}
 
 	constructor(value = Nothing) {
@@ -754,10 +820,11 @@ class Cell extends Reactive {
 		const updated = path ? assigned(this.value, path, value) : value;
 		const pending =
 			path && value && typeof value.then === "function" ? value : updated;
+		const isPromise = !!(pending && typeof pending.then === "function");
 		const token = ++this._promiseToken;
 		this.previous = this.value;
 		this._pendingPath = undefined;
-		if (pending && typeof pending.then === "function") {
+		if (isPromise) {
 			this.isPending = true;
 			this._pendingPath = path;
 			this._pendingPrevious = this.value;
@@ -772,7 +839,7 @@ class Cell extends Reactive {
 		this.revision++;
 		this._refreshSelections(path, current);
 		this.pub(
-			pending && typeof pending.then === "function"
+			isPromise
 				? this.pending === "clear"
 					? undefined
 					: this.value
@@ -781,7 +848,7 @@ class Cell extends Reactive {
 			this,
 			current,
 		);
-		if (pending && typeof pending.then === "function") {
+		if (isPromise) {
 			pending.then(
 				(resolved) => {
 					if (token !== this._promiseToken) {
@@ -1017,12 +1084,13 @@ class Derivation extends Reactive {
 	}
 
 	_templateHasPendingSources() {
-		for (const [cell] of Reactive.Walk(this.template)) {
+		let hasPending = false;
+		walkReactiveSources(this.template, (cell) => {
 			if (cell?.isPending) {
-				return true;
+				hasPending = true;
 			}
-		}
-		return false;
+		});
+		return hasPending;
 	}
 
 	_apply(value, publish = true) {
@@ -1106,7 +1174,7 @@ class Derivation extends Reactive {
 			return this;
 		}
 		this.isBound = true;
-		for (const [cell] of Reactive.Walk(this.template)) {
+		walkReactiveSources(this.template, (cell) => {
 			const reactor = (value) => {
 				const isPromise = !!(value && typeof value.then === "function");
 				if (this.updateStrategy === "immediate") {
@@ -1130,7 +1198,7 @@ class Derivation extends Reactive {
 			}
 			this.sources.push(cell);
 			this.reactors.push(reactor);
-		}
+		});
 		return this;
 	}
 
@@ -1284,12 +1352,13 @@ class Switched extends Reactive {
 	}
 
 	_inputsHavePendingSources() {
-		for (const [cell] of Reactive.Walk(this.inputs)) {
+		let hasPending = false;
+		walkReactiveSources(this.inputs, (cell) => {
 			if (cell?.isPending) {
-				return true;
+				hasPending = true;
 			}
-		}
-		return false;
+		});
+		return hasPending;
 	}
 
 	_publish(value, path = Nothing, origin = this, previous = undefined) {
@@ -1432,7 +1501,7 @@ class Switched extends Reactive {
 			return this;
 		}
 		this.isBound = true;
-		for (const [cell] of Reactive.Walk(this.inputs)) {
+		walkReactiveSources(this.inputs, (cell) => {
 			const reactor = (value) => {
 				const isPromise = !!(value && typeof value.then === "function");
 				if (this.updateStrategy === "immediate") {
@@ -1456,7 +1525,7 @@ class Switched extends Reactive {
 			}
 			this.sources.push(cell);
 			this.reactors.push(reactor);
-		}
+		});
 		return this;
 	}
 
@@ -1708,7 +1777,8 @@ function effect(inputs, effector) {
 		cleanup = effector(Reactive.Expand(inputs), path, origin);
 	};
 
-	for (const [cell, path] of Reactive.Walk(inputs)) {
+	walkReactiveSources(inputs, (cell, sourceRootPath) => {
+		const path = sourceRootPath.length ? sourceRootPath.slice() : sourceRootPath;
 		const reactor = (_value, sourcePath, origin) => {
 			const fullPath =
 				sourcePath === undefined ||
@@ -1727,7 +1797,7 @@ function effect(inputs, effector) {
 		}
 		sources.push(cell);
 		reactors.push(reactor);
-	}
+	});
 
 	run();
 
