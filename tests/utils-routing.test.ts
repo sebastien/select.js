@@ -27,7 +27,6 @@ function testBasicStaticRoutes() {
 		router.run("api/comments") === undefined,
 		"Test 1.3: Non-matching route should be undefined",
 	);
-	console.log("✓ Test 1: Basic static routes passed");
 }
 
 // Test 2: Single wildcard (*) matching
@@ -52,7 +51,6 @@ function testSingleWildcard() {
 		router.run("api/users/123/profile") === undefined,
 		"Test 2.4: * does not match deeper",
 	);
-	console.log("✓ Test 2: Single wildcard (*) passed");
 }
 
 // Test 3: Descendant wildcard (**) matching
@@ -81,7 +79,6 @@ function testDescendantWildcard() {
 		router.run("other/path") === undefined,
 		"Test 3.5: ** does not match non-matching root",
 	);
-	console.log("✓ Test 3: Descendant wildcard (**) passed");
 }
 
 // Test 4: Prefix wildcard (prefix*) matching
@@ -114,7 +111,6 @@ function testPrefixWildcard() {
 		router.run("config/api") === undefined,
 		"Test 4.6: prefix* does not match if not at start",
 	);
-	console.log("✓ Test 4: Prefix wildcard (prefix*) passed");
 }
 
 // Test 5: Combined prefix and descendant (prefix*/**)
@@ -135,7 +131,6 @@ function testPrefixDescendant() {
 		router.run("v1/admin/settings") === "versioned-nested",
 		"Test 5.3: v*/*/** matches",
 	);
-	console.log("✓ Test 5: Combined prefix and descendant passed");
 }
 
 // Test 6: Priority ordering (exact > prefix* > * > **)
@@ -173,7 +168,6 @@ function testPriorityOrdering() {
 			"Test 6.2: First handler should be exact",
 		);
 	}
-	console.log("✓ Test 6: Priority ordering passed");
 }
 
 // Test 7: Mixed patterns with captures
@@ -198,7 +192,6 @@ function testMixedPatterns() {
 		router.run("api/users/456") === "child-456",
 		"Test 7.2: Wildcard with captured ID",
 	);
-	console.log("✓ Test 7: Mixed patterns with captures passed");
 }
 
 // Test 8: Deregistration
@@ -229,7 +222,6 @@ function testDeregistration() {
 		router.run("api/users") === undefined,
 		"Test 8.4: Wildcard handler deregistered",
 	);
-	console.log("✓ Test 8: Deregistration passed");
 }
 
 // Test 9: Route parsing
@@ -256,7 +248,6 @@ function testRouteParsing() {
 		"Test 9.7: First segment is not RouteWildcard",
 	);
 	// It's a RoutePatternSlot with prefix pattern
-	console.log("✓ Test 9: Route parsing passed");
 }
 
 // Test 10: Edge cases
@@ -290,7 +281,6 @@ function testEdgeCases() {
 		);
 	}
 
-	console.log("✓ Test 10: Edge cases passed");
 }
 
 // Test 11: Router tree visualization
@@ -307,7 +297,6 @@ function testTreeVisualization() {
 		"#handlers" in tree || "#descendants" in tree,
 		"Test 11.2: Tree has handlers",
 	);
-	console.log("✓ Test 11: Tree visualization passed");
 }
 
 // Test 12: Using routed() helper
@@ -330,7 +319,6 @@ function testRoutedHelper() {
 		handler("api/posts/123") === "descendants",
 		"Test 12.3: routed() descendant match",
 	);
-	console.log("✓ Test 12: Routed helper passed");
 }
 
 // Test 13: Non-function handlers (object values)
@@ -356,13 +344,10 @@ function testNonFunctionHandlers() {
 		"Test 13.3: Object handler with ** wildcard",
 	);
 
-	console.log("✓ Test 13: Non-function handlers (object values) passed");
 }
 
 // Run all tests
 function runAllTests() {
-	console.log("\n=== Running Routing Tests ===\n");
-
 	testBasicStaticRoutes();
 	testSingleWildcard();
 	testDescendantWildcard();
@@ -377,7 +362,6 @@ function runAllTests() {
 	testRoutedHelper();
 	testNonFunctionHandlers();
 
-	console.log("\n=== All Tests Passed ===\n");
 }
 
 // Export for use as module or run directly
