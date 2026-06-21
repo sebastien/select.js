@@ -455,4 +455,106 @@ describe("ui processor reactive handling", () => {
 		document.body.innerHTML = "";
 		window.close?.();
 	});
+
+	test("unwraps single reactive values before passing to component processors", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { cell } = await import("../src/js/select/index.js");
+		const { ui, format } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="ProcessorSingleUnwrapRepro">
+				<div out="symbol|ProbeComponent"></div>
+			</template>
+		`;
+
+		let seen = null;
+		const ProbeComponent = ui(`<span out="flag"></span>`).does({
+			flag: (_self, data) => {
+				seen = data;
+				return data?.isReactive === true ? "reactive" : "plain";
+			},
+		});
+		registerFormat(format, "ProbeComponent", ProbeComponent);
+
+		const instance = ui("ProcessorSingleUnwrapRepro")
+			.new()
+			.set({ symbol: cell("AAPL") })
+			.mount("#app");
+
+		expect(document.querySelector("#app span")?.textContent).toBe("plain");
+		expect(seen).toBe("AAPL");
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
+	test("preserves non-reactive values unchanged for component processors", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui, format } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="ProcessorPlainValueRepro">
+				<div out="symbol|ProbeComponent"></div>
+			</template>
+		`;
+
+		let seen = null;
+		const ProbeComponent = ui(`<span out="flag"></span>`).does({
+			flag: (_self, data) => {
+				seen = data;
+				return typeof data === "string" ? `string:${data}` : "other";
+			},
+		});
+		registerFormat(format, "ProbeComponent", ProbeComponent);
+
+		const instance = ui("ProcessorPlainValueRepro")
+			.new()
+			.set({ symbol: "AAPL" })
+			.mount("#app");
+
+		expect(document.querySelector("#app span")?.textContent).toBe("string:AAPL");
+		expect(seen).toBe("AAPL");
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
+	test("preserves reactive values inside mapped objects for component processors", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { cell } = await import("../src/js/select/index.js");
+		const { ui, format } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="ProcessorMappedPreserveRepro">
+				<div out="a:b,c:d|ProbeComponent"></div>
+			</template>
+		`;
+
+		const ProbeComponent = ui(`<span out="flag"></span>`).does({
+			flag: (_self, data) =>
+				data.a?.isReactive === true && data.c?.isReactive === true
+					? "reactive"
+					: "plain",
+		});
+		registerFormat(format, "ProbeComponent", ProbeComponent);
+
+		const instance = ui("ProcessorMappedPreserveRepro")
+			.new()
+			.set({ b: cell("alpha"), d: cell("beta") })
+			.mount("#app");
+
+		expect(document.querySelector("#app span")?.textContent).toBe("reactive");
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
 });

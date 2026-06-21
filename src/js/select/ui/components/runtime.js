@@ -248,7 +248,7 @@ function applyNamedProcessor(
 ) {
 	if (processor.type === "component") {
 		const component = processor.value;
-		const value = current;
+		const value = current?.isReactive === true ? unwrap(current) : current;
 		if (value === undefined || value === null) return value;
 		if (
 			component?.isTemplate &&

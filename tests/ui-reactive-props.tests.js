@@ -57,7 +57,7 @@ describe("select ui reactive bindings", () => {
 
 		Parent.new().set({ payload: reactive }).mount(document.body);
 
-		expect(seen).toBe(reactive);
+		expect(seen).toEqual([{ id: "name" }]);
 	});
 
 	it("keeps expanding non-component processors during render", () => {

@@ -555,6 +555,7 @@ Unwrapping follows the usual processor rules:
 
 - function processors receive unwrapped/renderable mapped values
 - component/template processors receive raw/reactive mapped values
+  (single reactive values are unwrapped before reaching the component)
 
 Use `*` to apply a processor to each item of a collection:
 
