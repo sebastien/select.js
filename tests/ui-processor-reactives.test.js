@@ -557,4 +557,115 @@ describe("ui processor reactive handling", () => {
 		document.body.innerHTML = "";
 		window.close?.();
 	});
+
+	test("Component.map with stable key + per-item top-level cell updates only the affected child", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { cell } = await import("../src/js/select/index.js");
+		const { ui } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `<div id="app"></div>`;
+
+		const parentRenderCount = { value: 0 };
+		const childRenderCounts = {};
+
+		const Row = ui(`<li out="n"></li>`).does({
+			n: (_self, { n, id }) => {
+				const key = id ?? "?";
+				childRenderCounts[key] = (childRenderCounts[key] || 0) + 1;
+				return n?.value ?? n;
+			},
+		});
+
+		const List = ui(`<ul out="items"></ul>`).does({
+			items: (_self, { items }) => {
+				parentRenderCount.value++;
+				// Recommend Component.map(data, processor?, key?) for keyed lists
+				return Row.map(items, (v) => ({ id: v.id, n: v.n }), "id");
+			},
+		});
+
+		const ca = cell(1);
+		const cb = cell(2);
+		const src = [
+			{ id: "a", n: ca },
+			{ id: "b", n: cb },
+		];
+
+		const instance = List.new().set({ items: src }).mount("#app");
+
+		// Initial render
+		expect(parentRenderCount.value).toBe(1);
+		expect(childRenderCounts).toEqual({ a: 1, b: 1 });
+		const lis = Array.from(document.querySelectorAll("#app li"));
+		expect(lis.length).toBe(2);
+		expect(lis[0].textContent.trim()).toBe("1");
+		expect(lis[1].textContent.trim()).toBe("2");
+
+		// Mutate only first row's cell (child-driven update)
+		ca.set(42);
+		await new Promise((r) => setTimeout(r, 0));
+
+		// Parent behavior should not have re-run
+		expect(parentRenderCount.value).toBe(1);
+		// Only the affected child re-rendered
+		expect(childRenderCounts).toEqual({ a: 2, b: 1 });
+		const lis2 = Array.from(document.querySelectorAll("#app li"));
+		expect(lis2[0].textContent.trim()).toBe("42");
+		expect(lis2[1].textContent.trim()).toBe("2");
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
+	test("Component.map with processor and key selector supports cell updates in reused wrappers", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { cell } = await import("../src/js/select/index.js");
+		const { ui } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `<div id="app"></div>`;
+
+		const renders = [];
+
+		const Item = ui(`<span out="v"></span>`).does({
+			v: (_self, { v, k }) => {
+				renders.push({ k, v: v?.value ?? v });
+				return v?.value ?? v;
+			},
+		});
+
+		const Host = ui(`<div out="data"></div>`).does({
+			data: (_self, { data }) =>
+				// processor transforms + explicit key selector (string path form)
+				Item.map(data, (entry) => ({ v: entry.val, k: entry.key }), ".key"),
+		});
+
+		const cX = cell("X1");
+		const cY = cell("Y1");
+		const host = Host.new()
+			.set({ data: [{ key: "x", val: cX }, { key: "y", val: cY }] })
+			.mount("#app");
+
+		expect(document.querySelectorAll("#app span").length).toBe(2);
+		expect(document.querySelectorAll("#app span")[0].textContent).toBe("X1");
+
+		cX.set("X2");
+		await new Promise((r) => setTimeout(r, 0));
+
+		const spans = Array.from(document.querySelectorAll("#app span"));
+		expect(spans[0].textContent).toBe("X2");
+		expect(spans[1].textContent).toBe("Y1");
+
+		// The second item should not have re-rendered from first's cell change
+		const xRenders = renders.filter((r) => r.k === "x").length;
+		const yRenders = renders.filter((r) => r.k === "y").length;
+		expect(xRenders).toBeGreaterThanOrEqual(2);
+		expect(yRenders).toBe(1);
+
+		host.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
 });

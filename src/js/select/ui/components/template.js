@@ -172,13 +172,108 @@ class UITemplate {
 	}
 
 	// Returns an AppliedUITemplate with this template and `data`.
+	// If `data` contains a `$key`, this template will attempt to return the
+	// same wrapper object for that key on subsequent calls (stable identity),
+	// updating the wrapper's data bag. This enables cheap list reuse even when
+	// using plain `remap` + `Component({... $key })` in behaviors.
 	apply(data) {
+		const k = data && typeof data === "object" ? data.$key : undefined;
+		if (k != null) {
+			const cache = this._applyCache || (this._applyCache = new Map());
+			if (cache.has(k)) {
+				const at = cache.get(k);
+				const prev = at.data;
+				if (prev && typeof prev === "object" && !Array.isArray(prev)) {
+					for (const kk in prev) if (!(kk in data)) delete prev[kk];
+					Object.assign(prev, data);
+					prev.$key = k;
+					at.data = prev;
+				} else {
+					at.data = data;
+				}
+				return at;
+			}
+			const at = new AppliedUITemplate(this, data);
+			cache.set(k, at);
+			return at;
+		}
 		return new AppliedUITemplate(this, data);
 	}
 
-	// Maps `data` through this template, returning array of AppliedUITemplate.
-	map(data) {
-		return remapCollection(data, (v) => new AppliedUITemplate(this, v));
+	// Maps `data` through this template, returning array (or shaped container) of
+	// AppliedUITemplate. Supports optional `processor` to transform each item and
+	// optional `key` (string path or function) to compute a stable collection key
+	// stored as `$key` in the produced data for efficient list reconciliation.
+	//
+	// Component.map(data, processor?, key?)
+	// - processor: (value, indexOrKey) => dataForItem
+	// - key: string (e.g. "id" or ".id") or (value, indexOrKey) => keyValue
+	//
+	// When neither processor nor key is provided, preserves the classic behavior
+	// of wrapping raw items (backward compatible).
+	//
+	// For list performance, map will return the same wrapper object for a
+	// previously seen key (stable identity), updating its data. Use stable keys
+	// (not array indices) to keep logical items stable across splices/removes.
+	//
+	// If the value returned by the processor (or the raw item when no processor)
+	// contains a `$key` property, that value is used as the stable collection key
+	// for reuse even if no explicit `key` selector is passed.
+	map(data, processor, key) {
+		if (processor == null && key == null) {
+			return remapCollection(data, (v) => new AppliedUITemplate(this, v));
+		}
+		const keyFn = key == null ? null : (typeof key === "function" ? key : (v) => {
+			if (v == null) return undefined;
+			const p = String(key).replace(/^\./, "").split(".");
+			let c = v;
+			for (const seg of p) {
+				if (c == null) return undefined;
+				c = c[seg];
+			}
+			return c;
+		});
+		const cache = this._mapCache || (this._mapCache = new Map());
+		return remapCollection(data, (v, i) => {
+			let d = processor ? processor(v, i) : v;
+			// Determine stable key: explicit key selector wins, else $key in data, else index.
+			let k = i;
+			if (keyFn) {
+				const kk = keyFn(v, i);
+				if (kk != null) k = kk;
+			} else if (d && typeof d === "object" && d.$key != null) {
+				k = d.$key;
+			}
+			if (d && typeof d === "object") {
+				if (d.$key !== k) {
+					if (Array.isArray(d)) {
+						d = { $value: d, $key: k };
+					} else {
+						d = { ...d, $key: k };
+					}
+				}
+			} else {
+				d = { $: d, $key: k };
+			}
+			if (k != null && cache.has(k)) {
+				const at = cache.get(k);
+				const prev = at.data;
+				if (prev && typeof prev === "object" && !Array.isArray(prev)) {
+					for (const kk in prev) {
+						if (!(kk in d)) delete prev[kk];
+					}
+					Object.assign(prev, d);
+					prev.$key = k;
+					at.data = prev;
+				} else {
+					at.data = d;
+				}
+				return at;
+			}
+			const at = new AppliedUITemplate(this, d);
+			if (k != null) cache.set(k, at);
+			return at;
+		});
 	}
 
 	// Sets the state initializer function. Called as `init()` returning state.

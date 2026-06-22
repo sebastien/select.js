@@ -26,6 +26,11 @@ fmt-biome:
 	$(CMD) bunx @biomejs/biome format --write src/js src/html examples
 	$(call rule_post_cmd)
 
+.PHONY: release
+release: $(PATH_RUN)/task/project-release-$(PROJECT_VERSION).task
+	@
+
+
 .PHONY: ci
 ci:
 	@set -eu
@@ -93,5 +98,13 @@ dist/selectjs.min.js: src/js/select/index.js $(SOURCES_JS)
 	$(call shell_try,$(call js_minify,$$tmp,$@),Unable to minify JavaScript bundle: $<); \
 	rm -f "$$tmp"
 	echo "[DIST] $$(du -hs $@)"
+
+
+$(PATH_RUN)/task/project-release-$(PROJECT_VERSION).task:
+	@if git tag -a "v$(PROJECT_VERSION)" -m "[Release] $(PROJECT): version $(PROJECT_VERSION)"; then
+		mkdir -p $(dir $@); true
+		git push origin "v$(PROJECT_VERSION)"
+		touch "$@"
+	fi
 
 # EOF

@@ -8,6 +8,7 @@ PROJECT:=select
 PORT?=8001
 MODULES:=std js mise
 DIST_MODE:=
+PROJECT_VERSION:=$(shell grep version < package.json | cut -d: -f2 | sed 's|[", ]||g')
 
 # Keep SDK prep side effects disabled for this project.
 # PREP_ALL:=

@@ -107,11 +107,38 @@ When an array is returned to an `out` slot:
 
 #### Efficient Mapping with `.map()`
 
-The `.map(data)` method on a component is a shorthand for `remap(data, v => Component(v))`.
+The `.map(data, processor?, key?)` method on a component (also available as
+`Component.map(...)`) is the recommended way to render collections. It returns
+a list (or shaped container) of `AppliedUITemplate` wrappers.
+
+- `processor`: optional `(value, indexOrKey) => dataForItem` to transform each entry.
+- `key`: optional stable key selector — a string path (e.g. `"id"` or `".id"`) or
+  `(value, indexOrKey) => keyValue`. When provided, the produced data receives
+  a `$key` property used for stable list reconciliation and wrapper reuse.
 
 ```javascript
+// Simple: wrap items as-is (classic behavior)
 items: (self, { items }) => Item.map(items)
+
+// With processor and stable key (recommended for keyed lists)
+items: (self, { items }) => Item.map(items, (v) => ({ label: v.label, n: v.n }), "id")
+
+// Key can also be a function
+items: (self, { items }) => Row.map(items, (v, i) => v, (v) => v.id)
 ```
+
+Stable keys (not array indices) keep logical items stable across splices, removes,
+and reorders. When the same key is seen again, `.map` returns the same wrapper
+object (updating its `.data` in place). This enables cheap list reuse.
+
+When a top-level property of a row's data is a reactive cell (from `cell()`),
+the child instance subscribes to it. A `.set()` on that cell triggers only the
+affected child's render — the parent list behavior does not re-run. Use
+`Component.map` (or `remap` + manual `$key`) to establish stable keys for this
+to work efficiently.
+
+Default behavior (no explicit key) uses array indices, which is fine for
+static or append-only lists. For dynamic lists, supply a stable key.
 
 ### Nested Templates
 
@@ -202,7 +229,7 @@ Returns a component function with these methods:
 - `cleanup(handler)`: Define a teardown handler called on instance disposal. Returns the component for chaining.
 - `on(event, handler)` / `sub(event, handler)`: Subscribe to events bubbled by child instances. Returns the component for chaining.
 - `using(selection, scope?)`: Rebind this component behavior to another template and return a bound component.
-- `map(data)`: Map a collection of data to a list of applied templates.
+- `map(data, processor?, key?)`: Map a collection of data to applied templates. `processor` (optional) transforms each item `(value, indexOrKey) => dataForItem`. `key` (optional) is a stable key selector: string path (e.g. `"id"`) or `(value, indexOrKey) => keyValue`. Keys are stored as `$key` on produced data for efficient list reconciliation and wrapper reuse. This is the recommended approach for dynamic lists.
 - `apply(data)`: Create an applied template for composition (same result as calling the component as a function).
 - `ui.register(name, component)`: Register a component in the global registry.
 - `ui.resolve(name)`: Resolve a component from the global registry.

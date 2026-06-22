@@ -822,8 +822,7 @@ class UISlot {
 		this.node = node;
 		this.replaceNode = template.replaceNode === true;
 		this.replaceNodeMerge = null;
-		this.replaceStart = null;
-		this.replaceEnd = null;
+		this._replaceRef = null;
 		if (this.replaceNode && this.node?.nodeType === Node.ELEMENT_NODE) {
 			const attrs = [];
 			for (const attr of this.node.attributes) {
@@ -863,11 +862,13 @@ class UISlot {
 			this.replaceNodeMerge = { attrs, classes, styles };
 		}
 		if (this.replaceNode && this.node.parentNode) {
-			this.replaceStart = document.createComment("out-replace:start");
-			this.replaceEnd = document.createComment("out-replace:end");
-			this.node.parentNode.insertBefore(this.replaceStart, this.node);
-			this.node.parentNode.insertBefore(this.replaceEnd, this.node.nextSibling);
-			this.node.parentNode.removeChild(this.node);
+			// Zero-extra-node replacement: remember the original parent and the
+			// nextSibling ref. We insert content before _replaceRef (or append).
+			// No persistent marker node is left in the DOM.
+			const p = this.node.parentNode;
+			this._replaceParent = p;
+			this._replaceRef = this.node.nextSibling;
+			p.removeChild(this.node);
 		}
 		this.isInput = isInputNode(node);
 		this.mapping = new Map();
@@ -922,22 +923,15 @@ class UISlot {
 	// Mounts `instance` at `nextNode` position within this.node.
 	_mountInstance(instance, nextNode) {
 		this._mergeReplaceNodeDecorationsInNodes(instance.nodes);
-		const parentNode =
-			this.replaceNode && this.replaceEnd?.parentNode
-				? this.replaceEnd.parentNode
-				: this.node;
+		const parentNode = this.replaceNode && this._replaceParent ? this._replaceParent : this.node;
 		if (!parentNode) {
 			return;
 		}
+		const ref = this.replaceNode ? this._replaceRef : nextNode;
 		if (instance.nodes.length === 1) {
 			const node = instance.nodes[0];
-			if (nextNode && nextNode.parentNode === parentNode) {
-				parentNode.insertBefore(node, nextNode);
-			} else if (
-				this.replaceNode &&
-				this.replaceEnd?.parentNode === parentNode
-			) {
-				parentNode.insertBefore(node, this.replaceEnd);
+			if (ref && ref.parentNode === parentNode) {
+				parentNode.insertBefore(node, ref);
 			} else {
 				parentNode.appendChild(node);
 			}
@@ -947,14 +941,10 @@ class UISlot {
 		for (let i = 0; i < instance.nodes.length; i++) {
 			fragment.appendChild(instance.nodes[i]);
 		}
-		if (nextNode && nextNode.parentNode === parentNode) {
-			parentNode.insertBefore(fragment, nextNode);
+		if (ref && ref.parentNode === parentNode) {
+			parentNode.insertBefore(fragment, ref);
 		} else {
-			if (this.replaceNode && this.replaceEnd?.parentNode === parentNode) {
-				parentNode.insertBefore(fragment, this.replaceEnd);
-			} else {
-				parentNode.appendChild(fragment);
-			}
+			parentNode.appendChild(fragment);
 		}
 	}
 
@@ -1073,14 +1063,17 @@ class UISlot {
 		return fallbackKey;
 	}
 
-	_hasExplicitCollectionItemKey(item, fallbackKey) {
+	_hasExplicitCollectionItemKey(item, _fallbackKey) {
 		if (
 			item instanceof AppliedUITemplate &&
 			item.data &&
 			typeof item.data === "object"
 		) {
 			const keyed = item.data.$key;
-			return keyed !== undefined && keyed !== null && keyed !== fallbackKey;
+			// Any declared $key opts the item into keyed reconciliation.
+			// We no longer require it to differ from the positional fallback;
+			// presence of $key is the signal for stable identity by key.
+			return keyed !== undefined && keyed !== null;
 		}
 		return false;
 	}
@@ -1105,6 +1098,16 @@ class UISlot {
 			return current.template === previous.template && eq(current.data, previous.data);
 		}
 		return eq(current, previous);
+	}
+
+	_findReusableInstanceFor(item) {
+		if (!(item instanceof AppliedUITemplate)) return null;
+		for (const v of this.mapping.values()) {
+			if (isUIInstance(v) && v.template === item.template && eq(v.data, item.data)) {
+				return v;
+			}
+		}
+		return null;
 	}
 
 	_firstMappedNode(value) {
@@ -1156,10 +1159,8 @@ class UISlot {
 		if (previous?.parentNode) {
 			return previous.nextSibling;
 		}
-		return (
-			this._nextMappedNodeAfterKey(key) ||
-			(this.replaceNode ? this.replaceEnd : null)
-		);
+		// For replace slots, insert before the remembered nextSibling (or append if null)
+		return this._nextMappedNodeAfterKey(key) || (this.replaceNode ? this._replaceRef : null);
 	}
 
 	_renderMapped(k, item, previous) {
@@ -1168,12 +1169,25 @@ class UISlot {
 			this.mapping.delete(k);
 			existing = undefined;
 		}
+		// Ultra-fast path for list reuse: if the caller hands us back the *exact
+		// same* AppliedUITemplate wrapper we used last time for this key, there
+		// is no logical change for this row. Avoid even calling update().
+		if (
+			item instanceof AppliedUITemplate &&
+			existing &&
+			item === existing._lastApplied
+		) {
+			return this._lastMappedNode(existing) || previous;
+		}
 		if (existing === undefined) {
 			let r;
 			if (item instanceof AppliedUITemplate) {
 				const data = this._mergeSlots(item);
 				r = item.template.new(this.parent);
 				r.set(data, k);
+				// Record the wrapper we are rendering so future passes can
+				// ultra-fast-path when the exact same wrapper object is provided.
+				r._lastApplied = item;
 				this._mountInstance(r, this._nextMountNode(k, previous));
 			} else if (this.isInput) {
 				setNodeText(this.node, asText(item));
@@ -1196,6 +1210,7 @@ class UISlot {
 				if (item instanceof AppliedUITemplate) {
 					if (item.template === r.template) {
 						r.update(item.data);
+						r._lastApplied = item;
 					} else {
 						const data = this._mergeSlots(item);
 						const lastNode = r.nodes[r.nodes.length - 1];
@@ -1203,6 +1218,7 @@ class UISlot {
 						r.unmount();
 						const newInstance = item.template.new(this.parent);
 						newInstance.set(data, k);
+						newInstance._lastApplied = item;
 						this._mountInstance(newInstance, nextNode);
 						this.mapping.set(k, newInstance);
 					}
@@ -1230,6 +1246,7 @@ class UISlot {
 					r.parentNode.removeChild(r);
 					const newInstance = item.template.new(this.parent);
 					newInstance.set(data, k);
+					newInstance._lastApplied = item;
 					this._mountInstance(newInstance, nextNode);
 					this.mapping.set(k, newInstance);
 				} else if (item instanceof Node) {
@@ -1247,6 +1264,7 @@ class UISlot {
 					r.parentNode.removeChild(r);
 					const newInstance = item.template.new(this.parent);
 					newInstance.set(data, k);
+					newInstance._lastApplied = item;
 					this._mountInstance(newInstance, nextNode);
 					this.mapping.set(k, newInstance);
 				} else if (item instanceof Node) {
@@ -1284,25 +1302,19 @@ class UISlot {
 
 		if (isEmpty) {
 			if (this.placeholder && !this.placeholder[0]?.parentNode) {
-				const parentNode =
-					this.replaceNode && this.replaceEnd?.parentNode
-						? this.replaceEnd.parentNode
-						: this.node;
-				let previous = this.replaceNode
-					? this.replaceStart
-					: this.node.childNodes[0];
+				const parentNode = this.replaceNode && this._replaceParent ? this._replaceParent : this.node;
+				const ref = this.replaceNode ? this._replaceRef : (this.node.childNodes[0] || null);
 				for (const node of this.placeholder) {
 					if (!parentNode) {
 						break;
 					}
 					if (this.replaceNode) {
-						parentNode.insertBefore(node, this.replaceEnd);
-					} else if (!previous?.nextSibling) {
+						parentNode.insertBefore(node, ref);
+					} else if (!ref?.parentNode) {
 						this.node.appendChild(node);
 					} else {
-						this.node.insertBefore(node, previous.nextSibling);
+						parentNode.insertBefore(node, ref);
 					}
-					previous = node;
 				}
 			}
 		} else if (this.placeholder?.[0]?.parentNode) {

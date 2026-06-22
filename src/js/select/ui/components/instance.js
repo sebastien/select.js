@@ -943,6 +943,19 @@ class UIInstance {
 			}
 			return this;
 		}
+		// Fast-path: if the entire subtree data is deeply equal to what we
+		// already rendered, skip render and changed-key computation. This
+		// dramatically reduces work for sibling list items when only one
+		// entry mutates (common in the inspector benchmark content phase).
+		//
+		// Note: we intentionally do *not* have a `data === this.data` bail here.
+		// List reuse via Component.map with stable keys keeps the same data bag
+		// object for a row while mutating fields inside (e.g. .value). The eq
+		// scan below will cheaply detect "no change" for stable rows, and will
+		// detect the changed field for the touched row so its behaviors re-run.
+		if (!force && this.data && eq(this.data, data)) {
+			return this;
+		}
 		let same = !force;
 		let changedKeys = null;
 		if (!this.data) {
