@@ -204,4 +204,33 @@ describe("ui when + out attribute regression", () => {
 		document.body.innerHTML = "";
 		window.close?.();
 	});
+
+	test("when suffix question mark matches defined values only", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="WhenDefinedSuffixRepro">
+				<div class="ready" when="defined?">ready</div>
+			</template>
+		`;
+
+		const instance = ui("WhenDefinedSuffixRepro").new().mount("#app");
+
+		instance.set({ defined: null });
+		expect(document.querySelector("#app .ready")).toBeNull();
+
+		instance.set({ defined: 0 });
+		expect(document.querySelector("#app .ready")?.textContent?.trim()).toBe(
+			"ready",
+		);
+
+		instance.set({ defined: undefined });
+		expect(document.querySelector("#app .ready")).toBeNull();
+
+		document.body.innerHTML = "";
+		window.close?.();
+	});
 });

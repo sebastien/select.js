@@ -14,6 +14,7 @@ and lightweight pub/sub.
 	- Query and hash use the same hashformat serializer by default (`a=1,b=(2,3)`).
 - `deferred(value?, delay)`: Creates a mutable reactive `Deferred` cell that debounces updates by the given delay.
 - `derived(template, processor?, initial?)`: Creates a reactive derivation from a template containing cells.
+	- Use `.updater(fn)` on the returned derivation to forward `set(...)` or `merge(...)` writes into source cells.
 - `effect(inputs, effector)`: Subscribes to all reactives in `inputs`, runs `effector(expanded, path, origin)`, returns disposer.
 - `Cell` (class): The base class for mutable reactive values.
 - `Deferred` (class): A cell that delays and debounces its updates.
@@ -66,6 +67,19 @@ count.sub((value) => {
 
 count.set(1)
 count.set(2)
+```
+
+Write-through derivation example:
+
+```javascript
+const count = cell(2)
+const doubled = derived(count, (n) => n * 2).updater((value) => {
+  count.set(value / 2)
+})
+
+doubled.set(10)
+console.log(count.value)   // 5
+console.log(doubled.value) // 10
 ```
 
 Multiple cell declaration example:
@@ -162,6 +176,7 @@ export const counter = (initial = 0) => {
 - `selected.push(value)`: Appends a value at the selected path (coercing non-arrays as needed).
 - `selected.dispose()`: Unregisters this selection from its parent cell.
 - `derivation.refresh()`: Forces re-computation of a derived value.
+- `derivation.updater(fn)`: Registers a single write-through handler used by `derivation.set(...)` and `derivation.merge(...)`.
 - `derivation.unbind()`: Unsubscribes from all source cells.
 - `derivation.dispose()`: Unsubscribes from sources and clears derivation subscriptions/references.
 - `deferred.dispose()`: Cancels a pending debounced update.

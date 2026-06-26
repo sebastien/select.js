@@ -586,6 +586,22 @@ class UIAttributeSlot {
 		this.appliedStyles = new Map();
 	}
 
+	_isCustomElement() {
+		return (
+			this.node?.nodeType === Node.ELEMENT_NODE &&
+			this.node.nodeName.includes("-")
+		);
+	}
+
+	_shouldUsePropertyValue(value) {
+		return (
+			this._isCustomElement() &&
+			(value?.isReactive === true ||
+				(typeof value === "object" && value !== null) ||
+				typeof value === "function")
+		);
+	}
+
 	// Renders `value` to the bound attribute. Handles class/style specially.
 	render(value) {
 		if (this.attrName === "class") {
@@ -685,6 +701,15 @@ class UIAttributeSlot {
 	}
 
 	_renderValue(value) {
+		if (this._shouldUsePropertyValue(value)) {
+			if (this.node.value !== value) {
+				this.node.value = value;
+			}
+			if (this.node.nodeType === Node.ELEMENT_NODE) {
+				this.node.removeAttribute("value");
+			}
+			return;
+		}
 		const next = value == null ? "" : String(value);
 		if ("value" in this.node && this.node.value !== next) {
 			this.node.value = next;

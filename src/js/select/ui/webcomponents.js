@@ -35,10 +35,13 @@ const documentStyleSubscribers = new WeakMap();
 const documentStyleObservers = new WeakMap();
 const documentStyleSyncTasks = new WeakMap();
 const documentStyleHeadHooks = new WeakMap();
-const OPTIONS = {
-	shadow: true, // Shadow DOM by default
-	mode: "open", // Open Shadow DOM by default
-};
+const OPTIONS = Object.assign(
+	{
+		shadow: true, // Shadow DOM by default
+		mode: "open", // Open Shadow DOM by default
+	},
+	globalThis?.UI_WEBCOMPONENT_OPTIONS || {},
+);
 
 function isStyleSheetNode(node) {
 	if (!node || node.nodeType !== Node.ELEMENT_NODE) {
@@ -321,6 +324,31 @@ function collectObservedAttributes(initial, bindings, options) {
 	return [...attributes];
 }
 
+function defineExposedPropertyAccessors(WebComponent, exposedKeys) {
+	if (!Array.isArray(exposedKeys) || exposedKeys.length === 0) {
+		return;
+	}
+	for (const key of exposedKeys) {
+		if (
+			typeof key !== "string" ||
+			!key.length ||
+			key in WebComponent.prototype
+		) {
+			continue;
+		}
+		Object.defineProperty(WebComponent.prototype, key, {
+			configurable: true,
+			enumerable: true,
+			get() {
+				return this.getExposedPropertyValue?.(key);
+			},
+			set(value) {
+				this.setExposedPropertyValue?.(key, value);
+			},
+		});
+	}
+}
+
 function asDOMNodes(value, nodes = []) {
 	if (value === undefined || value === null || value === false) {
 		return nodes;
@@ -466,21 +494,31 @@ class UIWebComponent extends BaseHTMLElement {
 		this.nodes = [];
 		this.isInitialized = false;
 		this.attributeData = {};
+		this.propertyData = {};
 		this._ownedAttributeReactiveRefs = new Map();
+		this._ownedPropertyReactiveRefs = new Map();
 		this._internalReactiveSubs = new Map();
 		this.data = { ...this.initialData };
 	}
 
-	_replaceOwnedAttributeReactiveRef(key, value) {
-		const previous = this._ownedAttributeReactiveRefs.get(key);
+	_replaceOwnedReactiveRef(store, key, value) {
+		const previous = store.get(key);
 		if (previous?.isReactive && typeof previous.release === "function") {
 			previous.release();
 		}
 		if (value?.isReactive && typeof value.release === "function") {
-			this._ownedAttributeReactiveRefs.set(key, value);
+			store.set(key, value);
 		} else {
-			this._ownedAttributeReactiveRefs.delete(key);
+			store.delete(key);
 		}
+	}
+
+	_replaceOwnedAttributeReactiveRef(key, value) {
+		this._replaceOwnedReactiveRef(this._ownedAttributeReactiveRefs, key, value);
+	}
+
+	_replaceOwnedPropertyReactiveRef(key, value) {
+		this._replaceOwnedReactiveRef(this._ownedPropertyReactiveRefs, key, value);
 	}
 
 	_syncOwnedAttributeReactiveRefs(data) {
@@ -494,9 +532,26 @@ class UIWebComponent extends BaseHTMLElement {
 		}
 	}
 
+	_syncOwnedPropertyReactiveRefs(data) {
+		for (const key of this._ownedPropertyReactiveRefs.keys()) {
+			if (!(key in data)) {
+				this._replaceOwnedPropertyReactiveRef(key, undefined);
+			}
+		}
+		for (const key in data) {
+			this._replaceOwnedPropertyReactiveRef(key, data[key]);
+		}
+	}
+
 	_clearOwnedAttributeReactiveRefs() {
 		for (const key of this._ownedAttributeReactiveRefs.keys()) {
 			this._replaceOwnedAttributeReactiveRef(key, undefined);
+		}
+	}
+
+	_clearOwnedPropertyReactiveRefs() {
+		for (const key of this._ownedPropertyReactiveRefs.keys()) {
+			this._replaceOwnedPropertyReactiveRef(key, undefined);
 		}
 	}
 
@@ -612,7 +667,44 @@ class UIWebComponent extends BaseHTMLElement {
 	}
 
 	_rebuildData() {
-		this.data = Object.assign({}, this.initialData, this.attributeData);
+		this.data = Object.assign(
+			{},
+			this.initialData,
+			this.attributeData,
+			this.propertyData,
+		);
+	}
+
+	getExposedPropertyValue(key) {
+		if (key in this.propertyData) {
+			return this.propertyData[key];
+		}
+		const value = this.instance?.data?.[key];
+		return value !== undefined ? value : this.data?.[key];
+	}
+
+	setExposedPropertyValue(key, value) {
+		const hasProperty = key in this.propertyData;
+		const previous = hasProperty ? this.propertyData[key] : undefined;
+		if (hasProperty && previous === value) {
+			return;
+		}
+		if (value === undefined) {
+			if (!hasProperty) {
+				return;
+			}
+			this._replaceOwnedPropertyReactiveRef(key, undefined);
+			const next = { ...this.propertyData };
+			delete next[key];
+			this.propertyData = next;
+		} else {
+			this._replaceOwnedPropertyReactiveRef(key, value);
+			this.propertyData = Object.assign({}, this.propertyData, { [key]: value });
+		}
+		this._rebuildData();
+		if (this.isInitialized) {
+			this.render();
+		}
 	}
 
 	_resolveParentInstance() {
@@ -643,6 +735,7 @@ class UIWebComponent extends BaseHTMLElement {
 	_renderUIComponent() {
 		if (!this.instance) {
 			this.instance = this.componentFactory.new(this._resolveParentInstance(), {
+				data: this.data,
 				nativeSlots: this.root !== this,
 			});
 			this.instance.set(this.data).mount(this.root);
@@ -718,6 +811,7 @@ class UIWebComponent extends BaseHTMLElement {
 			this.instance = undefined;
 		}
 		this._clearOwnedAttributeReactiveRefs();
+		this._clearOwnedPropertyReactiveRefs();
 		this._clearPureNodes();
 		unwatchDocumentStyles(document, this);
 		for (const node of this._documentStyleFallbackNodes || []) {
@@ -818,6 +912,7 @@ function webcomponent(
 		attributeBindings,
 		options,
 	);
+	const exposedKeys = [...new Set([...Object.keys(initialData), ...attributeBindings.values()])];
 	const WebComponent = class extends UIWebComponent {
 		static observedAttributes = observedAttributes;
 		constructor() {
@@ -830,6 +925,7 @@ function webcomponent(
 			);
 		}
 	};
+	defineExposedPropertyAccessors(WebComponent, exposedKeys);
 	registry.define(name, WebComponent);
 	return WebComponent;
 }

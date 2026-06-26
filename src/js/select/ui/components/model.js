@@ -8,11 +8,12 @@
 // Small model classes shared by the component runtime.
 
 class UIEvent {
-	constructor(name, data, origin) {
+	constructor(name, data, origin, event = undefined) {
 		this.name = name;
 		this.data = data;
 		this.origin = origin;
 		this.current = undefined;
+		this.event = event;
 	}
 	stopPropagation() {
 		return null;

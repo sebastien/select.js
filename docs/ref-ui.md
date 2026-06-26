@@ -84,6 +84,9 @@ ui(template) → .init(state?) → .does(behavior) → .cleanup(handler?) → .n
 `component.singleton` is an optional public slot for caller-managed singleton
 instances. It is never auto-created by `ui(...)` or `.does(...)`.
 
+`Component.new(parent, { data })` pre-seeds `self.data` before
+`init(self, data)` runs.
+
 ### List Rendering
 
 Rendering collections of data is handled by returning an array of nested
@@ -219,13 +222,15 @@ const Component = ui("#MyTemplate");
 
 Returns a component function with these methods:
 
-- `new(parent?)`: Create a new component instance.
+- `new(parent?, options?)`: Create a new component instance. When
+  `options.data` is provided, it becomes `self.data` during `init(self, data)`.
 - `does(behavior)`: Define behavior handlers for slots. Returns the component for chaining.
 - `init(initializer)`: Define initial state (often used with cells). Top-level
   reactives returned from `init()` stay stable by identity for the life of the
-  instance. Plain incoming values write through them, while incoming reactives
-  are fused to them until the incoming reactive reference changes. Returns the
-  component for chaining.
+  instance. The initializer receives `(self, data)` where `data` is the current
+  `self.data`. Plain incoming values write through them, while incoming
+  reactives are fused to them until the incoming reactive reference changes.
+  Returns the component for chaining.
 - `cleanup(handler)`: Define a teardown handler called on instance disposal. Returns the component for chaining.
 - `on(event, handler)` / `sub(event, handler)`: Subscribe to events bubbled by child instances. Returns the component for chaining.
 - `using(selection, scope?)`: Rebind this component behavior to another template and return a bound component.
@@ -508,7 +513,12 @@ const List = ui("#List")
 
 #### `.init(initializer)`
 
-Define initial state, useful with reactive cells.
+Define initial state, useful with reactive cells. The initializer receives
+`(self, data)` where `data` is `self.data`.
+
+When using `Component.new(parent, { data })`, that preloaded `data` is available
+during `init(...)`. Wrapped Select UI web components use the same mechanism, so
+host attributes are available during the first `init(...)` call.
 
 ```javascript
 import cell, { derived } from "./cells.js";

@@ -1019,6 +1019,7 @@ class Derivation extends Reactive {
 		this.reactors = [];
 		this.sources = [];
 		this.acquired = [];
+		this._updater = undefined;
 		this.isBound = false;
 		this.expanded = Reactive.Expand(template);
 		this._promiseToken = 0;
@@ -1238,28 +1239,50 @@ class Derivation extends Reactive {
 		return this;
 	}
 
-	// Derived values are read-only; log and ignore mutation attempts.
-	set(value, path = Nothing, force = false) {
-		log.error("Derivation.set: derived values are read-only", {
-			cell: this.label,
-			value,
-			path,
-			force,
-			currentValue: this.value,
-			previousValue: this.previous,
-		});
+	// Registers a write-through updater used by `set()` and `merge()`.
+	updater(fn) {
+		this._updater = typeof fn === "function" ? fn : undefined;
 		return this;
 	}
 
-	// Derived values are read-only; log and ignore mutation attempts.
+	_forwardWrite(value, path = Nothing, force = false, op = "set") {
+		const updater = this._updater;
+		if (!updater) {
+			log.error(`Derivation.${op}: derived values are read-only`, {
+				cell: this.label,
+				value,
+				path,
+				force,
+				currentValue: this.value,
+				previousValue: this.previous,
+			});
+			return false;
+		}
+		updater(value, this.value, path, force, this);
+		this.update();
+		return true;
+	}
+
+	// Derived values can forward writes to source cells through `updater()`.
+	set(value, path = Nothing, force = false) {
+		this._forwardWrite(value, path, force, "set");
+		return this;
+	}
+
+	// Derived values are read-only unless an updater redirects the merge.
 	merge(value, path = Nothing) {
-		log.error("Derivation.merge: derived values are read-only", {
-			cell: this.label,
-			value,
-			path,
-			currentValue: this.value,
-			previousValue: this.previous,
-		});
+		path = pathify(path, Nothing);
+		const current = path ? access(this.value, path) : this.value;
+		const next =
+			current === undefined
+				? value
+				: Array.isArray(current) && Array.isArray(value)
+					? [...current, ...value]
+					: Object.getPrototypeOf(current) === Object.prototype &&
+						Object.getPrototypeOf(value) === Object.prototype
+						? { ...current, ...value }
+						: value;
+		this._forwardWrite(next, path, false, "merge");
 		return this;
 	}
 

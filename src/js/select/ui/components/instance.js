@@ -330,6 +330,7 @@ class UIInstance {
 	constructor(template, parent, options = undefined) {
 		this.template = template;
 		this.options = options || {};
+		this.data = this.options.data;
 		const explicitId =
 			typeof this.options.id === "string" ? this.options.id.trim() : "";
 		this.id = explicitId || createUIInstanceId();
@@ -407,7 +408,7 @@ class UIInstance {
 		this._reactiveTopLevelFusions = undefined;
 		this._hasRendered = false;
 		if (template.initializer) {
-			const state = template.initializer(this);
+			const state = template.initializer(this, this.data);
 			if (state) {
 				this.initial = state;
 				this._syncOwnedReactiveRefs(state);
@@ -813,7 +814,7 @@ class UIInstance {
 						);
 					}
 				}
-				this.pub(target.publishEvent, payload);
+				this.pub(target.publishEvent, payload, true, event);
 			};
 			target.node.addEventListener(target.eventType, listener);
 			this._domListeners.push({
@@ -1086,8 +1087,8 @@ class UIInstance {
 	}
 
 	// Publishes event up the component tree. Returns UIEvent.
-	pub(event, data, self = true) {
-		const res = new UIEvent(event, data, this);
+	pub(event, data, self = true, domEvent = undefined) {
+		const res = new UIEvent(event, data, this, domEvent);
 		this.onPub(res, self);
 		return res;
 	}
@@ -1404,11 +1405,7 @@ class UIInstance {
 						}
 					} else {
 						v = binding
-							? resolveBindingValue(
-									renderData,
-									binding,
-									!processors?.length,
-								)
+							? resolveBindingValue(renderData, binding, !processors?.length)
 							: processors?.length
 								? resolveSourceValue(renderData, sourceKey)
 								: resolveExpandedSourceValue(renderData, sourceKey);

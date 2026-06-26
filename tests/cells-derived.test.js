@@ -177,6 +177,36 @@ describe("cells.derived", () => {
 		expect(root._selectionCache.size).toBe(0)
 	})
 
+	test("derived updater forwards set() writes to source cells", () => {
+		const count = cell(2)
+		const doubled = derived(count, (value) => value * 2).updater(
+			(value, previous, path, force, self) => {
+				expect(previous).toBe(4)
+				expect(path).toBe(Nothing)
+				expect(force).toBe(false)
+				expect(self).toBe(doubled)
+				count.set(value / 2)
+			},
+		)
+
+		doubled.set(10)
+
+		expect(count.value).toBe(5)
+		expect(doubled.value).toBe(10)
+	})
+
+	test("derived updater forwards merge() writes to source cells", () => {
+		const state = cell({ first: "Ada", last: "Lovelace" })
+		const profile = derived(state, (value) => value).updater((value) => {
+			state.set(value)
+		})
+
+		profile.merge({ first: "Grace" })
+
+		expect(state.value).toEqual({ first: "Grace", last: "Lovelace" })
+		expect(profile.value).toEqual({ first: "Grace", last: "Lovelace" })
+	})
+
 	test("prunes empty selection branches after releasing the last nested selection", () => {
 		const root = cell({ user: { name: "Ada" } })
 		const name = root.select(["user", "name"])

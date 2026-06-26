@@ -276,7 +276,8 @@ class UITemplate {
 		});
 	}
 
-	// Sets the state initializer function. Called as `init()` returning state.
+	// Sets the state initializer function. Called as `init(self, data)` returning state,
+	// where `data` is the instance's current `self.data`.
 	// Top-level reactives returned from the initializer stay stable by identity
 	// for the lifetime of each instance. Plain incoming values write through
 	// them, while incoming reactives are fused to them until the incoming

@@ -432,7 +432,11 @@ class TemplateParser {
 				queryDefined = true;
 				i++;
 			}
-			const bindingExpr = text.slice(i).trim();
+			let bindingExpr = text.slice(i).trim();
+			if (bindingExpr.endsWith("?")) {
+				queryDefined = true;
+				bindingExpr = bindingExpr.slice(0, -1).trim();
+			}
 			let key;
 			let processors = [];
 			if (bindingExpr) {
@@ -516,9 +520,9 @@ class TemplateParser {
 			case TemplateParser.FALSY:
 				return !value;
 			case TemplateParser.DEFINED:
-				return value !== undefined;
+				return value !== undefined && value !== null;
 			case TemplateParser.UNDEFINED:
-				return value === undefined;
+				return value === undefined || value === null;
 			default:
 				return false;
 		}

@@ -38,6 +38,12 @@ function getInputEventValue(node, event, property = "value") {
 		if (type === "checkbox") return !!target.checked;
 		if (type === "radio")
 			return target.checked ? target.value : SKIP_INPUT_UPDATE;
+		if (type === "number" || type === "range") {
+			const value = `${target.value || ""}`.trim();
+			if (!value.length) return null;
+			const numeric = Number(value);
+			return Number.isNaN(numeric) ? null : numeric;
+		}
 	}
 	return target.value;
 }

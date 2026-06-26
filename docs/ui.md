@@ -49,10 +49,12 @@ Binding note:
 - `Component(data)`: Applied template creator.
 - `Component.ChildName`: Nested named template exposed as a child component when `<template name="ChildName">` (or `<template id="ChildName">`) is declared inside the component template.
 - `singleton`: Optional public slot for caller-managed singleton instance (`Component.singleton = Component.new()`).
-- `new(parent?)`: Instance factory.
+- `new(parent?, options?)`: Instance factory. `options.data` pre-seeds
+  `self.data` before `init(self, data)` runs.
 - `does(behavior)`: Behavior definition.
 - `on(event, handler)` / `sub(event, handler)`: Event subscription.
-- `init(initializer)`: State initialization. Top-level reactives returned from
+- `init(initializer)`: State initialization. The initializer receives
+  `(self, data)` where `data` is `self.data`. Top-level reactives returned from
   `init()` stay stable by identity for the life of the instance; plain incoming
   values write through them and incoming reactives are fused to them until the
   incoming reactive reference changes.
@@ -61,10 +63,15 @@ Binding note:
 - `map(data)`: Collection mapping to applied templates.
 - `apply(data)`: Applied template creation (same result as `Component(data)`).
 
+When you call `Component.new(parent, { data })`, that `data` is available as
+`self.data` during `init(self, data)`. Wrapped `webcomponent(...)` hosts use the
+same path, so host attributes are available during `init(...)` on first mount.
+
 ### Component definition API (returned by `ui.component(name)`):
 
 - `init(initializer)`: State initialization for future bound templates with the
-  same stable top-level reactive behavior.
+  same stable top-level reactive behavior. Initializers receive `(self, data)`
+  where `data` is `self.data`.
 - `does(behavior)`: Behavior map for future bound templates.
 - `on(event, handler)` / `sub(event, handler)`: Event subscriptions for future bound templates.
 - `cleanup(handler)`: Teardown hook for future bound templates.

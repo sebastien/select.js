@@ -38,6 +38,19 @@ const doubled = derived([count], (val) => val * 2);
 console.log(doubled.value); // 20
 ```
 
+Derivations are read-only by default, but they can expose write-through behavior with `.updater(fn)`. The updater runs when `.set(...)` or `.merge(...)` is called on the derived cell, and can redirect that write into the source cells.
+
+```javascript
+const count = cell(2)
+const doubled = derived(count, (value) => value * 2).updater((value) => {
+  count.set(value / 2)
+})
+
+doubled.set(10)
+console.log(count.value)   // 5
+console.log(doubled.value) // 10
+```
+
 ### Deferred Cells
 A `Deferred` cell is a mutable reactive value that delays its update by a specified amount of time. If multiple updates occur within that delay, only the last one is applied (debouncing).
 
@@ -60,6 +73,24 @@ const name = state.select("user.name");
 name.sub((val) => console.log("Name is now:", val));
 state.set("Grace", "user.name");
 ```
+
+### Normalization
+Cells can normalize root values before they are stored. Use `.normalize(fn)` to register a function that transforms values passed to `.set(value)`.
+
+```javascript
+const amount = cell(0).normalize((value) =>
+  value == null ? null : Number(value)
+)
+
+amount.set("42")
+console.log(amount.value) // 42
+```
+
+Notes:
+
+- Normalization applies to root updates like `.set(value)`.
+- Path-based updates like `.set(value, "user.age")` do not go through the normalizer.
+- `Selected#set(...)` also bypasses the root normalizer because it delegates to a path update on the parent cell.
 
 ### Pub/Sub and Updates
 Select Cells uses an explicit pub/sub mechanism. Every reactive instance (`Cell`, `Selected`, `Derivation`) allows you to subscribe to changes.
@@ -118,6 +149,8 @@ state.set(2, "a.b");
 
 - `.get(key?)`: Returns the value of the cell, or a specific property if `key` is provided.
 - `.set(value, path?, force?)`: Updates the value. If `path` is provided, updates a nested property. If `force` is true, triggers updates even if the value hasn't changed.
+- `.normalize(fn)`: Registers a root-value normalizer applied to `.set(value)` updates.
+- `.updater(fn)`: On `Derivation`, registers a single write-through handler used by `.set(...)` and `.merge(...)`.
 - `.select(path)`: Returns a `Selected` instance linked to a specific path in the current cell.
 - `.sub(handler)`: Subscribes a handler function `(value, path, origin) => ...` to updates.
 - `.unsub(handler)`: Removes a previously registered subscriber.
