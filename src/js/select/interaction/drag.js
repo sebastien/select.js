@@ -25,12 +25,24 @@ function dragtarget(node, name) {
 // Function: drag
 // Starts a drag interaction on `event.target` and invokes `move` and `end`
 // callbacks with a shared drag context.
-function drag(event, move, end) {
+function drag(event, move, end, overlay = "dragging") {
 	const context = {};
+	// We add an overlay, which we can remove if className is null
+	if (overlay && !drag.overlay) {
+		const o = document.createElement("div");
+		o.style.position = "fixed";
+		o.style.top = "0";
+		o.style.left = "0";
+		o.style.width = "100vw";
+		o.style.height = "100vh";
+		o.style.zIndex = "100";
+		drag.overlay = o;
+	}
 	const dragging = {
 		node: event.target,
 		ox: event.pageX,
 		oy: event.pageY,
+		overlay: drag.overlay,
 		pointerEvents: event.target.style.pointerEvents,
 		userSelect: event.target.style.userSelect,
 		context,
@@ -42,7 +54,12 @@ function drag(event, move, end) {
 	};
 	const data = Object.create(dragging);
 	const scope = globalThis.window;
+	// We add the dragging
+	drag.overlay.setAttribute("class", overlay);
+	overlay !== null && window?.document?.body?.appendChild(drag.overlay);
 	const onEnd = (ev) => {
+		drag.overlay.parentNode?.removeChild(drag.overlay);
+		drag.overlay.setAttribute("class", "");
 		dragging.node.style.pointerEvents = dragging.pointerEvents;
 		dragging.node.style.userSelect = dragging.userSelect;
 		unbind(scope, handlers);

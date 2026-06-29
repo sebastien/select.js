@@ -24,7 +24,7 @@ and lightweight pub/sub.
 ### Structure helpers:
 
 - `access(context, path, offset?)`: Safely reads a nested value from an object/array by path.
-- `assign(scope, path, value, merge?, offset?)`: Writes a nested value by path, creating intermediate objects/arrays as needed.
+- `assign(scope, path, value, merge?, offset?)`: Writes a nested value by path, creating intermediate objects/arrays as needed. `undefined` path entries pick the next free numeric slot in the current array or object, and create arrays when they need to materialize a missing container.
 - `walk(value, path?)`: Recursively iterates through a structure and yields `[reactive, path]` for every reactive value found.
 - `expand(value)`: Recursively resolves all reactive values within a structure to their plain values.
 

@@ -9,6 +9,18 @@
 
 import { isObject } from "./values.js";
 
+function _nextSlot(container) {
+	let i = Array.isArray(container) ? container.length : Object.keys(container).length;
+	while (container[i] !== undefined) {
+		i += 1;
+	}
+	return i;
+}
+
+function _createAssignedContainer(key) {
+	return typeof key === "number" || key === undefined ? [] : {};
+	}
+
 function _replaceObject(target, source) {
 	for (const key in target) {
 		if (Object.hasOwn(target, key)) {
@@ -139,27 +151,30 @@ function remove(collection, item) {
 // Function: assign
 // Mutably assigns `value` at path `p` in `scope` and returns the root container.
 function assign(scope, p, value, merge = undefined, offset = 0) {
-	const n = p?.length ?? 0;
+	const path = Array.isArray(p) ? p.slice() : p;
+	const n = path?.length ?? 0;
 	if (n === 0) {
 		return merge ? merge(scope, value) : value;
 	}
 	let root =
 		n > offset && !(scope && scope instanceof Object)
-			? typeof p[offset] === "number"
-				? new Array(p[offset])
-				: {}
+			? _createAssignedContainer(path[offset])
 			: scope;
 	let s = root;
 	let sp = null;
 	for (let i = offset; i < n - 1; i++) {
-		const k = p[i];
+		let k = path[i];
 		if (!(s && s instanceof Object)) {
-			s = typeof k === "number" ? new Array(k) : {};
+			s = _createAssignedContainer(k);
 			if (i === 0) {
 				root = s;
 			} else {
-				sp[p[i - 1]] = s;
+				sp[path[i - 1]] = s;
 			}
+		}
+		if (k === undefined) {
+			k = _nextSlot(s);
+			path[i] = k;
 		}
 		if (typeof k === "number" && Array.isArray(s)) {
 			while (s.length <= k) {
@@ -169,7 +184,24 @@ function assign(scope, p, value, merge = undefined, offset = 0) {
 		sp = s;
 		s = s[k];
 	}
-	const k = p[n - 1];
+	let k = path[n - 1];
+	if (!(s && s instanceof Object)) {
+		s = _createAssignedContainer(k);
+		if (n - 1 === 0) {
+			root = s;
+		} else {
+			sp[path[n - 2]] = s;
+		}
+	}
+	if (k === undefined) {
+		k = _nextSlot(s);
+		path[n - 1] = k;
+	}
+	if (typeof k === "number" && Array.isArray(s)) {
+		while (s.length <= k) {
+			s.push(undefined);
+		}
+	}
 	s[k] = merge ? merge(s[k], value) : value;
 	return root;
 }

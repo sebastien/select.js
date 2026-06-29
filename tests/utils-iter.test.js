@@ -1,6 +1,14 @@
 import { describe, expect, test } from "bun:test"
 import { iflatmap, iquery, ivalues } from "../src/js/select/utils/iter.js"
 
+function queried(value, path, scope = new Map()) {
+	return Array.from(iquery(value, path, 0, ".", scope)).map(({ value, path, scope }) => ({
+		value,
+		path,
+		scope: Array.from(scope.entries()),
+	}))
+}
+
 describe("utils.iter", () => {
 	test("resolves direct and wildcard query paths", () => {
 		const data = {
@@ -15,8 +23,43 @@ describe("utils.iter", () => {
 			},
 		}
 
-		expect(Array.from(iquery(data, "user.profile.name"))).toEqual(["Ada"])
-		expect(Array.from(iquery(data, "user.tags*.label"))).toEqual(["alpha", "beta"])
+		expect(queried(data, "user.profile.name")).toEqual([
+			{ value: "Ada", path: ["user", "profile", "name"], scope: [] },
+		])
+		expect(queried(data, "user.tags*.label")).toEqual([
+			{ value: "alpha", path: ["user", "tags", 0, "label"], scope: [] },
+			{ value: "beta", path: ["user", "tags", 1, "label"], scope: [] },
+		])
+	})
+
+	test("binds symbol wildcard segments to matched keys in scope", () => {
+		const Type = Symbol.for("Type")
+		const data = {
+			identified: {
+				Person: { label: "Ada" },
+				Company: { label: "ACME" },
+			},
+		}
+
+		expect(queried(data, ["identified", Type, "label"])).toEqual([
+			{ value: "Ada", path: ["identified", "Person", "label"], scope: [[Type, "Person"]] },
+			{ value: "ACME", path: ["identified", "Company", "label"], scope: [[Type, "Company"]] },
+		])
+	})
+
+	test("preserves caller scope entries while binding symbol wildcard segments", () => {
+		const Type = Symbol.for("Type")
+		const scope = new Map([["seed", 1]])
+		const data = {
+			identified: {
+				Person: true,
+			},
+		}
+
+		expect(queried(data, ["identified", Type], scope)).toEqual([
+			{ value: true, path: ["identified", "Person"], scope: [["seed", 1], [Type, "Person"]] },
+		])
+		expect(Array.from(scope.entries())).toEqual([["seed", 1]])
 	})
 
 	test("yields collection values and scalars", () => {

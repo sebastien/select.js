@@ -19,43 +19,68 @@ import { isArrayLike, isIterable, isMapLike, isWalkable } from "./values.js";
 // ----------------------------------------------------------------------------
 
 // Function: iquery
-// Queries `value` with `path` and yields matching terminal values. Wildcard
+// Queries `value` with `path` and yields matching terminal entries. Wildcard
 // segments use a trailing `*` suffix and expand the referenced collection.
+// Symbol segments act as wildcards over keyed collections and bind the matched
+// key in `scope`.
 //
 // Example:
 // ```javascript
 // const data = { user: { tags: [{ name: "alpha" }, { name: "beta" }] } }
 // Array.from(iquery(data, "user.tags*.name"))
-// // => ["alpha", "beta"]
+// // => [
+// //      { value: "alpha", path: ["user", "tags", 0, "name"], scope: Map(0) },
+// //      { value: "beta", path: ["user", "tags", 1, "name"], scope: Map(0) },
+// //    ]
 // ```
-function* iquery(value, path, offset = 0, sep = ".") {
+function* iquery(
+	value,
+	path,
+	offset = 0,
+	sep = ".",
+	scope = new Map(),
+	resolved = [],
+) {
 	if (typeof path === "string") {
-		yield* iquery(value, path.split(sep), offset, sep);
+		yield* iquery(value, path.split(sep), offset, sep, scope);
 		return;
-	}
-	if (!Array.isArray(path)) {
+	} else if (!Array.isArray(path)) {
 		return;
 	}
 	let current = value;
+	let currentPath = resolved;
 	for (let i = offset; i < path.length; i++) {
 		const k = path[i];
+		if (typeof k === "symbol") {
+			for (const [kk, vv] of iitems(current)) {
+				const nextScope = new Map(scope);
+				nextScope.set(k, kk);
+				yield* iquery(vv, path, i + 1, sep, nextScope, [...currentPath, kk]);
+			}
+			return;
+		}
 		if (typeof k === "string" && k.endsWith("*")) {
 			const kk = k.slice(0, -1);
 			const next = current?.[kk];
 			if (next === undefined || next === null) {
 				return;
 			}
-			for (const vv of ivalues(next)) {
-				yield* iquery(vv, path, i + 1, sep);
+			for (const [kv, vv] of iitems(next)) {
+				yield* iquery(vv, path, i + 1, sep, new Map(scope), [
+					...currentPath,
+					kk,
+					kv,
+				]);
 			}
 			return;
 		}
 		current = current?.[k];
+		currentPath = [...currentPath, k];
 		if (current === undefined && i < path.length - 1) {
 			return;
 		}
 	}
-	yield current;
+	yield { value: current, path: currentPath, scope };
 }
 
 // Function: ivalues

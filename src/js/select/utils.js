@@ -25,6 +25,7 @@ export * from "./utils/traverse.js";
 export { access } from "./utils/traverse.js";
 export * from "./utils/update.js";
 export * from "./utils/values.js";
+export * from "./utils/reshape.js";
 export { dates, search, sel };
 
 // EOF

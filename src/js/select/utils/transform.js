@@ -466,6 +466,7 @@ function flatmap(values, func) {
 	return res;
 }
 
+// TODO: Deprecated/remove prune
 // Function: prune
 // Returns values that do not match the predicate while preserving shape.
 function prune(values, predicateOrExtractor) {
@@ -496,6 +497,7 @@ function prune(values, predicateOrExtractor) {
 	return res;
 }
 
+// TODO: Deprecated/remove prune
 // Function: pruned
 // Returns a shallow copy of `value` without the given keys.
 function pruned(value, ...removeKeys) {

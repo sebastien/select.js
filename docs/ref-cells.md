@@ -141,7 +141,7 @@ state.set(2, "a.b");
 - `derived(template, processor?, initial?)`: Factory function to create a new `Derivation` instance. `template` can be a cell, an array of cells, or a function.
 - `effect(inputs, effector)`: Factory helper that subscribes to all reactives in `inputs`, runs `effector(expanded, path, origin)`, and returns an idempotent disposer.
 - `access(context, path, offset?)`: Utility to read a nested value from a plain object/array by path.
-- `assign(scope, path, value, merge?, offset?)`: Utility to write a nested value by path into a plain object/array.
+- `assign(scope, path, value, merge?, offset?)`: Utility to write a nested value by path into a plain object/array. `undefined` path entries pick the next free numeric slot in the current array or object, and create arrays when they materialize a missing container.
 - `walk(value, path?)`: Iterates through a structure and yields `[reactive, path]` for every reactive value found.
 - `expand(value)`: Deeply resolves a structure by replacing all reactive values with their current plain values.
 

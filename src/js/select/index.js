@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-05-07
-// Updated: 2026-06-13
+// Updated: 2026-06-20
 
 // Module: select/index
 // Aggregates the core and companion modules into a single import surface.
