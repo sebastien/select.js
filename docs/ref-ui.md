@@ -601,9 +601,10 @@ Use `*` to apply a processor to each item of a collection:
 <span out="prices|*asCurrency"></span>
 ```
 
-In starred pipelines, function processors receive the item index as the second
+In starred pipelines, function processors receive the item key as the second
 argument when no `+arg` values are present. With `+arg` values, they receive
-resolved args first and the item index after them.
+the item key first and the resolved args after it (`processor(item, itemKey, ...args)`).
+Regular (non-starred) processors always receive `processor(item, ...args)`.
 
 Each `+arg` segment is a data-path lookup against the current component data.
 Dotted paths such as `+units.suffix` expand reactive values while traversing.
@@ -877,6 +878,7 @@ Bind behavior outputs directly to element attributes. Use `out:<attr>` where
 
 - binding mode: `out:<attr>="slot|Formatter|Formatter"`
 - template mode: `out:<attr>="prefix-${path.to.value}-suffix"`
+- comparison mode: `out:<attr>="slot==value"` — evaluates a comparison expression (supports the same operators as `when`: `=`, `!=`, `==`, `!==`, `>`, `>=`, `<`, `<=`, `~?`)
 
 Binding mode also supports collection iteration via `*`:
 
@@ -894,12 +896,27 @@ and `.path`:
 - `out:href="mailto:${.}"`
 - `out:title="${.name}"`
 
+The special `#` path prefix resolves to the current item's iteration key
+(available inside list items rendered with `.map(data, key)` or in processor
+pipelines):
+
+- `#` resolves to the key value (from `$key`, the `.map()` key, or instance key)
+- `#.label` resolves to `key.label` where `key` is the iteration key
+- `out="#"` renders the key as output text
+
 ```html
 <!-- Uses "disabled" as the behavior name -->
 <button out:disabled>Submit</button>
 
 <!-- Uses "isDisabled" as the behavior name -->
 <button out:disabled="isDisabled">Submit</button>
+
+<!-- Comparison mode (boolean attribute) -->
+<input type="radio" value="3" out:checked="panel==3" />
+<button out:disabled="index>=2">Ready</button>
+
+<!-- Comparison with processor on left-hand side -->
+<input type="radio" value="3" out:checked="panel|toNumber==3" />
 
 <!-- Multiple attribute bindings -->
 <div out:class="classes" out:style="styles" out:data-id="itemId">

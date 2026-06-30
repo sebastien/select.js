@@ -211,7 +211,7 @@ function reshape(input, output, value) {
 
 function shaped(input, output, f) {
 	return Object.assign(
-		function (v, ...args) {
+		(v, ...args) => {
 			if (input) {
 				for (const atom of imatchslots(input, v)) {
 					if (atom.type === "mismatch") {

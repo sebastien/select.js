@@ -152,7 +152,7 @@ class UITemplateSlot {
 			if (outKey) {
 				const parsedOut = TemplateParser.ParseOutAttributeBinding(outKey);
 				if (
-					parsedOut.mode === "binding" &&
+					(parsedOut.mode === "binding" || parsedOut.mode === "comparison") &&
 					parsedOut.binding?.sourceKey &&
 					!parsedOut.binding?.sourceMap?.length
 				) {
@@ -185,7 +185,10 @@ class UITemplateSlot {
 				const attrName = attr.name.slice(prefix.length);
 				const slotName = attr.value || attrName;
 				const parsedOut = TemplateParser.ParseOutAttributeBinding(slotName);
-				if (parsedOut.mode === "binding") {
+				if (
+					parsedOut.mode === "binding" ||
+					parsedOut.mode === "comparison"
+				) {
 					const key = parsedOut.binding?.sourceMap?.length
 						? null
 						: parsedOut.binding?.sourceKey;
@@ -359,7 +362,9 @@ class UITemplateSlot {
 						const bindingKey =
 							parsed.mode === "binding"
 								? `${sourceKey}|${processorsKey}`
-								: slotName;
+								: parsed.mode === "comparison"
+									? `${sourceKey}|${processorsKey}|${parsed.operator || ""}|${parsed.rawValue || ""}`
+									: slotName;
 						const originalValue = node.getAttribute(attrName);
 						toRemove.push(attr.name);
 
@@ -548,6 +553,9 @@ class UIAttributeTemplateSlot {
 		this.mode = parsed?.mode || "binding";
 		this.binding = parsed?.binding || null;
 		this.template = parsed?.template || null;
+		this.operator = parsed?.operator || null;
+		this.rawValue = parsed?.rawValue || null;
+		this.value = parsed?.value;
 	}
 
 	resolve(nodes) {
@@ -1209,11 +1217,11 @@ class UISlot {
 			if (item instanceof AppliedUITemplate) {
 				const data = this._mergeSlots(item);
 				r = item.template.new(this.parent);
+				this._mountInstance(r, this._nextMountNode(k, previous));
 				r.set(data, k);
 				// Record the wrapper we are rendering so future passes can
 				// ultra-fast-path when the exact same wrapper object is provided.
 				r._lastApplied = item;
-				this._mountInstance(r, this._nextMountNode(k, previous));
 			} else if (this.isInput) {
 				setNodeText(this.node, asText(item));
 				r = this.node;
@@ -1242,9 +1250,9 @@ class UISlot {
 						const nextNode = lastNode ? lastNode.nextSibling : null;
 						r.unmount();
 						const newInstance = item.template.new(this.parent);
+						this._mountInstance(newInstance, nextNode);
 						newInstance.set(data, k);
 						newInstance._lastApplied = item;
-						this._mountInstance(newInstance, nextNode);
 						this.mapping.set(k, newInstance);
 					}
 				} else if (item instanceof Node) {
@@ -1270,9 +1278,9 @@ class UISlot {
 					const nextNode = r.nextSibling;
 					r.parentNode.removeChild(r);
 					const newInstance = item.template.new(this.parent);
+					this._mountInstance(newInstance, nextNode);
 					newInstance.set(data, k);
 					newInstance._lastApplied = item;
-					this._mountInstance(newInstance, nextNode);
 					this.mapping.set(k, newInstance);
 				} else if (item instanceof Node) {
 					r.parentNode.replaceChild(item, r);
@@ -1288,9 +1296,9 @@ class UISlot {
 					const nextNode = r.nextSibling;
 					r.parentNode.removeChild(r);
 					const newInstance = item.template.new(this.parent);
+					this._mountInstance(newInstance, nextNode);
 					newInstance.set(data, k);
 					newInstance._lastApplied = item;
-					this._mountInstance(newInstance, nextNode);
 					this.mapping.set(k, newInstance);
 				} else if (item instanceof Node) {
 					r.parentNode.replaceChild(item, r);

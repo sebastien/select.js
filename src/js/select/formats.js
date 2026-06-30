@@ -261,7 +261,7 @@ function currency(value, code = "USD", options = undefined) {
 	if (options) {
 		return new Intl.NumberFormat(undefined, {
 			style: "currency",
-			currency: currency ?? DEFAULTS.CURRENCY,
+			currency: currency && currency !== "$" ? currency : DEFAULTS.CURRENCY,
 			...options,
 		}).format(n);
 	}
@@ -274,7 +274,7 @@ function currency(value, code = "USD", options = undefined) {
 			style: "currency",
 			currency,
 		});
-		currencyFormatters.set(c, formatter);
+		currencyFormatters.set(currency, formatter);
 	}
 	return formatter.format(n);
 }
@@ -429,8 +429,8 @@ function hi(value, query) {
 	return highlighted;
 }
 
-function debug(value, scope) {
-	console.log("[uijs.debug] Slot value:", { value, scope });
+function debug(value) {
+	console.log("[uijs.debug] Slot value:", { value });
 	return value;
 }
 

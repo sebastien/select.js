@@ -54,8 +54,8 @@ Exports:
 - `ikeys`, `iitems`, `iremap`, `iwalk`, `ileaves`
 - `logger`
 - `sanitize`, `sanitizer`, `Sanitizer`
-- text helpers such as `shortdict`, `shortword`, `unshortword`, `re`, `rescape`, `sprintf`, `uid`
-- the remaining split modules (`math`, `transform`, `traverse`, `update`, `values`)
+- text helpers such as `shortdict`, `shortword`, `unshortword`, `words`, `re`, `rescape`, `sprintf`, `uid`
+- the remaining split modules (`math`, `transform`, `traverse`, `update`, `values`), including `items(value)` which converts the `iitems` iterator to a plain array
 - `sel`
 
 ### Selection helpers

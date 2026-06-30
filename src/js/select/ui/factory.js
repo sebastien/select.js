@@ -351,6 +351,7 @@ function createTemplateComponent(
 		let sourceMode = "default";
 		let sourceHosts = null;
 		let autoFormatName = null;
+		let shouldRegisterNodes = false;
 		const resourceRef = parseResourceReference(selection, scope);
 		if (resourceRef) {
 			const resolved = getTemplateResource(resourceRef, scope);
@@ -367,6 +368,7 @@ function createTemplateComponent(
 				const doc = HTML.parseFromString(selection, "text/html");
 				pruneTemplateWhitespace(doc.body);
 				nodes = [...doc.body.childNodes];
+				shouldRegisterNodes = true;
 				if (nodes.length === 1) {
 					autoFormatName = TemplateRegistry.FormatterName(nodes[0]);
 				}
@@ -461,7 +463,7 @@ function createTemplateComponent(
 						autoFormatName = matchedTemplateName;
 					}
 				}
-				if (nodes.length > 0) {
+				if (shouldRegisterNodes && nodes.length > 0) {
 					TemplateRegistry.RegisterNodes(nodes, templateRegistry, scope);
 				}
 			}
@@ -687,6 +689,7 @@ function createComponent(
 			localTemplates.set(name, childComponent);
 			lexicalTemplates[name] = childComponent;
 			registerComponentFormat(childQName, childComponent);
+			return;
 		}
 		if (!templateNode.content) {
 			return;

@@ -195,6 +195,7 @@ class TemplateParser {
 
 	static FormatBindingPath(path) {
 		if (!path?.length) return "";
+		if (path[0] === "#") return path.length > 1 ? `#.${path.slice(1).join(".")}` : "#";
 		return path[0] === "."
 			? path.length > 1
 				? `.${path.slice(1).join(".")}`
@@ -253,7 +254,11 @@ class TemplateParser {
 		}
 		if (!sourceKey) return null;
 		const sourceMap = TemplateParser.ParseBindingSourceMap(sourceKey);
-		if (!sourceMap && validateSource && !/^[A-Za-z0-9_$-]+$/.test(sourceKey))
+		if (
+			!sourceMap &&
+			validateSource &&
+			!TemplateParser.ParseBindingPath(sourceKey, true)
+		)
 			return null;
 		const processors =
 			parts.length > 1 ? TemplateParser.ParseProcessorList(parts.slice(1)) : [];
@@ -269,6 +274,19 @@ class TemplateParser {
 	static ParseBindingPath(expr, allowDotted = true) {
 		const source = typeof expr === "string" ? expr.trim() : "";
 		if (!source) return null;
+		if (allowDotted && source === "#") return ["#"];
+		if (allowDotted && source.startsWith("#.")) {
+			const tail = source.slice(2);
+			if (!tail) return ["#"];
+			const parts = tail.split(".");
+			if (!parts.length) return null;
+			for (let i = 0; i < parts.length; i++) {
+				const part = parts[i].trim();
+				if (!part || !TemplateParser._ReBindingPath.test(part)) return null;
+				parts[i] = part;
+			}
+			return ["#", ...parts];
+		}
 		if (allowDotted && source === ".") return ["."];
 		if (allowDotted && source.startsWith(".")) {
 			const tail = source.slice(1);
@@ -409,17 +427,69 @@ class TemplateParser {
 			last = end + 1;
 		}
 		if (hasTemplate) return { mode: "template", template: { tokens } };
+		const comparison = TemplateParser.ParseBindingComparison(source);
+		if (comparison) {
+			return {
+				mode: "comparison",
+				binding: comparison.binding,
+				operator: comparison.operator,
+				rawValue: comparison.rawValue,
+				value: comparison.value,
+			};
+		}
 		return {
 			mode: "binding",
 			binding: TemplateParser.ParsePipedBinding(source),
 		};
 	}
 
+	static ParseWhenLiteral(raw) {
+		const value = raw.trim();
+		if (!value.length) return "";
+		if (value === "true") return true;
+		if (value === "false") return false;
+		if (value === "null") return null;
+		if (value === "undefined") return undefined;
+		if (/^[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?$/.test(value)) {
+			const numeric = Number(value);
+			if (!Number.isNaN(numeric)) return numeric;
+		}
+		return value;
+	}
+
+	static ParseBindingComparison(expr) {
+		const source = typeof expr === "string" ? expr.trim() : "";
+		if (!source) {
+			return null;
+		}
+		for (let i = 0; i < TemplateParser._WhenComparators.length; i++) {
+			const operator = TemplateParser._WhenComparators[i];
+			const at = source.indexOf(operator);
+			if (at <= 0) continue;
+			const left = source.slice(0, at).trim();
+			const right = source.slice(at + operator.length).trim();
+			if (!left || !right) return null;
+			const binding = TemplateParser.ParsePipedBinding(left, false);
+			if (!binding) return null;
+			const path = TemplateParser.ParseBindingPath(binding.sourceKey, true);
+			if (!path) return null;
+			return {
+				binding,
+				key: path.join("."),
+				processors: binding.processors,
+				operator,
+				rawValue: right,
+				value: TemplateParser.ParseWhenLiteral(right),
+			};
+		}
+		return null;
+	}
+
 	static ParseWhenShorthand(expr) {
 		const source = typeof expr === "string" ? expr.trim() : "";
 		const parseSingleWhen = (input) => {
 			const text = typeof input === "string" ? input.trim() : "";
-			const comparison = parseWhenComparison(text);
+			const comparison = TemplateParser.ParseBindingComparison(text);
 			if (comparison) return comparison;
 			let i = 0;
 			let negate = false;
@@ -463,42 +533,6 @@ class TemplateParser {
 				rawValue: null,
 				value: undefined,
 			};
-		};
-		const parseWhenLiteral = (raw) => {
-			const value = raw.trim();
-			if (!value.length) return "";
-			if (value === "true") return true;
-			if (value === "false") return false;
-			if (value === "null") return null;
-			if (value === "undefined") return undefined;
-			if (/^[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?$/.test(value)) {
-				const numeric = Number(value);
-				if (!Number.isNaN(numeric)) return numeric;
-			}
-			return value;
-		};
-		const parseWhenComparison = (text) => {
-			for (let i = 0; i < TemplateParser._WhenComparators.length; i++) {
-				const operator = TemplateParser._WhenComparators[i];
-				const at = text.indexOf(operator);
-				if (at <= 0) continue;
-				const left = text.slice(0, at).trim();
-				const right = text.slice(at + operator.length).trim();
-				if (!left || !right) return null;
-				const binding = TemplateParser.ParsePipedBinding(left, false);
-				if (!binding) return null;
-				const path = TemplateParser.ParseBindingPath(binding.sourceKey, true);
-				if (!path) return null;
-				return {
-					key: path.join("."),
-					processors: binding.processors,
-					mode: TemplateParser.TRUTHY,
-					operator,
-					rawValue: right,
-					value: parseWhenLiteral(right),
-				};
-			}
-			return null;
 		};
 		if (source.includes("&")) {
 			const parts = source.split("&");

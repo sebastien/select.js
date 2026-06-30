@@ -15,6 +15,7 @@ import {
 	ifirst,
 	ifound,
 	ihead,
+	iitems,
 	iindex,
 	ilast,
 	inth,
@@ -388,6 +389,10 @@ function remap(
 	return mapped;
 }
 
+function items(value) {
+	return [...iitems(value)];
+}
+
 export {
 	access,
 	count,
@@ -402,6 +407,7 @@ export {
 	head,
 	index,
 	isin,
+	items,
 	iter,
 	last,
 	nth,

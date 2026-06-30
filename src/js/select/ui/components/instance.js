@@ -8,7 +8,7 @@
 // Mounted UI template instances, lifecycle, events, and rendering.
 
 import { asText, eq } from "../../utils.js";
-import { log } from "../templates.js";
+import { log, TemplateParser } from "../templates.js";
 
 import { UIEvent } from "./model.js";
 import { options } from "./registry.js";
@@ -802,7 +802,7 @@ class UIInstance {
 				let payload = data;
 				const bindingSource = formatBindingSource(target.binding);
 				if (bindingSource) {
-					payload = resolveBindingValue(data, target.binding, false);
+					payload = resolveBindingValue(data, target.binding, false, this);
 					if (target.binding.processors?.length) {
 						payload = applyNamedProcessors(
 							this,
@@ -1405,10 +1405,10 @@ class UIInstance {
 						}
 					} else {
 						v = binding
-							? resolveBindingValue(renderData, binding, !processors?.length)
+							? resolveBindingValue(renderData, binding, !processors?.length, this)
 							: processors?.length
-								? resolveSourceValue(renderData, sourceKey)
-								: resolveExpandedSourceValue(renderData, sourceKey);
+								? resolveSourceValue(renderData, sourceKey, this)
+								: resolveExpandedSourceValue(renderData, sourceKey, this);
 					}
 					if (v === undefined && binding?.defaultValue !== undefined)
 						v = binding.defaultValue;
@@ -1477,91 +1477,66 @@ class UIInstance {
 					}
 					const slots = this.outAttr[k];
 					const binding = slots?.[0]?.template.binding;
+					const mode = slots?.[0]?.template.mode;
+					const operator = slots?.[0]?.template.operator;
+					const comparisonValue = slots?.[0]?.template.value;
 					const sourceKey =
 						formatBindingSource(binding) || slots?.[0]?.template.slotName || k;
 					const processors = binding?.processors;
 					const hasBehavior = behavior?.[sourceKey];
+					const finalizeOutAttrValue = (value) => {
+						let next = value;
+						if (next === undefined && binding?.defaultValue !== undefined) {
+							next = binding.defaultValue;
+						}
+						if (processors?.length) {
+							const processed = applyNamedProcessors(
+								this,
+								renderData,
+								next,
+								processors,
+								sourceKey,
+								{ withMeta: true },
+							);
+							next = finalizeRenderProcessorValue(
+								processed.value,
+								processed.lastProcessorType,
+							);
+						} else if (next !== undefined) {
+							next = resolveRenderableValue(next);
+						}
+						return mode === "comparison"
+							? TemplateParser.EvaluateWhenComparison(
+									next,
+									operator,
+									comparisonValue,
+								)
+							: next;
+					};
 					let v;
 					if (hasBehavior) {
 						for (const slot of slots) {
 							const attrValue = slot.node.getAttribute(slot.attrName);
 							v = hasBehavior(this, renderData, attrValue, slot.node);
-							if (v === undefined && binding?.defaultValue !== undefined)
-								v = binding.defaultValue;
 							if (
 								this._trackAsyncBehaviorValue(
 									`${k}:${slot.attrName}`,
 									v,
 									(resolved) => {
-										let next = resolved;
-										if (
-											next === undefined &&
-											binding?.defaultValue !== undefined
-										)
-											next = binding.defaultValue;
-										if (processors?.length) {
-											const processed = applyNamedProcessors(
-												this,
-												renderData,
-												next,
-												processors,
-												sourceKey,
-												{ withMeta: true },
-											);
-											next = finalizeRenderProcessorValue(
-												processed.value,
-												processed.lastProcessorType,
-											);
-										} else {
-											next = resolveRenderableValue(next);
-										}
-										slot.render(next);
+										slot.render(finalizeOutAttrValue(resolved));
 									},
 								)
 							) {
 								continue;
 							}
-							if (processors?.length) {
-								const processed = applyNamedProcessors(
-									this,
-									renderData,
-									v,
-									processors,
-									sourceKey,
-									{ withMeta: true },
-								);
-								v = finalizeRenderProcessorValue(
-									processed.value,
-									processed.lastProcessorType,
-								);
-							} else {
-								v = resolveRenderableValue(v);
-							}
-							slot.render(v);
+							slot.render(finalizeOutAttrValue(v));
 						}
 						continue;
 					}
 					v = binding
-						? resolveBindingValue(renderData, binding, false)
-						: resolveSourceValue(renderData, sourceKey);
-					if (v === undefined && binding?.defaultValue !== undefined)
-						v = binding.defaultValue;
-					if (v !== undefined && processors?.length) {
-						const processed = applyNamedProcessors(
-							this,
-							renderData,
-							v,
-							processors,
-							sourceKey,
-							{ withMeta: true },
-						);
-						v = finalizeRenderProcessorValue(
-							processed.value,
-							processed.lastProcessorType,
-						);
-					} else if (v !== undefined) {
-						v = resolveRenderableValue(v);
-					}
+					? resolveBindingValue(renderData, binding, false, this)
+					: resolveSourceValue(renderData, sourceKey, this);
+					v = finalizeOutAttrValue(v);
 					for (const slot of slots) {
 						slot.render(v);
 					}

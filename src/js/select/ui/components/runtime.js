@@ -73,13 +73,19 @@ function normalizeSourceKey(sourceKey) {
 	if (sourceKey.startsWith(".")) return sourceKey.slice(1);
 	return sourceKey;
 }
-function resolveSourceValue(data, sourceKey) {
+
+function resolveCurrentKey(self, data, itemKey = undefined) {
+	return itemKey !== undefined ? itemKey : self?.key ?? data?.$key;
+}
+
+function resolveSourceValue(data, sourceKey, self = undefined, itemKey = undefined) {
 	if (!sourceKey) return undefined;
+	if (sourceKey === "#") return resolveCurrentKey(self, data, itemKey);
 	const normalizedKey = normalizeSourceKey(sourceKey);
 	if (!normalizedKey) return data;
 	if (!normalizedKey.includes("."))
 		return data ? data[normalizedKey] : undefined;
-	return resolveDataPath(data, normalizedKey.split("."));
+	return resolveDataPath(data, normalizedKey.split("."), self, itemKey);
 }
 
 function formatBindingSource(binding) {
@@ -94,20 +100,49 @@ function resolveRenderableValue(value) {
 	return unwrap(expand(value));
 }
 
-function resolveExpandedSourceValue(data, sourceKey) {
-	const value = resolveSourceValue(data, sourceKey);
+function resolveTraversalValue(value) {
+	return value?.isReactive === true ? unwrap(value) : value;
+}
+
+function resolveExpandedSourceValue(data, sourceKey, self = undefined, itemKey = undefined) {
+	const value = resolveSourceValue(data, sourceKey, self, itemKey);
 	return value === undefined ? undefined : resolveRenderableValue(value);
 }
 
-function resolveMappedSourceValue(data, sourceMap, expandValues = false) {
+function resolveDataPathRawLeaf(
+	data,
+	path,
+	self = undefined,
+	itemKey = undefined,
+) {
+	if (!path?.length) return data;
+	let value = path[0] === "#" ? resolveCurrentKey(self, data, itemKey) : data;
+	let i = path[0] === "." || path[0] === "#" ? 1 : 0;
+	for (; i < path.length - 1; i++) {
+		value = resolveTraversalValue(value);
+		if (value === undefined || value === null) return undefined;
+		value = value[path[i]];
+	}
+	if (i >= path.length) return value;
+	value = resolveTraversalValue(value);
+	if (value === undefined || value === null) return undefined;
+	return value[path[i]];
+}
+
+function resolveMappedSourceValue(
+	data,
+	sourceMap,
+	expandValues = false,
+	self = undefined,
+	itemKey = undefined,
+) {
 	if (!sourceMap?.length) return undefined;
 	const result = {};
 	for (let i = 0; i < sourceMap.length; i++) {
 		const entry = sourceMap[i];
-		const value = resolveSourceValue(
-			data,
-			TemplateParser.FormatBindingPath(entry.path),
-		);
+		const value = expandValues
+			? resolveDataPath(data, entry.path, self, itemKey)
+			: resolveDataPathRawLeaf(data, entry.path, self, itemKey);
 		result[entry.key] =
 			expandValues && value !== undefined
 				? resolveRenderableValue(value)
@@ -116,14 +151,26 @@ function resolveMappedSourceValue(data, sourceMap, expandValues = false) {
 	return result;
 }
 
-function resolveBindingValue(data, binding, expandValues = false) {
+function resolveBindingValue(
+	data,
+	binding,
+	expandValues = false,
+	self = undefined,
+	itemKey = undefined,
+) {
 	if (!binding) return undefined;
 	if (binding.sourceMap?.length) {
-		return resolveMappedSourceValue(data, binding.sourceMap, expandValues);
+		return resolveMappedSourceValue(
+			data,
+			binding.sourceMap,
+			expandValues,
+			self,
+			itemKey,
+		);
 	}
 	return expandValues
-		? resolveExpandedSourceValue(data, binding.sourceKey)
-		: resolveSourceValue(data, binding.sourceKey);
+		? resolveExpandedSourceValue(data, binding.sourceKey, self, itemKey)
+		: resolveSourceValue(data, binding.sourceKey, self, itemKey);
 }
 
 function scheduleRenderTask(fn) {
@@ -138,13 +185,15 @@ function resolveWhenValue(self, data, key) {
 	const behavior = self?.template?.behavior;
 	const b = behavior?.[key];
 	if (b) return b(self, data, null);
-	return resolveExpandedSourceValue(data, key);
+	return resolveExpandedSourceValue(data, key, self);
 }
 
-function resolveDataPath(data, path) {
+
+function resolveDataPath(data, path, self = undefined, itemKey = undefined) {
 	if (!path?.length) return data;
-	let value = data;
-	for (let i = 0; i < path.length; i++) {
+	let value = path[0] === "#" ? resolveCurrentKey(self, data, itemKey) : data;
+	let i = path[0] === "." || path[0] === "#" ? 1 : 0;
+	for (; i < path.length; i++) {
 		value = resolveRenderableValue(value);
 		if (value === undefined || value === null) return undefined;
 		value = value[path[i]];
@@ -234,11 +283,11 @@ function normalizeProcessorDescriptor(processor) {
 	};
 }
 
-function resolveProcessorArgs(data, args) {
+function resolveProcessorArgs(data, args, self = undefined, itemKey = undefined) {
 	if (!args?.length) return null;
 	const resolved = new Array(args.length);
 	for (let i = 0; i < args.length; i++) {
-		resolved[i] = resolveDataPath(data, args[i]);
+		resolved[i] = resolveDataPath(data, args[i], self, itemKey);
 	}
 	return resolved;
 }
@@ -250,7 +299,7 @@ function applyNamedProcessor(
 	data,
 	sourceKey,
 	descriptor,
-	{ expandFunctions = true, itemIndex = undefined, args = null } = {},
+	{ expandFunctions = true, args = null, itemKey = undefined } = {},
 ) {
 	if (processor.type === "component") {
 		const component = processor.value;
@@ -270,36 +319,12 @@ function applyNamedProcessor(
 	}
 	const value = expandFunctions ? resolveRenderableValue(current) : current;
 	const argValues = args || [];
-	if (itemIndex !== undefined) {
+	if (descriptor.each && itemKey !== undefined) {
 		return argValues.length
-			? processor.value(
-					value,
-					...argValues,
-					itemIndex,
-					self,
-					data,
-					sourceKey,
-					descriptor.name,
-				)
-			: processor.value(
-					value,
-					itemIndex,
-					self,
-					data,
-					sourceKey,
-					descriptor.name,
-				);
+			? processor.value(value, itemKey, ...argValues)
+			: processor.value(value, itemKey);
 	}
-	return argValues.length
-		? processor.value(
-				value,
-				...argValues,
-				self,
-				data,
-				sourceKey,
-				descriptor.name,
-			)
-		: processor.value(value, self, data, sourceKey, descriptor.name);
+	return argValues.length ? processor.value(value, ...argValues) : processor.value(value);
 }
 
 function resolveNamedProcessorChainType(self, processors, _sourceKey) {
@@ -347,7 +372,7 @@ function applyNamedProcessors(
 			continue;
 		}
 		lastProcessorType = processor.type;
-		const args = resolveProcessorArgs(data, descriptor.args);
+		const args = resolveProcessorArgs(data, descriptor.args, self, options?.itemKey);
 		if (descriptor.each) {
 			// NOTE: Starred processors act on the expanded collection shape, not on
 			// the reactive wrapper that may hold it.
@@ -355,7 +380,7 @@ function applyNamedProcessors(
 				processor.type === "component"
 					? unwrap(current)
 					: resolveRenderableValue(current);
-			current = mapProcessorCollection(current, (item, itemIndex) =>
+			current = mapProcessorCollection(current, (item, itemKey) =>
 				applyNamedProcessor(
 					processor,
 					item,
@@ -363,7 +388,7 @@ function applyNamedProcessors(
 					data,
 					sourceKey,
 					descriptor,
-					{ ...options, itemIndex, args },
+					{ ...options, itemKey, args },
 				),
 			);
 			const tail = processors.slice(i + 1);
@@ -372,11 +397,11 @@ function applyNamedProcessors(
 					? { value: current, lastProcessorType: processor.type }
 					: current;
 			}
-			current = mapProcessorCollection(current, (item, itemIndex) =>
+			current = mapProcessorCollection(current, (item, itemKey) =>
 				applyNamedProcessors(self, data, item, tail, sourceKey, {
 					...options,
 					withMeta: false,
-					itemIndex,
+					itemKey,
 				}),
 			);
 			return withMeta
@@ -442,9 +467,9 @@ function resolveTemplateTokens(self, tokens, data) {
 				value =
 					typeof slotBehavior === "function"
 						? slotBehavior(self, data, null)
-						: resolveDataPath(data, path);
+						: resolveDataPath(data, path, self);
 			} else {
-				value = resolveDataPath(data, path);
+				value = resolveDataPath(data, path, self);
 			}
 			if (value === undefined || value === null) continue;
 			let resolved = expand(value);

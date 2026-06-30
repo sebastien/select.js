@@ -305,7 +305,8 @@ External template resolution details:
 - `out:<attr>`: Binds a specific DOM attribute to a data value.
   - Binding mode: `out:<attr>="slot|Formatter|Formatter"`
   - Template mode: `out:<attr>="prefix-${path.to.value}-suffix"`
-  - Modes are exclusive: use either whole-attribute binding pipelines or template interpolation.
+  - Comparison mode: `out:<attr>="slot==value"` (uses the same operators as `when`)
+  - Modes are exclusive: use either whole-attribute binding pipelines, comparison expressions, or template interpolation.
 - `slot`: Defines a named slot for content injection (content projection), not data output binding.
 
 ### `out` processors and `when` shorthand
@@ -318,8 +319,9 @@ External template resolution details:
 - `out="slot|FormatterA|FormatterB"`: chain processors left-to-right
 - `out="slot|formatter+arg1+arg2.subvalue"`: call function processors as `formatter(value, arg1, arg2Subvalue, ...)`
 - `out="collection|*Formatter"`: apply `Formatter` to each item of `collection` (preserving array/map/set/object shape)
-- In starred pipelines, function processors receive the item index as the second argument when no `+arg` values are provided.
-- With `+arg` values, starred function processors receive resolved args first and the item index after them (`processor(item, ...args, index, self, data, sourceKey, name)`).
+- In starred pipelines, function processors receive the item key as the second argument when no `+arg` values are provided.
+- With `+arg` values, starred function processors receive the item key first and the resolved args after it (`processor(item, itemKey, ...args)`).
+- Regular (non-starred) processors always receive `processor(item, ...args)`.
 
 Each `+arg` segment is a data-path lookup resolved against the current component
 data. Dotted paths such as `+settings.units.suffix` expand reactive values while
@@ -420,6 +422,13 @@ alias `.`/`.path`:
 - `${.}` (full data in template interpolation)
 - `${.email}` (nested path from root data)
 
+The special path prefix `#` resolves to the current item's iteration key
+(e.g. the map key when rendering a list with `.map(data, key)`):
+
+- `#` resolves to the key value (from `$key`, `.map()` key parameter, or instance key)
+- `#.label` resolves to `key.label` where `key` is the current item's key
+- `out="#"` renders the iteration key as the output value
+
 In template mode, placeholders support optional processor pipelines (`${path|Formatter|formatter+arg}`), with no expression evaluation. Missing or invalid placeholders render as empty strings.
 
 `when` accepts shorthand slot predicates:
@@ -447,7 +456,9 @@ In template mode, placeholders support optional processor pipelines (`${path|For
 Each side of `&` must be a complete valid `when` clause. `when` still does not
 evaluate arbitrary JavaScript.
 
-`when` also accepts safe comparison expressions in the form `{slot}{op}{raw_value}`:
+`when` also accepts safe comparison expressions in the form `{slot}{op}{raw_value}`.
+These same comparison expressions also work in `out:<attr>` bindings
+(e.g. `out:checked="panel==3"`, `out:disabled="index>=2"`):
 
 - `when="slot=value"`: non-strict equality (`==`)
 - `when="slot!=value"`: non-strict inequality (`!=`)

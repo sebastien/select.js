@@ -25,9 +25,9 @@ function rescape(value) {
 	return `${value}`.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Function: _words
+// Function: words
 // Splits mixed-case, kebab-case, snake_case, and spaced `value` into words.
-function _words(value) {
+function words(value) {
 	const normalized = `${value ?? ""}`
 		.replace(RE_WORD_BOUNDARY, "$1 $2")
 		.replace(/[-_\s]+/g, " ")
@@ -47,13 +47,13 @@ function fromKebabCase(text) {
 // Function: fromCamelCase
 // Splits camelCase `text` into lowercase words.
 function fromCamelCase(text) {
-	return _words(text).map((_) => _.toLowerCase());
+	return words(text).map((_) => _.toLowerCase());
 }
 
 // Function: fromPascalCase
 // Splits PascalCase `text` into lowercase words.
 function fromPascalCase(text) {
-	return _words(text).map((_) => _.toLowerCase());
+	return words(text).map((_) => _.toLowerCase());
 }
 
 // Function: capitalize
@@ -422,10 +422,10 @@ function isSnakeCase(name) {
 // Function: toCamelCase
 // Normalizes `value` into camelCase text.
 function toCamelCase(value) {
-	const words = _words(value);
+	const w = words(value);
 	let res = "";
-	for (let i = 0; i < words.length; i++) {
-		const word = words[i].toLowerCase();
+	for (let i = 0; i < w.length; i++) {
+		const word = w[i].toLowerCase();
 		if (!word) continue;
 		res += i === 0 ? word : `${word[0].toUpperCase()}${word.slice(1)}`;
 	}
@@ -435,10 +435,10 @@ function toCamelCase(value) {
 // Function: toPascalCase
 // Normalizes `value` into PascalCase text.
 function toPascalCase(value) {
-	const words = _words(value);
+	const w = words(value);
 	let res = "";
-	for (let i = 0; i < words.length; i++) {
-		const word = words[i].toLowerCase();
+	for (let i = 0; i < w.length; i++) {
+		const word = w[i].toLowerCase();
 		if (!word) continue;
 		res += `${word[0].toUpperCase()}${word.slice(1)}`;
 	}
@@ -483,6 +483,7 @@ export {
 	toPascalCase,
 	toSnakeCase,
 	uid,
+	words,
 	unshortword,
 };
 

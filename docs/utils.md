@@ -16,8 +16,8 @@ separate `select/utils/search.js` module.
 - `select/utils/logger.js`: `logger`
 - `select/utils/math.js`: math helpers used by the library internals
 - `select/utils/sanitize.js`: `Sanitizer`, `sanitize`, `sanitizer`
-- `select/utils/text.js`: text helpers such as `shortdict`, `shortword`, `unshortword`, `re`, `rescape`, `sprintf`, `uid`
-- `select/utils/transform.js`, `traverse.js`, `update.js`, `values.js`: the remaining utility helpers re-exported by the barrel, including `assign(scope, path, value, merge?, offset?)` for nested writes with `undefined` path segments mapped to the next free numeric slot and missing `undefined` containers materialized as arrays.
+- `select/utils/text.js`: text helpers such as `shortdict`, `shortword`, `unshortword`, `words`, `re`, `rescape`, `sprintf`, `uid`
+- `select/utils/transform.js`, `traverse.js`, `update.js`, `values.js`: the remaining utility helpers re-exported by the barrel, including `assign(scope, path, value, merge?, offset?)` for nested writes with `undefined` path segments mapped to the next free numeric slot and missing `undefined` containers materialized as arrays, and `items(value)` which converts the `iitems` iterator to a plain array.
 
 ### Selection helpers
 
