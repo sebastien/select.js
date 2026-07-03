@@ -42,6 +42,38 @@ import {
 
 const log = logger("select.cells");
 let refreshStamp = 0;
+let batchDepth = 0;
+let isFlushingPubs = false;
+const pendingPubs = [];
+
+function flushPendingPubs() {
+	if (isFlushingPubs || pendingPubs.length === 0) {
+		return;
+	}
+	isFlushingPubs = true;
+	try {
+		while (pendingPubs.length > 0) {
+			const { target, value, path, origin, previous } = pendingPubs.shift();
+			for (const handler of target.subs) {
+				handler(value, path, origin, previous);
+			}
+		}
+	} finally {
+		isFlushingPubs = false;
+	}
+}
+
+function batch(functor) {
+	batchDepth += 1;
+	try {
+		return typeof functor === "function" ? functor() : undefined;
+	} finally {
+		batchDepth -= 1;
+		if (batchDepth === 0) {
+			flushPendingPubs();
+		}
+	}
+}
 
 function isReactiveValue(value) {
 	return (
@@ -518,6 +550,10 @@ class Reactive {
 		// TODO: Revisit pub and how it works. It should probably
 		// trigger the selections when it's a set, but not when
 		// propagating up.
+		if (batchDepth > 0) {
+			pendingPubs.push({ target: this, value, path, origin, previous });
+			return this;
+		}
 		for (const handler of this.subs) {
 			handler(value, path, origin, previous);
 		}
@@ -1258,8 +1294,10 @@ class Derivation extends Reactive {
 			});
 			return false;
 		}
-		updater(value, this.value, path, force, this);
-		this.update();
+		batch(() => {
+			updater(value, this.value, path, force, this);
+			this.update();
+		});
 		return true;
 	}
 
@@ -1305,9 +1343,7 @@ class Derivation extends Reactive {
 		} else if (!this._recompute()) {
 			if (this.updateStrategy === "join" && this._hasPendingSources()) {
 				this.isPending = true;
-				return this.value;
 			}
-			this._apply(this._compute());
 		}
 		return this.value;
 	}
@@ -1858,6 +1894,7 @@ const expand = Reactive.Expand;
 Object.assign(cell, {
 	derived,
 	switched,
+	batch,
 	deferred,
 	selected,
 	unwrap,
@@ -1867,6 +1904,7 @@ Object.assign(cell, {
 });
 
 export {
+	batch,
 	Cell,
 	cell,
 	cells,
@@ -1889,6 +1927,7 @@ export default Object.assign(cell, {
 	map: cells,
 	derived,
 	switched,
+	batch,
 	deferred,
 	selected,
 	unwrap,

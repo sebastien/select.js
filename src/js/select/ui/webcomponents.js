@@ -18,7 +18,7 @@
 // ----------------------------------------------------------------------------
 
 import { toCamelCase, toKebabCase } from "../formats.js";
-import { asText, def, isObject, Nothing } from "../utils.js";
+import { asText, def, eq, isObject, Nothing } from "../utils.js";
 import { getUIInstance } from "./components/instance.js";
 import { log } from "./templates.js";
 
@@ -608,7 +608,7 @@ class UIWebComponent extends BaseHTMLElement {
 			}
 			let previous = value.get ? value.get() : value.value;
 			const handler = (current) => {
-				if (previous === current) {
+				if (eq(previous, current)) {
 					return;
 				}
 				const prior = previous;
@@ -686,7 +686,7 @@ class UIWebComponent extends BaseHTMLElement {
 	setExposedPropertyValue(key, value) {
 		const hasProperty = key in this.propertyData;
 		const previous = hasProperty ? this.propertyData[key] : undefined;
-		if (hasProperty && previous === value) {
+		if (hasProperty && eq(previous, value)) {
 			return;
 		}
 		if (value === undefined) {

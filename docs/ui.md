@@ -56,8 +56,8 @@ Binding note:
 - `init(initializer)`: State initialization. The initializer receives
   `(self, data)` where `data` is `self.data`. Top-level reactives returned from
   `init()` stay stable by identity for the life of the instance; plain incoming
-  values write through them and incoming reactives are fused to them until the
-  incoming reactive reference changes.
+	values write through them without detaching an existing fusion, and incoming
+	reactives are fused to them until the incoming reactive reference changes.
 - `cleanup(handler)`: Dispose-time teardown hook.
 - `using(selection, scope?)`: Rebinds the same behavior/state definition to another template.
 - `map(data)`: Collection mapping to applied templates.
@@ -87,9 +87,9 @@ Notes:
 
 - `set(data, key?)`: Direct state updates. When `data` provides a plain value
   for a top-level reactive created by `init()`, the instance writes through the
-  existing reactive instead of replacing it. When `data` provides a reactive,
-  the instance fuses it with the existing reactive until the incoming reactive
-  reference changes.
+	existing reactive instead of replacing it, and any existing fusion remains
+	active. When `data` provides a reactive, the instance fuses it with the
+	existing reactive until the incoming reactive reference changes.
 - `update(data, force?)`: Reactive partial updates with the same top-level
   reactive fusion semantics as `set(...)`.
 - `mount(target, previous?)`: DOM attachment.

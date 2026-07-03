@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { Window } from "happy-dom"
 import browser, { Browser, hash } from "../src/js/select/browser.js"
 
 function snapshotGlobal(key) {
@@ -14,6 +15,35 @@ function restoreGlobal(key, snapshot) {
 	} else {
 		delete globalThis[key]
 	}
+}
+
+function setupGlobals(window) {
+	window.SyntaxError = SyntaxError
+	window.TypeError = TypeError
+	window.Error = Error
+	const g = globalThis
+	g.window = window
+	g.document = window.document
+	g.Node = window.Node
+	g.Element = window.Element
+	g.HTMLElement = window.HTMLElement
+	g.DocumentFragment = window.DocumentFragment
+	g.Text = window.Text
+	g.Comment = window.Comment
+	g.Document = window.Document
+	g.DOMParser = window.DOMParser
+	g.MutationObserver = window.MutationObserver
+	g.CustomEvent = window.CustomEvent
+	g.Event = window.Event
+	g.MouseEvent = window.MouseEvent
+	g.KeyboardEvent = window.KeyboardEvent
+	g.NodeFilter = window.NodeFilter
+	g.SVGElement = window.SVGElement
+	g.customElements = window.customElements
+	g.requestAnimationFrame = window.requestAnimationFrame.bind(window)
+	g.cancelAnimationFrame = window.cancelAnimationFrame.bind(window)
+	g.navigator = window.navigator
+	g.getComputedStyle = window.getComputedStyle.bind(window)
 }
 
 async function expectResponseError(promise, status, statusText) {
@@ -286,6 +316,60 @@ describe("Browser.fetch", () => {
 			)
 		} finally {
 			globalThis.fetch = originalFetch
+		}
+	})
+
+	test("parses text/html into an inert current-document root node", async () => {
+		const window = new Window({ url: "http://localhost:8000/fetch-html" })
+		setupGlobals(window)
+		const instance = new Browser()
+		const originalFetch = globalThis.fetch
+		globalThis.fetch = async (input, options) => {
+			expect(input).toBe("/page")
+			expect(options).toBeUndefined()
+			return new Response(
+				'<section class="page"><img src="/asset.png"><span>Hello</span></section>',
+				{
+					headers: { "content-type": "text/html; charset=utf-8" },
+				},
+			)
+		}
+
+		try {
+			const value = await instance.fetch("/page")
+			expect(value.nodeType).toBe(Node.ELEMENT_NODE)
+			expect(value.ownerDocument).toBe(document)
+			expect(value.matches("section.page")).toBe(true)
+			expect(value.querySelector("span").textContent).toBe("Hello")
+			expect(value.isConnected).toBe(false)
+		} finally {
+			globalThis.fetch = originalFetch
+			window.close?.()
+		}
+	})
+
+	test("returns a fragment for multi-root html responses and preserves post callbacks", async () => {
+		const window = new Window({ url: "http://localhost:8000/fetch-html-fragment" })
+		setupGlobals(window)
+		const instance = new Browser()
+		const originalFetch = globalThis.fetch
+		globalThis.fetch = async () =>
+			new Response('<h1>Title</h1><p>Body</p>', {
+				headers: { "content-type": "text/html" },
+			})
+
+		try {
+			const value = await instance.fetch("/fragment", (root) => ({
+				type: root.nodeType,
+				count: root.childNodes.length,
+				owner: root.ownerDocument,
+			}))
+			expect(value.type).toBe(Node.DOCUMENT_FRAGMENT_NODE)
+			expect(value.count).toBe(2)
+			expect(value.owner).toBe(document)
+		} finally {
+			globalThis.fetch = originalFetch
+			window.close?.()
 		}
 	})
 

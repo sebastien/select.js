@@ -28,6 +28,7 @@ export * from "./routing.js";
 export * from "./ui/index.js";
 export { remap } from "./ui/index.js";
 export * from "./utils.js";
+export { debug, format, FORMATS } from "./formats.js";
 
 export {
 	$,

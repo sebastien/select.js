@@ -141,11 +141,29 @@ function setupGlobals(window: Window) {
 
 function createFetch(examplePath: string) {
 	const exampleDir = path.dirname(examplePath)
+	const createHeaders = (filePath: string) => {
+		const ext = path.extname(filePath).toLowerCase()
+		const contentType =
+			ext === ".json"
+				? "application/json; charset=utf-8"
+				: ext === ".css"
+					? "text/css; charset=utf-8"
+					: ext === ".svg"
+						? "image/svg+xml"
+						: "text/html; charset=utf-8"
+		return new Headers({ "content-type": contentType })
+	}
 	return (input: RequestInfo | URL) => {
 		const url = String(input)
 		if (url.startsWith("https://api.iconify.design/")) {
 			const body = `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path d=\"M3 12h18\"/></svg>`
-			return Promise.resolve({ ok: true, status: 200, text: async () => body, json: async () => ({}) })
+			return Promise.resolve({
+				ok: true,
+				status: 200,
+				headers: new Headers({ "content-type": "image/svg+xml" }),
+				text: async () => body,
+				json: async () => ({}),
+			})
 		}
 		let filePath
 		if (url.startsWith("./")) {
@@ -168,6 +186,7 @@ function createFetch(examplePath: string) {
 		return Promise.resolve({
 			ok: true,
 			status: 200,
+			headers: createHeaders(filePath),
 			text: async () => text,
 			json: async () => JSON.parse(text),
 		})

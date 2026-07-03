@@ -142,6 +142,17 @@ const JSONSerializer = {
 	},
 };
 
+function parseHTMLResponse(text) {
+	const doc = globalThis.document;
+	if (!doc?.createElement) {
+		return text;
+	}
+	const template = doc.createElement("template");
+	template.innerHTML = text;
+	const content = template.content;
+	return content.childNodes.length === 1 ? content.removeChild(content.firstChild) : content;
+}
+
 class LocationValueCell extends Cell {
 	constructor(value, options = {}) {
 		super(value);
@@ -756,6 +767,8 @@ class Browser {
 		let res;
 		if (contentType === "application/json" || contentType.endsWith("+json")) {
 			res = response.json();
+		} else if (contentType === "text/html") {
+			res = response.text().then(parseHTMLResponse);
 		} else if (contentType === "image/svg+xml") {
 			res = response
 				.text()

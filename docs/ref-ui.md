@@ -228,8 +228,9 @@ Returns a component function with these methods:
 - `init(initializer)`: Define initial state (often used with cells). Top-level
   reactives returned from `init()` stay stable by identity for the life of the
   instance. The initializer receives `(self, data)` where `data` is the current
-  `self.data`. Plain incoming values write through them, while incoming
-  reactives are fused to them until the incoming reactive reference changes.
+	`self.data`. Plain incoming values write through them without detaching an
+	existing fusion, while incoming reactives are fused to them until the
+	incoming reactive reference changes.
   Returns the component for chaining.
 - `cleanup(handler)`: Define a teardown handler called on instance disposal. Returns the component for chaining.
 - `on(event, handler)` / `sub(event, handler)`: Subscribe to events bubbled by child instances. Returns the component for chaining.

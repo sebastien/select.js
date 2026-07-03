@@ -53,6 +53,9 @@ const LOCAL_TIME = Symbol("localtime");
 function active(value) {
 	return value ? "active" : "";
 }
+function selected(value) {
+	return value ? "selected" : "";
+}
 function toKebabCase(value) {
 	return `${value}`
 		.replace(/([a-z0-9])([A-Z])/g, "$1-$2")
@@ -429,9 +432,9 @@ function hi(value, query) {
 	return highlighted;
 }
 
-function debug(value) {
-	console.log("[uijs.debug] Slot value:", { value });
-	return value;
+function debug(...args) {
+	console.log("[uijs.debug]", ...args);
+	return args.at(-1);
 }
 
 const FORMATS = {
@@ -466,6 +469,7 @@ const FORMATS = {
 	not,
 	number,
 	percent,
+	selected,
 	swallow,
 	timestamp,
 	text,
@@ -533,6 +537,7 @@ export {
 	not,
 	number,
 	percent,
+	selected,
 	swallow,
 	timestamp,
 	text,

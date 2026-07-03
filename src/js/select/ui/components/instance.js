@@ -227,8 +227,9 @@ class UIInstance {
 	}
 
 	// NOTE: Top-level reactives created in `init()` remain the mounted state.
-	// Later plain values write through them, while later reactive values are
-	// fused to them until the incoming reactive reference changes.
+	// Later plain values write through them without detaching an existing fusion,
+	// while later reactive values are fused to them until the incoming reactive
+	// reference changes.
 	static _mergeReactiveTopLevel(self, base, incoming) {
 		if (!incoming || typeof incoming !== "object") {
 			return incoming;
@@ -242,7 +243,9 @@ class UIInstance {
 				self?._fuseReactiveTopLevel(key, current, next);
 				merged[key] = current;
 			} else if (current?.isReactive && !next?.isReactive) {
-				self?._clearReactiveTopLevelFusion(key);
+				// Plain updates target the stable internal cell. If that cell is
+				// currently fused to an upstream reactive, the write propagates
+				// through the fusion instead of breaking it.
 				current.set(next);
 				merged[key] = current;
 			} else {
@@ -442,15 +445,26 @@ class UIInstance {
 		return this._renderer;
 	}
 
-	_scheduleRender() {
+	_scheduleRender(changedKeys = null) {
 		if (this._renderQueued || this._isDisposed) {
+			if (changedKeys?.size) {
+				this._pendingChangedKeys = this._pendingChangedKeys ?? new Set();
+				for (const key of changedKeys) {
+					this._pendingChangedKeys.add(key);
+				}
+			}
 			return;
+		}
+		if (changedKeys?.size) {
+			this._pendingChangedKeys = new Set(changedKeys);
 		}
 		this._renderQueued = true;
 		scheduleRenderTask(() => {
+			const pendingChangedKeys = this._pendingChangedKeys;
+			this._pendingChangedKeys = undefined;
 			this._renderQueued = false;
 			if (!this._isDisposed) {
-				this.render();
+				this.render(this.data, pendingChangedKeys ?? null);
 			}
 		});
 	}
@@ -474,8 +488,12 @@ class UIInstance {
 			for (const k in data) {
 				const v = data[k];
 				if (v?.isReactive) {
-					refs = refs ?? new Set();
-					refs.add(v);
+					refs = refs ?? new Map();
+					if (refs.has(v)) {
+						refs.get(v).add(k);
+					} else {
+						refs.set(v, new Set([k]));
+					}
 				}
 			}
 		}
@@ -511,7 +529,7 @@ class UIInstance {
 		if (this._ownedReactiveRefs === undefined) {
 			this._ownedReactiveRefs = new Set();
 		}
-		for (const cell of refs) {
+		for (const cell of refs.keys()) {
 			this._ownedReactiveRefs.add(cell);
 		}
 	}
@@ -537,10 +555,9 @@ class UIInstance {
 		if (this._reactiveDataSubs === undefined) {
 			this._reactiveDataSubs = new Map();
 		}
-		const renderer = this._getRenderer();
-		for (const cell of this._reactiveDataSubs.keys()) {
+		for (const [cell, meta] of this._reactiveDataSubs.entries()) {
 			if (!refs?.has(cell)) {
-				cell.unsub(renderer);
+				cell.unsub(meta.handler);
 				this._releaseReactiveRef(cell);
 				this._reactiveDataSubs.delete(cell);
 			}
@@ -548,21 +565,27 @@ class UIInstance {
 		if (!refs) {
 			return;
 		}
-		for (const cell of refs) {
-			if (!this._reactiveDataSubs.has(cell)) {
-				cell.sub(renderer);
+		for (const [cell, keys] of refs.entries()) {
+			const existing = this._reactiveDataSubs.get(cell);
+			if (existing) {
+				existing.keys = keys;
+			} else {
+				const meta = { keys, handler: null };
+				const handler = () => this._scheduleRender(meta.keys);
+				meta.handler = handler;
+				cell.sub(handler);
 				this._acquireReactiveRef(cell);
-				this._reactiveDataSubs.set(cell, true);
+				this._reactiveDataSubs.set(cell, meta);
 			}
 		}
 	}
 
 	_clearReactiveDataSubs() {
-		if (!this._reactiveDataSubs || !this._renderer) {
+		if (!this._reactiveDataSubs) {
 			return;
 		}
-		for (const cell of this._reactiveDataSubs.keys()) {
-			cell.unsub(this._renderer);
+		for (const [cell, meta] of this._reactiveDataSubs.entries()) {
+			cell.unsub(meta.handler);
 			this._releaseReactiveRef(cell);
 		}
 		this._reactiveDataSubs.clear();
@@ -627,6 +650,8 @@ class UIInstance {
 			if (!fusion.active || fusion.upstreamDepth > 0) {
 				return;
 			}
+			// Internal writes stay authoritative for instance state and forward to
+			// the current upstream reactive while this fusion remains active.
 			fusion.internalDepth += 1;
 			try {
 				UIInstance._setReactiveValue(upstream, value, path);
@@ -638,6 +663,8 @@ class UIInstance {
 			if (!fusion.active || fusion.internalDepth > 0) {
 				return;
 			}
+			// Upstream writes continue to refresh the stable internal cell until a
+			// different upstream reactive replaces this fusion.
 			fusion.upstreamDepth += 1;
 			try {
 				UIInstance._setReactiveValue(internal, value, path);

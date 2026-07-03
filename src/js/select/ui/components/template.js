@@ -280,8 +280,8 @@ class UITemplate {
 	// where `data` is the instance's current `self.data`.
 	// Top-level reactives returned from the initializer stay stable by identity
 	// for the lifetime of each instance. Plain incoming values write through
-	// them, while incoming reactives are fused to them until the incoming
-	// reactive reference changes.
+	// them without detaching an existing fusion, while incoming reactives are
+	// fused to them until the incoming reactive reference changes.
 	init(init) {
 		this.initializer = init;
 		return this;

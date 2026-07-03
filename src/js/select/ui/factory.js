@@ -30,8 +30,101 @@ import {
 const TEMPLATE_RESOURCES = new Map();
 const TEMPLATE_RESOURCE_LOADS = new Map();
 const TEMPLATE_NAME_STACKS = new Map();
+const TEMPLATE_STYLE_RESOURCES = new WeakMap();
+const JSON_RESOURCES = new Map();
 const STYLE_RESOURCES = new Map();
 const SVG_RESOURCES = new Map();
+
+function hashText(value) {
+	let hash = 0;
+	for (let i = 0; i < value.length; i++) {
+		hash = (hash * 31 + value.charCodeAt(i)) | 0;
+	}
+	return hash;
+}
+
+function resolveScopeDocument(scope = document) {
+	if (scope?.nodeType === Node.DOCUMENT_NODE) {
+		return scope;
+	}
+	if (scope?.ownerDocument) {
+		return scope.ownerDocument;
+	}
+	return document;
+}
+
+function getTemplateStyleRegistry(scope = document) {
+	const doc = resolveScopeDocument(scope);
+	let registry = TEMPLATE_STYLE_RESOURCES.get(doc);
+	if (registry) {
+		return registry;
+	}
+	registry = new Map();
+	TEMPLATE_STYLE_RESOURCES.set(doc, registry);
+	return registry;
+}
+
+function createTemplateStyleSignature(node) {
+	const text = node?.textContent || "";
+	const media = node?.getAttribute?.("media") || "";
+	return `${media}:${text.length}:${hashText(text)}`;
+}
+
+function registerTemplateStyle(node, scope = document) {
+	if (node?.nodeType !== Node.ELEMENT_NODE || node.nodeName !== "STYLE") {
+		return;
+	}
+	const doc = resolveScopeDocument(scope);
+	const target = doc?.head || doc?.documentElement || doc?.body;
+	if (!target) {
+		return;
+	}
+	const registry = getTemplateStyleRegistry(doc);
+	const signature = createTemplateStyleSignature(node);
+	if (registry.has(signature)) {
+		return;
+	}
+	const style = doc.createElement("style");
+	for (const attr of node.attributes || []) {
+		style.setAttribute(attr.name, attr.value);
+	}
+	style.setAttribute("data-ui-template-style", signature);
+	style.textContent = node.textContent || "";
+	target.appendChild(style);
+	registry.set(signature, style);
+}
+
+function extractTemplateStyles(nodes, scope = document) {
+	if (!nodes?.length) {
+		return nodes;
+	}
+	for (let i = nodes.length - 1; i >= 0; i--) {
+		const node = nodes[i];
+		if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+			continue;
+		}
+		if (node.nodeName === "STYLE") {
+			registerTemplateStyle(node, scope);
+			node.parentNode?.removeChild(node);
+			nodes.splice(i, 1);
+			continue;
+		}
+		if (node.nodeName === "TEMPLATE") {
+			extractTemplateStyles([...node.content.childNodes], scope);
+			continue;
+		}
+		for (const template of node.querySelectorAll?.("template") || []) {
+			extractTemplateStyles([...template.content.childNodes], scope);
+		}
+		if (node.querySelectorAll) {
+			for (const style of node.querySelectorAll("style")) {
+				registerTemplateStyle(style, scope);
+				style.parentNode?.removeChild(style);
+			}
+		}
+	}
+	return nodes;
+}
 
 function cloneSubs(subs) {
 	if (!subs) {
@@ -269,6 +362,9 @@ function getTemplateResource(ref, scope = document) {
 async function load(url, scope = document) {
 	const parsed = parseResourceReference(url, scope);
 	const resourceURL = parsed?.url ?? normalizeResourceURL(url, scope);
+	if (JSON_RESOURCES.has(resourceURL)) {
+		return JSON_RESOURCES.get(resourceURL);
+	}
 	if (SVG_RESOURCES.has(resourceURL)) {
 		return SVG_RESOURCES.get(resourceURL);
 	}
@@ -287,6 +383,20 @@ async function load(url, scope = document) {
 			throw new Error(
 				`ui.load(): unable to load ${resourceURL} (${response.status} ${response.statusText})`,
 			);
+		}
+		const contentType = `${response.headers.get("content-type") || ""}`
+			.toLowerCase()
+			.split(";")[0]
+			.trim();
+		if (
+			contentType === "application/json" ||
+			contentType.endsWith("+json") ||
+			/\.json(?:\?|$)/i.test(resourceURL)
+		) {
+			const data = await response.json();
+			const resource = { url: resourceURL, type: "json", data };
+			JSON_RESOURCES.set(resourceURL, resource);
+			return resource;
 		}
 		const source = await response.text();
 		if (/\.css(?:\?|$)/i.test(resourceURL)) {
@@ -345,8 +455,8 @@ function createTemplateComponent(
 	const appliedDefinition = definition
 		? cloneDefinitionState(definition)
 		: null;
-	if (typeof selection === "string") {
-		let nodes = [];
+		if (typeof selection === "string") {
+			let nodes = [];
 		let defaultData = null;
 		let sourceMode = "default";
 		let sourceHosts = null;
@@ -368,6 +478,7 @@ function createTemplateComponent(
 				const doc = HTML.parseFromString(selection, "text/html");
 				pruneTemplateWhitespace(doc.body);
 				nodes = [...doc.body.childNodes];
+				extractTemplateStyles(nodes, scope);
 				shouldRegisterNodes = true;
 				if (nodes.length === 1) {
 					autoFormatName = TemplateRegistry.FormatterName(nodes[0]);
@@ -378,11 +489,13 @@ function createTemplateComponent(
 				const template = templateRegistry.get(templateKey);
 				if (template) {
 					nodes = [...template.content.childNodes];
+					extractTemplateStyles(nodes, scope);
 					autoFormatName = TemplateRegistry.FormatterName(template);
 				} else if (templateKey) {
 					const recent = resolveRecentLoadedTemplate(templateKey);
 					if (recent?.templateNode) {
 						nodes = cloneTemplateSourceNodes(recent.templateNode);
+						extractTemplateStyles(nodes, scope);
 						autoFormatName = TemplateRegistry.FormatterName(
 							recent.templateNode,
 						);
@@ -458,6 +571,7 @@ function createTemplateComponent(
 						if (!hasDefaultData) {
 							defaultData = null;
 						}
+						extractTemplateStyles(nodes, scope);
 					}
 					if (matchedTemplateCount === 1) {
 						autoFormatName = matchedTemplateName;
@@ -507,6 +621,7 @@ function createTemplateComponent(
 	if (selection instanceof Node || Array.isArray(selection)) {
 		const nodes = selection instanceof Node ? [selection] : selection;
 		let autoFormatName = null;
+		extractTemplateStyles(nodes, scope);
 		if (nodes.length === 1) {
 			autoFormatName = TemplateRegistry.FormatterName(nodes[0]);
 		}

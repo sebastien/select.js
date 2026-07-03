@@ -120,7 +120,7 @@ describe("ui init reactive fusion", () => {
 		window.close()
 	})
 
-	test("writes plain updates through the init reactive after reactive fusion", async () => {
+	test("keeps fusion active after plain updates through the init reactive", async () => {
 		const window = new Window({ url: "http://localhost:8000/fusion" })
 		setupGlobals(window)
 		const { cell, derived } = await import("../src/js/select/index.js")
@@ -147,14 +147,15 @@ describe("ui init reactive fusion", () => {
 
 		expect(instance.data.tableData).toBe(internal)
 		expect(instance.data.tableData.get()).toEqual([{ id: "plain" }])
+		expect(upstream.get()).toEqual([{ id: "plain" }])
 		expect(document.body.textContent?.trim()).toBe("plain")
 
 		upstream.set([{ id: "stale" }])
 		await nextTick()
-		expect(instance.data.tableData.get()).toEqual([{ id: "plain" }])
+		expect(instance.data.tableData.get()).toEqual([{ id: "stale" }])
+		expect(document.body.textContent?.trim()).toBe("stale")
 
 		instance.unmount()
 		window.close()
 	})
 })
-
