@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Select UI ― Sortable Lists and Tree</title>
+    <title>Select UI ― Drag, Drop, and Sort</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script type="importmap">
       {"imports": {"@./": "../src/js/select/" } }
@@ -271,6 +271,29 @@
       	filter: drop-shadow(0 12px 24px rgba(43, 52, 76, 0.18));
       }
 
+      .drop-demo {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 12px;
+		padding: 16px;
+		border: 1px solid #e5e5e5;
+		border-radius: 8px;
+		background: #fafafa;
+      }
+
+      .drop-target {
+		min-height: 88px;
+		padding: 12px;
+		border: 1px dashed #d6dbe6;
+		border-radius: 6px;
+		background: #fff;
+      }
+
+      .draggable-preview,
+      .draggable-drop-preview {
+		opacity: 0.7;
+      }
+
       @media (max-width: 720px) {
        	main {
        		padding: 0;
@@ -301,9 +324,9 @@
   </head>
   <body>
     <main>
-      <h1>Sortable Structures</h1>
+      <h1>Drag, Drop, and Sort</h1>
       <p>
-        This app example shows sortable lists on both axes and a draggable tree, all powered by the same drag primitive.
+        This app example shows generic clone drops, sortable lists on both axes, and a draggable tree.
       </p>
       <div id="ui"></div>
     </main>
@@ -327,6 +350,10 @@
     </template>
     <template id="SortableApp">
       <div class="app">
+        <section class="drop-demo">
+          <button type="button" class="card" data-draggable="card" on:mousedown="startDrag">Clone me</button>
+          <div class="drop-target" data-drop-target="cards" data-drop-accept="card">Drop accepted cards here</div>
+        </section>
         <div class="lists" out="lists"></div>
         <section class="tree-panel">
           <header>
@@ -354,7 +381,7 @@
         </div>
       </template>
     <script type="module">
-      import { sortable } from "@./interaction.js"
+      import { draggable, sort } from "@./interaction.js"
       import { ui } from "@./ui.js"
 
       // ----------------------------------------------------------------------------
@@ -373,7 +400,7 @@
       			const items = []
       			for (let j = 0; j < list.items.length; j++) {
       				const item = list.items[j]
-      				if (item.id === source.itemId) {
+					if (item.id === source.id) {
       					moved = item
       					continue
       				}
@@ -414,12 +441,12 @@
 		const TREE_INDENT = 24
 		const TREE_DEPTH_BIAS = 0.2
 
-		function startSortable(event, optionsOrDrop) {
+		function startSort(event, optionsOrDrop) {
 			if (event.button !== 0) {
 				return
 			}
-			const options = typeof optionsOrDrop === "function" ? { onDrop: optionsOrDrop } : (optionsOrDrop || {})
-			sortable(event, {
+			const options = optionsOrDrop || {}
+			sort(event, {
 				overlay: document.getElementById("sortable-overlay"),
 				...options,
 			})
@@ -428,11 +455,13 @@
       const SortableItem = ui("#SortableItem").does({
         meta: (_self, { axis, index }) => `${axis.toUpperCase()} / ${index + 1}`,
         startSort: (_self, _data, event) => {
-			startSortable(event, ({ source, drop }) => {
-				const next = moveItem(app.data.lists, source, drop)
-				if (next !== app.data.lists) {
-					app.update({ lists: next })
-				}
+			startSort(event, {
+				drop: ({ source, listId, index }) => {
+					const next = moveItem(app.data.lists, source, { listId, index })
+					if (next !== app.data.lists) {
+						app.update({ lists: next })
+					}
+				},
 			})
         },
       })
@@ -441,14 +470,14 @@
 			if (!drop) {
 				return nodes
 			}
-			const removed = removeTreeItem(nodes, source.itemId)
+			const removed = removeTreeItem(nodes, source.id)
 			if (!removed.moved) {
 				return nodes
 			}
 			const target = drop.parentPath
 				? { parentPath: drop.parentPath, index: drop.index }
 				: resolveTreeDrop(removed.items, source, drop, { event })
-			if (!target || target.parentPath.includes(source.itemId)) {
+			if (!target || target.parentPath.includes(source.id)) {
 				return nodes
 			}
 			const inserted = insertTreeItem(removed.items, target.parentPath, target.index, removed.moved)
@@ -659,25 +688,25 @@
 			},
 			startSort: (_self, _data, event) => {
 				let removed = null
-				startSortable(event, {
-					place: (drop, state) => {
-						removed = removed || removeTreeItem(app.data.tree, state.source.itemId)
+				startSort(event, {
+					preview: (drop, state) => {
+						removed = removed || removeTreeItem(app.data.tree, state.source.id)
 						if (!removed.moved) {
 							return false
 						}
 						const target = resolveTreeDrop(removed.items, state.source, drop, state)
-						if (!target || target.parentPath.includes(state.source.itemId)) {
+						if (!target || target.parentPath.includes(state.source.id)) {
 							return false
 						}
 						const listId = treeListId(target.parentPath)
 						const listNode = document.querySelector(`[data-sortable-list="${listId}"]`)
 						return listNode ? { listNode, listId, parentPath: target.parentPath, index: target.index } : false
 					},
-					onDrop: ({ source, drop, event }) => {
-					const next = moveTreeItem(app.data.tree, source, drop, event)
-					if (next !== app.data.tree) {
-						app.update({ tree: next })
-					}
+					drop: ({ source, ...target }) => {
+						const next = moveTreeItem(app.data.tree, source, target)
+						if (next !== app.data.tree) {
+							app.update({ tree: next })
+						}
 					},
 				})
 			},
@@ -704,6 +733,11 @@
       })
 
       const SortableApp = ui("#SortableApp").does({
+		startDrag: (_self, _data, event) => {
+			if (event.button === 0) {
+				draggable(event, { overlay: document.getElementById("sortable-overlay") })
+			}
+		},
         lists: (_self, { lists }) => {
           const res = []
           for (let i = 0; i < lists.length; i++) {

@@ -76,6 +76,25 @@ function unregisterUIInstance(instance) {
 	return instance;
 }
 
+function cloneNestedWrite(current, path, value) {
+	if (!path?.length) {
+		return value;
+	}
+	const key = path[0];
+	const nextCurrent = current?.[key];
+	const nextValue = cloneNestedWrite(nextCurrent, path.slice(1), value);
+	const base =
+		Array.isArray(current)
+			? current.slice()
+			: current && typeof current === "object"
+				? { ...current }
+				: typeof key === "number"
+					? []
+					: {};
+	base[key] = nextValue;
+	return base;
+}
+
 // Class: UIInstance
 // A mounted instance of a UITemplate. Manages data binding, event handling,
 // lifecycle, and rendering.
@@ -212,6 +231,32 @@ class UIInstance {
 		} else {
 			target.set(value);
 		}
+	}
+
+	static _writeDataPath(self, targetPath, value) {
+		if (!targetPath?.length || targetPath[0] === "#") {
+			return;
+		}
+		const rootOffset = targetPath[0] === "." ? 1 : 0;
+		if (rootOffset >= targetPath.length) {
+			return;
+		}
+		const rootKey = targetPath[rootOffset];
+		const tailPath =
+			rootOffset + 1 < targetPath.length
+				? targetPath.slice(rootOffset + 1)
+				: null;
+		const data = self.data || {};
+		const target = data[rootKey];
+		if (target?.isReactive) {
+			UIInstance._setReactiveValue(target, value, tailPath);
+			return;
+		}
+		if (!tailPath?.length) {
+			self.update({ [rootKey]: value });
+			return;
+		}
+		self.update({ [rootKey]: cloneNestedWrite(target, tailPath, value) });
 	}
 
 	static _releaseReactiveRef(cell) {
@@ -817,6 +862,31 @@ class UIInstance {
 	}
 
 	_bindEvent(name, target) {
+		if (target.mode === "assign" && target.targetPath?.length) {
+			const listener = (event) => {
+				if (target.stopPropagation) {
+					event.stopPropagation();
+				}
+				if (target.preventDefault) {
+					event.preventDefault();
+				}
+				const inputProperty = getInputBindingProperty(target.node);
+				const inputValue = target.node.nodeName.includes("-")
+					? event?.detail?.current
+					: getInputEventValue(target.node, event, inputProperty);
+				if (inputValue === SKIP_INPUT_UPDATE || inputValue === undefined) {
+					return;
+				}
+				UIInstance._writeDataPath(this, target.targetPath, inputValue);
+			};
+			target.node.addEventListener(target.eventType, listener);
+			this._domListeners.push({
+				node: target.node,
+				type: target.eventType,
+				handler: listener,
+			});
+			return;
+		}
 		if (target.mode === "publish" && target.publishEvent) {
 			const listener = (event) => {
 				if (target.stopPropagation) {

@@ -428,9 +428,10 @@ function filter(values, predicateOrExtractor) {
 // Function: mapfilter
 // Maps `values`, pruning entries where `processor` returns `undefined`.
 function mapfilter(values, processor) {
+	if (values === null || values === undefined) {
+		return values;
+	}
 	if (
-		values === null ||
-		values === undefined ||
 		typeof values === "string" ||
 		(!Array.isArray(values) &&
 			!(values instanceof Map) &&

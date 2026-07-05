@@ -30,11 +30,11 @@
 		"bench:inspector:chrome": "node benchmarks/inspector/run-node.js"
 	},
 	"devDependencies": {
-		"eslint": "^10.3.0",
-		"happy-dom": "^20.9.0",
+		"eslint": "^10.6.0",
+		"happy-dom": "^20.10.6",
 		"jsdom": "^29.1.1",
-		"playwright": "^1.60.0",
-		"preact": "^10.29.1",
-		"solid-js": "^1.9.12"
+		"playwright": "^1.61.1",
+		"preact": "^10.29.7",
+		"solid-js": "^1.9.14"
 	}
 }

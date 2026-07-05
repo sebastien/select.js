@@ -9,24 +9,25 @@
 
 import core from "./interaction/core.js";
 import drag from "./interaction/drag.js";
+import draggable, { sort } from "./interaction/draggable.js";
 import keyboard, { autoresize, Keyboard } from "./interaction/keyboard.js";
 import placement from "./interaction/placement.js";
-import sortable from "./interaction/sortable.js";
 
 export * from "./interaction/core.js";
 export * from "./interaction/drag.js";
+export * from "./interaction/draggable.js";
 export * from "./interaction/keyboard.js";
 export * from "./interaction/placement.js";
-export * from "./interaction/sortable.js";
 
 export default {
 	...core,
 	drag,
+	draggable,
 	keyboard,
 	Keyboard,
 	autoresize,
 	placement,
-	sortable,
+	sort,
 };
 
 // EOF

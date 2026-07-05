@@ -130,6 +130,14 @@ const WeekDay = {
 	],
 };
 
+const PERIODS = Object.freeze({
+	day: "day",
+	week: "week",
+	month: "month",
+	quarter: "quarter",
+	year: "year",
+});
+
 // ----------------------------------------------------------------------------
 //
 // CORE
@@ -594,7 +602,68 @@ function weeks(value = undefined, offset = 0) {
 	return res;
 }
 
+// Function: start
+// Returns the start of the `grain` period containing `value`.
+function start(value = undefined, grain = PERIODS.month, options = {}) {
+	const p = toTuple(value === undefined ? now() : value);
+
+	switch (grain) {
+		case PERIODS.day:
+			return fromTuple([p[0], p[1], p[2]]);
+		case PERIODS.week:
+			return week(value, options.offset ?? 0);
+		case PERIODS.month:
+			return fromTuple([p[0], p[1], 1]);
+		case PERIODS.quarter:
+			return fromTuple([p[0], Math.floor((p[1] - 1) / 3) * 3 + 1, 1]);
+		case PERIODS.year:
+			return fromTuple([p[0], 1, 1]);
+		default:
+			return fromTuple([p[0], p[1], 1]);
+	}
+}
+
+// Function: add
+// Returns `value` advanced by `amount` periods of `grain`.
+function add(value, grain = PERIODS.month, amount = 1, _options = {}) {
+	if (grain === PERIODS.day) {
+		return value + amount * MS_PER_DAY;
+	}
+
+	if (grain === PERIODS.week) {
+		return value + amount * MS_PER_DAY * 7;
+	}
+
+	const p = toTuple(value);
+
+	if (grain === PERIODS.year) {
+		const y = p[0] + amount;
+		const d = p[2] > monthdays(y, p[1]) ? monthdays(y, p[1]) : p[2];
+		return fromTuple([y, p[1], d, p[3], p[4], p[5]]);
+	}
+
+	const monthStep = grain === PERIODS.quarter ? 3 : 1;
+	const months = p[1] - 1 + amount * monthStep;
+	const y = p[0] + Math.floor(months / 12);
+	const m = (((months % 12) + 12) % 12) + 1;
+	const d = p[2] > monthdays(y, m) ? monthdays(y, m) : p[2];
+	return fromTuple([y, m, d, p[3], p[4], p[5]]);
+}
+
+// Function: periods
+// Yields the start of each `grain` period between `startValue` and `endValue`.
+function* periods(startValue, endValue, grain = PERIODS.month, options = {}) {
+	let current = start(startValue, grain, options);
+	const last = start(endValue, grain, options);
+
+	while (current <= last) {
+		yield current;
+		current = add(current, grain, 1, options);
+	}
+}
+
 export {
+	add,
 	by,
 	Day,
 	datedays,
@@ -623,10 +692,13 @@ export {
 	monthdays,
 	months,
 	now,
+	PERIODS,
+	periods,
 	Second,
 	SPLIT_DAYS,
 	second,
 	snap,
+	start,
 	timezone,
 	toDate,
 	toTimestamp,

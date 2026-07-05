@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI - Event Assign</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/select/" } }
+	</script>
+	<style>
+		body {
+			font-family: system-ui, sans-serif;
+			padding: 24px;
+			max-width: 720px;
+			margin: 0 auto;
+		}
+
+		.demo {
+			display: grid;
+			gap: 16px;
+		}
+
+		.row {
+			display: grid;
+			gap: 8px;
+			padding: 12px;
+			border: 1px solid #ddd;
+			border-radius: 8px;
+		}
+
+		.swatch {
+			width: 3rem;
+			height: 3rem;
+			border-radius: 6px;
+			border: 1px solid #ccc;
+		}
+
+		label {
+			font-weight: 600;
+		}
+
+		code {
+			font-family: ui-monospace, monospace;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Event Assign</h1>
+	<p><code>on:event="@slot"</code> writes the changed value back into local component state.</p>
+	<div id="ui"></div>
+
+	<template id="EventAssign">
+		<div class="demo">
+			<section class="row">
+				<label>
+					Top-level cell via <code>on:change="@hexcolor"</code>
+					<input type="color" on:change="@hexcolor" out:value="hexcolor" />
+				</label>
+				<div class="swatch" out:style="hexcolor|colorStyle"></div>
+				<code out="hexcolor"></code>
+			</section>
+
+			<section class="row">
+				<label>
+					Nested plain prop via <code>on:input="@form.hexcolor"</code>
+					<input type="text" on:input="@form.hexcolor" out:value="form.hexcolor" />
+				</label>
+				<div class="swatch" out:style="form.hexcolor|colorStyle"></div>
+				<code out="form.hexcolor"></code>
+			</section>
+
+			<section class="row">
+				<label>
+					Nested write into reactive object via <code>on:input="@palette.accent"</code>
+					<input type="text" on:input="@palette.accent" out:value="palette.accent" />
+				</label>
+				<div class="swatch" out:style="palette.accent|colorStyle"></div>
+				<code out="palette.accent"></code>
+			</section>
+		</div>
+	</template>
+
+	<script type="module">
+		import { cell } from "@./cells.js"
+		import { ui } from "@./ui.js"
+
+		const EventAssign = ui("#EventAssign").init(() => ({
+			hexcolor: cell("#336699"),
+			palette: cell({ accent: "#a855f7" }),
+		})).does({
+			colorStyle: (_self, _data, value) => ({ backgroundColor: value || "transparent" }),
+		})
+
+		EventAssign.new().set({
+			form: { hexcolor: "#ff6600" },
+		}).mount("#ui")
+	</script>
+</body>
+
+</html>

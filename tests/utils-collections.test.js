@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test, mock } from "bun:test"
 import {
 	array,
 	keys,
@@ -188,6 +188,12 @@ describe("utils.collections", () => {
 			20,
 		])
 		expect(mapfilter("alpha", (value) => value.toUpperCase())).toBe("ALPHA")
+		expect(mapfilter(null, () => true)).toBeNull()
+		expect(mapfilter(undefined, () => true)).toBeUndefined()
+		const spy = mock(() => true)
+		mapfilter(null, spy)
+		mapfilter(undefined, spy)
+		expect(spy).not.toHaveBeenCalled()
 		expect(count(rows, "active")).toBe(2)
 		expect(count(rows, "active", 1)).toBe(1)
 		expect(found(rows, { id: 2 }, "id")).toBe(rows[1])

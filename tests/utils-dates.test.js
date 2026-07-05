@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test"
 import path from "node:path"
 import { Window } from "happy-dom"
-import * as utils from "../src/js/select/utils.js"
 import {
+	add,
 	by,
-	days,
 	datedays,
 	day,
+	days,
 	diffcal,
 	dist,
 	fromDate,
@@ -14,11 +14,14 @@ import {
 	fromTuple,
 	hour,
 	minute,
-	months,
-	monthdays,
 	month,
+	monthdays,
+	months,
 	now,
+	PERIODS,
+	periods,
 	second,
+	start,
 	timezone,
 	toDate,
 	toTimestamp,
@@ -28,6 +31,7 @@ import {
 	year,
 	yeardays,
 } from "../src/js/select/utils/dates.js"
+import * as utils from "../src/js/select/utils.js"
 
 const ROOT = path.resolve(import.meta.dir, "..")
 
@@ -279,6 +283,59 @@ describe("utils.dates conversion helpers", () => {
 			[2024, 1, 14],
 			[2024, 1, 21],
 			[2024, 1, 28],
+		])
+	})
+
+	test("normalizes and iterates generic calendar periods", () => {
+		expect(toTuple(start(fromTuple([2024, 5, 20]), PERIODS.day)).slice(0, 3)).toEqual([2024, 5, 20])
+		expect(start(fromTuple([2024, 5, 20]), PERIODS.week)).toBe(week(fromTuple([2024, 5, 20])))
+		expect(toTuple(start(fromTuple([2024, 5, 20]), PERIODS.month)).slice(0, 3)).toEqual([2024, 5, 1])
+		expect(toTuple(start(fromTuple([2024, 5, 20]), PERIODS.quarter)).slice(0, 3)).toEqual([2024, 4, 1])
+		expect(toTuple(start(fromTuple([2024, 5, 20]), PERIODS.year)).slice(0, 3)).toEqual([2024, 1, 1])
+
+		expect(toTuple(add(fromTuple([2024, 1, 31]), PERIODS.month)).slice(0, 3)).toEqual([2024, 2, 29])
+		expect(toTuple(add(fromTuple([2024, 1, 31]), PERIODS.quarter)).slice(0, 3)).toEqual([2024, 4, 30])
+		expect(toTuple(add(fromTuple([2024, 2, 29]), PERIODS.year)).slice(0, 3)).toEqual([2025, 2, 28])
+
+		const monthPeriods = Array.from(
+			periods(fromTuple([2024, 1, 15]), fromTuple([2024, 6, 20]), PERIODS.month),
+		)
+		expect(monthPeriods.map((_) => toTuple(_).slice(0, 3))).toEqual([
+			[2024, 1, 1],
+			[2024, 2, 1],
+			[2024, 3, 1],
+			[2024, 4, 1],
+			[2024, 5, 1],
+			[2024, 6, 1],
+		])
+
+		expect(
+			Array.from(periods(fromTuple([2024, 1, 15]), fromTuple([2024, 8, 2]), PERIODS.quarter)).map((_) =>
+				toTuple(_).slice(0, 3),
+			),
+		).toEqual([
+			[2024, 1, 1],
+			[2024, 4, 1],
+			[2024, 7, 1],
+		])
+
+		expect(
+			Array.from(periods(fromTuple([2024, 1, 1]), fromTuple([2024, 1, 3]), PERIODS.day)).map((_) =>
+				toTuple(_).slice(0, 3),
+			),
+		).toEqual([
+			[2024, 1, 1],
+			[2024, 1, 2],
+			[2024, 1, 3],
+		])
+
+		expect(
+			Array.from(periods(fromTuple([2024, 1, 10]), fromTuple([2024, 1, 20]), PERIODS.week, { offset: 6 })).map(
+				(_) => toTuple(_).slice(0, 3),
+			),
+		).toEqual([
+			[2024, 1, 7],
+			[2024, 1, 14],
 		])
 	})
 })

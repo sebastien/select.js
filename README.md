@@ -116,7 +116,7 @@ import ui from "@select/ui.js"
 - `icon(name, options?)`, `install(...)`, `load(...)`: icon registry helpers from `select/icons.js`.
 - `len`, `type`, `remap`: shared utility helpers from `select/ui.js`.
 - `clsx`, `shortword`, `sorted`, `unique`: shared helpers from `select/utils.js` and `select/utils/*.js`.
-- `bind`, `drag`, `autoresize`, `Keyboard`: interaction helpers from `select/interaction.js`.
+- `bind`, `drag`, `draggable`, `sort`, `autoresize`, `Keyboard`: interaction helpers from `select/interaction.js`. `draggable(event, options?)` uses `[data-draggable]` sources and `[data-drop-target]` targets, appending a clone by default; `data-drop-accept` and `accept(...)` control acceptance, while `preview(...)` and `drop(...)` customize the two effect stages. `sort(event, options?)` provides list placement and moves the original item by default.
 - `fastdom`: batched DOM read/write helper.
 
 ### Modules

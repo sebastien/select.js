@@ -137,6 +137,7 @@ class TemplateParser {
 		"<",
 	];
 	static _ReBindingPath = /^[A-Za-z_$][A-Za-z0-9_$-]*$/;
+	static _ReBindingPathTail = /^(?:[A-Za-z_$][A-Za-z0-9_$-]*|\d+)$/;
 	static _ReProcessorName = /^\*?[A-Za-z_$][A-Za-z0-9_$.-]*$/;
 
 	static ParseBindingSourceMap(expr) {
@@ -274,40 +275,36 @@ class TemplateParser {
 	static ParseBindingPath(expr, allowDotted = true) {
 		const source = typeof expr === "string" ? expr.trim() : "";
 		if (!source) return null;
+		const parseSegments = (text, prefix = undefined) => {
+			const parts = text.split(".");
+			if (!parts.length) return null;
+			for (let i = 0; i < parts.length; i++) {
+				const part = parts[i].trim();
+				if (
+					!part ||
+					!(i === 0
+						? TemplateParser._ReBindingPath.test(part)
+						: TemplateParser._ReBindingPathTail.test(part))
+				) {
+					return null;
+				}
+				parts[i] = part;
+			}
+			return prefix !== undefined ? [prefix, ...parts] : parts;
+		};
 		if (allowDotted && source === "#") return ["#"];
 		if (allowDotted && source.startsWith("#.")) {
 			const tail = source.slice(2);
 			if (!tail) return ["#"];
-			const parts = tail.split(".");
-			if (!parts.length) return null;
-			for (let i = 0; i < parts.length; i++) {
-				const part = parts[i].trim();
-				if (!part || !TemplateParser._ReBindingPath.test(part)) return null;
-				parts[i] = part;
-			}
-			return ["#", ...parts];
+			return parseSegments(tail, "#");
 		}
 		if (allowDotted && source === ".") return ["."];
 		if (allowDotted && source.startsWith(".")) {
 			const tail = source.slice(1);
 			if (!tail) return ["."];
-			const parts = tail.split(".");
-			if (!parts.length) return null;
-			for (let i = 0; i < parts.length; i++) {
-				const part = parts[i].trim();
-				if (!part || !TemplateParser._ReBindingPath.test(part)) return null;
-				parts[i] = part;
-			}
-			return [".", ...parts];
+			return parseSegments(tail, ".");
 		}
-		const parts = allowDotted ? source.split(".") : [source];
-		if (!parts.length) return null;
-		for (let i = 0; i < parts.length; i++) {
-			const part = parts[i].trim();
-			if (!part || !TemplateParser._ReBindingPath.test(part)) return null;
-			parts[i] = part;
-		}
-		return parts;
+		return allowDotted ? parseSegments(source) : parseSegments(source);
 	}
 
 	static ParseTemplatePath(expr) {
@@ -341,6 +338,18 @@ class TemplateParser {
 				stopPropagation: false,
 				preventDefault: false,
 			};
+		if (source.startsWith("@")) {
+			const targetPath = TemplateParser.ParseBindingPath(source.slice(1), true);
+			if (!targetPath || targetPath[0] === "#") {
+				return null;
+			}
+			return {
+				mode: "assign",
+				targetPath,
+				stopPropagation: false,
+				preventDefault: false,
+			};
+		}
 		const separator = source.lastIndexOf("!");
 		if (separator === -1)
 			return {

@@ -99,7 +99,7 @@ Notes:
 - `dispose()`: Releases instance listeners/subscriptions and child instances.
 - `effect(setup)`: Runs `setup(self)` and auto-runs returned teardown on dispose.
 - `render(data?)`: Rendering engine access.
-- `pub(event, data)`: Publishes an event upward through the component tree.
+- `pub(event, data, self?, domEvent?)`: Publishes an event upward through the component tree. `self` (default `true`) controls whether the triggering instance also handles the event; `domEvent` optionally attaches the raw DOM event that caused the publish. `on:click="!SetValue"` is equivalent to `pub("SetValue", self.data, true, domEvent)`.
 - `on(event, handler)` / `off(event, handler)`: Dynamic event binding.
 - `provide(key, value)` / `inject(key, defaultValue?)`: Context management.
 
@@ -287,7 +287,7 @@ External template resolution details:
 - `instance.dispose()`: Releases runtime listeners/subscriptions and child instances.
 - `instance.effect(setup)`: Runs `setup(self)` and registers returned teardown for disposal.
 - `instance.render(data?)`: Forces a re-render of the instance, optionally with new data.
-- `instance.pub(event, data)`: Publishes an event upward through the component tree.
+- `instance.pub(event, data, self?, domEvent?)`: Publishes an event upward through the component tree. `self` (default `true`) controls whether the triggering instance also handles the event; `domEvent` optionally attaches the raw DOM event that caused the publish. `on:click="!SetValue"` is equivalent to `pub("SetValue", self.data, true, domEvent)`.
 - `instance.on(event, handler)` / `instance.off(event, handler)`: Adds or removes runtime event listeners on the instance.
 - `instance.provide(key, value)`: Provides a context value to be consumed by child instances.
 - `instance.inject(key, defaultValue?)`: Consumes a context value provided by an ancestor instance.
@@ -379,6 +379,12 @@ Effect modifiers (suffix on event name in publish mode):
 - `.`: stop propagation
 - `-`: prevent default
 - `.-` (or `-.`): stop propagation and prevent default
+
+Programmatically, `on:click="!SetValue"` is equivalent to:
+
+```javascript
+self.pub("SetValue", self.data, true, domEvent)
+```
 
 Using nested component-local processors:
 

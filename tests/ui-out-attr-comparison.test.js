@@ -46,7 +46,38 @@ function setupGlobals(window) {
 	}
 }
 
-describe("ui out attribute comparisons", () => {
+	describe("ui out attribute comparisons", () => {
+	test("supports numeric index segments in comparison bindings", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="IndexedCheckedComparisonTest">
+				<input class="radio" type="radio" out:checked="size.0==3" />
+			</template>
+		`;
+
+		const Component = ui("IndexedCheckedComparisonTest");
+		Component.new().set({ size: [3, 5] }).mount("#app");
+		expect(document.querySelector("#app .radio")?.checked).toBe(true);
+
+		document.body.innerHTML = "";
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="IndexedCheckedComparisonTest">
+				<input class="radio" type="radio" out:checked="size.0==3" />
+			</template>
+		`;
+
+		ui("IndexedCheckedComparisonTest").new().set({ size: [2, 5] }).mount("#app");
+		expect(document.querySelector("#app .radio")?.checked).toBe(false);
+
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
 	test("supports radio checked equality bindings", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);

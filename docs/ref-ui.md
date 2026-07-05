@@ -384,7 +384,7 @@ Web component API:
 - `dispose()`: Releases instance resources (runtime listeners, reactive/context subscriptions, child instances) without removing nodes directly.
 - `effect(setup)`: Runs `setup(self)` immediately and stores the returned teardown callback (if any) for `dispose()`/`unmount()`.
 - `render(data?)`: Forces a re-render of the instance, optionally with new data.
-- `pub(event, data)`: Publishes an event upward through the component tree.
+- `pub(event, data, self?, domEvent?)`: Publishes an event upward through the component tree. `self` (default `true`) controls whether the triggering instance also handles the event; `domEvent` optionally attaches the raw DOM event that caused the publish. `on:click="!SetValue"` is equivalent to `pub("SetValue", self.data, true, domEvent)`.
 - `on(event, handler)` / `off(event, handler)`: Adds or removes runtime event listeners on the instance.
 - `provide(key, value)`: Provides a context value to be consumed by child instances.
 - `inject(key, defaultValue?)`: Consumes a context value provided by an ancestor instance.
@@ -741,6 +741,12 @@ Effect expression forms:
 
 <!-- Multiple events on same element -->
 <button on:click="save" on:mouseenter="highlight">Save</button>
+```
+
+Programmatically, an event-only publish `on:click="!SetValue"` is equivalent to:
+
+```javascript
+self.pub("SetValue", self.data, true, domEvent)
 ```
 
 For `on:<event>` publish payloads, mapped values and processor inputs stay raw:

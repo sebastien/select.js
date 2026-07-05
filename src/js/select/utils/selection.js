@@ -133,6 +133,25 @@ function wrapindex(itemsOrLength, i, delta = 1) {
 	return (((i + delta) % n) + n) % n;
 }
 
+function parse(...items) {
+	return items.map((item, index) => {
+		switch (item.constructor) {
+			case Object:
+				return { ...item, index };
+			case String: {
+				const [value, label, ...rest] = item.split(":");
+				const n = parseInt(value);
+				return {
+					label: (rest.length > 0 ? `${label}:${rest}` : label)?.trim(),
+					value: isNaN(n) ? value?.trim() : n,
+					index,
+				};
+			}
+			default:
+				throw new Error(`Invalid item type at index ${i}: ${item}`);
+		}
+	}, []);
+}
 const sel = {
 	add,
 	find,
@@ -140,6 +159,7 @@ const sel = {
 	index,
 	itemkey,
 	items,
+	parse,
 	next,
 	remove,
 	toggle,
@@ -157,6 +177,7 @@ export {
 	remove,
 	sel,
 	toggle,
+	parse,
 	wrapindex,
 };
 

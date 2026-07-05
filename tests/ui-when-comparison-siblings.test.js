@@ -44,7 +44,65 @@ function setupGlobals(window) {
 	}
 }
 
-describe("ui when comparison sibling exclusivity", () => {
+	describe("ui when comparison sibling exclusivity", () => {
+	test("supports numeric index segments in when comparisons", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" })
+		setupGlobals(window)
+		const { ui } = await import("../src/js/select/ui.js")
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="WhenComparisonIndexedPathRepro">
+				<div>
+					<span class="compact" when="size.0<100">compact</span>
+					<span class="wide" when="size.0>=100">wide</span>
+				</div>
+			</template>
+		`
+
+		const instance = ui("WhenComparisonIndexedPathRepro").new().mount("#app")
+
+		instance.set({ size: [80, 120] })
+		expect(document.querySelectorAll("#app span")).toHaveLength(1)
+		expect(document.querySelector("#app .compact")?.textContent?.trim()).toBe(
+			"compact",
+		)
+		expect(document.querySelector("#app .wide")).toBeNull()
+
+		instance.set({ size: [160, 120] })
+		expect(document.querySelectorAll("#app span")).toHaveLength(1)
+		expect(document.querySelector("#app .compact")).toBeNull()
+		expect(document.querySelector("#app .wide")?.textContent?.trim()).toBe(
+			"wide",
+		)
+
+		document.body.innerHTML = ""
+		window.close?.()
+	})
+
+	test("keeps numeric roots invalid in when comparisons", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" })
+		setupGlobals(window)
+		const { ui } = await import("../src/js/select/ui.js")
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="WhenComparisonNumericRootBlockedRepro">
+				<div class="blocked" when="0.size<100">blocked</div>
+			</template>
+		`
+
+		const instance = ui("WhenComparisonNumericRootBlockedRepro").new().mount(
+			"#app",
+		)
+
+		instance.set({ size: [80, 120] })
+		expect(document.querySelector("#app .blocked")).toBeNull()
+
+		document.body.innerHTML = ""
+		window.close?.()
+	})
+
 	test("keeps sibling branches exclusive for true, false and string true", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" })
 		setupGlobals(window)

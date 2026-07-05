@@ -435,6 +435,8 @@ class UITemplateSlot {
 						const handlerName =
 							parsed.mode === "handler"
 								? parsed.handlerName || eventType
+								: parsed.mode === "assign"
+									? `@${TemplateParser.FormatBindingPath(parsed.targetPath)}`
 								: `!${parsed.publishEvent}:${parsed.binding?.sourceMap?.length ? TemplateParser.FormatBindingSourceMap(parsed.binding.sourceMap) : parsed.binding?.sourceKey || "data"}`;
 						toRemove.push(attr.name);
 
@@ -446,6 +448,7 @@ class UITemplateSlot {
 							handlerName,
 							parsed.mode,
 							parsed.publishEvent,
+							parsed.targetPath,
 							parsed.binding,
 							parsed.stopPropagation,
 							parsed.preventDefault,
@@ -788,6 +791,7 @@ class UIEventTemplateSlot {
 		handlerName,
 		mode = "handler",
 		publishEvent = null,
+		targetPath = null,
 		binding = null,
 		stopPropagation = false,
 		preventDefault = false,
@@ -801,6 +805,7 @@ class UIEventTemplateSlot {
 		this.handlerName = handlerName;
 		this.mode = mode;
 		this.publishEvent = publishEvent;
+		this.targetPath = targetPath;
 		this.binding = binding;
 		this.stopPropagation = stopPropagation;
 		this.preventDefault = preventDefault;
@@ -830,6 +835,7 @@ class UIEventSlot {
 		this.handlerName = template.handlerName;
 		this.mode = template.mode;
 		this.publishEvent = template.publishEvent;
+		this.targetPath = template.targetPath;
 		this.binding = template.binding;
 		this.stopPropagation = template.stopPropagation;
 		this.preventDefault = template.preventDefault;

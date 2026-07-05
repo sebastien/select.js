@@ -23,11 +23,12 @@ function dragtarget(node, name) {
 }
 
 // Function: drag
-// Starts a drag interaction on `event.target` and invokes `move` and `end`
-// callbacks with a shared drag context.
+// Starts a mouse drag on `event.target` and invokes `move` and `end` callbacks
+// with a shared drag context. The optional gesture overlay is transparent to
+// hit-testing so higher-level interactions can use `elementFromPoint`.
 function drag(event, move, end, overlay = "dragging") {
 	const context = {};
-	// We add an overlay, which we can remove if className is null
+	// We add an overlay, which we can remove if className is null.
 	if (overlay && !drag.overlay) {
 		const o = document.createElement("div");
 		o.style.position = "fixed";
@@ -36,13 +37,15 @@ function drag(event, move, end, overlay = "dragging") {
 		o.style.width = "100vw";
 		o.style.height = "100vh";
 		o.style.zIndex = "100";
+		o.style.pointerEvents = "none";
 		drag.overlay = o;
 	}
+	const gestureOverlay = overlay ? drag.overlay : null;
 	const dragging = {
 		node: event.target,
 		ox: event.pageX,
 		oy: event.pageY,
-		overlay: drag.overlay,
+		overlay: gestureOverlay,
 		pointerEvents: event.target.style.pointerEvents,
 		userSelect: event.target.style.userSelect,
 		context,
@@ -54,12 +57,16 @@ function drag(event, move, end, overlay = "dragging") {
 	};
 	const data = Object.create(dragging);
 	const scope = globalThis.window;
-	// We add the dragging
-	drag.overlay.setAttribute("class", overlay);
-	overlay !== null && window?.document?.body?.appendChild(drag.overlay);
+	let stopped = false;
+	if (gestureOverlay) {
+		gestureOverlay.setAttribute("class", overlay);
+		window?.document?.body?.appendChild(gestureOverlay);
+	}
 	const onEnd = (ev) => {
-		drag.overlay.parentNode?.removeChild(drag.overlay);
-		drag.overlay.setAttribute("class", "");
+		if (stopped) return;
+		stopped = true;
+		gestureOverlay?.parentNode?.removeChild(gestureOverlay);
+		gestureOverlay?.setAttribute("class", "");
 		dragging.node.style.pointerEvents = dragging.pointerEvents;
 		dragging.node.style.userSelect = dragging.userSelect;
 		unbind(scope, handlers);
@@ -81,14 +88,14 @@ function drag(event, move, end, overlay = "dragging") {
 					ev.stopPropagation();
 					break;
 				case false:
-					doEnd();
+					onEnd(ev);
 			}
 		},
 		mouseup: onEnd,
 		mouseleave: onEnd,
 	};
 	event.target.style.userSelect = "none";
-	const doEnd = () => unbind(scope, handlers);
+	const doEnd = () => onEnd(event);
 	bind(scope, handlers);
 	return doEnd;
 }
