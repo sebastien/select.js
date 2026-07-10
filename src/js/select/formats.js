@@ -112,6 +112,13 @@ function disabled(value) {
 
 function item(value, index) {
 	switch (value?.constructor) {
+		case Array:
+			return value.map((v, i) => item(v, i));
+		case Object:
+			return Object.entries(value).map(([key, v], i) => ({
+				...item(v, i),
+				key,
+			}));
 		case String:
 		case Boolean:
 		case Number:

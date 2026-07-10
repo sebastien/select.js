@@ -15,12 +15,12 @@ Browser-backed reactive state for URL and `localStorage`.
 - `fetch(input, options?)`: fetch helper with typed response parsing
 - `fetched(input, options?)`: reactive cell wrapper around `fetch(input, options?)`
 
-`@./browser.js` also exports `Browser`, the class used by `browser(options?)`.
+`@select/browser.js` also exports `Browser`, the class used by `browser(options?)`.
 
 ## Quick Start
 
 ```javascript
-import browser from "@./browser.js"
+import browser from "@select/browser.js"
 
 const state = browser()
 
@@ -44,7 +44,7 @@ const resultCell = state.fetched("POST:/api/items#label=Draft,done=F")
 
 ## Serializer Exports
 
-`@./browser.js` also exports reusable serializers:
+`@select/browser.js` also exports reusable serializers:
 
 - `record`: `{ parse, format }` sanitizer for plain records
 - `query`: `{ parse, format }` serializer for `location.search`

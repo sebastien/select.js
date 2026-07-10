@@ -97,6 +97,7 @@ describe("interaction draggable", () => {
 		);
 		const source = window.document.createElement("div");
 		source.dataset.draggable = "card";
+		source.textContent = "Original";
 		source.getBoundingClientRect = () => rect(0, 0, 80, 30);
 		const drop = window.document.createElement("div");
 		drop.dataset.dropTarget = "cards";
@@ -126,6 +127,7 @@ describe("interaction draggable", () => {
 		);
 		const source = window.document.createElement("div");
 		source.dataset.draggable = "card";
+		source.textContent = "Original";
 		source.getBoundingClientRect = () => rect(0, 0, 80, 30);
 		const drop = window.document.createElement("div");
 		drop.dataset.dropTarget = "cards";
@@ -147,6 +149,421 @@ describe("interaction draggable", () => {
 		expect(received.source.node).toBe(source);
 		expect(received.target.node).toBe(drop);
 		expect(drop.children).toHaveLength(0);
+	});
+
+	test("replaces the drop target with a committed target preview", async () => {
+		const window = setup();
+		const { draggable } = await import(
+			"../src/js/select/interaction/draggable.js"
+		);
+		const source = window.document.createElement("div");
+		source.dataset.draggable = "card";
+		source.textContent = "Original";
+		source.getBoundingClientRect = () => rect(0, 0, 80, 30);
+		const drop = window.document.createElement("div");
+		drop.dataset.dropTarget = "cards";
+		window.document.body.append(source, drop);
+		window.document.elementFromPoint = () => drop;
+
+		dragFrom(window, source, {
+			x: 20,
+			y: 20,
+			start: (event) => draggable(event, { target: { action: "replace" } }),
+		});
+
+		expect(source.parentNode).toBe(window.document.body);
+		expect(drop.parentNode).toBeNull();
+		expect(window.document.body.lastElementChild).not.toBe(source);
+		expect(window.document.body.lastElementChild.textContent).toBe("Original");
+	});
+
+	test("copies the target slot when replacing it", async () => {
+		const window = setup();
+		const { draggable } = await import(
+			"../src/js/select/interaction/draggable.js"
+		);
+		const source = window.document.createElement("div");
+		source.dataset.draggable = "card";
+		source.textContent = "Original";
+		source.getBoundingClientRect = () => rect(0, 0, 80, 30);
+		const drop = window.document.createElement("div");
+		drop.dataset.dropTarget = "cards";
+		drop.setAttribute("slot", "content");
+		window.document.body.append(source, drop);
+		window.document.elementFromPoint = () => drop;
+
+		dragFrom(window, source, {
+			x: 20,
+			y: 20,
+			start: (event) => draggable(event, { target: { action: "replace" } }),
+		});
+
+		expect(source.getAttribute("slot")).toBeNull();
+		expect(window.document.body.lastElementChild.getAttribute("slot")).toBe("content");
+	});
+
+	test("replaces a stable custom drop preview", async () => {
+		const window = setup();
+		const { draggable } = await import(
+			"../src/js/select/interaction/draggable.js"
+		);
+		const source = window.document.createElement("div");
+		source.dataset.draggable = "card";
+		source.textContent = "Original";
+		source.getBoundingClientRect = () => rect(0, 0, 80, 30);
+		const drop = window.document.createElement("div");
+		drop.dataset.dropTarget = "cards";
+		window.document.body.append(source, drop);
+		window.document.elementFromPoint = () => drop;
+
+		dragFrom(window, source, {
+			x: 20,
+			y: 20,
+			start: (event) =>
+				draggable(event, {
+					target: {
+						action: "replace",
+						preview: () => {
+							const node = window.document.createElement("div");
+							node.textContent = "Preview";
+							return node;
+						},
+					},
+				}),
+		});
+
+		expect(window.document.body.textContent).toBe("OriginalPreview");
+		expect(drop.parentNode).toBeNull();
+		expect(source.parentNode).toBe(window.document.body);
+	});
+
+	test("toggles hover and drop classes on the target", async () => {
+		const window = setup();
+		const { draggable } = await import(
+			"../src/js/select/interaction/draggable.js"
+		);
+		const source = window.document.createElement("div");
+		source.dataset.draggable = "card";
+		source.getBoundingClientRect = () => rect(0, 0, 80, 30);
+		const drop = window.document.createElement("div");
+		drop.dataset.dropTarget = "cards";
+		window.document.body.append(source, drop);
+		window.document.elementFromPoint = () => drop;
+		let hovered = false;
+
+		dragFrom(window, source, {
+			x: 20,
+			y: 20,
+			start: (event) =>
+				draggable(event, {
+					onMove: () => {
+						hovered = drop.classList.contains("is-drag-hover");
+					},
+				}),
+		});
+
+		expect(hovered).toBe(true);
+		expect(drop.classList.contains("is-drag-hover")).toBe(false);
+		expect(drop.classList.contains("is-drag-drop")).toBe(true);
+	});
+
+	test("supports source actions and restores remove-drag on cancellation", async () => {
+		const window = setup();
+		const { draggable } = await import(
+			"../src/js/select/interaction/draggable.js"
+		);
+		const source = window.document.createElement("div");
+		source.dataset.draggable = "card";
+		source.getBoundingClientRect = () => rect(0, 0, 80, 30);
+		const drop = window.document.createElement("div");
+		drop.dataset.dropTarget = "cards";
+		window.document.body.append(source, drop);
+		window.document.elementFromPoint = () => undefined;
+		let previewed = 0;
+		let unpreviewed = 0;
+
+		dragFrom(window, source, {
+			x: 20,
+			y: 20,
+			start: (event) =>
+				draggable(event, {
+					source: {
+						action: "remove-drag",
+						preview: () => {
+							previewed += 1;
+							return window.document.createElement("div");
+						},
+						unpreview: () => {
+							unpreviewed += 1;
+						},
+					},
+				}),
+		});
+
+		expect(previewed).toBe(1);
+		expect(unpreviewed).toBe(1);
+		expect(source.parentNode).toBe(window.document.body);
+		expect(source.nextSibling).toBe(drop);
+
+		window.document.elementFromPoint = () => drop;
+		dragFrom(window, source, {
+			x: 20,
+			y: 20,
+			start: (event) =>
+				draggable(event, { source: { action: "remove-drop" } }),
+		});
+		expect(source.parentNode).toBeNull();
+	});
+
+	test("supports move as an alias for remove-drag and rejects unknown actions", async () => {
+		const window = setup();
+		const { draggable } = await import(
+			"../src/js/select/interaction/draggable.js"
+		);
+		const source = window.document.createElement("div");
+		source.dataset.draggable = "card";
+		source.getBoundingClientRect = () => rect(0, 0, 80, 30);
+		const drop = window.document.createElement("div");
+		drop.dataset.dropTarget = "cards";
+		window.document.body.append(source, drop);
+		window.document.elementFromPoint = () => drop;
+
+		dragFrom(window, source, {
+			x: 20,
+			y: 20,
+			start: (event) =>
+				draggable(event, { source: { action: "move" } }),
+		});
+
+		expect(source.parentNode).toBeNull();
+		expect(drop.children).toHaveLength(1);
+		expect(() => draggable.options({ source: { action: "archive" } })).toThrow(
+		/Available actions: copy, move, remove-drag, remove-drop/,
+		);
+		expect(() => draggable.options({ target: { action: "insert" } })).toThrow(
+		/Available actions: append, prepend, replace/,
+		);
+	});
+
+	test("matches sources and targets from selector arrays", async () => {
+		const window = setup();
+		const { draggable } = await import(
+			"../src/js/select/interaction/draggable.js"
+		);
+		const source = window.document.createElement("div");
+		source.className = "stash";
+		source.getBoundingClientRect = () => rect(0, 0, 80, 30);
+		const drop = window.document.createElement("div");
+		drop.className = "placeholder";
+		window.document.body.append(source, drop);
+		window.document.elementFromPoint = () => drop;
+
+		dragFrom(window, source, {
+			x: 20,
+			y: 20,
+			start: (event) =>
+				draggable(event, {
+					source: { match: [".placeholder", ".stash"] },
+					target: { match: [".stash", ".placeholder"] },
+			}),
+		});
+
+		expect(drop.children).toHaveLength(1);
+	});
+
+	test("replaces target content and restores it when cancelled", async () => {
+		const window = setup();
+		const { draggable } = await import(
+			"../src/js/select/interaction/draggable.js"
+		);
+		const source = window.document.createElement("div");
+		source.dataset.draggable = "card";
+		source.textContent = "Original";
+		source.getBoundingClientRect = () => rect(0, 0, 80, 30);
+		const drop = window.document.createElement("div");
+		drop.dataset.dropTarget = "cards";
+		drop.textContent = "Existing content";
+		window.document.body.append(source, drop);
+		let hit = drop;
+		window.document.elementFromPoint = () => hit;
+		let cancel;
+		source.addEventListener("mousedown", (event) => {
+			cancel = draggable(event, { target: { action: "content" } });
+		});
+		source.dispatchEvent(
+			new window.MouseEvent("mousedown", {
+				bubbles: true,
+				button: 0,
+				clientX: 5,
+				clientY: 5,
+			}),
+		);
+		window.dispatchEvent(
+			new window.MouseEvent("mousemove", {
+				bubbles: true,
+				clientX: 20,
+				clientY: 20,
+			}),
+		);
+		expect(drop.textContent).toBe("Original");
+		window.document.elementFromPoint = () => undefined;
+		window.dispatchEvent(
+			new window.MouseEvent("mousemove", {
+				bubbles: true,
+				clientX: 40,
+				clientY: 40,
+			}),
+		);
+		window.dispatchEvent(
+			new window.MouseEvent("mouseup", {
+			bubbles: true,
+				clientX: 40,
+				clientY: 40,
+			}),
+		);
+		expect(drop.textContent).toBe("Existing content");
+		cancel?.();
+	});
+
+	test("accepts an explicit source node without a draggable attribute", async () => {
+		const window = setup();
+		const { draggable } = await import(
+			"../src/js/select/interaction/draggable.js"
+		);
+		const source = window.document.createElement("div");
+		source.getBoundingClientRect = () => rect(0, 0, 80, 30);
+		const drop = window.document.createElement("div");
+		drop.dataset.dropTarget = "cards";
+		window.document.body.append(source, drop);
+		window.document.elementFromPoint = () => drop;
+
+		dragFrom(window, window.document.body, {
+			x: 20,
+			y: 20,
+			start: (event) =>
+				draggable(event, {
+					source: { node: source, action: "move" },
+				}),
+		});
+
+		expect(source.parentNode).toBeNull();
+		expect(drop.children).toHaveLength(1);
+	});
+
+	test("passes and retains the current source and target preview nodes", async () => {
+		const window = setup();
+		const { draggable } = await import(
+			"../src/js/select/interaction/draggable.js"
+		);
+		const source = window.document.createElement("div");
+		source.dataset.draggable = "card";
+		source.getBoundingClientRect = () => rect(0, 0, 80, 30);
+		const drop = window.document.createElement("div");
+		drop.dataset.dropTarget = "cards";
+		window.document.body.append(source, drop);
+		window.document.elementFromPoint = () => drop;
+		const sourcePreview = window.document.createElement("i");
+		const targetPreview = window.document.createElement("b");
+		let sourceNode;
+		let targetNode;
+		let movedState;
+
+		dragFrom(window, source, {
+			x: 20,
+			y: 20,
+			start: (event) =>
+				draggable(event, {
+					source: {
+						preview: (currentEvent, state, node) => {
+							sourceNode = node;
+							return sourcePreview;
+						},
+					},
+					target: {
+						preview: (currentEvent, state, node) => {
+							targetNode = node;
+							return targetPreview;
+						},
+					},
+					onMove: (state) => {
+						movedState = state;
+					},
+				}),
+		});
+
+		expect(sourceNode).toBeUndefined();
+		expect(targetNode).toBeUndefined();
+		expect(movedState.preview).toBe(sourcePreview);
+		expect(movedState.targetPreview).toBe(targetPreview);
+		expect(sourcePreview.parentNode).toBeNull();
+		expect(targetPreview.parentNode).toBe(drop);
+	});
+
+	test("keeps the target stable when the pointer moves over its preview", async () => {
+		const window = setup();
+		const { draggable } = await import(
+			"../src/js/select/interaction/draggable.js"
+		);
+		const source = window.document.createElement("div");
+		source.dataset.draggable = "card";
+		source.getBoundingClientRect = () => rect(0, 0, 80, 30);
+		const drop = window.document.createElement("div");
+		drop.dataset.dropTarget = "cards";
+		window.document.body.append(source, drop);
+		let hit = drop;
+		window.document.elementFromPoint = () => hit;
+		let previews = 0;
+		let unpreviews = 0;
+		let cancel;
+		source.addEventListener("mousedown", (event) => {
+			cancel = draggable(event, {
+				target: {
+					preview: () => {
+						previews += 1;
+						return window.document.createElement("i");
+					},
+					unpreview: () => {
+						unpreviews += 1;
+					},
+				},
+			});
+		});
+		source.dispatchEvent(
+			new window.MouseEvent("mousedown", {
+				bubbles: true,
+				button: 0,
+				clientX: 5,
+				clientY: 5,
+			}),
+		);
+		window.dispatchEvent(
+			new window.MouseEvent("mousemove", {
+				bubbles: true,
+				clientX: 20,
+				clientY: 20,
+			}),
+		);
+		const preview = drop.firstElementChild;
+		hit = preview;
+		window.dispatchEvent(
+			new window.MouseEvent("mousemove", {
+				bubbles: true,
+				clientX: 21,
+				clientY: 21,
+			}),
+		);
+		window.dispatchEvent(
+			new window.MouseEvent("mouseup", {
+			bubbles: true,
+			clientX: 21,
+			clientY: 21,
+			}),
+		);
+
+		expect(previews).toBe(1);
+		expect(unpreviews).toBe(0);
+		expect(preview.parentNode).toBe(drop);
+		cancel?.();
 	});
 
 	test("sort moves the original item to the resolved insertion index", async () => {

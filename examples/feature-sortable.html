@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Select UI ― Drag, Drop, and Sort</title>
+    <title>Select UI ― Sortable Lists and Tree</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script type="importmap">
       {"imports": {"@./": "../src/js/select/" } }
@@ -271,29 +271,6 @@
       	filter: drop-shadow(0 12px 24px rgba(43, 52, 76, 0.18));
       }
 
-      .drop-demo {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 12px;
-		padding: 16px;
-		border: 1px solid #e5e5e5;
-		border-radius: 8px;
-		background: #fafafa;
-      }
-
-      .drop-target {
-		min-height: 88px;
-		padding: 12px;
-		border: 1px dashed #d6dbe6;
-		border-radius: 6px;
-		background: #fff;
-      }
-
-      .draggable-preview,
-      .draggable-drop-preview {
-		opacity: 0.7;
-      }
-
       @media (max-width: 720px) {
        	main {
        		padding: 0;
@@ -324,9 +301,9 @@
   </head>
   <body>
     <main>
-      <h1>Drag, Drop, and Sort</h1>
+      <h1>Sortable Structures</h1>
       <p>
-        This app example shows generic clone drops, sortable lists on both axes, and a draggable tree.
+        This example shows sortable lists on both axes and a draggable tree.
       </p>
       <div id="ui"></div>
     </main>
@@ -350,10 +327,6 @@
     </template>
     <template id="SortableApp">
       <div class="app">
-        <section class="drop-demo">
-          <button type="button" class="card" data-draggable="card" on:mousedown="startDrag">Clone me</button>
-          <div class="drop-target" data-drop-target="cards" data-drop-accept="card">Drop accepted cards here</div>
-        </section>
         <div class="lists" out="lists"></div>
         <section class="tree-panel">
           <header>
@@ -381,7 +354,7 @@
         </div>
       </template>
     <script type="module">
-      import { draggable, sort } from "@./interaction.js"
+      import { sort } from "@./interaction.js"
       import { ui } from "@./ui.js"
 
       // ----------------------------------------------------------------------------
@@ -733,11 +706,6 @@
       })
 
       const SortableApp = ui("#SortableApp").does({
-		startDrag: (_self, _data, event) => {
-			if (event.button === 0) {
-				draggable(event, { overlay: document.getElementById("sortable-overlay") })
-			}
-		},
         lists: (_self, { lists }) => {
           const res = []
           for (let i = 0; i < lists.length; i++) {

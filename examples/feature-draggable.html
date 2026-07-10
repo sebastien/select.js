@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Select UI ― Draggable Clone Drops</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script type="importmap">
+      {"imports": {"@./": "../src/js/select/" } }
+    </script>
+    <style>
+      * {
+		box-sizing: border-box;
+      }
+
+      body {
+		max-width: 820px;
+		margin: 0 auto;
+		padding: 24px;
+		color: #172033;
+		font-family: system-ui, sans-serif;
+      }
+
+      main {
+		display: grid;
+		gap: 20px;
+      }
+
+      h1,
+      h2,
+      p {
+		margin: 0;
+      }
+
+      p {
+		color: #52607a;
+		line-height: 1.5;
+      }
+
+      .workspace {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 20px;
+      }
+
+      .panel {
+		display: grid;
+		gap: 12px;
+		padding: 16px;
+		border: 1px solid #dde3ee;
+		border-radius: 10px;
+		background: #fafbff;
+      }
+
+      .sources,
+      .target {
+		display: grid;
+		gap: 10px;
+		min-height: 120px;
+		padding: 12px;
+		border: 1px dashed #b8c3dd;
+		border-radius: 8px;
+		background: #fff;
+      }
+
+      .card {
+		padding: 12px 14px;
+		border: 1px solid #dfe5f2;
+		border-radius: 8px;
+		background: #fff;
+		color: inherit;
+		text-align: left;
+		cursor: grab;
+		box-shadow: 0 2px 5px rgba(38, 55, 88, 0.06);
+      }
+
+      .card:active {
+		cursor: grabbing;
+      }
+
+      .is-dragging-source {
+		opacity: 0.42;
+      }
+
+      .draggable-preview {
+		z-index: 10;
+		opacity: 0.9;
+		pointer-events: none;
+		box-shadow: 0 12px 24px rgba(43, 52, 76, 0.18);
+      }
+
+      .draggable-drop-preview {
+		opacity: 0.48;
+		outline: 2px solid #607dff;
+		outline-offset: 2px;
+      }
+
+      #status {
+		min-height: 1.5em;
+		font-size: 0.9rem;
+		color: #52607a;
+      }
+
+      @media (max-width: 620px) {
+		.workspace {
+			grid-template-columns: 1fr;
+		}
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Nested Draggable Drops</h1>
+        <p>Drag a note into the Notes target. Source and target previews follow the nested interaction API.</p>
+      </header>
+      <div class="workspace">
+        <section class="panel">
+          <h2>Sources</h2>
+          <div class="sources">
+            <button type="button" class="card" data-draggable="note">Release notes</button>
+            <button type="button" class="card" data-draggable="image">Product image</button>
+          </div>
+        </section>
+        <section class="panel">
+          <h2>Drop targets</h2>
+          <div class="target" data-drop-target="notes" data-drop-accept="note">Notes accepts notes</div>
+          <div class="target" data-drop-target="images" data-drop-accept="image">Images accepts images</div>
+        </section>
+      </div>
+      <p id="status" aria-live="polite">Choose a card to begin.</p>
+    </main>
+    <script type="module">
+      import { draggable } from "@./interaction.js"
+
+      const status = document.getElementById("status")
+      const sources = document.querySelectorAll("[data-draggable]")
+
+      for (let i = 0; i < sources.length; i++) {
+		sources[i].addEventListener("mousedown", (event) => {
+			if (event.button !== 0) {
+				return
+			}
+				draggable(event, {
+					source: {
+						action: "copy",
+					preview(event, state) {
+						const node = state.source.node.cloneNode(true)
+						node.classList.add("draggable-preview")
+						return node
+					},
+				},
+					target: {
+						action: "append",
+						preview(event, state) {
+							const node = state.source.node.cloneNode(true)
+							node.classList.add("draggable-drop-preview")
+							return node
+						},
+					},
+					onDrop: ({ source, target }) => {
+						status.textContent = `${source.id} appended into ${target.id}`
+				},
+				onCancel: ({ source }) => {
+					status.textContent = `${source.id} was not accepted by a target`
+				},
+			})
+		})
+		}
+    </script>
+  </body>
+</html>

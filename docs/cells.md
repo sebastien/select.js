@@ -56,7 +56,7 @@ and lightweight pub/sub.
 ### Using
 
 ```javascript
-import cell, { derived } from "@./cells.js"
+import cell, { derived } from "@select/cells.js"
 
 const count = cell(0)
 const doubled = derived([count], (n) => n * 2)
@@ -85,7 +85,7 @@ console.log(doubled.value) // 10
 Multiple cell declaration example:
 
 ```javascript
-import cells from "@./cells.js"
+import cells from "@select/cells.js"
 
 const { name, age } = cells({ name: "Ada", age: 37 })
 
@@ -96,7 +96,7 @@ age.set(38)
 Browser-backed state example:
 
 ```javascript
-import { browser } from "@./browser.js"
+import { browser } from "@select/browser.js"
 
 const state = browser()
 const sidebar = state.query.select("sidebar")
@@ -132,7 +132,7 @@ Cells are designed to stay small. Prefer extension by composition:
 wrap `cell()` and `derived()` in module-specific helpers for domain state.
 
 ```javascript
-import cell, { derived } from "@./cells.js"
+import cell, { derived } from "@select/cells.js"
 
 export const counter = (initial = 0) => {
   const value = cell(initial)

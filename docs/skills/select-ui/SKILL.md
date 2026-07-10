@@ -39,7 +39,7 @@ Use this skill for:
 Prefer this shape:
 
 ```javascript
-import ui from "@./ui.js"
+import ui from "@select/ui.js"
 
 const Counter = ui("#Counter")
 	.init(() => ({ count: 0 }))
@@ -81,8 +81,8 @@ instead of mutating DOM manually when a binding can express the same thing.
 Use cells for reactive state inside `.init(...)` or shared module state.
 
 ```javascript
-import ui from "@./ui.js"
-import { cell, derived } from "@./cells.js"
+import ui from "@select/ui.js"
+import { cell, derived } from "@select/cells.js"
 
 const Counter = ui("#Counter").init(() => {
 	const count = cell(0)
@@ -113,8 +113,8 @@ Notes:
 Use `browser()` for browser-backed reactive state:
 
 ```javascript
-import ui from "@./ui.js"
-import { browser } from "@./browser.js"
+import ui from "@select/ui.js"
+import { browser } from "@select/browser.js"
 
 const state = browser()
 const App = ui("#App").does({
@@ -155,7 +155,7 @@ wrapped custom element is mounted outside a Select template tree, set
 `ui-parent` manually to the parent instance id.
 
 ```javascript
-import ui, { webcomponent } from "@./ui.js"
+import ui, { webcomponent } from "@select/ui.js"
 
 const Badge = ui(`<span out="label"></span>`).does({
 	label: (_self, { label }) => label ?? "Badge",

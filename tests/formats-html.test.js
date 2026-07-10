@@ -35,7 +35,7 @@ function setupGlobals(win) {
 	window = new Window({ url: "http://localhost:8000/formats" })
 	setupGlobals(window)
 	;({ html, hi, asDate, date, day, time, datetime, month, format, timetuple } = await import("../src/js/select/formats.js"))
-	;({ fromTimestamp } = await import("../src/js/select/utils/dates.js"))
+	;({ dates: { fromTimestamp } } = await import("../src/js/select/utils/dates.js"))
 })
 
 afterAll(() => {

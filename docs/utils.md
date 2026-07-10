@@ -54,7 +54,7 @@ separate `select/utils/search.js` module.
 ### Using
 
 ```javascript
-import { add, clsx, eq, next, shortword, toggle } from "@./utils.js"
+import { add, clsx, eq, next, shortword, toggle } from "@select/utils.js"
 
 const buttonClass = clsx("btn", { active: true })
 let items = [{ id: 1 }, { id: 2 }]

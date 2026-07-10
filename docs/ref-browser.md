@@ -1,6 +1,6 @@
 # Select Browser Reference
 
-`@./browser.js` provides browser-backed reactive state for URL and
+`@select/browser.js` provides browser-backed reactive state for URL and
 `localStorage`.
 
 ## API
@@ -27,7 +27,7 @@ instance API as the factory return value.
 
 ### Exported serializers
 
-`@./browser.js` exports these reusable serializer objects:
+`@select/browser.js` exports these reusable serializer objects:
 
 - `record`
 - `query`
@@ -277,7 +277,7 @@ Returns a cell that resolves to the same normalized value as `fetch(input, optio
 ## Example
 
 ```javascript
-import browser, { query, hash, record } from "@./browser.js"
+import browser, { query, hash, record } from "@select/browser.js"
 
 const state = browser({
 	query,

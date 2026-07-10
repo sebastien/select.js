@@ -15,7 +15,7 @@ import * as interaction from "./interaction.js";
 import $ from "./query.js";
 import * as routing from "./routing.js";
 import ui from "./ui/index.js";
-import * as dates from "./utils/dates.js";
+import { dates } from "./utils/dates.js";
 import * as utils from "./utils.js";
 
 export * from "./browser.js";

@@ -140,10 +140,10 @@ function parse(...items) {
 				return { ...item, index };
 			case String: {
 				const [value, label, ...rest] = item.split(":");
-				const n = parseInt(value);
+				const n = parseInt(value, 10);
 				return {
 					label: (rest.length > 0 ? `${label}:${rest}` : label)?.trim(),
-					value: isNaN(n) ? value?.trim() : n,
+					value: Number.isNaN(n) ? value?.trim() : n,
 					index,
 				};
 			}

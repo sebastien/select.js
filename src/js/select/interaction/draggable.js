@@ -4,8 +4,8 @@
 // Created: 2026-07-11
 
 // Module: select/interaction/draggable
-// Mouse drag, drop, and sort interaction helpers. Drags use a cloned visual;
-// generic drops append a clone by default while <sort> moves the source item.
+// Mouse drag, drop, and sort interaction helpers. Draggable interactions use
+// nested source and target descriptors; <sort> moves the source item.
 
 import { target } from "./core.js";
 import drag from "./drag.js";
@@ -40,16 +40,17 @@ function droptarget(node, name) {
 }
 
 // Function: draggable
-// Starts a generic drag/drop interaction. Accepted targets receive a cloned
-// preview and retain that clone on drop unless `drop` performs a custom commit.
+// Starts a generic drag/drop interaction using nested `source` and `target`
+// descriptors.
 function draggable(event, options = {}) {
-	const settings = draggableOptions(options);
-	const sourceNode = find(event.target, settings.source);
-	if (!sourceNode) return undefined;
+	const settings = draggable.options(options);
+	const sourceNode =
+		settings.source.node ?? find(event.target, settings.source.match);
+	if (!sourceNode || sourceNode.nodeType !== Node.ELEMENT_NODE) return undefined;
 	event.preventDefault();
 	const session = createSession(sourceNode, event, settings, "drop");
-	session.source = descriptor(sourceNode, settings.source, "data-draggable");
-	updateDragPreview(session, event);
+	session.source = descriptor(sourceNode, settings.source.match, "data-draggable");
+	startSource(session, event);
 	return drag(
 		event,
 		(ev) => {
@@ -62,45 +63,61 @@ function draggable(event, options = {}) {
 	);
 }
 
-function draggableOptions(options) {
-	return {
-		source: options.source ?? "[data-draggable]",
-		target: options.target ?? "[data-drop-target]",
-		overlay: options.overlay ?? globalThis.document.body,
-		dragPreview: options.dragPreview !== false,
-		sourceClass: options.sourceClass ?? "is-dragging-source",
-		previewClass: options.previewClass ?? "draggable-preview",
-		effectPreviewClass: options.effectPreviewClass ?? "draggable-drop-preview",
-		accept: options.accept,
-		preview: options.preview,
-		drop: options.drop,
-		onMove: options.onMove,
-		onDrop: options.onDrop,
-		onCancel: options.onCancel,
-	};
+draggable.options = (options) => ({
+	source: {
+		match: options.source?.match ?? "[data-draggable]",
+		node: options.source?.node,
+		action: sourceAction(options.source?.action ?? "copy"),
+		preview: options.source?.preview,
+		unpreview: options.source?.unpreview,
+	},
+	target: {
+		match: options.target?.match ?? "[data-drop-target]",
+		action: targetAction(options.target?.action ?? "append"),
+		preview: options.target?.preview,
+		unpreview: options.target?.unpreview,
+	},
+	overlay: options.overlay ?? globalThis.document.body,
+	sourceClass: options.sourceClass ?? "is-dragging-source",
+	previewClass: options.previewClass ?? "draggable-preview",
+	effectPreviewClass: options.effectPreviewClass ?? "draggable-drop-preview",
+	hoverClass: options.hoverClass ?? "is-drag-hover",
+	dropClass: options.dropClass ?? "is-drag-drop",
+	accept: options.accept,
+	drop: options.drop,
+	onMove: options.onMove,
+	onDrop: options.onDrop,
+	onCancel: options.onCancel,
+});
+
+function sourceAction(action) {
+	if (action === "move") return "remove-drag";
+	if (["copy", "remove-drag", "remove-drop"].includes(action)) return action;
+	throw new Error(
+		`Unknown draggable source action "${action}". Available actions: copy, move, remove-drag, remove-drop.`,
+	);
+}
+
+function targetAction(action) {
+	if (["append", "prepend", "replace", "content"].includes(action)) {
+		return action;
+	}
+	throw new Error(
+		`Unknown draggable target action "${action}". Available actions: append, prepend, replace, content.`,
+	);
 }
 
 function createSession(sourceNode, event, options, mode) {
 	const box = sourceNode.getBoundingClientRect();
 	const ox = event.clientX - box.left;
 	const oy = event.clientY - box.top;
-	const preview = options.dragPreview ? sourceNode.cloneNode(true) : null;
-	if (preview) {
-		preview.classList.add(options.previewClass);
-		preview.style.position = "fixed";
-		preview.style.left = "0px";
-		preview.style.top = "0px";
-		preview.style.width = `${box.width}px`;
-		preview.style.height = `${box.height}px`;
-		preview.style.pointerEvents = "none";
-		options.overlay?.appendChild(preview);
-	}
 	sourceNode.classList.add(options.sourceClass);
 	return {
 		mode,
 		options,
 		sourceNode,
-		preview,
+		preview: undefined,
+		previewEvent: event,
 		box,
 		ox,
 		oy,
@@ -109,9 +126,44 @@ function createSession(sourceNode, event, options, mode) {
 		pointer: { x: event.clientX, y: event.clientY, dx: 0, dy: 0 },
 		proposal: undefined,
 		target: undefined,
-		effectPreview: undefined,
-		previewCleanup: undefined,
+		targetPreview: undefined,
+		targetPreviewCleanup: undefined,
+		targetPreviewTarget: undefined,
+		targetPreviewEvent: undefined,
+		targetPreviewRestore: undefined,
+		targetContentRestore: undefined,
+		sourceRemoved: false,
+		sourceParent: sourceNode.parentNode,
+		sourceNext: sourceNode.nextSibling,
 	};
+}
+
+function startSource(session, event) {
+	const config = session.options.source;
+	const preview = config.preview?.(
+		event,
+		state(session, event),
+		session.preview,
+	);
+	if (preview !== undefined) session.preview = preview;
+	if (!session.preview) {
+		session.preview = session.sourceNode.cloneNode(true);
+		session.preview.classList.add(session.options.previewClass);
+	}
+	if (session.preview) {
+		session.preview.style.position = "fixed";
+		session.preview.style.left = "0px";
+		session.preview.style.top = "0px";
+		session.preview.style.width = `${session.box.width}px`;
+		session.preview.style.height = `${session.box.height}px`;
+		session.preview.style.pointerEvents = "none";
+		session.options.overlay?.appendChild(session.preview);
+	}
+	if (config.action === "remove-drag") {
+		session.sourceNode.remove();
+		session.sourceRemoved = true;
+	}
+	updateDragPreview(session, event);
 }
 
 function descriptor(node, selector, fallback) {
@@ -134,50 +186,95 @@ function accepts(targetNode, source, options, proposal, session) {
 
 function updateDrop(session, event) {
 	updatePointer(session, event.clientX, event.clientY);
-	const targetNode = find(
-		globalThis.document.elementFromPoint(event.clientX, event.clientY),
-		session.options.target,
+	const hit = globalThis.document.elementFromPoint(
+		event.clientX,
+		event.clientY,
 	);
+	if (
+		session.targetPreview &&
+		(hit === session.targetPreview || session.targetPreview.contains(hit))
+	) {
+		return;
+	}
+	const targetNode = find(hit, session.options.target.match);
 	if (!targetNode) {
-		clearEffectPreview(session);
+		clearTargetPreview(session);
+		setHoverTarget(session, undefined);
 		session.proposal = undefined;
 		session.target = undefined;
 		return;
 	}
 	const targetDescriptor = descriptor(
 		targetNode,
-		session.options.target,
+		session.options.target.match,
 		"data-drop-target",
 	);
 	const proposal = { source: session.source, target: targetDescriptor, event };
 	if (
 		!accepts(targetNode, session.source, session.options, proposal, session)
 	) {
-		clearEffectPreview(session);
+		clearTargetPreview(session);
+		setHoverTarget(session, undefined);
 		session.proposal = undefined;
 		session.target = undefined;
 		return;
 	}
-	const custom = session.options.preview?.(proposal, state(session, event));
-	if (custom === false) {
-		clearEffectPreview(session);
-		session.proposal = undefined;
-		session.target = undefined;
-		return;
+	if (session.target?.node !== targetNode) clearTargetPreview(session);
+	session.proposal = proposal;
+	session.target = targetDescriptor;
+	setHoverTarget(session, targetNode);
+	if (session.targetPreviewTarget !== targetNode) {
+		createTargetPreview(session, proposal, event);
 	}
-	const resolved = resolvePreview(proposal, custom);
-	clearEffectPreview(session);
-	session.proposal = resolved;
-	session.target = resolved.target;
-	if (custom?.cleanup) {
-		session.previewCleanup = custom.cleanup;
+}
+
+function createTargetPreview(session, proposal, event) {
+	const config = session.options.target;
+	const preview = config.preview?.(
+		event,
+		state(session, event),
+		session.targetPreview,
+	);
+	if (preview !== undefined) session.targetPreview = preview;
+	let node = session.targetPreview;
+	if (!node) {
+		node = session.sourceNode.cloneNode(true);
+		node.classList.add(session.options.effectPreviewClass);
+	}
+	if (!node?.nodeType) return;
+	session.targetPreview = node;
+	session.targetPreviewTarget = proposal.target.node;
+	session.targetPreviewEvent = event;
+	if (config.action === "replace") {
+		const target = proposal.target.node;
+		const parent = target.parentNode;
+		if (parent) {
+			const slot = target.getAttribute("slot");
+			if (slot !== null && node.setAttribute) node.setAttribute("slot", slot);
+			const next = target.nextSibling;
+			parent.replaceChild(node, target);
+			session.targetPreviewRestore = () => {
+				if (node.parentNode) node.parentNode.replaceChild(target, node);
+				else if (parent) parent.insertBefore(target, next);
+			};
+		}
+	} else if (config.action === "content") {
+		const target = proposal.target.node;
+		const children = [...target.childNodes];
+		target.replaceChildren(node);
+		session.targetContentRestore = () => target.replaceChildren(...children);
+	} else if (config.action === "prepend") {
+		proposal.target.node.prepend(node);
 	} else {
-		const effectPreview = session.sourceNode.cloneNode(true);
-		effectPreview.classList.add(session.options.effectPreviewClass);
-		effectPreview.style.pointerEvents = "none";
-		resolved.target.node.appendChild(effectPreview);
-		session.effectPreview = effectPreview;
+		proposal.target.node.append(node);
 	}
+}
+
+function setHoverTarget(session, targetNode) {
+	if (session.hoverTarget === targetNode) return;
+	session.hoverTarget?.classList.remove(session.options.hoverClass);
+	session.hoverTarget = targetNode;
+	session.hoverTarget?.classList.add(session.options.hoverClass);
 }
 
 function resolvePreview(proposal, custom) {
@@ -190,31 +287,60 @@ function resolvePreview(proposal, custom) {
 function finishDrop(session, event) {
 	const current = session.proposal;
 	if (!current) {
+		setHoverTarget(session, undefined);
 		clearSession(session);
 		session.options.onCancel?.(state(session, event));
 		return;
 	}
-	if (session.options.drop) {
-		clearEffectPreview(session);
-		session.options.drop(current, state(session, event));
-	} else if (session.effectPreview) {
-		session.effectPreview.classList.remove(session.options.effectPreviewClass);
-		session.effectPreview = undefined;
+	setHoverTarget(session, undefined);
+	if (session.options.dropClass) {
+		const committedTarget =
+			session.options.target.action === "replace"
+				? session.targetPreview
+				: current.target.node;
+		committedTarget?.classList.add(session.options.dropClass);
 	}
-	clearSession(session);
+	if (session.options.drop) {
+		clearTargetPreview(session);
+		session.options.drop(current, state(session, event));
+	}
+	if (session.options.source.action === "remove-drop") session.sourceNode.remove();
+	clearSession(session, true);
 	session.options.onDrop?.(state(session, event));
 }
 
-function clearEffectPreview(session) {
-	session.previewCleanup?.();
-	session.previewCleanup = undefined;
-	session.effectPreview?.remove();
-	session.effectPreview = undefined;
+function clearTargetPreview(session, committed = false) {
+	if (!session.targetPreview) return;
+	if (!committed) {
+		session.targetPreviewCleanup?.(session.targetPreview);
+		session.options.target.unpreview?.(
+			session.targetPreviewEvent,
+			state(session),
+			session.targetPreview,
+		);
+		session.targetPreviewRestore?.();
+		session.targetContentRestore?.();
+		if (session.targetPreview.parentNode) session.targetPreview.remove();
+	}
+	session.targetPreview = undefined;
+	session.targetPreviewCleanup = undefined;
+	session.targetPreviewTarget = undefined;
+	session.targetPreviewEvent = undefined;
+	session.targetPreviewRestore = undefined;
+	session.targetContentRestore = undefined;
 }
 
-function clearSession(session) {
-	clearEffectPreview(session);
-	session.preview?.remove();
+function clearSession(session, committed = false) {
+	clearTargetPreview(session, committed);
+	setHoverTarget(session, undefined);
+	if (session.preview) {
+		session.options.source.unpreview?.(session.previewEvent, state(session), session.preview);
+		session.preview.remove();
+	}
+	if (!committed && session.sourceRemoved) {
+		const parent = session.sourceParent;
+		if (parent) parent.insertBefore(session.sourceNode, session.sourceNext?.parentNode === parent ? session.sourceNext : null);
+	}
 	session.sourceNode.classList.remove(session.options.sourceClass);
 }
 
@@ -249,6 +375,7 @@ function sort(event, options = {}) {
 	session.placeholder = createPlaceholder(sourceNode, settings);
 	sourceList.insertBefore(session.placeholder, sourceNode);
 	sourceNode.classList.add(settings.sourceHiddenClass);
+	startSortPreview(session, event);
 	updateDragPreview(session, event);
 	return drag(
 		event,
@@ -272,6 +399,33 @@ function sortOptions(options) {
 		placeholderClass: options.placeholderClass ?? "sortable-placeholder",
 		sourceHiddenClass: options.sourceHiddenClass ?? "is-dragging-source-hidden",
 	};
+}
+
+function draggableOptions(options) {
+	return {
+		overlay: options.overlay ?? globalThis.document.body,
+		dragPreview: options.dragPreview !== false,
+		sourceClass: options.sourceClass ?? "is-dragging-source",
+		previewClass: options.previewClass ?? "draggable-preview",
+		effectPreviewClass: options.effectPreviewClass ?? "draggable-drop-preview",
+		hoverClass: options.hoverClass ?? "is-drag-hover",
+		dropClass: options.dropClass ?? "is-drag-drop",
+		accept: options.accept,
+		dropPreview: options.dropPreview ?? options.preview,
+		drop: options.drop,
+		onMove: options.onMove,
+		onDrop: options.onDrop,
+		onCancel: options.onCancel,
+	};
+}
+
+function startSortPreview(session, _event) {
+	if (!session.options.dragPreview) return;
+	session.preview = session.sourceNode.cloneNode(true);
+	session.preview.classList.add(session.options.previewClass);
+	session.preview.style.position = "fixed";
+	session.preview.style.pointerEvents = "none";
+	session.options.overlay?.appendChild(session.preview);
 }
 
 function updateSort(session, event) {
@@ -301,7 +455,7 @@ function updateSort(session, event) {
 		session.proposal = undefined;
 		return;
 	}
-	const custom = session.options.preview?.(proposal, state(session, event));
+	const custom = session.options.dropPreview?.(proposal, state(session, event));
 	if (custom === false) {
 		session.proposal = undefined;
 		return;
@@ -437,7 +591,10 @@ function state(session, event) {
 		proposal: session.proposal,
 		placeholder: session.placeholder,
 		preview: session.preview,
-		effectPreview: session.effectPreview,
+		dragPreview: session.preview,
+		effectPreview: session.targetPreview,
+		targetPreview: session.targetPreview,
+	dropPreview: session.targetPreview,
 		pointer: session.pointer,
 		box: session.box,
 		grab: { x: session.ox, y: session.oy },
@@ -450,6 +607,12 @@ function find(node, selector) {
 }
 
 function matches(node, selector) {
+	if (Array.isArray(selector)) {
+		for (const item of selector) {
+			if (matches(node, item)) return true;
+		}
+		return false;
+	}
 	return typeof selector === "function"
 		? selector(node)
 		: node.matches(selector);

@@ -27,7 +27,7 @@ Basic icon geometry is preserved, but richer SVG features may be stripped.
 ## Basic usage
 
 ```javascript
-import { icon, install } from "@./icons.js"
+import { icon, install } from "@select/icons.js"
 
 // Create SVG node directly
 const node = icon("home", { source: "lucide", size: "1.5em" })
@@ -48,7 +48,7 @@ If you need to point icons at another CDN or mirror, pass a `source` object with
 `url` template:
 
 ```javascript
-import { install } from "@./icons.js"
+import { install } from "@select/icons.js"
 
 install("ui-icon-cdn", {
     source: {

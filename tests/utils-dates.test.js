@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import path from "node:path"
 import { Window } from "happy-dom"
-import {
+import { dates } from "../src/js/select/utils/dates.js"
+import * as utils from "../src/js/select/utils.js"
+
+const {
 	add,
 	by,
 	datedays,
@@ -30,8 +33,7 @@ import {
 	weeks,
 	year,
 	yeardays,
-} from "../src/js/select/utils/dates.js"
-import * as utils from "../src/js/select/utils.js"
+} = dates
 
 const ROOT = path.resolve(import.meta.dir, "..")
 
@@ -81,7 +83,7 @@ describe("utils.dates export surface", () => {
 		expect(utils.dates.toTuple).toBe(toTuple)
 		expect(index.dates).toBeDefined()
 		expect(index.dates.toTimestamp).toBe(toTimestamp)
-		expect(index.fromTuple).toBe(fromTuple)
+		expect(index.fromTuple).toBeUndefined()
 		window.close()
 	})
 })

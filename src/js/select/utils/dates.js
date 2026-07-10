@@ -662,7 +662,7 @@ function* periods(startValue, endValue, grain = PERIODS.month, options = {}) {
 	}
 }
 
-export {
+const dates = {
 	add,
 	by,
 	Day,
@@ -714,5 +714,7 @@ export {
 	year,
 	yeardays,
 };
+
+export { dates };
 
 // EOF

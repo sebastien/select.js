@@ -8,10 +8,10 @@ live in `select/utils/search.js` as a direct import.
 ## Quick Start
 
 ```javascript
-import { add, clsx, next, toggle } from "@./utils.js"
-import { Keyboard, bind, drag } from "@./interaction.js"
-import { browser } from "@./browser.js"
-import { router } from "@./routing.js"
+import { add, clsx, next, toggle } from "@select/utils.js"
+import { Keyboard, bind, drag } from "@select/interaction.js"
+import { browser } from "@select/browser.js"
+import { router } from "@select/routing.js"
 
 const input = document.querySelector("input")
 
