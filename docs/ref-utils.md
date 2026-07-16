@@ -11,7 +11,6 @@ live in `select/utils/search.js` as a direct import.
 import { add, clsx, next, toggle } from "@select/utils.js"
 import { Keyboard, bind, drag } from "@select/interaction.js"
 import { browser } from "@select/browser.js"
-import { router } from "@select/routing.js"
 
 const input = document.querySelector("input")
 
@@ -23,15 +22,13 @@ bind(input, {
   },
 })
 
-const routes = router({
+const state = browser()
+const stop = state.routes({
   "/": () => console.log("home"),
   "/users/{id:number}": (_path, { id }) => console.log("user", Number(id)),
+  "#settings": () => console.log("hash settings"),
 })
-
-const state = browser()
-state.path.sub((path) => {
-  routes.run(path)
-})
+// stop() unsubscribes path/hash route effects
 
 let selection = [{ id: 1 }, { id: 2 }]
 selection = toggle(selection, { id: 2 })
@@ -280,7 +277,7 @@ Returns a callable dispatcher with `.router` and `.match(path)` attached.
 `browser(options?)` returns the shared `Browser` singleton.
 
 The `Browser` instance exposes `path`, `query`, `hash`, `local`, `internal`,
-`parse`, `fetch`, and `fetched`.
+`parse`, `fetch`, `fetched`, and `routes`.
 
 Exported browser module symbols are `Browser`, `browser`, `hash`, `query`, and `record`.
 

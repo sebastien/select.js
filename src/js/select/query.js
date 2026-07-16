@@ -407,6 +407,10 @@ class Selection extends Array {
 		}
 	}
 
+	each(callback) {
+		return this.iterate(callback);
+	}
+
 	// Iterates over elements, invoking `callback` with each element wrapped in
 	// a Selection. Breaks if callback returns `false`.
 	iterate(callback) {

@@ -68,7 +68,9 @@ function sanitizeLogValue(value, depth = 0, seen = new WeakSet()) {
 		}
 		if (Array.isArray(value)) {
 			const arrLen = isCliEnvironment() ? 3 : 8;
-			return value.slice(0, arrLen).map((_) => sanitizeLogValue(_, depth + 1, seen));
+			return value
+				.slice(0, arrLen)
+				.map((_) => sanitizeLogValue(_, depth + 1, seen));
 		}
 		if (isPlainObject(value)) {
 			const res = {};

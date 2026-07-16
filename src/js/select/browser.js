@@ -2,14 +2,18 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-05-07
-// Updated: 2026-06-18
+// Updated: 2026-07-17
 
 // Module: select/browser
 // Browser-backed reactive state for URL and local storage. The browser API
 // exposes `ref(value)` for reactive references, `val(value)` for plain value
-// coercion, and `parse(value)` as the compatibility dispatcher combining both.
+// coercion, `parse(value)` as the compatibility dispatcher combining both,
+// `routes(map)` to bind path/hash route handlers from `select/routing`, and
+// in-memory messaging via `pub`/`sub` events and `put`/`get`/`send`/`receive`
+// channels.
 
 import { Cell, cell } from "./cells.js";
+import { routed } from "./routing.js";
 import {
 	HashFormat,
 	hash,
@@ -517,6 +521,36 @@ function selectable(target, methods = {}) {
 	});
 }
 
+// Function: hashRoutePath
+// Extracts the path-like string used for hash routing from a hash cell `value`.
+// Prefer `value.path` (hashformat bare-first-token semantics); fall back to a
+// string value, otherwise `"/"`.
+function hashRoutePath(value) {
+	if (typeof value === "string") return value || "/";
+	if (value && typeof value === "object" && !Array.isArray(value)) {
+		const p = value.path;
+		if (p === undefined || p === null || p === "") return "/";
+		return `${p}`;
+	}
+	return "/";
+}
+
+// ----------------------------------------------------------------------------
+//
+// MESSAGING
+//
+// ----------------------------------------------------------------------------
+
+function eventQueueSize(queue) {
+	if (queue === true) return 1;
+	if (typeof queue === "number" && queue >= 1) return Math.floor(queue);
+	return 0;
+}
+
+function isExpired(expiresAt, now = Date.now()) {
+	return expiresAt !== undefined && expiresAt <= now;
+}
+
 // Class: Browser
 // Browser-backed state manager for URL, hash, query, and local storage.
 //
@@ -532,6 +566,8 @@ function selectable(target, methods = {}) {
 // - `localSerializer`: Object - serializer used for local storage values
 // - `locals`: Map - registered local storage cells
 // - `internals`: Map - internal named cells
+// - `events`: Map - in-memory event topics for pub/sub
+// - `channels`: Map - in-memory channel queues for put/get/send/receive
 // - `path`: Cell - path state cell
 // - `query`: Cell (callable) - query state cell
 // - `hash`: Cell (callable) - hash state cell
@@ -549,6 +585,8 @@ class Browser {
 				: JSONSerializer;
 		this.locals = new Map();
 		this.internals = new Map();
+		this.events = new Map();
+		this.channels = new Map();
 		this._optionSource = undefined;
 		this._optionStore = undefined;
 		this.path = this.location.path;
@@ -574,6 +612,13 @@ class Browser {
 		this.val = this.val.bind(this);
 		this.parse = this.parse.bind(this);
 		this.fetch = this.fetch.bind(this);
+		this.routes = this.routes.bind(this);
+		this.pub = this.pub.bind(this);
+		this.sub = this.sub.bind(this);
+		this.put = this.put.bind(this);
+		this.get = this.get.bind(this);
+		this.send = this.send.bind(this);
+		this.receive = this.receive.bind(this);
 
 		this.bind();
 	}
@@ -680,6 +725,228 @@ class Browser {
 		const cell = new Cell(value);
 		this.internals.set(name, cell);
 		return cell;
+	}
+
+	eventTopic(eventName) {
+		let topic = this.events.get(eventName);
+		if (!topic) {
+			topic = {
+				subs: [],
+				last: undefined,
+				hasLast: false,
+				maxQueue: 0,
+				history: undefined,
+			};
+			this.events.set(eventName, topic);
+		}
+		return topic;
+	}
+
+	channel(channelName) {
+		let entry = this.channels.get(channelName);
+		if (!entry) {
+			entry = { queue: [], waiters: [] };
+			this.channels.set(channelName, entry);
+		}
+		return entry;
+	}
+
+	pruneChannel(channelName, entry) {
+		if (entry.queue.length === 0 && entry.waiters.length === 0) {
+			this.channels.delete(channelName);
+		}
+	}
+
+	takeChannelItem(item) {
+		if (item.timer) clearTimeout(item.timer);
+		if (item.resolve) item.resolve(item.value);
+		return item.value;
+	}
+
+	// Method: pub
+	// Publishes `value` on `eventName` to all current subscribers. When
+	// `queue` is `true`, retains the last event; when `queue` is a number,
+	// retains the last N events for late `sub(..., true)` joiners.
+	//
+	// Example:
+	// ```javascript
+	// state.pub("toast", "Saved", true)
+	// ```
+	pub(eventName, value, queue = undefined) {
+		const topic = this.eventTopic(eventName);
+		const maxQueue = eventQueueSize(queue);
+		if (maxQueue > 0) {
+			topic.maxQueue = Math.max(topic.maxQueue, maxQueue);
+			if (!topic.history) topic.history = [];
+			topic.history.push(value);
+			while (topic.history.length > topic.maxQueue) topic.history.shift();
+			topic.last = value;
+			topic.hasLast = true;
+		}
+		const subs = topic.subs;
+		for (let i = 0; i < subs.length; i++) {
+			subs[i](value, eventName);
+		}
+		return this;
+	}
+
+	// Method: sub
+	// Subscribes `handler` to `eventName`. Handler receives `(value, eventName)`.
+	// When `trigger` is true, immediately invokes with the last retained event
+	// if any. Returns an idempotent unsubscriber.
+	//
+	// Example:
+	// ```javascript
+	// const off = state.sub("toast", (msg) => show(msg), true)
+	// off()
+	// ```
+	sub(eventName, handler, trigger = false) {
+		const topic = this.eventTopic(eventName);
+		topic.subs.push(handler);
+		if (trigger && topic.hasLast) {
+			handler(topic.last, eventName);
+		}
+		let active = true;
+		return () => {
+			if (!active) return false;
+			active = false;
+			const i = topic.subs.indexOf(handler);
+			if (i >= 0) topic.subs.splice(i, 1);
+			if (topic.subs.length === 0 && !topic.maxQueue) {
+				this.events.delete(eventName);
+			}
+			return true;
+		};
+	}
+
+	// Method: put
+	// Enqueues `value` on `channelName`. Optional `ttl` (ms) expires the value.
+	// If a pending `receive` waiter exists, delivers immediately.
+	//
+	// Example:
+	// ```javascript
+	// state.put("jobs", { id: 1 }, 5000)
+	// ```
+	put(channelName, value, ttl = undefined) {
+		const entry = this.channel(channelName);
+		const expiresAt =
+			typeof ttl === "number" && ttl >= 0 ? Date.now() + ttl : undefined;
+		if (entry.waiters.length > 0) {
+			const waiter = entry.waiters.shift();
+			if (waiter.timer) clearTimeout(waiter.timer);
+			waiter.resolve(value);
+			this.pruneChannel(channelName, entry);
+			return this;
+		}
+		entry.queue.push({ value, expiresAt });
+		return this;
+	}
+
+	// Method: get
+	// Dequeues one non-expired value from `channelName`, or returns `undefined`
+	// when empty. Non-blocking.
+	//
+	// Example:
+	// ```javascript
+	// const job = state.get("jobs")
+	// ```
+	get(channelName) {
+		const entry = this.channels.get(channelName);
+		if (!entry) return undefined;
+		const now = Date.now();
+		while (entry.queue.length > 0) {
+			const item = entry.queue.shift();
+			if (isExpired(item.expiresAt, now)) {
+				if (item.timer) clearTimeout(item.timer);
+				if (item.reject) {
+					item.reject(new Error("browser.send: expired"));
+				}
+				continue;
+			}
+			const value = this.takeChannelItem(item);
+			this.pruneChannel(channelName, entry);
+			return value;
+		}
+		this.pruneChannel(channelName, entry);
+		return undefined;
+	}
+
+	// Method: send
+	// Like `put`, but returns a Promise that resolves with `value` when it is
+	// consumed by `get` or `receive`. Rejects on `timeout` (ms) if provided.
+	//
+	// Example:
+	// ```javascript
+	// await state.send("jobs", { id: 2 }, 1000)
+	// ```
+	send(channelName, value, timeout = undefined) {
+		const entry = this.channel(channelName);
+		if (entry.waiters.length > 0) {
+			const waiter = entry.waiters.shift();
+			if (waiter.timer) clearTimeout(waiter.timer);
+			waiter.resolve(value);
+			this.pruneChannel(channelName, entry);
+			return Promise.resolve(value);
+		}
+		return new Promise((resolve, reject) => {
+			const item = {
+				value,
+				expiresAt: undefined,
+				resolve,
+				reject,
+			};
+			if (typeof timeout === "number" && timeout >= 0) {
+				item.timer = setTimeout(() => {
+					const i = entry.queue.indexOf(item);
+					if (i >= 0) entry.queue.splice(i, 1);
+					this.pruneChannel(channelName, entry);
+					reject(new Error("browser.send: timeout"));
+				}, timeout);
+			}
+			entry.queue.push(item);
+		});
+	}
+
+	// Method: receive
+	// Like `get`, but returns a Promise that waits until a value is available.
+	// Rejects on `timeout` (ms) if provided.
+	//
+	// Example:
+	// ```javascript
+	// const job = await state.receive("jobs", 1000)
+	// ```
+	receive(channelName, timeout = undefined) {
+		const entry = this.channels.get(channelName);
+		if (entry && entry.queue.length > 0) {
+			const now = Date.now();
+			while (entry.queue.length > 0) {
+				const item = entry.queue.shift();
+				if (isExpired(item.expiresAt, now)) {
+					if (item.timer) clearTimeout(item.timer);
+					if (item.reject) {
+						item.reject(new Error("browser.send: expired"));
+					}
+					continue;
+				}
+				const value = this.takeChannelItem(item);
+				this.pruneChannel(channelName, entry);
+				return Promise.resolve(value);
+			}
+			this.pruneChannel(channelName, entry);
+		}
+		const channel = this.channel(channelName);
+		return new Promise((resolve, reject) => {
+			const waiter = { resolve, reject };
+			if (typeof timeout === "number" && timeout >= 0) {
+				waiter.timer = setTimeout(() => {
+					const i = channel.waiters.indexOf(waiter);
+					if (i >= 0) channel.waiters.splice(i, 1);
+					this.pruneChannel(channelName, channel);
+					reject(new Error("browser.receive: timeout"));
+				}, timeout);
+			}
+			channel.waiters.push(waiter);
+		});
 	}
 
 	parseReferencePath(value) {
@@ -803,6 +1070,68 @@ class Browser {
 
 	fetched(input, options = undefined) {
 		return cell(this.fetch(input, options));
+	}
+
+	// Method: routes
+	// Registers route handlers and binds them to browser location state.
+	// Keys starting with `#` are hash routes (matched against `hash.path`);
+	// all other keys are path routes (matched against `path`).
+	//
+	// Dispatches once immediately with the current values, then on every
+	// subsequent change. Returns an idempotent cleanup function with helpers:
+	// - `path` / `hash`: `routed()` dispatchers (or `null` when unused)
+	// - `router`: path router if present, else hash router
+	// - `match(p)` / `run(p, ...args)`: prefer the path router
+	//
+	// Example:
+	// ```javascript
+	// const stop = state.routes({
+	//   "/": home,
+	//   "/users/{id:number}": (_p, { id }) => showUser(id),
+	//   "#settings": openSettings,
+	//   "#profile/{tab}": (_p, { tab }) => openProfile(tab),
+	// })
+	// stop() // unsubscribe
+	// ```
+	routes(routeMap = {}) {
+		const pathRoutes = {};
+		const hashRoutes = {};
+		const entries = Object.entries(routeMap || {});
+		for (let i = 0; i < entries.length; i++) {
+			const [expr, handler] = entries[i];
+			if (typeof expr === "string" && expr.startsWith("#")) {
+				hashRoutes[expr.slice(1)] = handler;
+			} else {
+				pathRoutes[expr] = handler;
+			}
+		}
+		const pathR = Object.keys(pathRoutes).length ? routed(pathRoutes) : null;
+		const hashR = Object.keys(hashRoutes).length ? routed(hashRoutes) : null;
+		const cleanups = [];
+		if (pathR) {
+			pathR(this.path.value);
+			cleanups.push(this.path.effect((p) => pathR(p)));
+		}
+		if (hashR) {
+			const read = () => hashRoutePath(this.hash.value);
+			hashR(read());
+			cleanups.push(this.hash.effect(() => hashR(read())));
+		}
+		let active = true;
+		const cleanup = () => {
+			if (!active) return false;
+			active = false;
+			for (let i = 0; i < cleanups.length; i++) cleanups[i]();
+			return true;
+		};
+		const primary = pathR || hashR;
+		return Object.assign(cleanup, {
+			path: pathR,
+			hash: hashR,
+			router: primary?.router,
+			match: primary?.match,
+			run: (p, ...args) => (primary ? primary(p, ...args) : undefined),
+		});
 	}
 
 	async fetch(input, options = undefined) {

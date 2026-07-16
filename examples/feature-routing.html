@@ -228,7 +228,7 @@
 
 	<script type="module">
 		import browser from "@./browser.js"
-		import { router } from "@./routing.js"
+		import { routed } from "@./routing.js"
 		import ui from "@./ui.js"
 
 		const state = browser()
@@ -266,7 +266,10 @@
 			path: (_self, { path }) => path,
 		})
 
-		const matchRoute = router({
+		// For pathname or bare-hash routing, prefer:
+		//   state.routes({ "/": home, "#settings": openSettings })
+		// This demo routes a selected hash key (#route=/...) with routed().
+		const matchRoute = routed({
 			"/": () => HomeRoute(),
 			"/settings": () => SettingsRoute(),
 			"/profile/{tab:string}": (_path, captured) => ProfileRoute(captured),
@@ -277,7 +280,7 @@
 			route: (_self, { route }) => route,
 			view: (_self, { route }) => {
 				const path = route || "/"
-				return matchRoute.run(path) || NotFoundRoute({ path })
+				return matchRoute(path) || NotFoundRoute({ path })
 			},
 			goRoot: () => routeCell.set("/"),
 			goSettings: () => routeCell.set("/settings"),
@@ -291,14 +294,14 @@
 			.mount("#manual-demo")
 			.set({ panel: panelCell.value || "home", fragment: currentHash() })
 
-		const routed = RoutedPanels
+		const panels = RoutedPanels
 			.new()
 			.mount("#router-demo")
 			.set({ route: routeCell.value || "/", fragment: currentHash() })
 
 		const sync = () => {
 			manual.update({ panel: panelCell.value || "home", fragment: currentHash() })
-			routed.update({ route: routeCell.value || "/", fragment: currentHash() })
+			panels.update({ route: routeCell.value || "/", fragment: currentHash() })
 		}
 
 		state.hash.sub(sync)

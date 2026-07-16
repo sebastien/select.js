@@ -7,8 +7,12 @@
 // Module: select/workflows
 // Generator-based workflow runner with named steps, TTL result caching
 // (via select/utils/storage), transparent retries, lifecycle logging, and
-// duration history. Execution lives on `WorkflowRuntime` so subclasses can
-// specialise caching, retries, or yield handling.
+// duration history. The runtime keeps a live call stack of nested step
+// invocations; every recorded event snapshots that stack so you can see
+// where it sits in the workflow tree. Execution lives on `WorkflowRuntime`
+// so subclasses can specialise caching, retries, or yield handling.
+// Concurrent top-level `run`s on the same runtime interleave the stack —
+// use separate runtimes for parallel roots.
 //
 // Example:
 // ```javascript
@@ -23,6 +27,8 @@
 // 		return { user, posts: yield res.json() }
 // 	},
 // })
+// LoadPosts.options = { ttl: 30_000 }
+// // or: workflow.options(LoadPosts, { ttl: 30_000 })
 //
 // // Free function uses a lazy default runtime singleton
 // const data = await run(LoadPosts(1))
@@ -81,15 +87,16 @@ function getdef(key, ...containers) {
 
 // Function: step
 // Wraps a generator `generator` as a cacheable workflow step with `name` and
-// optional `config` (`ttl`, `retries`, `backoff`, `heartbeat`, `accepts`).
+// optional `options` (`ttl`, `retries`, `backoff`, `heartbeat`, `accepts`).
 //
 // Example:
 // ```javascript
 // const LoadUser = step(function* (id) {
 // 	return yield fetch(`/api/users/${id}`).then((r) => r.json())
 // }, "LoadUser", { ttl: 60_000 })
+// // or: LoadUser.options = { ttl: 60_000 }
 // ```
-function step(generator, name = undefined, config = undefined) {
+function step(generator, name = undefined, options = undefined) {
 	const id = StepId++;
 	const stepName = name === undefined || name === null ? generator?.name : name;
 	const f = (...args) =>
@@ -99,19 +106,20 @@ function step(generator, name = undefined, config = undefined) {
 			[Input]: args,
 			fn: f,
 		});
-	return Object.assign(f, { [Step]: id, [Name]: stepName, config });
+	return Object.assign(f, { [Step]: id, [Name]: stepName, options });
 }
 
 // Function: workflow
-// Builds a map of named steps from `steps`, where each value is a generator
-// or a `[generator, config]` pair.
+// Builds a map of named steps from `steps` (generators). Attach per-step
+// options with `step.options = {…}` or `workflow.options(step, {…})`.
 //
 // Example:
 // ```javascript
-// const { LoadUser } = workflow({
+// const { LoadUser, LoadPosts } = workflow({
 // 	*LoadUser(id) { return yield api.user(id) },
-// 	LoadPosts: [function* (id) { ... }, { ttl: 30_000 }],
+// 	*LoadPosts(id) { return yield api.posts(id) },
 // })
+// LoadPosts.options = { ttl: 30_000 }
 // ```
 function workflow(steps) {
 	const out = {};
@@ -122,13 +130,17 @@ function workflow(steps) {
 		if (!Object.hasOwn(steps, name)) {
 			continue;
 		}
-		const value = steps[name];
-		out[name] = Array.isArray(value)
-			? step(value[0], name, value[1])
-			: step(value, name);
+		out[name] = step(steps[name], name);
 	}
 	return out;
 }
+
+// Function: workflow.options
+// Merges `options` onto `stepFn.options` and returns `stepFn`.
+workflow.options = (stepFn, options = undefined) => {
+	stepFn.options = { ...stepFn.options, ...options };
+	return stepFn;
+};
 
 // ----------------------------------------------------------------------------
 //
@@ -138,8 +150,10 @@ function workflow(steps) {
 
 // Class: WorkflowRuntime
 // Execution context for workflow steps: result cache, retries, logging, and
-// duration history. Override `run`, `execute`, `resolve`, `onStep`, or the
-// `onStep*` lifecycle handlers to specialise behaviour (including logging).
+// duration history. Nested tagged steps push/pop `stack` frames
+// (`{ name, id, input, attempt }`); events snapshot that stack. Override
+// `run`, `execute`, `resolve`, `onStep`, or the `onStep*` lifecycle handlers
+// to specialise behaviour (including logging).
 // - store: "memory"|"indexeddb"|Store - cache backend (see select/utils/storage)
 // - db: string - IndexedDB database name when store is `"indexeddb"`
 // - storeName: string - IndexedDB object store name
@@ -161,10 +175,41 @@ class WorkflowRuntime {
 		this.store = store(options);
 		this.configs = new Map();
 		this.events = [];
+		// Live nested step frames for the current execution path.
+		this.stack = [];
 		this.ready =
 			typeof this.store.ready?.then === "function"
 				? this.store.ready
 				: Promise.resolve();
+	}
+
+	// Property: current
+	// Top stack frame, or `undefined` when idle.
+	get current() {
+		return this.stack.length ? this.stack[this.stack.length - 1] : undefined;
+	}
+
+	// Method: push
+	// Pushes an invocation `frame` onto the live stack and returns it.
+	push(frame) {
+		this.stack.push(frame);
+		return frame;
+	}
+
+	// Method: pop
+	// Removes and returns the top stack frame.
+	pop() {
+		return this.stack.pop();
+	}
+
+	// Method: path
+	// Returns step names along the current stack (outermost first).
+	path() {
+		const out = [];
+		for (let i = 0; i < this.stack.length; i++) {
+			out.push(this.stack[i].name);
+		}
+		return out;
 	}
 
 	// Function: Default
@@ -177,18 +222,18 @@ class WorkflowRuntime {
 	}
 
 	// Method: configure
-	// Merges per-step `config` overrides for step `name`.
-	configure(name, config) {
+	// Merges per-step option overrides for step `name` (runtime-level).
+	configure(name, options) {
 		const current = this.configs.get(name) || {};
-		this.configs.set(name, { ...current, ...config });
+		this.configs.set(name, { ...current, ...options });
 		return this;
 	}
 
 	// Method: config
-	// Returns effective config for `name`, preferring configure() overrides,
-	// then step function config, then runtime defaults.
+	// Returns effective options for `name`, preferring configure() overrides,
+	// then step function `.options`, then runtime defaults.
 	config(name, stepFn = undefined) {
-		const stepConfig = stepFn?.config || {};
+		const stepOptions = stepFn?.options || {};
 		const named = this.configs.get(name) || {};
 		const defaults = {
 			ttl: this.ttl,
@@ -198,11 +243,11 @@ class WorkflowRuntime {
 			accepts: this.accepts,
 		};
 		return {
-			ttl: getdef("ttl", named, stepConfig, defaults),
-			retries: getdef("retries", named, stepConfig, defaults),
-			backoff: getdef("backoff", named, stepConfig, defaults),
-			heartbeat: getdef("heartbeat", named, stepConfig, defaults),
-			accepts: getdef("accepts", named, stepConfig, defaults),
+			ttl: getdef("ttl", named, stepOptions, defaults),
+			retries: getdef("retries", named, stepOptions, defaults),
+			backoff: getdef("backoff", named, stepOptions, defaults),
+			heartbeat: getdef("heartbeat", named, stepOptions, defaults),
+			accepts: getdef("accepts", named, stepOptions, defaults),
 		};
 	}
 
@@ -255,9 +300,20 @@ class WorkflowRuntime {
 	}
 
 	// Method: record
-	// Appends an event to the in-memory history and logs it.
+	// Appends an event to the in-memory history (with a `stack` snapshot of
+	// current invocations) and logs it.
 	record(event) {
-		const entry = { at: now(), ...event };
+		const stack = [];
+		for (let i = 0; i < this.stack.length; i++) {
+			const frame = this.stack[i];
+			stack.push({
+				name: frame.name,
+				id: frame.id,
+				input: frame.input,
+				attempt: frame.attempt,
+			});
+		}
+		const entry = { at: now(), ...event, stack };
 		this.events.push(entry);
 		const method =
 			entry.type === "error"
@@ -436,68 +492,82 @@ class WorkflowRuntime {
 
 	// Method: onStep
 	// Runs a tagged step stream with cache lookup, retries, and lifecycle hooks.
+	// Pushes an invocation frame for the duration of the call so nested yields
+	// and recorded events see the full workflow path.
 	async onStep(stream) {
 		const ctx = this.stepContext(stream);
-
-		// Only consult cache when a positive TTL is configured.
-		if (ctx.cfg.ttl && (await this.has(ctx.name, ctx.input))) {
-			const result = await this.get(ctx.name, ctx.input);
-			await this.onStepCache(ctx, result);
-			return result;
-		}
-
-		const retry = new Retry({
-			retries: ctx.cfg.retries,
-			accepts: ctx.cfg.accepts
-				? (error, attempt) => ctx.cfg.accepts(error, attempt, ctx.name)
-				: undefined,
-		});
-		const backoff =
-			ctx.cfg.backoff instanceof Backoff
-				? ctx.cfg.backoff
-				: new Backoff(ctx.cfg.backoff);
-		let current = stream;
-
-		for (;;) {
-			let heartbeatTimer;
-			ctx.started = now();
-			ctx.duration = 0;
-			await this.onStepStart(ctx);
-			if (ctx.cfg.heartbeat > 0) {
-				heartbeatTimer = setInterval(() => {
-					this.onStepProgress(ctx, {
-						type: "heartbeat",
-						duration: now() - ctx.started,
-					});
-				}, ctx.cfg.heartbeat);
-			}
-			try {
-				const result = await this.execute(current);
-				ctx.duration = now() - ctx.started;
-				await this.onStepSucceed(ctx, result);
+		const frame = {
+			name: ctx.name,
+			id: ctx.id,
+			input: ctx.input,
+			attempt: ctx.attempt,
+		};
+		this.push(frame);
+		try {
+			// Only consult cache when a positive TTL is configured.
+			if (ctx.cfg.ttl && (await this.has(ctx.name, ctx.input))) {
+				const result = await this.get(ctx.name, ctx.input);
+				await this.onStepCache(ctx, result);
 				return result;
-			} catch (caught) {
-				const error = caught;
-				ctx.duration = now() - ctx.started;
-				await this.onStepFail(ctx, error);
-				if (!(await retry.continues(error))) {
-					throw error;
+			}
+
+			const retry = new Retry({
+				retries: ctx.cfg.retries,
+				accepts: ctx.cfg.accepts
+					? (error, attempt) => ctx.cfg.accepts(error, attempt, ctx.name)
+					: undefined,
+			});
+			const backoff =
+				ctx.cfg.backoff instanceof Backoff
+					? ctx.cfg.backoff
+					: new Backoff(ctx.cfg.backoff);
+			let current = stream;
+
+			for (;;) {
+				let heartbeatTimer;
+				ctx.started = now();
+				ctx.duration = 0;
+				frame.attempt = ctx.attempt;
+				await this.onStepStart(ctx);
+				if (ctx.cfg.heartbeat > 0) {
+					heartbeatTimer = setInterval(() => {
+						this.onStepProgress(ctx, {
+							type: "heartbeat",
+							duration: now() - ctx.started,
+						});
+					}, ctx.cfg.heartbeat);
 				}
-				await this.onStepRetry(ctx, error);
-				await backoff.join();
-				ctx.attempt += 1;
-				if (typeof current.fn === "function") {
-					current = current.fn(...(ctx.input || []));
-				} else if (typeof ctx.stepFn === "function") {
-					current = ctx.stepFn(...(ctx.input || []));
-				} else {
-					throw error;
-				}
-			} finally {
-				if (heartbeatTimer) {
-					clearInterval(heartbeatTimer);
+				try {
+					const result = await this.execute(current);
+					ctx.duration = now() - ctx.started;
+					await this.onStepSucceed(ctx, result);
+					return result;
+				} catch (caught) {
+					const error = caught;
+					ctx.duration = now() - ctx.started;
+					await this.onStepFail(ctx, error);
+					if (!(await retry.continues(error))) {
+						throw error;
+					}
+					await this.onStepRetry(ctx, error);
+					await backoff.join();
+					ctx.attempt += 1;
+					frame.attempt = ctx.attempt;
+					if (typeof current.fn === "function") {
+						current = current.fn(...(ctx.input || []));
+					} else if (typeof ctx.stepFn === "function") {
+						current = ctx.stepFn(...(ctx.input || []));
+					} else {
+						throw error;
+					}
+				} finally {
+					if (heartbeatTimer) {
+						clearInterval(heartbeatTimer);
+					}
 				}
 			}
+		} finally {
+			this.pop();
 		}
 	}
 
@@ -523,6 +593,10 @@ async function run(stream, runtime = undefined) {
 }
 
 export { Input, Name, run, Step, step, WorkflowRuntime, workflow };
-export default Object.assign(workflow, { run, step });
+export default Object.assign(workflow, {
+	run,
+	step,
+	options: workflow.options,
+});
 
 // EOF

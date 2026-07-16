@@ -19,6 +19,10 @@ Returns:
 - `parse(value)`: compatibility parser that resolves references before value coercion
 - `fetch(input, options?)`: fetch helper with content-type-aware decoding
 - `fetched(input, options?)`: reactive cell wrapper around `fetch(input, options?)`
+- `routes(map)`: bind path/hash route handlers; returns cleanup + helpers
+- `pub(eventName, value, queue?)` / `sub(eventName, handler, trigger?)`: in-memory events
+- `put(channelName, value, ttl?)` / `get(channelName)`: non-blocking channels
+- `send(channelName, value, timeout?)` / `receive(channelName, timeout?)`: async channels
 
 ### `Browser`
 
@@ -273,6 +277,93 @@ state.parse("hello")
 ### `fetched(input, options?)`
 
 Returns a cell that resolves to the same normalized value as `fetch(input, options?)`.
+
+### `routes(map)`
+
+Binds route handlers from `select/routing` to browser location cells.
+
+- keys without `#` match `path` (`location.pathname`)
+- keys starting with `#` match the hash bare path (`hash.value.path`); the `#` is stripped before matching
+- dispatches immediately with current values, then on each source change
+- handler signature: `(path, captured, ...args) => any`
+- each call is independent (own routers and subscriptions)
+
+Return value is an idempotent cleanup function with:
+
+| property | meaning |
+|----------|---------|
+| `()` | unsubscribe all effects for this registration |
+| `path` | `routed()` dispatcher for path routes, or `null` |
+| `hash` | `routed()` dispatcher for hash routes, or `null` |
+| `router` | path router if present, else hash router |
+| `match(p)` | match via the primary (`path` preferred) router |
+| `run(p, ...args)` | run via the primary router |
+
+```javascript
+const stop = state.routes({
+	"/": () => "home",
+	"/users/{id:number}": (_path, { id }) => `user:${id}`,
+	"#settings": () => "settings",
+	"#profile/{tab}": (_path, { tab }) => `profile:${tab}`,
+})
+
+stop.run("/users/3") // => "user:3"
+stop.hash("settings") // => "settings"
+stop()
+```
+
+### `pub(eventName, value, queue?)`
+
+- notifies all current subscribers with `handler(value, eventName)`
+- `queue` omitted/falsy: no retention
+- `queue: true`: retain last 1 event
+- `queue: N`: retain last N events (ring buffer)
+- returns the `Browser` instance
+
+### `sub(eventName, handler, trigger?)`
+
+- registers `handler` for `eventName`
+- `trigger: true` immediately calls `handler` with the last retained event if any
+- returns an idempotent unsubscriber (`true` first call, `false` after)
+
+```javascript
+const off = state.sub("toast", (msg) => show(msg), true)
+state.pub("toast", "Saved", true)
+off()
+```
+
+### `put(channelName, value, ttl?)`
+
+- enqueues `value` on a FIFO channel
+- optional `ttl` (ms) expires the value before consume
+- if a `receive` waiter is pending, delivers immediately
+- returns the `Browser` instance
+
+### `get(channelName)`
+
+- dequeues one non-expired value, or `undefined` when empty
+- non-blocking
+- consuming a `send` item resolves that send promise
+
+### `send(channelName, value, timeout?)`
+
+- like `put`, but returns a `Promise` that resolves with `value` when consumed
+- optional `timeout` (ms) rejects with `Error("browser.send: timeout")`
+- hands off immediately when a `receive` waiter is pending
+
+### `receive(channelName, timeout?)`
+
+- like `get`, but returns a `Promise` that waits for a value
+- optional `timeout` (ms) rejects with `Error("browser.receive: timeout")`
+
+```javascript
+state.put("jobs", { id: 1 }, 5000)
+const job = state.get("jobs")
+
+const done = state.send("jobs", { id: 2 }, 1000)
+const next = await state.receive("jobs", 1000)
+await done
+```
 
 ## Example
 
