@@ -4,9 +4,9 @@
 // Created: 2026-05-07
 // Updated: 2026-06-15
 import { dates } from "./utils/dates.js";
+import dom from "./utils/dom.js";
 import search from "./utils/search.js";
 import sel from "./utils/selection.js";
-import dom from "./utils/dom.js";
 
 // Module: select/utils
 // Compatibility barrel for the split utility submodules.
@@ -18,14 +18,15 @@ export * from "./utils/html.js";
 export * from "./utils/iter.js";
 export * from "./utils/logger.js";
 export * from "./utils/math.js";
+export * from "./utils/reshape.js";
 export * from "./utils/sanitize.js";
+export * from "./utils/storage.js";
 export * from "./utils/text.js";
 export * from "./utils/transform.js";
 export * from "./utils/traverse.js";
 export { access } from "./utils/traverse.js";
 export * from "./utils/update.js";
 export * from "./utils/values.js";
-export * from "./utils/reshape.js";
-export { dates, search, sel, dom };
+export { dates, dom, search, sel };
 
 // EOF

@@ -875,11 +875,7 @@ class Cell extends Reactive {
 		this.revision++;
 		this._refreshSelections(path, current);
 		this.pub(
-			isPromise
-				? this.pending === "clear"
-					? undefined
-					: this.value
-				: value,
+			isPromise ? (this.pending === "clear" ? undefined : this.value) : value,
 			path,
 			this,
 			current,
@@ -1317,7 +1313,7 @@ class Derivation extends Reactive {
 				: Array.isArray(current) && Array.isArray(value)
 					? [...current, ...value]
 					: Object.getPrototypeOf(current) === Object.prototype &&
-						Object.getPrototypeOf(value) === Object.prototype
+							Object.getPrototypeOf(value) === Object.prototype
 						? { ...current, ...value }
 						: value;
 		this._forwardWrite(next, path, false, "merge");
@@ -1837,7 +1833,9 @@ function effect(inputs, effector) {
 	};
 
 	walkReactiveSources(inputs, (cell, sourceRootPath) => {
-		const path = sourceRootPath.length ? sourceRootPath.slice() : sourceRootPath;
+		const path = sourceRootPath.length
+			? sourceRootPath.slice()
+			: sourceRootPath;
 		const reactor = (_value, sourcePath, origin) => {
 			const fullPath =
 				sourcePath === undefined ||

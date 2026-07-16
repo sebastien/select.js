@@ -21,12 +21,17 @@ function isPlainObject(value) {
 	return proto === Object.prototype || proto === null;
 }
 
+function isCliEnvironment() {
+	return typeof process !== "undefined" || typeof window === "undefined";
+}
+
 function summarizeNode(value) {
-	const name = `${value?.nodeName || value?.tagName || value?.localName || "node"}`
-		.toLowerCase();
-	const id = typeof value?.getAttribute === "function"
-		? value.getAttribute("id")
-		: value?.id;
+	const name =
+		`${value?.nodeName || value?.tagName || value?.localName || "node"}`.toLowerCase();
+	const id =
+		typeof value?.getAttribute === "function"
+			? value.getAttribute("id")
+			: value?.id;
 	return id ? `<${name}#${id}>` : `<${name}>`;
 }
 
@@ -58,23 +63,23 @@ function sanitizeLogValue(value, depth = 0, seen = new WeakSet()) {
 		if (value?.nodeType || value?.ownerDocument || value?.tagName) {
 			return summarizeNode(value);
 		}
-		if (depth >= 2) {
+		if (depth >= (isCliEnvironment() ? 1 : 2)) {
 			return `[${value?.constructor?.name || "Object"}]`;
 		}
 		if (Array.isArray(value)) {
-			return value
-				.slice(0, 8)
-				.map((_) => sanitizeLogValue(_, depth + 1, seen));
+			const arrLen = isCliEnvironment() ? 3 : 8;
+			return value.slice(0, arrLen).map((_) => sanitizeLogValue(_, depth + 1, seen));
 		}
 		if (isPlainObject(value)) {
 			const res = {};
 			const entries = Object.entries(value);
-			for (let i = 0; i < entries.length && i < 12; i++) {
+			const objLen = isCliEnvironment() ? 5 : 12;
+			for (let i = 0; i < entries.length && i < objLen; i++) {
 				const [key, item] = entries[i];
 				res[key] = sanitizeLogValue(item, depth + 1, seen);
 			}
-			if (entries.length > 12) {
-				res.__truncated__ = `${entries.length - 12} more keys`;
+			if (entries.length > objLen) {
+				res.__truncated__ = `${entries.length - objLen} more keys`;
 			}
 			return res;
 		}
@@ -83,10 +88,7 @@ function sanitizeLogValue(value, depth = 0, seen = new WeakSet()) {
 }
 
 function logWith(method, scope, args) {
-	console[method](
-		`[${scope}]`,
-		...args.map((_) => sanitizeLogValue(_)),
-	);
+	console[method](`[${scope}]`, ...args.map((_) => sanitizeLogValue(_)));
 }
 
 // Function: logger

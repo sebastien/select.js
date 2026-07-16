@@ -196,7 +196,8 @@ class TemplateParser {
 
 	static FormatBindingPath(path) {
 		if (!path?.length) return "";
-		if (path[0] === "#") return path.length > 1 ? `#.${path.slice(1).join(".")}` : "#";
+		if (path[0] === "#")
+			return path.length > 1 ? `#.${path.slice(1).join(".")}` : "#";
 		return path[0] === "."
 			? path.length > 1
 				? `.${path.slice(1).join(".")}`

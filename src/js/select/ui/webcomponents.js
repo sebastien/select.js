@@ -699,7 +699,9 @@ class UIWebComponent extends BaseHTMLElement {
 			this.propertyData = next;
 		} else {
 			this._replaceOwnedPropertyReactiveRef(key, value);
-			this.propertyData = Object.assign({}, this.propertyData, { [key]: value });
+			this.propertyData = Object.assign({}, this.propertyData, {
+				[key]: value,
+			});
 		}
 		this._rebuildData();
 		if (this.isInitialized) {
@@ -912,7 +914,9 @@ function webcomponent(
 		attributeBindings,
 		options,
 	);
-	const exposedKeys = [...new Set([...Object.keys(initialData), ...attributeBindings.values()])];
+	const exposedKeys = [
+		...new Set([...Object.keys(initialData), ...attributeBindings.values()]),
+	];
 	const WebComponent = class extends UIWebComponent {
 		static observedAttributes = observedAttributes;
 		constructor() {

@@ -223,16 +223,21 @@ class UITemplate {
 		if (processor == null && key == null) {
 			return remapCollection(data, (v) => new AppliedUITemplate(this, v));
 		}
-		const keyFn = key == null ? null : (typeof key === "function" ? key : (v) => {
-			if (v == null) return undefined;
-			const p = String(key).replace(/^\./, "").split(".");
-			let c = v;
-			for (const seg of p) {
-				if (c == null) return undefined;
-				c = c[seg];
-			}
-			return c;
-		});
+		const keyFn =
+			key == null
+				? null
+				: typeof key === "function"
+					? key
+					: (v) => {
+							if (v == null) return undefined;
+							const p = String(key).replace(/^\./, "").split(".");
+							let c = v;
+							for (const seg of p) {
+								if (c == null) return undefined;
+								c = c[seg];
+							}
+							return c;
+						};
 		const cache = this._mapCache || (this._mapCache = new Map());
 		return remapCollection(data, (v, i) => {
 			let d = processor ? processor(v, i) : v;

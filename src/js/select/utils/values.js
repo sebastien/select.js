@@ -51,6 +51,16 @@ function isThenable(value) {
 		typeof value.then === "function"
 	);
 }
+
+function isGenerator(value) {
+	return !!(
+		value !== null &&
+		value !== undefined &&
+		(typeof value === "object" || typeof value === "function") &&
+		typeof value.next === "function"
+	);
+}
+
 // Function: len
 // Returns collection length/size semantics for `value`.
 function len(value) {
@@ -511,6 +521,28 @@ function clone(value, key = undefined) {
 	return typeof key === "number" ? [] : {};
 }
 
+// Function: jsonkey
+// Returns a stable JSON cache key for `value`, optionally prefixed by `names`
+// (joined with a null separator).
+//
+// Example:
+// ```javascript
+// jsonkey({ id: 1 })              // '{"id":1}'
+// jsonkey([1, 2], "Add")          // 'Add\0[1,2]'
+// jsonkey(payload, "wf", "step")  // 'wf\0step\0...'
+// ```
+function jsonkey(value, ...names) {
+	const body = JSON.stringify(value === undefined ? null : value);
+	if (!names.length) {
+		return body;
+	}
+	let key = "";
+	for (let i = 0; i < names.length; i++) {
+		key += `${names[i]}\0`;
+	}
+	return key + body;
+}
+
 export {
 	access,
 	array,
@@ -527,6 +559,7 @@ export {
 	isAnnotable,
 	isArrayLike,
 	isEmpty,
+	isGenerator,
 	isIterable,
 	isMapLike,
 	isNullish,
@@ -534,6 +567,7 @@ export {
 	isReactive,
 	isThenable,
 	isWalkable,
+	jsonkey,
 	keys,
 	len,
 	list,

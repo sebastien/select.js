@@ -26,6 +26,12 @@ fmt-biome:
 	$(CMD) bunx @biomejs/biome format --write src/js src/html examples
 	$(call rule_post_cmd)
 
+.PHONY: bench
+bench:
+	@$(call rule_pre_cmd)
+	$(CMD) bun run bench:inspector
+	$(call rule_post_cmd)
+
 .PHONY: release
 release: $(PATH_RUN)/task/project-release-$(PROJECT_VERSION).task
 	@

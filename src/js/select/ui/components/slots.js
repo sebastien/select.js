@@ -185,10 +185,7 @@ class UITemplateSlot {
 				const attrName = attr.name.slice(prefix.length);
 				const slotName = attr.value || attrName;
 				const parsedOut = TemplateParser.ParseOutAttributeBinding(slotName);
-				if (
-					parsedOut.mode === "binding" ||
-					parsedOut.mode === "comparison"
-				) {
+				if (parsedOut.mode === "binding" || parsedOut.mode === "comparison") {
 					const key = parsedOut.binding?.sourceMap?.length
 						? null
 						: parsedOut.binding?.sourceKey;
@@ -437,7 +434,7 @@ class UITemplateSlot {
 								? parsed.handlerName || eventType
 								: parsed.mode === "assign"
 									? `@${TemplateParser.FormatBindingPath(parsed.targetPath)}`
-								: `!${parsed.publishEvent}:${parsed.binding?.sourceMap?.length ? TemplateParser.FormatBindingSourceMap(parsed.binding.sourceMap) : parsed.binding?.sourceKey || "data"}`;
+									: `!${parsed.publishEvent}:${parsed.binding?.sourceMap?.length ? TemplateParser.FormatBindingSourceMap(parsed.binding.sourceMap) : parsed.binding?.sourceKey || "data"}`;
 						toRemove.push(attr.name);
 
 						const slot = new UIEventTemplateSlot(
@@ -962,7 +959,8 @@ class UISlot {
 	// Mounts `instance` at `nextNode` position within this.node.
 	_mountInstance(instance, nextNode) {
 		this._mergeReplaceNodeDecorationsInNodes(instance.nodes);
-		const parentNode = this.replaceNode && this._replaceParent ? this._replaceParent : this.node;
+		const parentNode =
+			this.replaceNode && this._replaceParent ? this._replaceParent : this.node;
 		if (!parentNode) {
 			return;
 		}
@@ -1134,7 +1132,10 @@ class UISlot {
 			current instanceof AppliedUITemplate &&
 			previous instanceof AppliedUITemplate
 		) {
-			return current.template === previous.template && eq(current.data, previous.data);
+			return (
+				current.template === previous.template &&
+				eq(current.data, previous.data)
+			);
 		}
 		return eq(current, previous);
 	}
@@ -1142,7 +1143,11 @@ class UISlot {
 	_findReusableInstanceFor(item) {
 		if (!(item instanceof AppliedUITemplate)) return null;
 		for (const v of this.mapping.values()) {
-			if (isUIInstance(v) && v.template === item.template && eq(v.data, item.data)) {
+			if (
+				isUIInstance(v) &&
+				v.template === item.template &&
+				eq(v.data, item.data)
+			) {
 				return v;
 			}
 		}
@@ -1199,7 +1204,10 @@ class UISlot {
 			return previous.nextSibling;
 		}
 		// For replace slots, insert before the remembered nextSibling (or append if null)
-		return this._nextMappedNodeAfterKey(key) || (this.replaceNode ? this._replaceRef : null);
+		return (
+			this._nextMappedNodeAfterKey(key) ||
+			(this.replaceNode ? this._replaceRef : null)
+		);
 	}
 
 	_renderMapped(k, item, previous) {
@@ -1341,8 +1349,13 @@ class UISlot {
 
 		if (isEmpty) {
 			if (this.placeholder && !this.placeholder[0]?.parentNode) {
-				const parentNode = this.replaceNode && this._replaceParent ? this._replaceParent : this.node;
-				const ref = this.replaceNode ? this._replaceRef : (this.node.childNodes[0] || null);
+				const parentNode =
+					this.replaceNode && this._replaceParent
+						? this._replaceParent
+						: this.node;
+				const ref = this.replaceNode
+					? this._replaceRef
+					: this.node.childNodes[0] || null;
 				for (const node of this.placeholder) {
 					if (!parentNode) {
 						break;

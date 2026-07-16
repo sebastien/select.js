@@ -75,10 +75,15 @@ function normalizeSourceKey(sourceKey) {
 }
 
 function resolveCurrentKey(self, data, itemKey = undefined) {
-	return itemKey !== undefined ? itemKey : self?.key ?? data?.$key;
+	return itemKey !== undefined ? itemKey : (self?.key ?? data?.$key);
 }
 
-function resolveSourceValue(data, sourceKey, self = undefined, itemKey = undefined) {
+function resolveSourceValue(
+	data,
+	sourceKey,
+	self = undefined,
+	itemKey = undefined,
+) {
 	if (!sourceKey) return undefined;
 	if (sourceKey === "#") return resolveCurrentKey(self, data, itemKey);
 	const normalizedKey = normalizeSourceKey(sourceKey);
@@ -104,7 +109,12 @@ function resolveTraversalValue(value) {
 	return value?.isReactive === true ? unwrap(value) : value;
 }
 
-function resolveExpandedSourceValue(data, sourceKey, self = undefined, itemKey = undefined) {
+function resolveExpandedSourceValue(
+	data,
+	sourceKey,
+	self = undefined,
+	itemKey = undefined,
+) {
 	const value = resolveSourceValue(data, sourceKey, self, itemKey);
 	return value === undefined ? undefined : resolveRenderableValue(value);
 }
@@ -187,7 +197,6 @@ function resolveWhenValue(self, data, key) {
 	if (b) return b(self, data, null);
 	return resolveExpandedSourceValue(data, key, self);
 }
-
 
 function resolveDataPath(data, path, self = undefined, itemKey = undefined) {
 	if (!path?.length) return data;
@@ -283,7 +292,12 @@ function normalizeProcessorDescriptor(processor) {
 	};
 }
 
-function resolveProcessorArgs(data, args, self = undefined, itemKey = undefined) {
+function resolveProcessorArgs(
+	data,
+	args,
+	self = undefined,
+	itemKey = undefined,
+) {
 	if (!args?.length) return null;
 	const resolved = new Array(args.length);
 	for (let i = 0; i < args.length; i++) {
@@ -324,7 +338,9 @@ function applyNamedProcessor(
 			? processor.value(value, itemKey, ...argValues)
 			: processor.value(value, itemKey);
 	}
-	return argValues.length ? processor.value(value, ...argValues) : processor.value(value);
+	return argValues.length
+		? processor.value(value, ...argValues)
+		: processor.value(value);
 }
 
 function resolveNamedProcessorChainType(self, processors, _sourceKey) {
@@ -366,13 +382,18 @@ function applyNamedProcessors(
 					processor: descriptor.name,
 					sourceKey,
 					availableProcessors,
-					instance: self,
+					instanceId: self.id,
 				},
 			);
 			continue;
 		}
 		lastProcessorType = processor.type;
-		const args = resolveProcessorArgs(data, descriptor.args, self, options?.itemKey);
+		const args = resolveProcessorArgs(
+			data,
+			descriptor.args,
+			self,
+			options?.itemKey,
+		);
 		if (descriptor.each) {
 			// NOTE: Starred processors act on the expanded collection shape, not on
 			// the reactive wrapper that may hold it.

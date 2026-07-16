@@ -83,14 +83,13 @@ function cloneNestedWrite(current, path, value) {
 	const key = path[0];
 	const nextCurrent = current?.[key];
 	const nextValue = cloneNestedWrite(nextCurrent, path.slice(1), value);
-	const base =
-		Array.isArray(current)
-			? current.slice()
-			: current && typeof current === "object"
-				? { ...current }
-				: typeof key === "number"
-					? []
-					: {};
+	const base = Array.isArray(current)
+		? current.slice()
+		: current && typeof current === "object"
+			? { ...current }
+			: typeof key === "number"
+				? []
+				: {};
 	base[key] = nextValue;
 	return base;
 }
@@ -1502,7 +1501,12 @@ class UIInstance {
 						}
 					} else {
 						v = binding
-							? resolveBindingValue(renderData, binding, !processors?.length, this)
+							? resolveBindingValue(
+									renderData,
+									binding,
+									!processors?.length,
+									this,
+								)
 							: processors?.length
 								? resolveSourceValue(renderData, sourceKey, this)
 								: resolveExpandedSourceValue(renderData, sourceKey, this);
@@ -1631,8 +1635,8 @@ class UIInstance {
 						continue;
 					}
 					v = binding
-					? resolveBindingValue(renderData, binding, false, this)
-					: resolveSourceValue(renderData, sourceKey, this);
+						? resolveBindingValue(renderData, binding, false, this)
+						: resolveSourceValue(renderData, sourceKey, this);
 					v = finalizeOutAttrValue(v);
 					for (const slot of slots) {
 						slot.render(v);

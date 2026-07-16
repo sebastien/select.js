@@ -46,10 +46,15 @@ function draggable(event, options = {}) {
 	const settings = draggable.options(options);
 	const sourceNode =
 		settings.source.node ?? find(event.target, settings.source.match);
-	if (!sourceNode || sourceNode.nodeType !== Node.ELEMENT_NODE) return undefined;
+	if (!sourceNode || sourceNode.nodeType !== Node.ELEMENT_NODE)
+		return undefined;
 	event.preventDefault();
 	const session = createSession(sourceNode, event, settings, "drop");
-	session.source = descriptor(sourceNode, settings.source.match, "data-draggable");
+	session.source = descriptor(
+		sourceNode,
+		settings.source.match,
+		"data-draggable",
+	);
 	startSource(session, event);
 	return drag(
 		event,
@@ -304,7 +309,8 @@ function finishDrop(session, event) {
 		clearTargetPreview(session);
 		session.options.drop(current, state(session, event));
 	}
-	if (session.options.source.action === "remove-drop") session.sourceNode.remove();
+	if (session.options.source.action === "remove-drop")
+		session.sourceNode.remove();
 	clearSession(session, true);
 	session.options.onDrop?.(state(session, event));
 }
@@ -334,12 +340,20 @@ function clearSession(session, committed = false) {
 	clearTargetPreview(session, committed);
 	setHoverTarget(session, undefined);
 	if (session.preview) {
-		session.options.source.unpreview?.(session.previewEvent, state(session), session.preview);
+		session.options.source.unpreview?.(
+			session.previewEvent,
+			state(session),
+			session.preview,
+		);
 		session.preview.remove();
 	}
 	if (!committed && session.sourceRemoved) {
 		const parent = session.sourceParent;
-		if (parent) parent.insertBefore(session.sourceNode, session.sourceNext?.parentNode === parent ? session.sourceNext : null);
+		if (parent)
+			parent.insertBefore(
+				session.sourceNode,
+				session.sourceNext?.parentNode === parent ? session.sourceNext : null,
+			);
 	}
 	session.sourceNode.classList.remove(session.options.sourceClass);
 }
@@ -594,7 +608,7 @@ function state(session, event) {
 		dragPreview: session.preview,
 		effectPreview: session.targetPreview,
 		targetPreview: session.targetPreview,
-	dropPreview: session.targetPreview,
+		dropPreview: session.targetPreview,
 		pointer: session.pointer,
 		box: session.box,
 		grab: { x: session.ox, y: session.oy },

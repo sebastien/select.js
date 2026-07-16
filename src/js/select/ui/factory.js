@@ -455,8 +455,8 @@ function createTemplateComponent(
 	const appliedDefinition = definition
 		? cloneDefinitionState(definition)
 		: null;
-		if (typeof selection === "string") {
-			let nodes = [];
+	if (typeof selection === "string") {
+		let nodes = [];
 		let defaultData = null;
 		let sourceMode = "default";
 		let sourceHosts = null;

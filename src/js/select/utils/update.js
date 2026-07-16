@@ -10,7 +10,9 @@
 import { isObject } from "./values.js";
 
 function _nextSlot(container) {
-	let i = Array.isArray(container) ? container.length : Object.keys(container).length;
+	let i = Array.isArray(container)
+		? container.length
+		: Object.keys(container).length;
 	while (container[i] !== undefined) {
 		i += 1;
 	}
@@ -19,7 +21,7 @@ function _nextSlot(container) {
 
 function _createAssignedContainer(key) {
 	return typeof key === "number" || key === undefined ? [] : {};
-	}
+}
 
 function _replaceObject(target, source) {
 	for (const key in target) {

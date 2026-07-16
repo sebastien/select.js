@@ -15,8 +15,8 @@ import {
 	ifirst,
 	ifound,
 	ihead,
-	iitems,
 	iindex,
+	iitems,
 	ilast,
 	inth,
 	ipick,
@@ -214,6 +214,22 @@ function get(parent, key = undefined) {
 	}
 }
 
+// Function: getdef
+// Returns the first defined value for `key` across `containers` (object or Map).
+function getdef(key, ...containers) {
+	for (let i = 0; i < containers.length; i++) {
+		const container = containers[i];
+		if (container === undefined || container === null) {
+			continue;
+		}
+		const value = get(container, key);
+		if (value !== undefined) {
+			return value;
+		}
+	}
+	return undefined;
+}
+
 // Function: has
 // Returns true when `parent` has `key`; arrays may be used as nested paths.
 function has(parent, key) {
@@ -403,6 +419,7 @@ export {
 	first,
 	found,
 	get,
+	getdef,
 	has,
 	head,
 	index,

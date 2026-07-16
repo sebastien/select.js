@@ -150,7 +150,9 @@ function parseHTMLResponse(text) {
 	const template = doc.createElement("template");
 	template.innerHTML = text;
 	const content = template.content;
-	return content.childNodes.length === 1 ? content.removeChild(content.firstChild) : content;
+	return content.childNodes.length === 1
+		? content.removeChild(content.firstChild)
+		: content;
 }
 
 class LocationValueCell extends Cell {

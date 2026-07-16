@@ -10,6 +10,7 @@
 import browser from "./browser.js";
 import cells from "./cells.js";
 import fastdom from "./fastdom.js";
+import workflow from "./workflows.js";
 import icons from "./icons.js";
 import * as interaction from "./interaction.js";
 import $ from "./query.js";
@@ -33,6 +34,7 @@ export { debug, format, FORMATS } from "./formats.js";
 export {
 	$,
 	browser,
+	workflow,
 	cells,
 	dates,
 	fastdom,
