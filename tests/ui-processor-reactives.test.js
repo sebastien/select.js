@@ -668,4 +668,64 @@ describe("ui processor reactive handling", () => {
 		document.body.innerHTML = "";
 		window.close?.();
 	});
+
+	test("Component.map rerenders reused keyed wrappers after item updates", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `<div id="app"></div>`;
+
+		const Row = ui(`<li out:class="\${selected|active}"></li>`);
+		const List = ui(`<ul out="items"></ul>`).does({
+			items: (_self, { items }) => Row.map(items, undefined, "id"),
+		});
+		const items = [{ id: "meeting-1", selected: true }];
+		const instance = List.new().set({ items }).mount("#app");
+
+		expect(
+			document.querySelector("#app li")?.classList.contains("active"),
+		).toBe(true);
+
+		items[0].selected = false;
+		instance.set({ items: [...items] });
+
+		expect(
+			document.querySelector("#app li")?.classList.contains("active"),
+		).toBe(false);
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
+	test("list updates rerender new wrappers with shared mutated data", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `<div id="app"></div>`;
+
+		const Row = ui(`<li out:class="\${selected|active}"></li>`);
+		const List = ui(`<ul out="items"></ul>`).does({
+			items: (_self, { items }) => items.map((item) => Row.apply(item)),
+		});
+		const items = [{ selected: true }];
+		const instance = List.new().set({ items }).mount("#app");
+
+		expect(
+			document.querySelector("#app li")?.classList.contains("active"),
+		).toBe(true);
+
+		items[0].selected = false;
+		instance.set({ items: [...items] });
+
+		expect(
+			document.querySelector("#app li")?.classList.contains("active"),
+		).toBe(false);
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
 });
