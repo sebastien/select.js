@@ -1216,15 +1216,14 @@ class UISlot {
 			this.mapping.delete(k);
 			existing = undefined;
 		}
-		// Component.map reuses wrappers and updates their data in place. Render the
-		// child even when the wrapper identity is unchanged so bound attributes stay
-		// in sync with the mutated data.
+		// Stable wrappers receive a fresh data bag, allowing update() to keep its
+		// granular equality fast-path for unchanged rows.
 		if (
 			item instanceof AppliedUITemplate &&
 			existing &&
 			item === existing._lastApplied
 		) {
-			existing.update(item.data, true);
+			existing.update(item.data);
 			return this._lastMappedNode(existing) || previous;
 		}
 		if (existing === undefined) {
@@ -1257,7 +1256,7 @@ class UISlot {
 			if (isUIInstance(r)) {
 				if (item instanceof AppliedUITemplate) {
 					if (item.template === r.template) {
-						r.update(item.data, true);
+						r.update(item.data);
 						r._lastApplied = item;
 					} else {
 						const data = this._mergeSlots(item);

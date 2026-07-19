@@ -27,14 +27,14 @@
 // 		return { user, posts: yield res.json() }
 // 	},
 // })
-// LoadPosts.options = { ttl: 30_000 }
-// // or: workflow.options(LoadPosts, { ttl: 30_000 })
+// LoadPosts.options = { cache: 30 }
+// // or: workflow.options(LoadPosts, { cache: 30 })
 //
 // // Free function uses a lazy default runtime singleton
 // const data = await run(LoadPosts(1))
 //
 // // Or a dedicated runtime
-// const runtime = new WorkflowRuntime({ store: "indexeddb", ttl: 60_000 })
+// const runtime = new WorkflowRuntime({ store: "indexeddb", cache: 60 })
 // const data2 = await runtime.run(LoadPosts(1))
 // ```
 
@@ -53,6 +53,8 @@ let StepId = 0;
 const Step = Symbol.for(":Step");
 const Name = Symbol.for(":Name");
 const Input = Symbol.for(":Input");
+const GeneratorFunctionTag = "[object GeneratorFunction]";
+const AsyncGeneratorFunctionTag = "[object AsyncGeneratorFunction]";
 
 // ----------------------------------------------------------------------------
 //
@@ -62,6 +64,14 @@ const Input = Symbol.for(":Input");
 
 function isStepStream(stream) {
 	return !!(stream && stream[Step] !== undefined && stream[Step] !== null);
+}
+
+function isGeneratorFunction(value) {
+	if (typeof value !== "function") {
+		return false;
+	}
+	const tag = Object.prototype.toString.call(value);
+	return tag === GeneratorFunctionTag || tag === AsyncGeneratorFunctionTag;
 }
 
 function now() {
@@ -79,6 +89,13 @@ function getdef(key, ...containers) {
 	return undefined;
 }
 
+function _calcTtl(cache) {
+	if (cache === false) return 0;
+	if (cache === true) return 3600000;
+	if (typeof cache === "number") return Math.max(0, cache) * 1000;
+	return 0;
+}
+
 // ----------------------------------------------------------------------------
 //
 // STEP FACTORIES
@@ -87,14 +104,14 @@ function getdef(key, ...containers) {
 
 // Function: step
 // Wraps a generator `generator` as a cacheable workflow step with `name` and
-// optional `options` (`ttl`, `retries`, `backoff`, `heartbeat`, `accepts`).
+// optional `options` (`cache`, `retries`, `backoff`, `heartbeat`, `accepts`).
 //
 // Example:
 // ```javascript
 // const LoadUser = step(function* (id) {
 // 	return yield fetch(`/api/users/${id}`).then((r) => r.json())
-// }, "LoadUser", { ttl: 60_000 })
-// // or: LoadUser.options = { ttl: 60_000 }
+// }, "LoadUser", { cache: 60 })
+// // or: LoadUser.options = { cache: 60 }
 // ```
 function step(generator, name = undefined, options = undefined) {
 	const id = StepId++;
@@ -119,9 +136,9 @@ function step(generator, name = undefined, options = undefined) {
 // 	*LoadUser(id) { return yield api.user(id) },
 // 	*LoadPosts(id) { return yield api.posts(id) },
 // })
-// LoadPosts.options = { ttl: 30_000 }
+// LoadPosts.options = { cache: 30 }
 // ```
-function workflow(steps) {
+function workflow(steps, options = undefined) {
 	const out = {};
 	if (!steps || typeof steps !== "object") {
 		return out;
@@ -130,7 +147,9 @@ function workflow(steps) {
 		if (!Object.hasOwn(steps, name)) {
 			continue;
 		}
-		out[name] = step(steps[name], name);
+		const v = steps[name];
+		// We preserve non-function values, only processing functions.
+		out[name] = isGeneratorFunction(v) ? step(v, name, options?.[name]) : v;
 	}
 	return out;
 }
@@ -157,7 +176,7 @@ workflow.options = (stepFn, options = undefined) => {
 // - store: "memory"|"indexeddb"|Store - cache backend (see select/utils/storage)
 // - db: string - IndexedDB database name when store is `"indexeddb"`
 // - storeName: string - IndexedDB object store name
-// - ttl: number - default cache TTL in ms (`0` means no expiry)
+// - cache: false|true|number - enable caching (false=no, true=1h, number=seconds)
 // - retries: number - default retries after the first failure
 // - backoff: object|Backoff - default retry backoff
 // - heartbeat: number - ms between automatic heartbeat logs while a step runs
@@ -165,7 +184,7 @@ workflow.options = (stepFn, options = undefined) => {
 // - accepts: function - optional `(error, attempt, name) => boolean` retry filter
 class WorkflowRuntime {
 	constructor(options = undefined) {
-		this.ttl = Math.max(0, options?.ttl || 0);
+		this.cache = options?.cache ?? false;
 		this.retries = Math.max(0, options?.retries || 0);
 		this.backoff = options?.backoff || { delay: 250, factor: 2 };
 		this.heartbeat = Math.max(0, options?.heartbeat || 0);
@@ -236,14 +255,14 @@ class WorkflowRuntime {
 		const stepOptions = stepFn?.options || {};
 		const named = this.configs.get(name) || {};
 		const defaults = {
-			ttl: this.ttl,
+			cache: this.cache,
 			retries: this.retries,
 			backoff: this.backoff,
 			heartbeat: this.heartbeat,
 			accepts: this.accepts,
 		};
 		return {
-			ttl: getdef("ttl", named, stepOptions, defaults),
+			ttl: _calcTtl(getdef("cache", named, stepOptions, defaults)),
 			retries: getdef("retries", named, stepOptions, defaults),
 			backoff: getdef("backoff", named, stepOptions, defaults),
 			heartbeat: getdef("heartbeat", named, stepOptions, defaults),
@@ -265,7 +284,7 @@ class WorkflowRuntime {
 	async set(name, input, result, duration, ttl = undefined) {
 		await this.ready;
 		const at = now();
-		const effectiveTtl = ttl === undefined ? this.ttl : ttl;
+		const effectiveTtl = ttl === undefined ? _calcTtl(this.cache) : ttl;
 		const key = jsonkey(input, name);
 		await this.store.set(key, {
 			value: result,
@@ -419,7 +438,7 @@ class WorkflowRuntime {
 	// Method: onStepSucceed
 	// Called when a step attempt completes successfully; caches `result`.
 	async onStepSucceed(ctx, result) {
-		// ttl 0 / falsy means do not cache (not "cache forever").
+		// `cache: false` → ttl 0 → no caching.
 		if (ctx.cfg.ttl) {
 			await this.set(ctx.name, ctx.input, result, ctx.duration, ctx.cfg.ttl);
 		}
@@ -504,7 +523,7 @@ class WorkflowRuntime {
 		};
 		this.push(frame);
 		try {
-			// Only consult cache when a positive TTL is configured.
+			// Only consult cache when caching is enabled (ttl > 0).
 			if (ctx.cfg.ttl && (await this.has(ctx.name, ctx.input))) {
 				const result = await this.get(ctx.name, ctx.input);
 				await this.onStepCache(ctx, result);

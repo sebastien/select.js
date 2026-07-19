@@ -46,6 +46,24 @@ function remapCollection(value, f) {
 	}
 	return res;
 }
+
+// Creates a data bag that is safe for a rendered instance to retain. This
+// deliberately copies only the outer container: nested in-place mutations
+// retain their identity, so callers should replace nested values or use cells.
+function copyAppliedData(data) {
+	if (Array.isArray(data)) {
+		return data.slice();
+	}
+	if (
+		data !== null &&
+		typeof data === "object" &&
+		Object.getPrototypeOf(data) === Object.prototype
+	) {
+		return { ...data };
+	}
+	return data;
+}
+
 // Class: UITemplate
 // Defines a reusable UI template parsed from HTML. Discovers slots, bindings,
 // and content slots. Provides factory methods for creating instances.
@@ -177,20 +195,13 @@ class UITemplate {
 	// updating the wrapper's data bag. This enables cheap list reuse even when
 	// using plain `remap` + `Component({... $key })` in behaviors.
 	apply(data) {
+		data = copyAppliedData(data);
 		const k = data && typeof data === "object" ? data.$key : undefined;
 		if (k != null) {
 			const cache = this._applyCache || (this._applyCache = new Map());
 			if (cache.has(k)) {
 				const at = cache.get(k);
-				const prev = at.data;
-				if (prev && typeof prev === "object" && !Array.isArray(prev)) {
-					for (const kk in prev) if (!(kk in data)) delete prev[kk];
-					Object.assign(prev, data);
-					prev.$key = k;
-					at.data = prev;
-				} else {
-					at.data = data;
-				}
+				at.data = data;
 				return at;
 			}
 			const at = new AppliedUITemplate(this, data);
@@ -221,7 +232,10 @@ class UITemplate {
 	// for reuse even if no explicit `key` selector is passed.
 	map(data, processor, key) {
 		if (processor == null && key == null) {
-			return remapCollection(data, (v) => new AppliedUITemplate(this, v));
+			return remapCollection(
+				data,
+				(v) => new AppliedUITemplate(this, copyAppliedData(v)),
+			);
 		}
 		const keyFn =
 			key == null
@@ -260,19 +274,10 @@ class UITemplate {
 			} else {
 				d = { $: d, $key: k };
 			}
+			d = copyAppliedData(d);
 			if (k != null && cache.has(k)) {
 				const at = cache.get(k);
-				const prev = at.data;
-				if (prev && typeof prev === "object" && !Array.isArray(prev)) {
-					for (const kk in prev) {
-						if (!(kk in d)) delete prev[kk];
-					}
-					Object.assign(prev, d);
-					prev.$key = k;
-					at.data = prev;
-				} else {
-					at.data = d;
-				}
+				at.data = d;
 				return at;
 			}
 			const at = new AppliedUITemplate(this, d);
