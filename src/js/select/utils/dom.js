@@ -32,15 +32,17 @@ function isContainer(node) {
 	}
 }
 // Function: isInputNode
-// Returns true when `node` is an input, textarea, or select element.
+// Returns true when `node` is an input, textarea, select, or details element.
 function isInputNode(node) {
 	switch (node?.nodeName) {
 		case "INPUT":
 		case "TEXTAREA":
 		case "SELECT":
+		case "DETAILS":
 		case "input":
 		case "textarea":
 		case "select":
+		case "details":
 			return true;
 		default:
 			return false;
@@ -372,7 +374,7 @@ function swapped(target, node) {
 	return () => (restoreTarget(), restoreNode());
 }
 
-export { swap, attached, swapped };
+export { isInputNode, swap, attached, swapped };
 export default {
 	isNode,
 	isContainer,

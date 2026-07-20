@@ -15,6 +15,7 @@
 
 import { FORMATS, format } from "../formats.js";
 import { len, type } from "../utils.js";
+import { remap } from "../utils/transform.js";
 import {
 	AppliedUITemplate,
 	COMPONENTS,
@@ -43,40 +44,7 @@ import {
 
 // Function: remap
 // Maps `f` over collection entries while preserving the input container shape.
-function remap(value, f) {
-	if (
-		value === null ||
-		value === undefined ||
-		typeof value === "number" ||
-		typeof value === "string"
-	) {
-		return value;
-	} else if (Array.isArray(value)) {
-		const n = value.length;
-		const res = new Array(n);
-		for (let i = 0; i < n; i++) {
-			res[i] = f(value[i], i);
-		}
-		return res;
-	} else if (value instanceof Map) {
-		const res = new Map();
-		for (const [k, v] of value.entries()) {
-			res.set(k, f(v, k));
-		}
-		return res;
-	} else if (value instanceof Set) {
-		const res = new Set();
-		for (const v of value) {
-			res.add(f(v, undefined));
-		}
-		return res;
-	}
-	const res = {};
-	for (const k in value) {
-		res[k] = f(value[k], k);
-	}
-	return res;
-}
+// Re-exported from utils/transform.js.
 
 export {
 	Adopted,

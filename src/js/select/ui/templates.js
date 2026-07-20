@@ -15,6 +15,7 @@
 
 import { parseHashValue } from "../utils/hashfmt.js";
 import { logger, type } from "../utils.js";
+import { isInputNode } from "../utils/dom.js";
 
 const HTML = new DOMParser();
 
@@ -628,18 +629,6 @@ function pruneTemplateWhitespace(node) {
 		} else {
 			pruneTemplateWhitespace(child);
 		}
-	}
-}
-
-function isInputNode(node) {
-	switch (node.nodeName) {
-		case "INPUT":
-		case "TEXTAREA":
-		case "SELECT":
-		case "DETAILS":
-			return true;
-		default:
-			return false;
 	}
 }
 

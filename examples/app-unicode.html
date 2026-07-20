@@ -754,14 +754,14 @@ F0000..FFFFF; Supplementary Private Use Area-A
 			start: (_self, { start }) => start,
 			classes: (_self, { selected }) => ({ selected }),
 			ariaLabel: (_self, { name, start, end }) => `${name}, ${toRange(start, end)}`,
-			selectBlock: (self, data) => self.send("SelectBlock", data),
+			selectBlock: (self, data) => self.pub("SelectBlock", data),
 		})
 
 		const CharCell = ui("#CharCell").does({
 			char: (_self, { char }) => escapeChar(char),
 			code: (_self, { code }) => code,
 			title: (_self, { code, name }) => `${code} - ${name}`,
-			copy: (self, data) => self.send("CopyChar", data),
+			copy: (self, data) => self.pub("CopyChar", data),
 		})
 
 		const BlockSection = ui("#BlockSection").does({

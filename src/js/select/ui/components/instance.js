@@ -383,7 +383,6 @@ class UIInstance {
 		this.id = explicitId || createUIInstanceId();
 		registerUIInstance(this);
 		const compiled = UIInstance._ensureCompiled(template);
-		// FIXME: This is on the hotpath
 		this.nodes = new Array(template.nodes.length);
 		for (let i = 0; i < template.nodes.length; i++) {
 			this.nodes[i] = template.nodes[i].cloneNode(true);
@@ -1169,18 +1168,6 @@ class UIInstance {
 	// ============================================================================
 	// SUBPub/Sub Events
 	// ============================================================================
-
-	// FIXME: Remove, use pub() instead
-	send(event, data) {
-		log.warn("UIInstance: send() is deprecated, use pub() instead");
-		return this.pub(event, data);
-	}
-
-	// FIXME: Remove, use pub() instead
-	emit(event, data) {
-		log.warn("UIInstance: emit() is deprecated, use pub() instead");
-		return this.pub(event, data);
-	}
 
 	// Publishes event up the component tree. Returns UIEvent.
 	pub(event, data, self = true, domEvent = undefined) {

@@ -95,7 +95,7 @@
 			save: (self, {editedLabel}, _event) => self.update({edited: false, label: editedLabel}),
 			cancel: (self, _data, _event) => self.update({edited: false}),
 			edit: (self, {_edited, label}, _event) => self.update({edited: true, editedLabel: label}),
-			remove: (self, data, _event) => self.send("Remove", data)
+			remove: (self, data, _event) => self.pub("Remove", data)
 		})
 
 		const TodoList = ui("#TodoList").does({

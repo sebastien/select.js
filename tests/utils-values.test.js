@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import {
 	atom,
 	composite,
-	empty,
+	emptied,
 	expand,
 	freeze,
 	isReactive,
@@ -17,7 +17,7 @@ describe("utils.values", () => {
 		expect(atom({})).toBe(false)
 		expect(composite(new Map())).toBe(true)
 		expect(composite("text")).toBe(false)
-		expect(empty(new Set(["x"]))).toEqual(new Set())
+		expect(emptied(new Set(["x"]))).toEqual(new Set())
 		expect(isReactive({ isReactive: true })).toBe(true)
 		expect(isReactive({ isReactive: false })).toBe(false)
 		expect(isReactive(null)).toBe(false)

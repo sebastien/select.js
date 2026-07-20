@@ -65,7 +65,9 @@ function index(items, item, key = itemkey) {
 }
 
 // Function: find
-// Alias to `index` using `key` extraction.
+// Alias to `index` using `key` extraction. Unlike `traverse.find` (which
+// accepts a predicate), this version matches by stable identity via `itemkey`,
+// which auto-resolves `item.id`, `item.key`, or `item.name`.
 function find(items, item, key = itemkey) {
 	return index(items, item, key);
 }

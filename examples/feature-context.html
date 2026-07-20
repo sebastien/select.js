@@ -155,7 +155,7 @@
 				return `${label} (theme: ${t?.value ?? "unknown"})`
 			},
 			click: (self, data, _event) => {
-				self.send("ButtonClick", data)
+				self.pub("ButtonClick", data)
 			}
 		})
 

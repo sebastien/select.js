@@ -113,7 +113,7 @@
 				return renderCounts.get(id)
 			},
 			increment: (self, { id, label }) => {
-				self.send("Increment", { id, label: `${label}!` })
+				self.pub("Increment", { id, label: `${label}!` })
 			}
 		})
 

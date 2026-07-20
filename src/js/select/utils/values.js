@@ -374,9 +374,9 @@ function bool(value) {
 	return true;
 }
 
-// Function: empty
-// Returns an empty container of the same value type.
-function empty(value) {
+// Function: emptied
+// Returns an empty container of the same type as `value` (Array→[], Object→{}, Map→new Map(), Set→new Set()).
+function emptied(value) {
 	switch (value?.constructor) {
 		case Array:
 			return [];
@@ -552,7 +552,7 @@ export {
 	composite,
 	def,
 	dict,
-	empty,
+	emptied,
 	expand,
 	flyweight,
 	freeze,

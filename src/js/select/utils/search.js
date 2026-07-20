@@ -217,7 +217,7 @@ function predicate(...criteria) {
 //
 // ----------------------------------------------------------------------------
 
-export { match, predicate, textfilter };
+export { textfilter };
 export default { text: textfilter, and, or, not, match, predicate };
 
 // EOF

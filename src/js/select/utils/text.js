@@ -448,13 +448,13 @@ function toPascalCase(value) {
 // Function: toKebabCase
 // Normalizes `value` into lower kebab-case text.
 function toKebabCase(value) {
-	return _words(value).join("-").toLowerCase();
+	return words(value).join("-").toLowerCase();
 }
 
 // Function: toSnakeCase
 // Normalizes `value` into lower snake_case text.
 function toSnakeCase(value) {
-	return _words(value).join("_").toLowerCase();
+	return words(value).join("_").toLowerCase();
 }
 
 export {

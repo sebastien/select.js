@@ -49,10 +49,9 @@ import {
 	merge,
 	partition,
 	prepended as prepend,
-	prune,
-	pruned,
 	reduce,
 	removeAt,
+	removed,
 	resize,
 	reverse,
 	slice,
@@ -170,10 +169,10 @@ describe("utils.collections", () => {
 			true,
 			false,
 		])
-		expect(prune(rows, "active")).toEqual([rows[1]])
-		expect(prune(indexed, "active")).toEqual({ b: rows[1] })
-		expect(Array.from(prune(mapped, "active").entries())).toEqual([["b", rows[1]]])
-		expect(Array.from(prune(flags).values())).toEqual([false])
+		expect(filter(rows, (r) => !r.active)).toEqual([rows[1]])
+		expect(filter(indexed, (_v) => !_v.active)).toEqual({ b: rows[1] })
+		expect(Array.from(filter(mapped, (_v) => !_v.active).entries())).toEqual([["b", rows[1]]])
+		expect(Array.from(filter(flags, (v) => !v).values())).toEqual([false])
 		expect(mapfilter(rows, (row) => (row.active ? row.id : undefined))).toEqual([1, 3])
 		expect(mapfilter(indexed, (row, key) => (key !== "b" ? row.id : undefined))).toEqual({
 			a: 1,
@@ -380,7 +379,7 @@ describe("utils.collections", () => {
 	test("returns immutable set, pruned, copy, and merge results", () => {
 		const original = { nested: { a: 1 }, keep: true, drop: true }
 		const updated = set(original, "added", 2)
-		const withoutDrop = pruned(original, "drop")
+		const withoutDrop = removed(original, "drop")
 		const cloned = copy(original)
 		const merged = merge({ nested: { a: 1 }, list: [1] }, { nested: { b: 2 }, list: [2] })
 

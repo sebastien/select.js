@@ -13,9 +13,8 @@ import { iitems, ivalues } from "./iter.js";
 import { index } from "./traverse.js";
 import {
 	array,
-	bool,
 	clone,
-	empty,
+	emptied,
 	isIterable,
 	isObject,
 	len,
@@ -207,7 +206,7 @@ function map(value, func = undefined) {
 		value instanceof Map ||
 		value instanceof Set ||
 		isObject(value)
-			? empty(value)
+			? emptied(value)
 			: [];
 	iter(value, (v, k) => append(res, func(v, k, value), k));
 	return res;
@@ -382,7 +381,7 @@ function unique(values, extractorFunc) {
 		values instanceof Map ||
 		values instanceof Set ||
 		isObject(values)
-			? empty(values)
+			? emptied(values)
 			: [];
 	iter(values, (v, k) => {
 		const kk = ext ? ext(v, k, values) : v;
@@ -419,7 +418,7 @@ function filter(values, predicateOrExtractor) {
 		values instanceof Map ||
 		values instanceof Set ||
 		isObject(values)
-			? empty(values)
+			? emptied(values)
 			: [];
 	iter(values, (v, k) => (pred(v, k, values) ? append(res, v, k) : undefined));
 	return res;
@@ -446,7 +445,7 @@ function mapfilter(values, processor) {
 		values instanceof Map ||
 		values instanceof Set ||
 		isObject(values)
-			? empty(values)
+			? emptied(values)
 			: [];
 	iter(values, (v, k) => {
 		const mapped = processor(v, k, values);
@@ -465,66 +464,6 @@ function flatmap(values, func) {
 		}
 	});
 	return res;
-}
-
-// TODO: Deprecated/remove prune
-// Function: prune
-// Returns values that do not match the predicate while preserving shape.
-function prune(values, predicateOrExtractor) {
-	const pred =
-		predicateOrExtractor === undefined || predicateOrExtractor === null
-			? (v) => bool(v)
-			: predicate(predicateOrExtractor);
-	if (
-		values === null ||
-		values === undefined ||
-		typeof values === "string" ||
-		(!Array.isArray(values) &&
-			!(values instanceof Map) &&
-			!(values instanceof Set) &&
-			!isObject(values) &&
-			!isIterable(values))
-	) {
-		return pred(values, undefined, values) ? undefined : values;
-	}
-	const res =
-		Array.isArray(values) ||
-		values instanceof Map ||
-		values instanceof Set ||
-		isObject(values)
-			? empty(values)
-			: [];
-	iter(values, (v, k) => (!pred(v, k, values) ? append(res, v, k) : undefined));
-	return res;
-}
-
-// TODO: Deprecated/remove prune
-// Function: pruned
-// Returns a shallow copy of `value` without the given keys.
-function pruned(value, ...removeKeys) {
-	if (value == null) {
-		return value;
-	}
-	switch (value?.constructor) {
-		case Object: {
-			const res = { ...value };
-			for (let i = 0; i < removeKeys.length; i++) {
-				delete res[removeKeys[i]];
-			}
-			return res;
-		}
-		case Map: {
-			const res = new Map(value);
-			for (let i = 0; i < removeKeys.length; i++) {
-				res.delete(removeKeys[i]);
-			}
-			return res;
-		}
-		default:
-			throw new Error(
-				`pruned expects a plain Object or Map, got ${value?.constructor?.name ?? typeof value}`,
-			);
-	}
 }
 
 // Function: slice
@@ -758,7 +697,7 @@ function removeAt(values, itemIndex) {
 		case Object:
 		case Map:
 		case Set: {
-			const res = empty(values);
+			const res = emptied(values);
 			let i = 0;
 			iter(values, (v, k) => {
 				if (i !== itemIndex) {
@@ -1096,6 +1035,44 @@ function assigned(scope, p, value, mergeValue = undefined, offset = 0) {
 	return root;
 }
 
+// Function: remap
+// Maps `f` over collection entries while preserving the input container shape.
+// Returns scalar values as-is without calling `f`.
+function remap(value, f) {
+	if (
+		value === null ||
+		value === undefined ||
+		typeof value === "number" ||
+		typeof value === "string"
+	) {
+		return value;
+	} else if (Array.isArray(value)) {
+		const n = value.length;
+		const res = new Array(n);
+		for (let i = 0; i < n; i++) {
+			res[i] = f(value[i], i);
+		}
+		return res;
+	} else if (value instanceof Map) {
+		const res = new Map();
+		for (const [k, v] of value.entries()) {
+			res.set(k, f(v, k));
+		}
+		return res;
+	} else if (value instanceof Set) {
+		const res = new Set();
+		for (const v of value) {
+			res.add(f(v, undefined));
+		}
+		return res;
+	}
+	const res = {};
+	for (const k in value) {
+		res[k] = f(value[k], k);
+	}
+	return res;
+}
+
 export {
 	append,
 	appended,
@@ -1113,15 +1090,13 @@ export {
 	grow,
 	hasKey,
 	inserted,
-	iter,
 	map,
 	mapfilter,
 	merge,
 	partition,
 	prepended,
-	prune,
-	pruned,
 	reduce,
+	remap,
 	removeAt,
 	removed,
 	resize,

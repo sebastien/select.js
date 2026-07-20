@@ -10,6 +10,7 @@
 import { unwrap } from "./cells.js";
 import { hi as htmlHi } from "./utils/html.js";
 import { bool, entries, idem, len, type } from "./utils.js";
+import { toCamelCase, toKebabCase, toSnakeCase, words } from "./utils/text.js";
 
 const NA = "―";
 const DEFAULTS = {
@@ -56,19 +57,6 @@ function active(value) {
 function selected(value) {
 	return value ? "selected" : "";
 }
-function toKebabCase(value) {
-	return `${value}`
-		.replace(/([a-z0-9])([A-Z])/g, "$1-$2")
-		.replace(/[_\s]+/g, "-")
-		.toLowerCase();
-}
-
-function toCamelCase(value) {
-	return `${value}`
-		.toLowerCase()
-		.replace(/-([a-z0-9])/g, (_, letter) => letter.toUpperCase());
-}
-
 function text(value) {
 	return `${value}`;
 }
@@ -484,8 +472,10 @@ const FORMATS = {
 	timetuple,
 	toCamelCase,
 	toKebabCase,
+	toSnakeCase,
 	type,
 	unwrap: unwrapped,
+	words,
 	yesno,
 };
 
@@ -552,8 +542,10 @@ export {
 	timetuple,
 	toCamelCase,
 	toKebabCase,
+	toSnakeCase,
 	type,
 	unwrapped as unwrap,
+	words,
 	yesno,
 };
 

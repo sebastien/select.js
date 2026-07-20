@@ -186,7 +186,7 @@
 			// Event handler
 			click: (self, data, _event) => {
 				if (!data.disabled && !data.loading) {
-					self.send("Click", data);
+					self.pub("Click", data);
 				}
 			},
 		});

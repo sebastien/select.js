@@ -24,9 +24,7 @@
 // TODO: Add flyweight pattern in order to recycle selection and not put too
 // much strain on GC.
 // TODO: Updated documentation so that Node -> Element where relevant
-// FIXME: Should have a clear strategy on selecting text and nodes, especially
 // FIXME: Test length of arguments instead of typeof
-// FIXME: the $.selector property is not working properly
 
 import { logger } from "./utils.js";
 
@@ -125,7 +123,8 @@ const match = _match
 // Function: query
 // Queries all descendants of `scope` matching `selector`. Wraps
 // `querySelectorAll` with support for direct child selectors (`>`) and
-// `:first` pseudo-class.
+// `:first` pseudo-class. When `limit` is provided, stops collecting after
+// that many results.
 //
 // Parameters:
 // - `selector`: string - CSS selector to query
@@ -134,8 +133,7 @@ const match = _match
 //
 // Returns: Array<Element> - matching element nodes
 
-// TODO: Implement the `limit` to optimize
-function query(selector, scope, _limit) {
+function query(selector, scope, limit) {
 	selector = selector.trim();
 	if (!selector || selector.length === 0) {
 		return [scope];
@@ -150,22 +148,23 @@ function query(selector, scope, _limit) {
 			i > 0 ? selector.substring(i, selector.length) : null;
 		const matching = [];
 		const nodes = (scope || document).childNodes;
-		let result = null;
 		for (let j = 0; j < nodes.length; j++) {
 			const n = nodes[j];
 			if (match(selector_node, n) && n.nodeType === Node.ELEMENT_NODE) {
 				matching.push(n);
+				if (limit !== undefined && matching.length >= limit) break;
 			}
 		}
 		if (selector_child) {
-			result = [];
+			const result = [];
 			for (let j = 0; j < matching.length; j++) {
-				result = result.concat(select.query(selector_child, matching[j]));
+				const remaining = limit !== undefined ? limit - result.length : undefined;
+				result.push(...query(selector_child, matching[j], remaining));
+				if (limit !== undefined && result.length >= limit) break;
 			}
-		} else {
-			result = matching;
+			return result;
 		}
-		return result;
+		return matching;
 	} else {
 		// NOTE: This is where we support the jQuery-like suffixes
 		let index;
@@ -174,7 +173,6 @@ function query(selector, scope, _limit) {
 			index = 0;
 		}
 		const result = [];
-		// TODO: Intercept exception?
 		const nodes = (scope || document).querySelectorAll(selector);
 		let count = 0;
 		for (let i = 0; i < nodes.length; i++) {
@@ -183,6 +181,7 @@ function query(selector, scope, _limit) {
 				if (index === undefined) {
 					result.push(node);
 					count += 1;
+					if (limit !== undefined && result.length >= limit) break;
 				} else if (index === count) {
 					result.push(node);
 					break;
@@ -909,13 +908,6 @@ class Selection extends Array {
 			return this.indexOf(node) >= 0;
 		}
 	}
-
-	// TODO
-	// FIXME: Does not work
-	// Redo the selection in the given context, returning a new selection.
-	// redo(node) {
-	// 	return Selection(this.selector[0], node)
-	// }
 
 	// Wraps all nodes in `node` and returns Selection with the wrapper.
 	wrap(node) {
