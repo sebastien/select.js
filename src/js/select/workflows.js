@@ -34,10 +34,11 @@
 // const data = await run(LoadPosts(1))
 //
 // // Or a dedicated runtime
-// const runtime = new WorkflowRuntime({ store: "indexeddb", cache: 60 })
+// const runtime = new WorkflowRuntime({ store: "indexeddb:workflows", cache: 60 })
 // const data2 = await runtime.run(LoadPosts(1))
 // ```
 
+import { browser } from "./browser.js";
 import { Backoff, Retry } from "./utils/http.js";
 import { logger } from "./utils/logger.js";
 import { store } from "./utils/storage.js";
@@ -96,6 +97,41 @@ function _calcTtl(cache) {
 	return 0;
 }
 
+function workflowStore(options = undefined) {
+	const storeSpec = options?.store;
+	if (typeof storeSpec !== "string") {
+		return options;
+	}
+	const separator = storeSpec.indexOf(":");
+	const kind = separator >= 0 ? storeSpec.slice(0, separator) : storeSpec;
+	if (kind !== "indexeddb" && kind !== "idb") {
+		return options;
+	}
+	const name = separator >= 0 ? storeSpec.slice(separator + 1) : undefined;
+	const { storeName: _storeName, ...config } = options;
+	return {
+		...config,
+		store: "indexeddb",
+		...(name ? { storeName: name } : {}),
+	};
+}
+
+async function runHooks(hooks, input, output = undefined, fromCache = false) {
+	if (typeof hooks === "function") {
+		await hooks(input, output, fromCache);
+		return;
+	}
+	if (!Array.isArray(hooks)) {
+		return;
+	}
+	for (let i = 0; i < hooks.length; i++) {
+		const hook = hooks[i];
+		if (typeof hook === "function") {
+			await hook(input, output, fromCache);
+		}
+	}
+}
+
 // ----------------------------------------------------------------------------
 //
 // STEP FACTORIES
@@ -104,7 +140,13 @@ function _calcTtl(cache) {
 
 // Function: step
 // Wraps a generator `generator` as a cacheable workflow step with `name` and
-// optional `options` (`cache`, `retries`, `backoff`, `heartbeat`, `accepts`).
+// optional `options` (`cache`, `retries`, `backoff`, `heartbeat`, `accepts`,
+// `pre`, `post`, `error`, `on`). `pre`, `post`, and `error` may each be a
+// function or array of functions. They receive `(input, undefined, fromCache)`,
+// `(input, output, fromCache)`, and `(input, error)` respectively. `pre`/`post`
+// run for cached results too; `error` runs once when the step fails after
+// retries are exhausted. `on` maps state event names to callbacks (or callback
+// arrays), invoked as `(value, eventName, runtime)` by `runtime.bind()`.
 //
 // Example:
 // ```javascript
@@ -173,15 +215,16 @@ workflow.options = (stepFn, options = undefined) => {
 // (`{ name, id, input, attempt }`); events snapshot that stack. Override
 // `run`, `execute`, `resolve`, `onStep`, or the `onStep*` lifecycle handlers
 // to specialise behaviour (including logging).
-// - store: "memory"|"indexeddb"|Store - cache backend (see select/utils/storage)
+// - store: "memory"|"indexeddb[:name]"|"idb[:name]"|Store - cache backend
+//   (see select/utils/storage); the optional suffix selects the IndexedDB store
 // - db: string - IndexedDB database name when store is `"indexeddb"`
-// - storeName: string - IndexedDB object store name
 // - cache: false|true|number - enable caching (false=no, true=1h, number=seconds)
 // - retries: number - default retries after the first failure
 // - backoff: object|Backoff - default retry backoff
 // - heartbeat: number - ms between automatic heartbeat logs while a step runs
 // - logger: object - `{ log, warn, error }` sink
 // - accepts: function - optional `(error, attempt, name) => boolean` retry filter
+// - state: Browser - event state for `bind`, defaults to `browser()`
 class WorkflowRuntime {
 	constructor(options = undefined) {
 		this.cache = options?.cache ?? false;
@@ -191,9 +234,11 @@ class WorkflowRuntime {
 		this.accepts =
 			typeof options?.accepts === "function" ? options.accepts : undefined;
 		this.log = options?.logger || logger("select.workflows");
-		this.store = store(options);
+		this.store = store(workflowStore(options));
+		this.state = options?.state || browser();
 		this.configs = new Map();
 		this.events = [];
+		this.bindings = [];
 		// Live nested step frames for the current execution path.
 		this.stack = [];
 		this.ready =
@@ -267,7 +312,117 @@ class WorkflowRuntime {
 			backoff: getdef("backoff", named, stepOptions, defaults),
 			heartbeat: getdef("heartbeat", named, stepOptions, defaults),
 			accepts: getdef("accepts", named, stepOptions, defaults),
+			pre: getdef("pre", named, stepOptions),
+			post: getdef("post", named, stepOptions),
+			error: getdef("error", named, stepOptions),
+			on: getdef("on", named, stepOptions),
 		};
+	}
+
+	// Method: onEventError
+	// Reports a failed event callback or returned workflow without interrupting
+	// other subscribers to the same published event.
+	onEventError(name, eventName, error) {
+		if (typeof this.log?.error === "function") {
+			this.log.error("event", name, { eventName, error });
+		}
+	}
+
+	// Method: onEvent
+	// Invokes `handlers` for a published state event. Returned generator streams
+	// run through this runtime without blocking event delivery.
+	onEvent(handlers, value, eventName, name) {
+		const n = Array.isArray(handlers) ? handlers.length : 1;
+		for (let i = 0; i < n; i++) {
+			const handler = Array.isArray(handlers) ? handlers[i] : handlers;
+			if (typeof handler !== "function") {
+				continue;
+			}
+			try {
+				const stream = handler(value, eventName, this);
+				if (isGenerator(stream)) {
+					this.run(stream).catch((error) =>
+						this.onEventError(name, eventName, error),
+					);
+				} else if (typeof stream?.then === "function") {
+					stream.catch((error) => this.onEventError(name, eventName, error));
+				}
+			} catch (error) {
+				this.onEventError(name, eventName, error);
+			}
+		}
+	}
+
+	// Method: bind
+	// Subscribes workflow step `on` options to `state` events. Each call creates
+	// independent subscriptions and returns an idempotent unsubscriber.
+	bind(wrkf, state = this.state) {
+		const offs = [];
+		if (!wrkf || typeof wrkf !== "object" || typeof state?.sub !== "function") {
+			return () => false;
+		}
+		for (const name in wrkf) {
+			if (!Object.hasOwn(wrkf, name)) {
+				continue;
+			}
+			const stepFn = wrkf[name];
+			if (typeof stepFn !== "function" || stepFn[Step] === undefined) {
+				continue;
+			}
+			const events = this.config(name, stepFn).on;
+			if (!events || typeof events !== "object") {
+				continue;
+			}
+			for (const eventName in events) {
+				if (!Object.hasOwn(events, eventName)) {
+					continue;
+				}
+				const handlers = events[eventName];
+				offs.push(
+					state.sub(eventName, (value, publishedEventName) =>
+						this.onEvent(handlers, value, publishedEventName, name),
+					),
+				);
+			}
+		}
+		if (offs.length === 0) {
+			return () => false;
+		}
+		let active = true;
+		const binding = { wrkf, off: undefined };
+		const off = () => {
+			if (!active) {
+				return false;
+			}
+			active = false;
+			for (let i = 0; i < offs.length; i++) {
+				offs[i]();
+			}
+			const i = this.bindings.indexOf(binding);
+			if (i >= 0) {
+				this.bindings.splice(i, 1);
+			}
+			return true;
+		};
+		binding.off = off;
+		this.bindings.push(binding);
+		return off;
+	}
+
+	// Method: unbind
+	// Removes subscriptions created by `bind` for `wrkf`, or all bindings when
+	// `wrkf` is omitted. Returns the number of bindings removed.
+	unbind(wrkf = undefined) {
+		let count = 0;
+		for (let i = this.bindings.length - 1; i >= 0; i--) {
+			const binding = this.bindings[i];
+			if (wrkf === undefined || binding.wrkf === wrkf) {
+				if (binding.off()) {
+					count += 1;
+				}
+			}
+		}
+		return count;
 	}
 
 	async has(name, input) {
@@ -524,9 +679,14 @@ class WorkflowRuntime {
 		this.push(frame);
 		try {
 			// Only consult cache when caching is enabled (ttl > 0).
-			if (ctx.cfg.ttl && (await this.has(ctx.name, ctx.input))) {
+			const fromCache = !!(
+				ctx.cfg.ttl && (await this.has(ctx.name, ctx.input))
+			);
+			await runHooks(ctx.cfg.pre, ctx.input, undefined, fromCache);
+			if (fromCache) {
 				const result = await this.get(ctx.name, ctx.input);
 				await this.onStepCache(ctx, result);
+				await runHooks(ctx.cfg.post, ctx.input, result, true);
 				return result;
 			}
 
@@ -560,12 +720,14 @@ class WorkflowRuntime {
 					const result = await this.execute(current);
 					ctx.duration = now() - ctx.started;
 					await this.onStepSucceed(ctx, result);
+					await runHooks(ctx.cfg.post, ctx.input, result);
 					return result;
 				} catch (caught) {
 					const error = caught;
 					ctx.duration = now() - ctx.started;
 					await this.onStepFail(ctx, error);
 					if (!(await retry.continues(error))) {
+						await runHooks(ctx.cfg.error, ctx.input, error);
 						throw error;
 					}
 					await this.onStepRetry(ctx, error);
@@ -577,6 +739,7 @@ class WorkflowRuntime {
 					} else if (typeof ctx.stepFn === "function") {
 						current = ctx.stepFn(...(ctx.input || []));
 					} else {
+						await runHooks(ctx.cfg.error, ctx.input, error);
 						throw error;
 					}
 				} finally {

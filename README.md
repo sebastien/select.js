@@ -39,6 +39,7 @@ You can learn more about each component:
 - **Select UI**: UI component library  ― [manual](docs/ui.md) & [reference](docs/ref-ui.md)
 - **Select Cells**: Reactive state library ― [manual](docs/cells.md) & [reference](docs/ref-cells.md)
 - **Select Browser**: Browser-backed reactive state for URL and storage ― [manual](docs/browser.md) & [reference](docs/ref-browser.md)
+- **Select Workflows**: Generator-based task workflows with caching and event bindings ― [reference](docs/ref-workflows.md)
 - **Select Utils**: Utility helpers and compatibility barrel ― [manual](docs/utils.md) & [reference](docs/ref-utils.md)
 - **Select Icons**: SVG icon registry and loader utilities ― [manual](docs/icons.md)
 - **Select Routing**: Route parsing and dispatch helpers ― documented in [Select Utils](docs/utils.md)

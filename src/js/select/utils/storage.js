@@ -113,13 +113,13 @@ class IndexedDBStore {
 		this.ready = this._open();
 	}
 
-	_open() {
+	_open(version = undefined) {
 		const idb = globalThis.indexedDB;
 		if (!idb) {
 			return Promise.resolve(undefined);
 		}
 		return new Promise((resolve, reject) => {
-			const request = idb.open(this.dbName, 1);
+			const request = version === undefined ? idb.open(this.dbName) : idb.open(this.dbName, version);
 			request.onupgradeneeded = () => {
 				const db = request.result;
 				if (!db.objectStoreNames.contains(this.storeName)) {
@@ -127,8 +127,15 @@ class IndexedDBStore {
 				}
 			};
 			request.onsuccess = () => {
-				this._db = request.result;
-				resolve(this._db);
+				const db = request.result;
+				if (!db.objectStoreNames.contains(this.storeName)) {
+					db.close();
+					this._open(db.version + 1).then(resolve, reject);
+					return;
+				}
+				db.onversionchange = () => db.close();
+				this._db = db;
+				resolve(db);
 			};
 			request.onerror = () => reject(request.error);
 		}).catch(() => {

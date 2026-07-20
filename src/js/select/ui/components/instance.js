@@ -401,6 +401,18 @@ class UIInstance {
 		this.inout = compiled.inout ? compiled.inout(this.nodes, this) : null;
 		this.ref = compiled.ref ? compiled.ref(this.nodes, this) : null;
 		this.out = compiled.out ? compiled.out(this.nodes, this) : null;
+		if (this.when && this.out) {
+			for (const k in this.when) {
+				for (const predicateSlot of this.when[k]) {
+					for (const outKey in this.out) {
+						for (const outSlot of this.out[outKey]) {
+							if (predicateSlot.node.contains(outSlot.node))
+								outSlot.predicateSlot = predicateSlot;
+						}
+					}
+				}
+			}
+		}
 		this.slots = null;
 		if (template.slots && this.options.nativeSlots !== true) {
 			this.slots = [];
@@ -1374,6 +1386,17 @@ class UIInstance {
 
 		data = this._runEagerBehaviors(data);
 		const isGranular = changedKeys !== null && changedKeys.size > 0;
+		if (this.when) {
+			for (const k in this.when) {
+				for (const slot of this.when[k]) {
+					if (slot.template.predicate(this, renderData)) {
+						slot.show();
+					} else {
+						slot.hide();
+					}
+				}
+			}
+		}
 		// FIXME: I'm not sure this condition is good.
 		if (
 			!(
@@ -1456,6 +1479,7 @@ class UIInstance {
 								);
 							}
 							for (const slot of slots) {
+								if (slot.predicateSlot?.node.parentNode === null) continue;
 								slot.render(v);
 							}
 							continue;
@@ -1520,6 +1544,7 @@ class UIInstance {
 								);
 							}
 							for (const slot of slots) {
+								if (slot.predicateSlot?.node.parentNode === null) continue;
 								slot.render(next);
 							}
 						})
@@ -1541,6 +1566,7 @@ class UIInstance {
 						);
 					}
 					for (const slot of slots) {
+						if (slot.predicateSlot?.node.parentNode === null) continue;
 						slot.render(v);
 					}
 				}
@@ -1634,17 +1660,6 @@ class UIInstance {
 				for (const slot of this.slots) {
 					const content = data?.slots?.[slot.name];
 					slot.mount(content);
-				}
-			}
-		}
-		if (this.when) {
-			for (const k in this.when) {
-				for (const slot of this.when[k]) {
-					if (slot.template.predicate(this, renderData)) {
-						slot.show();
-					} else {
-						slot.hide();
-					}
 				}
 			}
 		}

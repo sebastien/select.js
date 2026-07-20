@@ -76,7 +76,32 @@ function setupGlobals(window) {
 			"wide",
 		)
 
-		document.body.innerHTML = ""
+	document.body.innerHTML = ""
+	window.close?.()
+	})
+
+	test("clears processed output in the active sibling branch", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" })
+		setupGlobals(window)
+		const { ui } = await import("../src/js/select/ui.js")
+
+		const instance = ui(`
+			<div>
+				<li when="long==true"><em out="name|hi+query"></em></li>
+				<li when="long!=true"><em out="name|hi+query"></em></li>
+			</div>
+		`)
+			.new()
+			.set({ name: "name", long: false, query: "" })
+			.mount(document.body)
+
+		instance.update({ name: "name", long: false, query: "na" })
+		instance.update({ name: "name", long: false, query: "" })
+
+		expect(document.querySelector("em")?.textContent).toBe("name")
+		expect(document.querySelectorAll("em mark")).toHaveLength(0)
+
+		instance.unmount()
 		window.close?.()
 	})
 
