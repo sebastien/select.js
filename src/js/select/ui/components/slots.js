@@ -1140,18 +1140,387 @@ class UISlot {
 		return eq(current, previous);
 	}
 
-	_findReusableInstanceFor(item) {
-		if (!(item instanceof AppliedUITemplate)) return null;
-		for (const v of this.mapping.values()) {
+	// Payload equality for shift detection: ignore index-derived presentation
+	// fields (key/path/$key/label) when both sides carry a `value` field.
+	_itemPayloadEq(current, previous) {
+		if (Object.is(current, previous)) {
+			return true;
+		}
+		if (
+			current instanceof AppliedUITemplate &&
+			previous instanceof AppliedUITemplate
+		) {
+			if (current.template !== previous.template) {
+				return false;
+			}
+			const a = current.data;
+			const b = previous.data;
 			if (
-				isUIInstance(v) &&
-				v.template === item.template &&
-				eq(v.data, item.data)
+				a &&
+				b &&
+				typeof a === "object" &&
+				typeof b === "object" &&
+				!Array.isArray(a) &&
+				!Array.isArray(b) &&
+				"value" in a &&
+				"value" in b
 			) {
-				return v;
+				return eq(a.value, b.value);
+			}
+			return eq(a, b);
+		}
+		return eq(current, previous);
+	}
+
+	_findReusableInstanceFor(item, skipKeys) {
+		if (!(item instanceof AppliedUITemplate)) {
+			return null;
+		}
+		for (const [key, v] of this.mapping.entries()) {
+			if (skipKeys?.has(key)) {
+				continue;
+			}
+			if (!isUIInstance(v) || v.template !== item.template) {
+				continue;
+			}
+			const a = item.data;
+			const b = v.data;
+			if (
+				a &&
+				b &&
+				typeof a === "object" &&
+				typeof b === "object" &&
+				!Array.isArray(a) &&
+				!Array.isArray(b) &&
+				"value" in a &&
+				"value" in b
+			) {
+				if (eq(a.value, b.value)) {
+					return { key, instance: v };
+				}
+			} else if (eq(a, b)) {
+				return { key, instance: v };
 			}
 		}
 		return null;
+	}
+
+	// Refresh a row whose payload was already verified equal during shift
+	// detection. Avoids deep-eq on `value` (the expensive part for large trees)
+	// and only re-renders presentation fields (key/path/label/…).
+	_renderShiftedMapped(k, item) {
+		const existing = this.mapping.get(k);
+		if (
+			!(item instanceof AppliedUITemplate) ||
+			!isUIInstance(existing) ||
+			item.template !== existing.template
+		) {
+			this._renderMapped(k, item, null);
+			return;
+		}
+		const prev = existing.data;
+		const next = item.data;
+		if (
+			!prev ||
+			!next ||
+			typeof prev !== "object" ||
+			typeof next !== "object" ||
+			Array.isArray(prev) ||
+			Array.isArray(next) ||
+			!("value" in next)
+		) {
+			existing.update(next);
+			existing._lastApplied = item;
+			return;
+		}
+		const changedKeys = new Set();
+		// Mutate a single bag when possible to avoid per-row object spreads.
+		const merged =
+			prev === next
+				? prev
+				: prev && Object.getPrototypeOf(prev) === Object.prototype
+					? prev
+					: { ...prev };
+		if (merged !== next) {
+			for (const key in next) {
+				if (key === "value") {
+					// Content already matched via _itemPayloadEq; keep nested trees.
+					merged.value = next.value;
+					continue;
+				}
+				const pv = prev[key];
+				const nv = next[key];
+				if (!Object.is(pv, nv)) {
+					merged[key] = nv;
+					// Presentation fields are typically strings/numbers — skip deep eq.
+					if (pv !== nv) {
+						changedKeys.add(key);
+					}
+				}
+			}
+		}
+		existing._lastApplied = item;
+		existing.data = merged;
+		if (!changedKeys.size) {
+			return;
+		}
+		// Fast path: payload (`value`) is unchanged — refresh only out-behaviors
+		// whose tracked deps intersect changedKeys (e.g. label from key/index).
+		const behavior = existing.template.behavior;
+		const out = existing.out;
+		if (behavior && out && !changedKeys.has("value")) {
+			let ran = false;
+			for (const slotKey in out) {
+				const fn = behavior[slotKey];
+				const slots = out[slotKey];
+				if (!fn || !slots) {
+					continue;
+				}
+				const deps = existing._behaviorDeps?.get(slotKey);
+				if (deps) {
+					let needed = false;
+					for (const dep of deps) {
+						if (changedKeys.has(dep)) {
+							needed = true;
+							break;
+						}
+					}
+					if (!needed) {
+						continue;
+					}
+				} else if (slotKey === "value" || slotKey === "text") {
+					// Without deps, skip value-like slots when payload is stable.
+					continue;
+				}
+				const v = fn(existing, merged, null);
+				if (existing._behaviorValues) {
+					existing._behaviorValues.set(slotKey, v);
+				}
+				for (let s = 0; s < slots.length; s++) {
+					slots[s].render(v);
+				}
+				ran = true;
+			}
+			if (ran || existing._behaviorDeps) {
+				return;
+			}
+		}
+		existing.render(merged, changedKeys);
+	}
+
+	// Single-index remove: unmount R, rekey R+1..end → R..end-1, then update
+	// shifted rows (labels only when payload matches). DOM order stays correct
+	// after unmounting R — no node moves needed.
+	_renderIndexRemoveAt(data, removeAt, previousLength) {
+		const removed = this.mapping.get(removeAt);
+		if (removed !== undefined) {
+			this._removeMappedValue(removed);
+			this.mapping.delete(removeAt);
+		}
+		for (let i = removeAt; i < data.length; i++) {
+			const instance = this.mapping.get(i + 1);
+			if (instance !== undefined) {
+				this.mapping.delete(i + 1);
+				this.mapping.set(i, instance);
+				if (isUIInstance(instance)) {
+					instance.key = i;
+				}
+			}
+		}
+		for (let i = data.length; i < previousLength; i++) {
+			const v = this.mapping.get(i);
+			if (v !== undefined) {
+				this._removeMappedValue(v);
+				this.mapping.delete(i);
+			}
+		}
+		const nextKeys = new Array(data.length);
+		for (let i = 0; i < data.length; i++) {
+			nextKeys[i] = i;
+		}
+		this._listKeys = nextKeys;
+		// Prefix is unchanged; only shifted rows need label/key refresh.
+		for (let i = removeAt; i < data.length; i++) {
+			this._renderShiftedMapped(i, data[i]);
+		}
+		this._listLength = data.length;
+		this._listItems = data;
+		return true;
+	}
+
+	// Single-index insert: shift R..end → R+1.., mount new at R, refresh tails.
+	_renderIndexInsertAt(data, insertAt, previousLength) {
+		for (let i = previousLength - 1; i >= insertAt; i--) {
+			const instance = this.mapping.get(i);
+			if (instance !== undefined) {
+				this.mapping.delete(i);
+				this.mapping.set(i + 1, instance);
+				if (isUIInstance(instance)) {
+					instance.key = i + 1;
+				}
+			}
+		}
+		const nextKeys = new Array(data.length);
+		for (let i = 0; i < data.length; i++) {
+			nextKeys[i] = i;
+		}
+		// Publish keys before mount so _nextMappedNodeAfterKey sees the shift.
+		this._listKeys = nextKeys;
+		let previous =
+			insertAt > 0 ? this._lastMappedNode(this.mapping.get(insertAt - 1)) : null;
+		previous = this._renderMapped(insertAt, data[insertAt], previous);
+		for (let i = insertAt + 1; i < data.length; i++) {
+			this._renderShiftedMapped(i, data[i]);
+			previous = this._lastMappedNode(this.mapping.get(i)) || previous;
+		}
+		this._listLength = data.length;
+		this._listItems = data;
+		return true;
+	}
+
+	// Sync instance data bag to the latest wrapper without re-rendering.
+	// Used when payload content is unchanged at this index.
+	_syncMappedWrapper(k, item) {
+		const existing = this.mapping.get(k);
+		if (
+			item instanceof AppliedUITemplate &&
+			isUIInstance(existing) &&
+			item.template === existing.template
+		) {
+			existing.data = item.data;
+			existing._lastApplied = item;
+			return;
+		}
+		this._renderMapped(k, item, null);
+	}
+
+	// Same-length list where only one or two index payloads changed (nested
+	// field patches, or a swap of two rows).
+	_tryRenderIndexSingleChange(data, previousLength) {
+		const prev = this._listItems;
+		if (!prev || data.length !== previousLength || previousLength === 0) {
+			return false;
+		}
+		let changedA = -1;
+		let changedB = -1;
+		for (let i = 0; i < data.length; i++) {
+			if (this._itemPayloadEq(data[i], prev[i])) {
+				continue;
+			}
+			if (changedA < 0) {
+				changedA = i;
+			} else if (changedB < 0) {
+				changedB = i;
+			} else {
+				return false;
+			}
+		}
+		const nextKeys = this._listKeys || new Array(data.length);
+		for (let i = 0; i < data.length; i++) {
+			nextKeys[i] = i;
+		}
+		for (let i = 0; i < data.length; i++) {
+			if (i === changedA || i === changedB) {
+				this._renderMapped(i, data[i], null);
+			} else {
+				this._syncMappedWrapper(i, data[i]);
+			}
+		}
+		this._listKeys = nextKeys;
+		this._listLength = data.length;
+		this._listItems = data;
+		return true;
+	}
+
+	// Detect single middle/tail remove or single insert for positional lists.
+	_tryRenderIndexShift(data, previousLength) {
+		const prev = this._listItems;
+		if (!prev || previousLength === 0) {
+			return false;
+		}
+		if (data.length === previousLength) {
+			return this._tryRenderIndexSingleChange(data, previousLength);
+		}
+		if (data.length === previousLength - 1) {
+			let removeAt = data.length;
+			for (let i = 0; i < data.length; i++) {
+				if (!this._itemPayloadEq(data[i], prev[i])) {
+					removeAt = i;
+					break;
+				}
+			}
+			for (let i = removeAt; i < data.length; i++) {
+				if (!this._itemPayloadEq(data[i], prev[i + 1])) {
+					return false;
+				}
+			}
+			return this._renderIndexRemoveAt(data, removeAt, previousLength);
+		}
+		if (data.length === previousLength + 1) {
+			let insertAt = previousLength;
+			for (let i = 0; i < previousLength; i++) {
+				if (!this._itemPayloadEq(data[i], prev[i])) {
+					insertAt = i;
+					break;
+				}
+			}
+			for (let i = insertAt; i < previousLength; i++) {
+				if (!this._itemPayloadEq(data[i + 1], prev[i])) {
+					return false;
+				}
+			}
+			return this._renderIndexInsertAt(data, insertAt, previousLength);
+		}
+		return false;
+	}
+
+	// Stable-key append (prev keys + new suffix) or tail-delete without full walk.
+	_tryRenderStableAppendOrTail(data, nextKeys, previousKeys) {
+		if (!previousKeys?.length) {
+			return false;
+		}
+		const prevLen = previousKeys.length;
+		const nextLen = nextKeys.length;
+		if (nextLen === prevLen + 1) {
+			for (let i = 0; i < prevLen; i++) {
+				if (nextKeys[i] !== previousKeys[i]) {
+					return false;
+				}
+				if (!this._itemPayloadEq(data[i], this._listItems[i])) {
+					return false;
+				}
+			}
+			let previous =
+				prevLen > 0
+					? this._lastMappedNode(this.mapping.get(previousKeys[prevLen - 1]))
+					: null;
+			previous = this._renderMapped(nextKeys[prevLen], data[prevLen], previous);
+			this._listKeys = nextKeys;
+			this._listLength = nextLen;
+			this._listItems = data;
+			return true;
+		}
+		if (nextLen === prevLen - 1) {
+			for (let i = 0; i < nextLen; i++) {
+				if (nextKeys[i] !== previousKeys[i]) {
+					return false;
+				}
+				if (!this._itemPayloadEq(data[i], this._listItems[i])) {
+					return false;
+				}
+			}
+			const dropped = previousKeys[prevLen - 1];
+			const v = this.mapping.get(dropped);
+			if (v !== undefined) {
+				this._removeMappedValue(v);
+				this.mapping.delete(dropped);
+			}
+			this._listKeys = nextKeys;
+			this._listLength = nextLen;
+			this._listItems = data;
+			return true;
+		}
+		return false;
 	}
 
 	_firstMappedNode(value) {
@@ -1216,14 +1585,16 @@ class UISlot {
 			this.mapping.delete(k);
 			existing = undefined;
 		}
-		// Stable wrappers receive a fresh data bag, allowing update() to keep its
-		// granular equality fast-path for unchanged rows.
+		// Stable wrappers receive a fresh data bag. Same bag ref means no change;
+		// otherwise update() keeps its granular equality fast-path for unchanged rows.
 		if (
 			item instanceof AppliedUITemplate &&
 			existing &&
 			item === existing._lastApplied
 		) {
-			existing.update(item.data);
+			if (existing.data !== item.data) {
+				existing.update(item.data);
+			}
 			return this._lastMappedNode(existing) || previous;
 		}
 		if (existing === undefined) {
@@ -1392,12 +1763,33 @@ class UISlot {
 			if (explicitKeys) {
 				const nextKeys = new Array(data.length);
 				for (let i = 0; i < data.length; i++) {
-					const item = data[i];
-					const key = this._resolveCollectionItemKey(item, i);
-					nextKeys[i] = key;
-					previous = this._renderMapped(key, item, previous);
+					nextKeys[i] = this._resolveCollectionItemKey(data[i], i);
 				}
 				const previousKeys = this._listKeys;
+				if (
+					this._tryRenderStableAppendOrTail(data, nextKeys, previousKeys)
+				) {
+					return;
+				}
+				// Index-shaped stable keys (0..n) can use positional shift opts.
+				let indexShaped = nextKeys.length > 0;
+				for (let i = 0; i < nextKeys.length; i++) {
+					if (nextKeys[i] !== i) {
+						indexShaped = false;
+						break;
+					}
+				}
+				if (
+					indexShaped &&
+					previousKeys &&
+					previousLength > 0 &&
+					this._tryRenderIndexShift(data, previousLength)
+				) {
+					return;
+				}
+				for (let i = 0; i < data.length; i++) {
+					previous = this._renderMapped(nextKeys[i], data[i], previous);
+				}
 				if (previousKeys) {
 					const nextKeySet = new Set(nextKeys);
 					for (let i = 0; i < previousKeys.length; i++) {
@@ -1415,13 +1807,16 @@ class UISlot {
 				this._listKeys = nextKeys;
 			} else {
 				if (
-					this._listKeyMode === "index" &&
 					this._listItems &&
-					data.length > previousLength
+					previousLength > 0 &&
+					this._tryRenderIndexShift(data, previousLength)
 				) {
+					return;
+				}
+				if (this._listItems && data.length > previousLength) {
 					let appendOnly = true;
 					for (let i = 0; i < previousLength; i++) {
-						if (!this._isSameCollectionItem(data[i], this._listItems[i])) {
+						if (!this._itemPayloadEq(data[i], this._listItems[i])) {
 							appendOnly = false;
 							break;
 						}
@@ -1437,6 +1832,33 @@ class UISlot {
 							previous = this._renderMapped(i, data[i], previous);
 						}
 						nextKeys.length = data.length;
+						this._listKeys = nextKeys;
+						this._listLength = data.length;
+						this._listItems = data;
+						return;
+					}
+				}
+				if (
+					this._listItems &&
+					data.length < previousLength &&
+					data.length === previousLength - 1
+				) {
+					let tailOnly = true;
+					for (let i = 0; i < data.length; i++) {
+						if (!this._itemPayloadEq(data[i], this._listItems[i])) {
+							tailOnly = false;
+							break;
+						}
+					}
+					if (tailOnly) {
+						const v = this.mapping.get(previousLength - 1);
+						if (v !== undefined) {
+							this._removeMappedValue(v);
+							this.mapping.delete(previousLength - 1);
+						}
+						const nextKeys = this._listKeys
+							? this._listKeys.slice(0, data.length)
+							: null;
 						this._listKeys = nextKeys;
 						this._listLength = data.length;
 						this._listItems = data;

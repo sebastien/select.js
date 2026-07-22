@@ -234,13 +234,15 @@ class UITemplate {
 					if (Array.isArray(d)) {
 						d = { $value: d, $key: k };
 					} else {
+						// Single shallow copy with $key — avoid copyAppliedData after spread.
 						d = { ...d, $key: k };
 					}
+				} else {
+					d = copyAppliedData(d);
 				}
 			} else {
 				d = { $: d, $key: k };
 			}
-			d = copyAppliedData(d);
 			if (k != null && cache.has(k)) {
 				const at = cache.get(k);
 				at.data = d;

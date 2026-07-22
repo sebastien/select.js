@@ -1489,7 +1489,14 @@ class UIInstance {
 					// TODO: What does it mean has behavior, and what do we
 					// do with the tracking proxy
 					if (hasBehavior) {
-						if (isGranular) {
+						// Track deps whenever data is a plain object so later granular
+						// updates can skip behaviors whose inputs did not change
+						// (including after the initial set()).
+						const canTrack =
+							renderData !== null &&
+							typeof renderData === "object" &&
+							Object.getPrototypeOf(renderData) === Object.prototype;
+						if (canTrack) {
 							const [trackedData, accessed] = createTrackingProxy(renderData);
 							v = hasBehavior(this, trackedData, null);
 							if (!this._behaviorDeps) {

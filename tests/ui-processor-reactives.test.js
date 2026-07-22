@@ -728,4 +728,116 @@ describe("ui processor reactive handling", () => {
 		document.body.innerHTML = "";
 		window.close?.();
 	});
+
+	test("positional list middle remove keeps remaining row instances and content", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui, remap } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `<div id="app"></div>`;
+
+		const valueRenders = {};
+		const Row = ui(
+			`<li><span class="k" out="label"></span><span class="v" out="text"></span></li>`,
+		).does({
+			label: (_self, { key }) => `${key}:`,
+			text: (_self, { value, id }) => {
+				valueRenders[id] = (valueRenders[id] || 0) + 1;
+				return value;
+			},
+		});
+		const List = ui(`<ul out="items"></ul>`).does({
+			items: (_self, { items }) =>
+				remap(items, (entry, index) =>
+					Row({ key: `#${index}`, id: entry.id, value: entry.value }),
+				),
+		});
+
+		const src = [
+			{ id: "a", value: "A" },
+			{ id: "b", value: "B" },
+			{ id: "c", value: "C" },
+			{ id: "d", value: "D" },
+		];
+		const instance = List.new().set({ items: src }).mount("#app");
+		const before = Array.from(document.querySelectorAll("#app li"));
+		expect(before.map((li) => li.querySelector(".v").textContent)).toEqual([
+			"A",
+			"B",
+			"C",
+			"D",
+		]);
+		expect(valueRenders).toEqual({ a: 1, b: 1, c: 1, d: 1 });
+
+		// Remove middle item; remaining payloads keep identity via id/value.
+		instance.update({
+			items: [src[0], src[2], src[3]],
+		});
+
+		const after = Array.from(document.querySelectorAll("#app li"));
+		expect(after.map((li) => li.querySelector(".v").textContent)).toEqual([
+			"A",
+			"C",
+			"D",
+		]);
+		expect(after.map((li) => li.querySelector(".k").textContent)).toEqual([
+			"#0:",
+			"#1:",
+			"#2:",
+		]);
+		// Shifted rows should refresh labels but not re-run value for unchanged payloads.
+		expect(valueRenders.a).toBe(1);
+		expect(valueRenders.b).toBe(1);
+		expect(valueRenders.c).toBe(1);
+		expect(valueRenders.d).toBe(1);
+		// DOM nodes for kept payloads should be reused (a stays, c/d move up).
+		expect(after[0]).toBe(before[0]);
+		expect(after[1]).toBe(before[2]);
+		expect(after[2]).toBe(before[3]);
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
+	test("positional list append mounts only the new row", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui, remap } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `<div id="app"></div>`;
+
+		const valueRenders = {};
+		const Row = ui(`<li out="text"></li>`).does({
+			text: (_self, { value, id }) => {
+				valueRenders[id] = (valueRenders[id] || 0) + 1;
+				return value;
+			},
+		});
+		const List = ui(`<ul out="items"></ul>`).does({
+			items: (_self, { items }) =>
+				remap(items, (entry) => Row({ id: entry.id, value: entry.value })),
+		});
+
+		const src = [
+			{ id: "a", value: "A" },
+			{ id: "b", value: "B" },
+		];
+		const instance = List.new().set({ items: src }).mount("#app");
+		const first = document.querySelector("#app li");
+		expect(valueRenders).toEqual({ a: 1, b: 1 });
+
+		instance.update({
+			items: [...src, { id: "c", value: "C" }],
+		});
+
+		const lis = Array.from(document.querySelectorAll("#app li"));
+		expect(lis.map((li) => li.textContent)).toEqual(["A", "B", "C"]);
+		expect(lis[0]).toBe(first);
+		expect(valueRenders).toEqual({ a: 1, b: 1, c: 1 });
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
 });
