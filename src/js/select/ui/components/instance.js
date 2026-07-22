@@ -27,15 +27,100 @@ import {
 	resolveSourceValue,
 	resolveTemplateTokens,
 	SKIP_INPUT_UPDATE,
+	SLOT_DEFAULT_KEY,
 	scheduleRenderTask,
 	setNodeText,
 	snapshotReactiveDependencyRevisions,
 } from "./runtime.js";
 import { setUIInstanceClass, UIContentSlot, UITemplateSlot } from "./slots.js";
 
+function normalizeCellNotifyPath(path) {
+	if (path === undefined || path === null) {
+		return null;
+	}
+	// Cells use an object sentinel for a root write; it is not a path segment.
+	if (!Array.isArray(path) && typeof path === "object") {
+		return null;
+	}
+	const segments = Array.isArray(path) ? path : [path];
+	if (!segments.length) {
+		return null;
+	}
+	// pathify("a.b") yields ["a.b"]; split dotted segments for walkers.
+	if (segments.length === 1 && typeof segments[0] === "string") {
+		const raw = segments[0];
+		if (raw.includes(".")) {
+			return raw.split(".").map((part) => {
+				if (part === "") {
+					return part;
+				}
+				const n = Number(part);
+				return Number.isInteger(n) && String(n) === part ? n : part;
+			});
+		}
+	}
+	return segments;
+}
+
+function firstMappedUIInstance(slot) {
+	if (!slot?.mapping) {
+		return null;
+	}
+	const direct = slot.mapping.get(SLOT_DEFAULT_KEY);
+	if (direct instanceof UIInstance) {
+		return direct;
+	}
+	for (const value of slot.mapping.values()) {
+		if (value instanceof UIInstance) {
+			return value;
+		}
+	}
+	return null;
+}
+
 const UI_INSTANCES = new Map();
 const UI_PARENT_ATTRIBUTE = "ui-parent";
+// Sentinel data-key meaning `this.data` itself is the reactive store (not a bag).
+const ROOT_STORE_KEY = "$";
 let uiInstanceId = 0;
+
+function isReactiveData(value) {
+	return value?.isReactive === true;
+}
+
+// Event handlers may return a plain data bag to patch instance state. Other
+// objects, including UIEvent and UIInstance values, are control-flow results.
+function isEventStatePatch(value) {
+	return (
+		value !== null &&
+		typeof value === "object" &&
+		Object.getPrototypeOf(value) === Object.prototype
+	);
+}
+
+function applyEventResult(instance, result) {
+	if (isThenable(result)) {
+		result.then(
+			(value) => {
+				if (!instance._isDisposed && isEventStatePatch(value)) {
+					instance.update(value);
+				}
+			},
+			() => undefined,
+		);
+	} else if (isEventStatePatch(result)) {
+		instance.update(result);
+	}
+}
+
+// View model passed to behaviors/bindings: unwrap root store cells to plain tree.
+function renderViewData(data) {
+	if (isReactiveData(data)) {
+		const value = data.value;
+		return value === undefined || value === null ? {} : value;
+	}
+	return data ?? {};
+}
 
 function createUIInstanceId() {
 	uiInstanceId += 1;
@@ -503,7 +588,7 @@ class UIInstance {
 	_scheduleRender(changedKeys = null) {
 		if (this._renderQueued || this._isDisposed) {
 			if (changedKeys?.size) {
-				this._pendingChangedKeys = this._pendingChangedKeys ?? new Set();
+				if (!this._pendingChangedKeys) this._pendingChangedKeys = new Set();
 				for (const key of changedKeys) {
 					this._pendingChangedKeys.add(key);
 				}
@@ -538,6 +623,11 @@ class UIInstance {
 	}
 
 	_collectReactiveDataRefs(data) {
+		if (isReactiveData(data)) {
+			const refs = new Map();
+			refs.set(data, new Set([ROOT_STORE_KEY]));
+			return refs;
+		}
 		let refs = null;
 		if (data && typeof data === "object") {
 			for (const k in data) {
@@ -626,13 +716,379 @@ class UIInstance {
 				existing.keys = keys;
 			} else {
 				const meta = { keys, handler: null };
-				const handler = () => this._scheduleRender(meta.keys);
+				// Path-aware: nested cell writes try a directed slot walk before
+				// scheduling a full granular render of the hosting data keys.
+				const handler = (_value, path) => {
+					const normalized = normalizeCellNotifyPath(path);
+					if (normalized && normalized.length === 1) {
+						const k = normalized[0];
+						if (this._tryDirectOutUpdate(k, _value)) {
+							return;
+						}
+					}
+					if (
+						normalized &&
+						this._tryApplyReactivePath(cell, normalized, meta.keys)
+					) {
+						return;
+					}
+					// A root reactive can drive multiple behaviors. Re-render them all:
+					// granular cache reuse is only safe for a directed nested path.
+					if (!normalized || meta.keys?.has(ROOT_STORE_KEY)) {
+						this._scheduleRender(null);
+					} else {
+						this._scheduleRender(meta.keys);
+					}
+				};
 				meta.handler = handler;
 				cell.sub(handler);
 				this._acquireReactiveRef(cell);
 				this._reactiveDataSubs.set(cell, meta);
 			}
 		}
+	}
+
+	// Walks mounted list/dict slots along `path` (relative to `cell.value`) and
+	// updates only the affected child instance. Returns false to fall back to
+	// a normal scheduled render.
+	_tryApplyReactivePath(cell, path, dataKeys) {
+		if (this._isDisposed || !path?.length || !dataKeys?.size) {
+			return false;
+		}
+		const tree = cell?.value;
+		if (tree === undefined || tree === null) {
+			return false;
+		}
+		const slotKeys = this._slotKeysForDataKeys(dataKeys);
+		if (!slotKeys.length) {
+			return false;
+		}
+		for (let i = 0; i < slotKeys.length; i++) {
+			const slots = this.out?.[slotKeys[i]];
+			if (!slots) {
+				continue;
+			}
+			for (let s = 0; s < slots.length; s++) {
+				if (this._applyReactivePathToSlot(slots[s], path, tree)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	_slotKeysForDataKeys(dataKeys) {
+		const slotKeys = [];
+		const seen = new Set();
+		// Root store host: any out slot may project the tree (typically `items`).
+		if (dataKeys.has(ROOT_STORE_KEY)) {
+			if (this.out) {
+				for (const key in this.out) {
+					if (!seen.has(key)) {
+						seen.add(key);
+						slotKeys.push(key);
+					}
+				}
+			}
+			return slotKeys;
+		}
+		if (this._behaviorDeps) {
+			for (const [slotKey, deps] of this._behaviorDeps.entries()) {
+				if (!deps) {
+					continue;
+				}
+				for (const dataKey of dataKeys) {
+					if (deps.has(dataKey)) {
+						if (!seen.has(slotKey)) {
+							seen.add(slotKey);
+							slotKeys.push(slotKey);
+						}
+						break;
+					}
+				}
+			}
+		}
+		for (const dataKey of dataKeys) {
+			if (this.out?.[dataKey] && !seen.has(dataKey)) {
+				seen.add(dataKey);
+				slotKeys.push(dataKey);
+			}
+		}
+		// Common collection slot name when behavior is `items` but data key is `value`.
+		if (this.out?.items && !seen.has("items")) {
+			for (const dataKey of dataKeys) {
+				if (dataKey === "value" || dataKey === "items" || dataKey === "data") {
+					slotKeys.push("items");
+					break;
+				}
+			}
+		}
+		return slotKeys;
+	}
+
+	_findOutSlotKey(instance, slot) {
+		if (!instance?.out) {
+			return null;
+		}
+		for (const key in instance.out) {
+			const group = instance.out[key];
+			if (!group) {
+				continue;
+			}
+			for (let i = 0; i < group.length; i++) {
+				if (group[i] === slot) {
+					return key;
+				}
+			}
+		}
+		return null;
+	}
+
+	// Re-runs the collection behavior and renders into `slot` so list fast-paths
+	// can append/remove without a full ancestor render. Used when a path segment
+	// is missing from the mapping (new index/key) or a key was deleted.
+	// `treeAtSlot` is the current collection value from the store (parent.data may
+	// still hold a stale plain snapshot until a full render runs).
+	_refreshCollectionSlot(slot, treeAtSlot = undefined) {
+		const parent = slot?.parent;
+		if (!(parent instanceof UIInstance) || parent._isDisposed) {
+			return false;
+		}
+		const slotKey = this._findOutSlotKey(parent, slot);
+		if (!slotKey) {
+			return false;
+		}
+		const behavior = parent.template?.behavior?.[slotKey];
+		if (typeof behavior !== "function") {
+			return false;
+		}
+		let behaviorData = parent.data;
+		// Root store: data is the cell; value is already current after reconcile.
+		// Bag host: inject treeAtSlot into value/items/data for a fresh collection view.
+		if (
+			!isReactiveData(behaviorData) &&
+			treeAtSlot !== undefined &&
+			behaviorData &&
+			typeof behaviorData === "object" &&
+			!Array.isArray(behaviorData) &&
+			("value" in behaviorData ||
+				"items" in behaviorData ||
+				"data" in behaviorData)
+		) {
+			const hostKey =
+				"value" in behaviorData
+					? "value"
+					: "items" in behaviorData
+						? "items"
+						: "data";
+			behaviorData = { ...behaviorData, [hostKey]: treeAtSlot };
+			parent.data = behaviorData;
+		} else if (!behaviorData) {
+			behaviorData = {};
+		}
+		// Behaviors receive the same view shape as render() (unwrap root store).
+		const viewData = renderViewData(behaviorData);
+		const rendered = behavior(parent, viewData, null);
+		if (parent._behaviorValues) {
+			parent._behaviorValues.set(slotKey, rendered);
+		}
+		// Keep dep revisions in sync so later granular skips stay valid.
+		if (parent._behaviorDeps?.has(slotKey) && parent._behaviorDepRevisions) {
+			parent._behaviorDepRevisions.set(
+				slotKey,
+				snapshotReactiveDependencyRevisions(
+					viewData,
+					parent._behaviorDeps.get(slotKey),
+				),
+			);
+		}
+		slot.render(rendered);
+		return true;
+	}
+
+	_mappingGet(slot, key) {
+		let child = slot.mapping.get(key);
+		if (child === undefined && typeof key === "string") {
+			const asNum = Number(key);
+			if (Number.isInteger(asNum) && String(asNum) === key) {
+				child = slot.mapping.get(asNum);
+			}
+		} else if (child === undefined && typeof key === "number") {
+			child = slot.mapping.get(String(key));
+		}
+		return child;
+	}
+
+	_applyReactivePathToSlot(slot, path, treeAtSlot) {
+		if (!slot?.mapping || !path?.length) {
+			return false;
+		}
+		const head = path[0];
+		const child = this._mappingGet(slot, head);
+		// Missing entry: append index, new dict key, or deleted key — refresh
+		// this collection via its behavior (list fast-paths handle DOM).
+		if (!(child instanceof UIInstance)) {
+			if (path.length === 1) {
+				return this._refreshCollectionSlot(slot, treeAtSlot);
+			}
+			return false;
+		}
+		const entryValue = Array.isArray(treeAtSlot)
+			? treeAtSlot[head]
+			: treeAtSlot != null
+				? treeAtSlot[head]
+				: undefined;
+		const rest = path.slice(1);
+		// Entry removed from collection while mapping still has the child.
+		if (
+			rest.length === 0 &&
+			entryValue === undefined &&
+			!(
+				treeAtSlot &&
+				typeof treeAtSlot === "object" &&
+				Object.hasOwn(treeAtSlot, head)
+			)
+		) {
+			return this._refreshCollectionSlot(slot, treeAtSlot);
+		}
+		const valueSlots = child.out?.value;
+		if (valueSlots?.length) {
+			// Same-shape collection replace (array→array / dict→dict): refresh the
+			// nested items slot so list fast-paths run. Type changes fall through
+			// to child.update so the nested inspector template can switch.
+			if (rest.length === 0) {
+				const entryIsArray = Array.isArray(entryValue);
+				const entryIsDict =
+					!entryIsArray &&
+					entryValue !== null &&
+					typeof entryValue === "object" &&
+					Object.getPrototypeOf(entryValue) === Object.prototype;
+				if (entryIsArray || entryIsDict) {
+					for (let i = 0; i < valueSlots.length; i++) {
+						const nested = firstMappedUIInstance(valueSlots[i]);
+						if (!nested?.out?.items?.length) {
+							continue;
+						}
+						const prevNested = nested.data?.value;
+						const sameShape =
+							(entryIsArray && Array.isArray(prevNested)) ||
+							(entryIsDict &&
+								prevNested !== null &&
+								typeof prevNested === "object" &&
+								!Array.isArray(prevNested) &&
+								Object.getPrototypeOf(prevNested) === Object.prototype);
+						if (!sameShape) {
+							continue;
+						}
+						const prev = child.data;
+						if (prev && typeof prev === "object" && !Array.isArray(prev)) {
+							child.data = { ...prev, value: entryValue };
+						}
+						if (nested.data && typeof nested.data === "object") {
+							nested.data = { ...nested.data, value: entryValue };
+						}
+						for (let j = 0; j < nested.out.items.length; j++) {
+							if (
+								this._refreshCollectionSlot(nested.out.items[j], entryValue)
+							) {
+								return true;
+							}
+						}
+					}
+				}
+				const prev = child.data;
+				if (prev && typeof prev === "object" && !Array.isArray(prev)) {
+					child.update({ ...prev, value: entryValue });
+				} else {
+					child.update({ value: entryValue });
+				}
+				return true;
+			}
+			for (let i = 0; i < valueSlots.length; i++) {
+				const nested = firstMappedUIInstance(valueSlots[i]);
+				if (
+					nested &&
+					this._applyReactivePathToInstance(nested, rest, entryValue)
+				) {
+					return true;
+				}
+			}
+			// Nested inspector missing/replaced (e.g. type change): refresh value.
+			const prev = child.data;
+			if (prev && typeof prev === "object" && !Array.isArray(prev)) {
+				child.update({ ...prev, value: entryValue });
+			} else {
+				child.update({ value: entryValue });
+			}
+			return true;
+		}
+		return this._applyReactivePathToInstance(child, rest, entryValue);
+	}
+
+	_applyReactivePathToInstance(instance, path, treeValue) {
+		if (!(instance instanceof UIInstance) || instance._isDisposed) {
+			return false;
+		}
+		if (!path?.length) {
+			const prev = instance.data;
+			if (prev && typeof prev === "object" && !Array.isArray(prev)) {
+				if ("value" in prev) {
+					instance.update({ ...prev, value: treeValue });
+				} else if ("label" in prev) {
+					instance.update({ ...prev, label: treeValue });
+				} else if ("text" in prev) {
+					instance.update({ ...prev, text: treeValue });
+				} else {
+					const keys = [];
+					for (const k in prev) {
+						if (k === "$key" || k === "key") {
+							continue;
+						}
+						keys.push(k);
+					}
+					if (keys.length === 1) {
+						instance.update({ ...prev, [keys[0]]: treeValue });
+					} else {
+						instance.update(treeValue);
+					}
+				}
+			} else {
+				instance.update(treeValue);
+			}
+			return true;
+		}
+		const itemsSlots = instance.out?.items;
+		if (itemsSlots?.length) {
+			for (let i = 0; i < itemsSlots.length; i++) {
+				if (this._applyReactivePathToSlot(itemsSlots[i], path, treeValue)) {
+					return true;
+				}
+			}
+		}
+		// Single-value out slots (e.g. out-replace without items collection).
+		if (instance.out) {
+			for (const slotKey in instance.out) {
+				if (slotKey === "items" || slotKey === "label" || slotKey === "text") {
+					continue;
+				}
+				const slots = instance.out[slotKey];
+				for (let i = 0; i < slots.length; i++) {
+					const nested = firstMappedUIInstance(slots[i]);
+					if (
+						nested &&
+						this._applyReactivePathToInstance(nested, path, treeValue)
+					) {
+						return true;
+					}
+					// Scalar / text slot at leaf: path exhausted after entry select.
+					if (!nested && path.length === 0) {
+						slots[i].render(treeValue);
+						return true;
+					}
+				}
+			}
+		}
+		return false;
 	}
 
 	_clearReactiveDataSubs() {
@@ -946,9 +1402,7 @@ class UIInstance {
 			event.originData = this.data || {};
 			const handler = targetInstance.template.behavior?.[name];
 			const result = handler(targetInstance, targetInstance.data || {}, event);
-			if (result && typeof result === "object" && !Array.isArray(result)) {
-				targetInstance.update(result);
-			}
+			applyEventResult(targetInstance, result);
 		};
 		target.node.addEventListener(target.eventType, listener);
 		this._domListeners.push({
@@ -996,9 +1450,13 @@ class UIInstance {
 			}
 			if (handler) {
 				const result = handler(this, data, event);
-				if (result && typeof result === "object" && !Array.isArray(result)) {
-					this.update(result);
-				} else if (result !== undefined && slotValue?.isReactive) {
+				if (isThenable(result) || isEventStatePatch(result)) {
+					applyEventResult(this, result);
+				} else if (
+					result !== undefined &&
+					(result === null || typeof result !== "object") &&
+					slotValue?.isReactive
+				) {
 					slotValue.set(result);
 				}
 			} else if (slotValue?.isReactive) {
@@ -1020,8 +1478,14 @@ class UIInstance {
 	// ============================================================================
 
 	// Sets data and renders. Updates key for list rendering.
+	// When `data` is a reactive cell/store, it becomes `this.data` directly
+	// (store mode). Prefer later `store.reconcile(next)` or `update(nextTree)`.
 	set(data, key = this.key) {
 		this.key = key;
+		if (isReactiveData(data)) {
+			this.render(data);
+			return this;
+		}
 		if (
 			this.initial &&
 			data !== null &&
@@ -1038,11 +1502,36 @@ class UIInstance {
 
 	// Updates data with granular change detection. Only re-renders changed fields
 	// when possible. Handles reactive cell subscription management.
+	//
+	// Store mode (`this.data` is a cell): plain `data` is reconciled into the
+	// store (`reconcile` when available, else `set`). UI updates via cell subs.
+	// Passing another cell rebinds the instance to that store.
 	update(data, force = false) {
+		if (isReactiveData(this.data)) {
+			if (isReactiveData(data)) {
+				if (force || data !== this.data) {
+					this.render(data);
+				}
+				return this;
+			}
+			if (typeof this.data.reconcile === "function") {
+				this.data.reconcile(data);
+			} else if (typeof this.data.set === "function") {
+				this.data.set(data);
+			}
+			if (force) {
+				this.render(this.data);
+			}
+			return this;
+		}
 		if (data === undefined || data === null) {
 			if (force || this.data !== data) {
 				this.render(data);
 			}
+			return this;
+		}
+		if (isReactiveData(data)) {
+			this.render(data);
 			return this;
 		}
 		if (typeof data !== "object") {
@@ -1099,6 +1588,22 @@ class UIInstance {
 			}
 		}
 		return false;
+	}
+
+	// Direct update for simple out= bindings on scalar path notify (skips full render + schedule).
+	// Only for keys without behavior (behaviors may have logic/side effects).
+	_tryDirectOutUpdate(key, val) {
+		if (this._isDisposed || key == null) return false;
+		const hasBehavior = this.template?.behavior?.[key];
+		if (hasBehavior) return false;
+		const slots = this.out?.[key];
+		if (!slots?.length) return false;
+		for (let i = 0; i < slots.length; i++) {
+			const slot = slots[i];
+			if (slot.predicateSlot?.node.parentNode === null) continue;
+			slot.render(val);
+		}
+		return true;
 	}
 
 	_reactiveDepsChanged(depRevisions, data) {
@@ -1229,11 +1734,9 @@ class UIInstance {
 		if (self && this._runtimeSubs) {
 			const rl = this._runtimeSubs.get(event.name);
 			if (rl) {
-				for (const h of rl) {
-					const c = h(this, data, event);
-					if (c && typeof c === "object" && !Array.isArray(c)) {
-						this.update(c);
-					}
+			for (const h of rl) {
+				const c = h(this, data, event);
+				applyEventResult(this, c);
 					if (c === false) {
 						return event;
 					} else if (c === null) {
@@ -1245,11 +1748,9 @@ class UIInstance {
 		if (self && propagate && this.template.subs) {
 			const hl = this.template.subs.get(event.name);
 			if (hl) {
-				for (const h of hl) {
-					const c = h(this, data, event);
-					if (c && typeof c === "object" && !Array.isArray(c)) {
-						this.update(c);
-					}
+			for (const h of hl) {
+				const c = h(this, data, event);
+				applyEventResult(this, c);
 					if (c === false) {
 						return event;
 					} else if (c === null) {
@@ -1382,10 +1883,29 @@ class UIInstance {
 			);
 			return this;
 		}
-		const renderData = data ?? {};
-
+		// Keep store cell identity on `this.data`; behaviors see unwrapped view.
+		const storeData = data;
+		// Rebinding to a different root store: drop mounted collections so
+		// stable $key wrappers from the previous store cannot pin stale rows.
+		if (
+			isReactiveData(storeData) &&
+			isReactiveData(this.data) &&
+			storeData !== this.data &&
+			this.out
+		) {
+			for (const slotKey in this.out) {
+				const group = this.out[slotKey];
+				for (let i = 0; i < group.length; i++) {
+					group[i]._clearMapped?.();
+				}
+			}
+		}
 		data = this._runEagerBehaviors(data);
-		const isGranular = changedKeys !== null && changedKeys.size > 0;
+		const renderData = renderViewData(data);
+		const isGranular =
+			!isReactiveData(storeData) &&
+			changedKeys !== null &&
+			changedKeys.size > 0;
 		if (this.when) {
 			for (const k in this.when) {
 				for (const slot of this.when[k]) {
@@ -1414,7 +1934,7 @@ class UIInstance {
 				}
 			}
 			if (!hasElementNode) {
-				const text = asText(data);
+				const text = asText(renderData);
 				for (const node of this.nodes) {
 					if (node.nodeType === Node.TEXT_NODE) {
 						setNodeText(node, text);
@@ -1496,7 +2016,8 @@ class UIInstance {
 							renderData !== null &&
 							typeof renderData === "object" &&
 							Object.getPrototypeOf(renderData) === Object.prototype;
-						if (canTrack) {
+						const haveDeps = this._behaviorDeps?.has(k);
+						if (canTrack && !haveDeps) {
 							const [trackedData, accessed] = createTrackingProxy(renderData);
 							v = hasBehavior(this, trackedData, null);
 							if (!this._behaviorDeps) {
@@ -1664,8 +2185,9 @@ class UIInstance {
 				}
 			}
 			if (this.slots?.length) {
+				const view = renderViewData(data);
 				for (const slot of this.slots) {
-					const content = data?.slots?.[slot.name];
+					const content = view?.slots?.[slot.name];
 					slot.mount(content);
 				}
 			}

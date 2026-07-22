@@ -87,6 +87,62 @@ instances. It is never auto-created by `ui(...)` or `.does(...)`.
 `Component.new(parent, { data })` pre-seeds `self.data` before
 `init(self, data)` runs.
 
+### Bag mode vs store mode
+
+Select UI supports two complementary state styles. Both remain supported.
+
+| Mode | State lives in | Typical updates | Best for |
+|------|----------------|-----------------|----------|
+| **Bag** | Plain objects on `instance.data` | `set` / `update` | Local widgets, small trees |
+| **Store** | A root `cell.store(...)` cell | `set(v, path)`, `reconcile(next)` | Apps, large trees, external JSON |
+
+**Bag mode** (default DX):
+
+```javascript
+const Counter = ui(`<button out="label" on:click="inc"></button>`).does({
+  label: (_self, { n }) => `Count ${n}`,
+  inc: (self, { n }) => ({ n: n + 1 }),
+});
+Counter.new().set({ n: 0 }).mount("#app");
+```
+
+**Store mode** (cells as truth; components bind and subscribe):
+
+```javascript
+import cell from "./cells.js";
+import ui from "./ui.js";
+
+const state = cell.store({ n: 0, items: [] });
+
+// Root instance.data IS the store (not a { value: store } wrapper).
+const App = ui(`<div>
+  <p out="label"></p>
+  <button on:click="inc">+</button>
+</div>`).does({
+  // render() unwraps the store: behaviors receive the plain tree
+  label: (_self, data) => `Count ${data.n}`,
+  inc: (self) => {
+    // Prefer mutating the store; UI follows via subscriptions
+    self.data.set(self.data.value.n + 1, "n");
+  },
+});
+
+const root = App.new().set(state).mount("#app");
+
+// Full-tree patches — either on the store or via instance.update:
+state.reconcile({ n: 10, items: ["a"] });
+root.update({ n: 11, items: ["a", "b"] }); // → state.reconcile(...)
+```
+
+Notes:
+
+- `set(store)` when `store.isReactive` makes `instance.data` the cell and auto-subscribes it.
+- `update(plainTree)` while bound to a store calls `data.reconcile(plainTree)` (or `set` if no reconcile). Passing another cell rebinds the root store.
+- Behaviors see the **unwrapped** tree (`store.value`) during render; use `self.data` when you need the cell itself.
+- Nested widgets may still use bag shape `{ value: subtree }`; only the app root needs `set(store)`.
+- `cell.store(initial)` (named export `cellStore`) matches `cell.derived`. Not the KV `store()` in `utils/storage.js`.
+- Example: `examples/feature-store.html`. Roadmap: `plans/009-cells-first-ui.md`.
+
 ### List Rendering
 
 Rendering collections of data is handled by returning an array of nested

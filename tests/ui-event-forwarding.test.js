@@ -68,4 +68,53 @@ describe("ui event forwarding", () => {
 		document.body.innerHTML = "";
 		window.close?.();
 	});
+
+	test("does not treat synthetic events or instances as state patches", async () => {
+		const window = new Window({ url: "http://localhost:8000/event-return" });
+		setupGlobals(window);
+		const { ui } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `<div id="app"></div>`;
+		const Component = ui(`<button on:click="publish">Publish</button>`).does({
+			publish: (self, data) => {
+				self.pub("Published", data);
+				return self;
+			},
+		});
+		const instance = Component.new().set({ value: 3 }).mount("#app");
+		const button = document.querySelector("button");
+		button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+		expect(instance.data).toEqual({ value: 3 });
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
+	test("applies a plain-object patch resolved by an event promise", async () => {
+		const window = new Window({ url: "http://localhost:8000/event-promise" });
+		setupGlobals(window);
+		const { ui } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `<div id="app"></div>`;
+		const Component = ui(`<button on:click="load" out="label"></button>`).does({
+			label: (_self, { label }) => label,
+			load: () => Promise.resolve({ label: "Loaded" }),
+		});
+		const instance = Component.new()
+			.set({ label: "Load" })
+			.mount("#app");
+		const button = document.querySelector("button");
+		button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(instance.data).toEqual({ label: "Loaded" });
+		expect(button.textContent).toBe("Loaded");
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
 });

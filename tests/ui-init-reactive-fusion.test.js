@@ -158,4 +158,36 @@ describe("ui init reactive fusion", () => {
 		instance.unmount()
 		window.close()
 	})
+
+	test("rerenders every behavior that depends on a resolved root derived value", async () => {
+		const window = new Window({ url: "http://localhost:8000/derived-render" })
+		setupGlobals(window)
+		const { cell, derived } = await import("../src/js/select/index.js")
+		const { ui } = await import("../src/js/select/ui.js")
+
+		let resolve
+		const pending = new Promise((next) => {
+			resolve = next
+		})
+		const Component = ui(`<div><span out="state"></span><span out="value"></span></div>`)
+			.init(() => {
+				const source = cell("loading")
+				return { value: derived(source, () => pending) }
+			})
+			.does({
+				state: (_self, { value }) => (value.isPending ? "pending" : "ready"),
+				value: (_self, { value }) => value.value || "empty",
+			})
+		const instance = Component.new().mount(document.body)
+
+		expect(document.body.textContent?.trim()).toBe("pendingempty")
+		resolve("loaded")
+		await nextTick()
+		await nextTick()
+
+		expect(document.body.textContent?.trim()).toBe("readyloaded")
+
+		instance.unmount()
+		window.close()
+	})
 })

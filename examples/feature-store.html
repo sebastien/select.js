@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI — Store mode</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/select/" } }
+	</script>
+	<style>
+		body {
+			font-family: system-ui, sans-serif;
+			padding: 20px;
+			max-width: 640px;
+			margin: 0 auto;
+		}
+		code { font-size: 0.9em; }
+		.row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+		button {
+			padding: 8px 12px;
+			border: 1px solid #ccc;
+			border-radius: 6px;
+			background: #f6f6f6;
+			cursor: pointer;
+		}
+		button:hover { background: #eee; }
+		.tree {
+			border: 1px solid #ddd;
+			border-radius: 8px;
+			padding: 12px 16px;
+			background: #fafafa;
+		}
+		.tree ul { margin: 0.25em 0; padding-left: 1.25em; }
+		.muted { color: #666; }
+	</style>
+</head>
+<body>
+	<h1>Store mode</h1>
+	<p class="muted">
+		Root state is a <code>cell.store</code> cell. UI binds to it; updates use
+		path writes and <code>reconcile</code> instead of replacing plain bags.
+	</p>
+	<div class="row">
+		<button id="inc">Increment count</button>
+		<button id="add">Add item</button>
+		<button id="patch">Reconcile snapshot</button>
+		<button id="reset">Reset</button>
+	</div>
+	<div id="app" class="tree"></div>
+	<script type="module">
+		import cell from "@./cells.js"
+		import { ui, remap } from "@./ui.js"
+
+		const plain = (v) => (v?.isReactive === true ? v.value : v)
+
+		const Item = ui(`<li out="text"></li>`).does({
+			text: (_self, { label }) => label,
+		})
+
+		const View = ui(`
+			<div>
+				<p><strong out="countLabel"></strong></p>
+				<ul out="items"></ul>
+			</div>
+		`).does({
+			// Root data is the store; render unwraps to the plain tree.
+			countLabel: (_self, data) => `count: ${data.count}`,
+			items: (_self, data) =>
+				remap(data.items, (label, i) => Item({ label, $key: i })),
+		})
+
+		const initial = () => ({
+			count: 0,
+			items: ["alpha", "beta"],
+		})
+
+		const state = cell.store(initial())
+		// instance.data === state
+		const app = View.new().set(state).mount("#app")
+
+		document.querySelector("#inc").onclick = () => {
+			state.set(state.value.count + 1, "count")
+		}
+		document.querySelector("#add").onclick = () => {
+			state.select("items").push(`item-${state.value.items.length + 1}`)
+		}
+		document.querySelector("#patch").onclick = () => {
+			// Same as state.reconcile(...): instance.update patches the bound store
+			app.update({
+				count: state.value.count + 10,
+				items: [...state.value.items, "from-reconcile"],
+			})
+		}
+		document.querySelector("#reset").onclick = () => {
+			app.update(initial())
+		}
+
+		globalThis.__storeExample = { state, app }
+	</script>
+</body>
+</html>

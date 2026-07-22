@@ -74,6 +74,40 @@ name.sub((val) => console.log("Name is now:", val));
 state.set("Grace", "user.name");
 ```
 
+### Reconcile (diff-merge)
+`reconcile(next)` diff-merges a plain tree onto a cell (or `Selected`), writing **only changed paths** through `set`. Subscriber notifications are **batched**. Use it when you receive a full replacement tree (e.g. `structuredClone` + edit) but want fine-grained updates.
+
+```javascript
+import { cell, reconcile } from "./cells.js";
+
+const state = cell({
+  user: { name: "Ada", age: 36 },
+  logs: [{ type: "info", message: "hi" }],
+});
+
+// Only path user.age is written; logs is left alone.
+state.reconcile({
+  user: { name: "Ada", age: 37 },
+  logs: [{ type: "info", message: "hi" }],
+});
+
+// Same via free function:
+// reconcile(state, nextTree)
+
+// Selected views reconcile relative to their path:
+state.select("user").reconcile({ name: "Ada", age: 38 });
+```
+
+Notes:
+
+- Same-length arrays reconcile **by index** (nested field edits stay path writes).
+- Array **append** (length growth) patches the prefix by index then writes new tail indices, preserving existing element identity when unchanged.
+- Array **shrink** or **type** changes replace that node in one `set`.
+- Object keys missing from `next` are **deleted** (not left as `undefined`).
+- Deep-equal clones (all leaves `Object.is`) are a no-op.
+- Options are reserved for future keyed-array moves (`key`); v1 ignores them.
+- See `plans/009-cells-first-ui.md` for the broader cells-first UI roadmap.
+
 ### Normalization
 Cells can normalize root values before they are stored. Use `.normalize(fn)` to register a function that transforms values passed to `.set(value)`.
 
@@ -135,6 +169,8 @@ state.set(2, "a.b");
 
 - `cell(value?)`: Factory function to create a new `Cell` instance.
 - `cells(value|object)`: Default export. Returns a `Cell` for non-object values, or an object of `Cell` instances for plain-object input.
+- `cell.store(initial?)` / `cellStore(initial?)`: Root `Cell` for app/tree state (shallow-copies plain objects). Same pattern as `cell.derived`. `cell.store.map` is `cells`.
+- `reconcile(target, value, options?)`: Diff-merges plain `value` into a `Cell` or `Selected`.
 - `browser(options?)`: Factory that returns browser-backed `path`, `query`, `hash`, `local(key, dflt, opts?)`, and `internal(name, value)` cells.
 	- Default `query`/`hash` serialization uses hashformat syntax (for example `a=1,b=(2,3)`).
 - `deferred(value?, delay)`: Factory function to create a new `Deferred` cell instance for debounced updates.
@@ -149,6 +185,7 @@ state.set(2, "a.b");
 
 - `.get(key?)`: Returns the value of the cell, or a specific property if `key` is provided.
 - `.set(value, path?, force?)`: Updates the value. If `path` is provided, updates a nested property. If `force` is true, triggers updates even if the value hasn't changed.
+- `.reconcile(value, options?)`: Diff-merges plain `value` onto this reactive (batched path writes). Also available as `reconcile(target, value, options?)`.
 - `.normalize(fn)`: Registers a root-value normalizer applied to `.set(value)` updates.
 - `.updater(fn)`: On `Derivation`, registers a single write-through handler used by `.set(...)` and `.merge(...)`.
 - `.select(path)`: Returns a `Selected` instance linked to a specific path in the current cell.

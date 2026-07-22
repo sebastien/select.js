@@ -1815,10 +1815,14 @@ class UISlot {
 				}
 				if (this._listItems && data.length > previousLength) {
 					let appendOnly = true;
-					for (let i = 0; i < previousLength; i++) {
-						if (!this._itemPayloadEq(data[i], this._listItems[i])) {
-							appendOnly = false;
-							break;
+					if (previousLength > 0 && !Object.is(data[previousLength - 1], this._listItems[previousLength - 1])) {
+						appendOnly = false;
+					} else {
+						for (let i = 0; i < previousLength; i++) {
+							if (!this._itemPayloadEq(data[i], this._listItems[i])) {
+								appendOnly = false;
+								break;
+							}
 						}
 					}
 					if (appendOnly) {

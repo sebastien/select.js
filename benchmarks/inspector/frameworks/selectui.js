@@ -1,3 +1,4 @@
+import cell from "../../../src/js/select/cells.js"
 import { remap, ui } from "../../../src/js/select/ui.js"
 
 const getType = (value) =>
@@ -9,59 +10,87 @@ const getType = (value) =>
 				? "array"
 				: typeof value
 
-// No path-derived $keys: index shifts must not invalidate nested instance
-// identity. Lists use positional reconciliation (append/tail/shift fast paths).
-// Dict entries key by property name only.
+// Unwrap root store cell or bag field that may hold a cell.
+const plain = (value) => (value?.isReactive === true ? value.value : value)
+
+// Collection host: root store is the tree; nested inspectors use { value }.
+const collectionOf = (data) => {
+	if (data?.isReactive === true) {
+		return data.value
+	}
+	if (data && typeof data === "object" && "value" in data) {
+		return plain(data.value)
+	}
+	return data
+}
+
+// Store-mode: root `set(store)`; updates via `store.reconcile` / `instance.update(tree)`.
+// Lists use positional reconciliation; dicts key by property name.
 const Item = ui(
 	`<li class="pl-2"><span class="mono dim small" out="label"></span> <span out-replace="value"></span></li>`,
 ).does({
 	label: (_self, { key }) => `${key}:`,
-	value: (_self, { value }) => InspectValue(value),
+	value: (_self, { value }) => InspectValue(plain(value)),
 })
 
-const InspectList = ui(`<ul class="comma brackets dim-ab" out="items"></ul>`).does({
-	items: (_self, { value }) =>
-		remap(value, (entry, index) =>
-			Item({
-				key: `#${index}`,
-				value: entry,
-			}),
-		),
-})
+const InspectList = ui(`<ul class="comma brackets dim-ab" out="items"></ul>`).does(
+	{
+		items: (_self, data) =>
+			remap(collectionOf(data), (entry, index) =>
+				Item({
+					key: `#${index}`,
+					value: entry,
+				}),
+			),
+	},
+)
 
-const InspectDict = ui(`<ul class="comma curlies dim-ab" out="items"></ul>`).does({
-	items: (_self, { value }) =>
-		remap(value, (entry, key) =>
-			Item({
-				key,
-				value: entry,
-				$key: key,
-			}),
-		),
-})
+const InspectDict = ui(`<ul class="comma curlies dim-ab" out="items"></ul>`).does(
+	{
+		items: (_self, data) =>
+			remap(collectionOf(data), (entry, key) =>
+				Item({
+					key,
+					value: entry,
+					$key: key,
+				}),
+			),
+	},
+)
 
 const InspectScalar = ui(`<span out="text"></span>`).does({
-	text: (_self, { value }) => `${value}`,
+	text: (_self, data) => {
+		if (data?.isReactive === true) {
+			return `${data.value}`
+		}
+		if (data && typeof data === "object" && "value" in data) {
+			return `${plain(data.value)}`
+		}
+		return `${data}`
+	},
 })
 
 const InspectValue = (value) => {
-	switch (getType(value)) {
+	const current = plain(value)
+	switch (getType(current)) {
 		case "object":
 		case "map":
-			return InspectDict({ value })
+			return InspectDict({ value: current })
 		case "array":
-			return InspectList({ value })
+			return InspectList({ value: current })
 		default:
-			return InspectScalar({ value })
+			return InspectScalar({ value: current })
 	}
 }
 
 export const createApp = async (root, initialValue) => {
+	const state = cell.store(initialValue)
 	const instance = InspectDict.new()
-	instance.set({ value: initialValue }).mount(root)
+	// Store is instance.data directly — update(tree) reconciles into it.
+	instance.set(state).mount(root)
 	return {
 		update(nextValue) {
-			instance.update({ value: nextValue })
+			instance.update(nextValue)
 		},
 		dispose() {
 			instance.unmount()

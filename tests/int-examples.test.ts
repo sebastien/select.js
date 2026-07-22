@@ -325,6 +325,7 @@ async function settle(window: Window) {
 
 function normalizeHtml(html: string) {
 	return html
+		.replace(/<!--(?:empty|when:[^>]*)-->/g, "")
 		.replace(/\sdata-state="[^"]*"/g, "")
 		.replace(/\sui-parent="ui-[^"]*"/g, "")
 		.replace(/\sstyle=""/g, "")
@@ -336,6 +337,9 @@ function normalizeHtml(html: string) {
 function snapshotBody(window: Window) {
 	for (const script of Array.from(window.document.querySelectorAll("script"))) {
 		script.remove()
+	}
+	for (const sprite of Array.from(window.document.querySelectorAll('svg[width="0"][height="0"][viewBox="0 0 0 0"]'))) {
+		sprite.remove()
 	}
 	return normalizeHtml(window.document.body.innerHTML)
 }

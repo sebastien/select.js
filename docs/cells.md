@@ -10,6 +10,8 @@ and lightweight pub/sub.
 
 - `cell(value?)`: Creates a mutable reactive `Cell` instance.
 - `cells(value|object)`: Default export. Creates a single mutable reactive `Cell`, or a plain object of cells when given a plain object.
+- `cell.store(initial?)` / `cellStore(initial?)`: Root cell for store-mode UI trees (see bag vs store in `ref-ui.md`). Same pattern as `cell.derived`. `cell.store.map(shape)` ≡ `cells(shape)`.
+- `reconcile(target, value)` / `cell.reconcile(value)`: Diff-merge a plain tree onto a cell with batched path writes.
 - `browser(options?)`: Creates browser-backed cells for `path`, `query`, `hash`, `localStorage`, and in-memory shared state.
 	- Query and hash use the same hashformat serializer by default (`a=1,b=(2,3)`).
 - `deferred(value?, delay)`: Creates a mutable reactive `Deferred` cell that debounces updates by the given delay.
@@ -91,6 +93,39 @@ const { name, age } = cells({ name: "Ada", age: 37 })
 
 name.set("Adele")
 age.set(38)
+```
+
+Store-mode root (app/tree state) example:
+
+```javascript
+import cell from "@select/cells.js"
+
+// One root cell for a whole document/tree (like cell.derived / cell.batch)
+const state = cell.store({
+  logs: [],
+  filter: "all",
+})
+
+// Path write
+state.set("warn", "filter")
+
+// Full snapshot patch (structuredClone + edit, server payload, …)
+state.reconcile({
+  logs: [{ type: "info", message: "hi" }],
+  filter: "warn",
+})
+
+// Fine-grained view
+const logs = state.select("logs")
+logs.push({ type: "error", message: "boom" })
+```
+
+Pass the root cell into UI as top-level data so instances subscribe automatically:
+
+```javascript
+Inspector.new().set({ value: state }).mount("#app")
+// later:
+state.reconcile(nextTree)
 ```
 
 Browser-backed state example:

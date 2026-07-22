@@ -32,6 +32,10 @@ bench:
 	$(CMD) bun run bench:inspector
 	$(call rule_post_cmd)
 
+.PHONY: bench-stats
+bench-stats:
+	@node scripts/bench-stats.mjs
+
 .PHONY: release
 release: $(PATH_RUN)/task/project-release-$(PROJECT_VERSION).task
 	@

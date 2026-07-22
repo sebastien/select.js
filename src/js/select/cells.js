@@ -52,8 +52,9 @@ function flushPendingPubs() {
 	}
 	isFlushingPubs = true;
 	try {
-		while (pendingPubs.length > 0) {
-			const { target, value, path, origin, previous } = pendingPubs.shift();
+		const pubs = pendingPubs.splice(0, pendingPubs.length);
+		for (let i = 0; i < pubs.length; i++) {
+			const { target, value, path, origin, previous } = pubs[i];
 			for (const handler of target.subs) {
 				handler(value, path, origin, previous);
 			}
@@ -99,6 +100,112 @@ function isPlainObject(value) {
 		typeof value === "object" &&
 		Object.getPrototypeOf(value) === Object.prototype
 	);
+}
+
+// True when reconcile should descend (plain object or array), not replace.
+function isReconcileWrappable(value) {
+	return Array.isArray(value) || isPlainObject(value);
+}
+
+function reconcilePath(basePath, key) {
+	if (!basePath.length) {
+		return [key];
+	}
+	const next = basePath.slice();
+	next.push(key);
+	return next;
+}
+
+function reconcileSet(cell, basePath, value) {
+	const p = basePath.length ? (Array.isArray(basePath) ? basePath.slice() : basePath) : Nothing;
+	cell.set(value, p);
+}
+
+// Removes object keys by rewriting the parent object (set(undefined) leaves
+// the key present, which breaks structural equality with JSON clones).
+function reconcileDeleteKeys(cell, basePath, keys) {
+	if (!keys.length) {
+		return;
+	}
+	const parent = basePath.length ? access(cell.value, basePath) : cell.value;
+	if (!isPlainObject(parent)) {
+		for (let i = 0; i < keys.length; i++) {
+			reconcileSet(cell, reconcilePath(basePath, keys[i]), undefined);
+		}
+		return;
+	}
+	const next = { ...parent };
+	for (let i = 0; i < keys.length; i++) {
+		delete next[keys[i]];
+	}
+	reconcileSet(cell, basePath, next);
+}
+
+// Diffs `target` onto `cell` at `basePath`, writing only changed leaves/nodes
+// through `cell.set`. Assumes callers wrap with `batch()` when desired.
+function applyReconcile(cell, basePath, target, previous) {
+	if (Object.is(target, previous)) {
+		return;
+	}
+	const targetWrap = isReconcileWrappable(target);
+	const previousWrap = isReconcileWrappable(previous);
+	if (
+		!targetWrap ||
+		!previousWrap ||
+		Array.isArray(target) !== Array.isArray(previous)
+	) {
+		reconcileSet(cell, basePath, target);
+		return;
+	}
+	if (Array.isArray(target)) {
+		const prevLen = previous.length;
+		const nextLen = target.length;
+		if (nextLen === prevLen) {
+			for (let i = 0; i < nextLen; i++) {
+				basePath.push(i);
+				applyReconcile(cell, basePath, target[i], previous[i]);
+				basePath.pop();
+			}
+			return;
+		}
+		// Append-only growth: patch prefix by index, then write new tail indices.
+		// Keeps existing element identity when only the tail is new (structuredClone
+		// of a tree after push still deep-matches the prefix).
+		if (nextLen > prevLen) {
+			for (let i = 0; i < prevLen; i++) {
+				basePath.push(i);
+				applyReconcile(cell, basePath, target[i], previous[i]);
+				basePath.pop();
+			}
+			for (let i = prevLen; i < nextLen; i++) {
+				basePath.push(i);
+				reconcileSet(cell, basePath, target[i]);
+				basePath.pop();
+			}
+			return;
+		}
+		// Shrink (and other length changes): replace the array node.
+		reconcileSet(cell, basePath, target);
+		return;
+	}
+	for (const key in target) {
+		if (!Object.hasOwn(target, key)) {
+			continue;
+		}
+		basePath.push(key);
+		applyReconcile(cell, basePath, target[key], previous[key]);
+		basePath.pop();
+	}
+	const removed = [];
+	for (const key in previous) {
+		if (!Object.hasOwn(previous, key) || Object.hasOwn(target, key)) {
+			continue;
+		}
+		removed.push(key);
+	}
+	if (removed.length) {
+		reconcileDeleteKeys(cell, basePath, removed);
+	}
 }
 
 // ----------------------------------------------------------------------------
@@ -790,14 +897,23 @@ class Selected extends Reactive {
 
 	// Appends value to selected array. Converts non-array to array first.
 	push(value) {
-		const updated =
-			this.revision === -1
-				? [value]
-				: Array.isArray(this.value)
-					? [...this.value, value]
-					: [this.value, value];
+		let updated;
+		const cur = this.value;
+		if (!Array.isArray(cur)) {
+			updated = (cur === undefined || cur === null) ? [value] : [cur, value];
+		} else {
+			const len = cur.length;
+			updated = new Array(len + 1);
+			for (let i = 0; i < len; i++) updated[i] = cur[i];
+			updated[len] = value;
+		}
 		this.set(updated);
 		return this;
+	}
+
+	// Diffs plain `value` onto this selection (delegates to parent paths).
+	reconcile(value, options = undefined) {
+		return reconcile(this, value, options);
 	}
 }
 
@@ -853,7 +969,29 @@ class Cell extends Reactive {
 			}
 		}
 		// TODO: Check existing
-		const updated = path ? assigned(this.value, path, value) : value;
+		let updated;
+		if (!path) {
+			updated = value;
+		} else if (path.length === 1) {
+			// fast path for common 1-level key set (e.g. state.set(v, "count"))
+			const key = path[0];
+			const base = this.value;
+			if (Array.isArray(base)) {
+				updated = base.slice();
+				if (typeof key === "number" && updated.length <= key) {
+					while (updated.length <= key) updated.push(undefined);
+				}
+				updated[key] = value;
+			} else if (isPlainObject(base)) {
+				updated = { ...base };
+				updated[key] = value;
+			} else {
+				updated = typeof key === "number" ? [] : {};
+				updated[key] = value;
+			}
+		} else {
+			updated = assigned(this.value, path, value);
+		}
 		const pending =
 			path && value && typeof value.then === "function" ? value : updated;
 		const isPromise = !!(pending && typeof pending.then === "function");
@@ -967,14 +1105,31 @@ class Cell extends Reactive {
 
 	// Appends value to array. Converts non-array to array first.
 	push(value) {
-		const updated =
-			this.revision === -1
-				? [value]
-				: Array.isArray(this.value)
-					? [...this.value, value]
-					: [this.value, value];
+		let updated;
+		const cur = this.value;
+		if (!Array.isArray(cur)) {
+			updated = (cur === undefined || cur === null) ? [value] : [cur, value];
+		} else {
+			const len = cur.length;
+			updated = new Array(len + 1);
+			for (let i = 0; i < len; i++) updated[i] = cur[i];
+			updated[len] = value;
+		}
 		this._update(updated, Nothing);
 		return this;
+	}
+
+	// Diffs plain `value` onto this cell, writing only changed paths via `set`.
+	// Subscribers flush once (batched). Same-length arrays reconcile by index;
+	// length or type changes replace that node. See `reconcile()`.
+	//
+	// Example:
+	// ```javascript
+	// const state = cell({ logs: [{ type: "info" }] })
+	// state.reconcile({ logs: [{ type: "warn" }] })  // sets path logs.0.type
+	// ```
+	reconcile(value, options = undefined) {
+		return reconcile(this, value, options);
 	}
 }
 
@@ -1743,6 +1898,32 @@ function cells(value) {
 	return res;
 }
 
+// Function: cellStore
+// Creates a root `Cell` intended as application/tree state for store-mode UI.
+// Prefer `cell.store(...)` (same function), matching `cell.derived` / `cell.batch`.
+// Plain objects are shallow-copied so the caller can keep the input bag.
+// Use `reconcile(next)` for full-tree patches and `select(path)` for views.
+//
+// cell.store.map(shape) is an alias of `cells(shape)` (one cell per key).
+// Not the KV helper `store()` from `utils/storage.js`.
+//
+// Example:
+// ```javascript
+// import cell from "./cells.js"
+// const state = cell.store({ logs: [], filter: "all" })
+// Inspector.new().set({ value: state }).mount("#app")
+// state.reconcile(nextTree)
+// state.set("warn", "filter")
+// ```
+function cellStore(initial = undefined) {
+	if (isPlainObject(initial)) {
+		return cell({ ...initial });
+	}
+	return cell(initial);
+}
+cellStore.map = cells;
+cellStore.reconcile = reconcile;
+
 // Function: deferred
 // Factory that creates a new Deferred (debounced) cell.
 //
@@ -1807,6 +1988,48 @@ function selected(parent, path) {
 
 function unwrap(value) {
 	return Reactive.Unwrap(value);
+}
+
+// Function: reconcile
+// Diff-merges plain `value` into a `Cell` or `Selected`, writing only changed
+// paths through `set`. Notifications are batched.
+//
+// Parameters:
+// - `target`: Cell|Selected - reactive to patch
+// - `value`: any - desired plain tree (typically from structuredClone + edit)
+// - `options`: object? - reserved for future keyed-array options (`key`)
+//
+// Returns: target
+//
+// Example:
+// ```javascript
+// const state = cell({ user: { name: "Ada", age: 36 } })
+// state.reconcile({ user: { name: "Ada", age: 37 } })
+// // equivalent path write: state.set(37, "user.age")
+// ```
+function reconcile(target, value, options = undefined) {
+	if (!target?.isReactive || typeof target.set !== "function") {
+		throw new TypeError(
+			"reconcile: target must be a Cell or Selected (reactive with set)",
+		);
+	}
+	// options reserved (key/merge) for Phase 1.x keyed array moves
+	void options;
+	return batch(() => {
+		if (target instanceof Selected) {
+			const parent = target.parent;
+			if (!parent?.isReactive || typeof parent.set !== "function") {
+				throw new TypeError(
+					"reconcile: Selected target requires a reactive parent",
+				);
+			}
+			const basePath = target.path ? target.path.slice() : [];
+			applyReconcile(parent, basePath, value, target.value);
+			return target;
+		}
+		applyReconcile(target, [], value, target.value);
+		return target;
+	});
 }
 
 // Function: effect
@@ -1899,6 +2122,8 @@ Object.assign(cell, {
 	effect,
 	walk,
 	expand,
+	reconcile,
+	store: cellStore,
 });
 
 export {
@@ -1906,6 +2131,7 @@ export {
 	Cell,
 	cell,
 	cells,
+	cellStore,
 	Deferred,
 	Derivation,
 	deferred,
@@ -1913,6 +2139,7 @@ export {
 	effect,
 	expand,
 	Reactive,
+	reconcile,
 	Selected,
 	Switched,
 	selected,
@@ -1932,6 +2159,8 @@ export default Object.assign(cell, {
 	effect,
 	walk,
 	expand,
+	reconcile,
+	store: cellStore,
 });
 
 // EOF
