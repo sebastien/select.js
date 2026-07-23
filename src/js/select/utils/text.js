@@ -137,7 +137,9 @@ function* iresplit(text, re, outputText = true) {
 	}
 	let o = 0;
 	let match;
-	while ((match = re.exec(text)) !== null) {
+	while (true) {
+		match = re.exec(text);
+		if (match === null) break;
 		if (outputText && o < match.index) {
 			yield text.substring(o, match.index);
 		}
@@ -205,16 +207,21 @@ function sprintf(...args) {
 	let c;
 	let x;
 	while (f) {
-		if ((m = /^[^\x25]+/.exec(f))) {
+		m = /^[^\x25]+/.exec(f);
+		if (m) {
 			o.push(m[0]);
-		} else if ((m = /^\x25{2}/.exec(f))) {
-			o.push("%");
-		} else if (
-			(m =
-				/^\x25(?:(\d+)\$)?(\+)?(0|'[^$])?(-)?(\d+)?(?:\.(\d+))?([bcdefosuxX])/.exec(
-					f,
-				))
-		) {
+		} else {
+			m = /^\x25{2}/.exec(f);
+			if (m) {
+				o.push("%");
+			} else {
+				m = /^\x25(?:(\d+)\$)?(\+)?(0|'[^$])?(-)?(\d+)?(?:\.(\d+))?([bcdefosuxX])/.exec(f);
+				if (!m) {
+					console.error(
+						"std.core.sprintf: reached state that shouldn't have been reached.",
+					);
+					return;
+				}
 			a = args[m[1] || i++];
 			if (a === null || a === undefined) {
 				console.error(
@@ -258,7 +265,8 @@ function sprintf(...args) {
 					a = a.toString(8);
 					break;
 				case "s":
-					a = (a = `${a}`) && m[6] ? a.substring(0, m[6]) : a;
+					a = `${a}`;
+					if (a && m[6]) a = a.substring(0, m[6]);
 					break;
 				case "u":
 					a = Math.abs(a);
@@ -275,11 +283,7 @@ function sprintf(...args) {
 			x = m[5] - `${a}`.length;
 			p = m[5] ? strRepeat(c, x) : "";
 			o.push(m[4] ? a + p : p + a);
-		} else {
-			console.error(
-				"std.core.sprintf: reached state that shouldn't have been reached.",
-			);
-			return;
+			}
 		}
 		f = f.substring(m[0].length);
 	}

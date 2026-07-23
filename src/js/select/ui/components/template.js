@@ -164,7 +164,8 @@ class UITemplate {
 		data = copyAppliedData(data);
 		const k = data && typeof data === "object" ? data.$key : undefined;
 		if (k != null) {
-			const cache = this._applyCache || (this._applyCache = new Map());
+			const cache = this._applyCache ?? new Map();
+			this._applyCache = cache;
 			if (cache.has(k)) {
 				const at = cache.get(k);
 				at.data = data;
@@ -218,7 +219,8 @@ class UITemplate {
 							}
 							return c;
 						};
-		const cache = this._mapCache || (this._mapCache = new Map());
+		const cache = this._mapCache ?? new Map();
+		this._mapCache = cache;
 		return remapCollection(data, (v, i) => {
 			let d = processor ? processor(v, i) : v;
 			// Determine stable key: explicit key selector wins, else $key in data, else index.

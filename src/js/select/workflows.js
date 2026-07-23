@@ -141,11 +141,12 @@ async function runHooks(hooks, input, output = undefined, fromCache = false) {
 // Function: step
 // Wraps a generator `generator` as a cacheable workflow step with `name` and
 // optional `options` (`cache`, `retries`, `backoff`, `heartbeat`, `accepts`,
-// `pre`, `post`, `error`, `on`). `pre`, `post`, and `error` may each be a
+// `pre`, `post`, `error`, `recover`, `on`). `pre`, `post`, and `error` may each be a
 // function or array of functions. They receive `(input, undefined, fromCache)`,
 // `(input, output, fromCache)`, and `(input, error)` respectively. `pre`/`post`
 // run for cached results too; `error` runs once when the step fails after
-// retries are exhausted. `on` maps state event names to callbacks (or callback
+// retries are exhausted. `recover(error)` may return a fallback result or throw.
+// `on` maps state event names to callbacks (or callback
 // arrays), invoked as `(value, eventName, runtime)` by `runtime.bind()`.
 //
 // Example:
@@ -279,10 +280,8 @@ class WorkflowRuntime {
 	// Function: Default
 	// Returns the shared default runtime, creating it on first use.
 	static Default() {
-		return (
-			WorkflowRuntime.SINGLETON ||
-			(WorkflowRuntime.SINGLETON = new WorkflowRuntime())
-		);
+		if (!WorkflowRuntime.SINGLETON) WorkflowRuntime.SINGLETON = new WorkflowRuntime();
+		return WorkflowRuntime.SINGLETON;
 	}
 
 	// Method: configure
@@ -315,6 +314,7 @@ class WorkflowRuntime {
 			pre: getdef("pre", named, stepOptions),
 			post: getdef("post", named, stepOptions),
 			error: getdef("error", named, stepOptions),
+			recover: getdef("recover", named, stepOptions),
 			on: getdef("on", named, stepOptions),
 		};
 	}
@@ -728,6 +728,11 @@ class WorkflowRuntime {
 					await this.onStepFail(ctx, error);
 					if (!(await retry.continues(error))) {
 						await runHooks(ctx.cfg.error, ctx.input, error);
+						if (typeof ctx.cfg.recover === "function") {
+							const result = await ctx.cfg.recover(error);
+							await runHooks(ctx.cfg.post, ctx.input, result);
+							return result;
+						}
 						throw error;
 					}
 					await this.onStepRetry(ctx, error);

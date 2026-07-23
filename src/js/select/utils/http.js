@@ -455,7 +455,8 @@ function http(options) {
 	if (options) {
 		return new HTTPClient(options);
 	} else {
-		return (http.singleton = http.singleton || new HTTPClient());
+		if (!http.singleton) http.singleton = new HTTPClient();
+		return http.singleton;
 	}
 }
 

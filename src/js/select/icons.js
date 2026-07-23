@@ -107,7 +107,7 @@ const IconDefaults = {
 	source: "lucide",
 	size: [24, 24],
 	style: {
-		stroke: "var(--color-icon,var(--color-text),currentColor)",
+		stroke: "var(--color-icon,var(--text-color),currentColor)",
 		"stroke-width": "1.5px",
 		"vector-effect": "non-scaling-stroke",
 		fill: "none",
@@ -143,10 +143,6 @@ const Cache = new Map();
 // fallback when no source prefix is embedded in `name`.
 function parseIconName(name, source) {
 	if (!name) {
-		console.error("icons.parseIconName: missing icon name, details", {
-			name,
-			source,
-		});
 		return [IconDefaults.name, source || IconDefaults.source];
 	}
 	const i = name.indexOf(":");
@@ -185,10 +181,7 @@ function isSafeSvgAttribute(name, value) {
 		return isLocalSvgReference(value);
 	}
 	if (
-		(key === "fill" ||
-			key === "stroke" ||
-			key === "clip-path" ||
-			key === "mask") &&
+		(key === "fill" || key === "stroke" || key === "clip-path" || key === "mask") &&
 		`${value || ""}`.includes("url(")
 	) {
 		return isLocalSvgReference(value);
@@ -230,10 +223,7 @@ function sanitizeSvgMarkup(text, name) {
 	if (i < 0) {
 		throw new Error(`Could not find <svg> in icon "${name}", got: ${text}`);
 	}
-	const doc = new DOMParser().parseFromString(
-		text.substring(i),
-		"image/svg+xml",
-	);
+	const doc = new DOMParser().parseFromString(text.substring(i), "image/svg+xml");
 	const svg = doc.documentElement;
 	if (svg?.tagName.toLowerCase() !== "svg") {
 		throw new Error(`Could not parse <svg> in icon "${name}"`);
@@ -265,10 +255,7 @@ function load(
 	) {
 		return Promise.resolve();
 	} else {
-		const symbol = document.createElementNS(
-			"http://www.w3.org/2000/svg",
-			"symbol",
-		);
+		const symbol = document.createElementNS("http://www.w3.org/2000/svg", "symbol");
 		symbol.id = `icon-${name}-${source}`;
 		container.appendChild(symbol);
 		const attempts = (entry?.attempts || 0) + 1;
@@ -330,13 +317,7 @@ function load(
 function icon(
 	name = IconDefaults.name,
 	source = IconDefaults.source,
-	{
-		size = "1em",
-		className = "icon",
-		container = IconContainer,
-		mode = undefined,
-		style = {},
-	},
+	{ size = "1em", className = "icon", container = IconContainer, mode = undefined, style = {} },
 ) {
 	style = Object.assign({}, IconDefaults.style, source?.style, style);
 	const node = Object.entries({ width: size, height: size }).reduce(
@@ -464,9 +445,9 @@ class IconElement extends HTMLElement {
 		const dy = this.getAttribute("dy");
 		const stroke_width = px(this.getAttribute("stroke-width"));
 		const style = {};
-		fill && (style.fill = fill);
-		stroke && (style.stroke = stroke);
-		stroke_width && (style["stroke-width"] = stroke_width);
+		if (fill) style.fill = fill;
+		if (stroke) style.stroke = stroke;
+		if (stroke_width) style["stroke-width"] = stroke_width;
 		if (dy) {
 			style.transform = `translateY(${px(dy)})`;
 		}

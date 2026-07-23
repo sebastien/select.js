@@ -170,6 +170,58 @@ describe("ui reactive path updates", () => {
 		window.close?.()
 	})
 
+	test("keyed rows keep their DOM order when earlier panels arrive later", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" })
+		setupGlobals(window)
+		if (window.DOMParser) globalThis.DOMParser = window.DOMParser
+
+		const { ui, remap } = await import("../src/js/select/ui.js")
+
+		document.body.innerHTML = `<div id="app"></div>`
+
+		const Row = ui(`<li out:data-panel="id" out="label"></li>`).does({
+			label: (_self, { id }) => id,
+		})
+		const List = ui(`<ul out="items"></ul>`).does({
+			items: (_self, { items }) =>
+				remap(items, ({ id }) => Row({ id, $key: id })),
+		})
+		const initial = [{ id: "chat" }, { id: "tools" }, { id: "files" }]
+		const panels = [
+			{ id: "help" },
+			{ id: "chat" },
+			{ id: "facts" },
+			{ id: "guide" },
+			{ id: "tools" },
+			{ id: "checklist" },
+			{ id: "files" },
+		]
+		const instance = List.new().set({ items: initial }).mount("#app")
+		await new Promise((r) => setTimeout(r, 0))
+
+		const retained = new Map(
+			Array.from(document.querySelectorAll("#app li")).map((node) => [
+				node.dataset.panel,
+				node,
+			]),
+		)
+
+		instance.update({ items: panels })
+		await new Promise((r) => setTimeout(r, 0))
+
+		const rows = Array.from(document.querySelectorAll("#app li"))
+		expect(rows.map((node) => node.dataset.panel)).toEqual(
+			panels.map(({ id }) => id),
+		)
+		for (const id of ["chat", "tools", "files"]) {
+			expect(rows.find((node) => node.dataset.panel === id)).toBe(retained.get(id))
+		}
+
+		instance.unmount()
+		document.body.innerHTML = ""
+		window.close?.()
+	})
+
 	test("dict key remove via reconcile drops the row", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" })
 		setupGlobals(window)

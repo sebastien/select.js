@@ -615,7 +615,8 @@ function grouped(values, extract, processor = undefined) {
 		values,
 		(res, value, key) => {
 			const groupKey = ext(value, key, values);
-			const bucket = res[groupKey] || (res[groupKey] = []);
+			const bucket = res[groupKey] || [];
+			if (res[groupKey] === undefined) res[groupKey] = bucket;
 			append(bucket, processor ? processor(value, key, values) : value);
 			return res;
 		},

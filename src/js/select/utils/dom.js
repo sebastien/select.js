@@ -333,6 +333,16 @@ function text(node, text) {
 	}
 	return node;
 }
+
+// Function: fit
+// Resets an editable control to its content-sized height.
+function fit(element) {
+	if (!element?.style) return element;
+	element.style.height = "";
+	element.style.fieldSizing = "content";
+	return element;
+}
+
 // Function: attached
 // Returns a callback that restores `node` to its original parent and relative
 // position. With `affinity < 1`, it favors the original start position; with
@@ -374,7 +384,7 @@ function swapped(target, node) {
 	return () => (restoreTarget(), restoreNode());
 }
 
-export { isInputNode, swap, attached, swapped };
+export { isInputNode, fit, swap, attached, swapped };
 export default {
 	isNode,
 	isContainer,
@@ -391,6 +401,7 @@ export default {
 	replace,
 	unwrap,
 	text,
+	fit,
 	swap,
 	attached,
 	swapped,

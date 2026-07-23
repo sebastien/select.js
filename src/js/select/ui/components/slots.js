@@ -1824,7 +1824,23 @@ class UISlot {
 					setNodeText(r, asText(item));
 				}
 			}
-			// TODO: We may want to ensure the order is as expected
+			const mapped = this.mapping.get(k);
+			const first = this._firstMappedNode(mapped);
+			const last = this._lastMappedNode(mapped);
+			const next = this._nextMountNode(k, previous);
+			if (
+				this._listKeyMode === "stable" &&
+				first &&
+				last &&
+				(previous
+					? previous.nextSibling !== first
+					: last.nextSibling !== next)
+			) {
+				this._mountInstance(
+					isUIInstance(mapped) ? mapped : { nodes: [mapped] },
+					next,
+				);
+			}
 		}
 		return this._lastMappedNode(this.mapping.get(k)) || previous;
 	}
@@ -1919,6 +1935,7 @@ class UISlot {
 				) {
 					return;
 				}
+				this._listKeys = nextKeys;
 				for (let i = 0; i < data.length; i++) {
 					previous = this._renderMapped(nextKeys[i], data[i], previous);
 				}
@@ -1936,7 +1953,6 @@ class UISlot {
 						}
 					}
 				}
-				this._listKeys = nextKeys;
 			} else {
 				if (
 					this._listItems &&

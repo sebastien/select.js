@@ -28,7 +28,7 @@ Level 1 (basic): utils/compare.js, utils/text.js, utils/iter.js, utils/func.js
 Level 2 (data): utils/transform.js, utils/traverse.js, utils/update.js, utils/sanitize.js
 Level 3 (domain): utils/selection.js, utils/search.js, utils/dom.js, utils/html.js
 Level 4 (serialization): utils/hashfmt.js
-Level 5 (infrastructure): utils/dates.js, utils/math.js, utils/storage.js, utils/http.js, utils/reshape.js
+Level 5 (infrastructure): utils/dates.js, utils/math.js, utils/storage.js, utils/http.js, utils/shape.js
 Level 6 (core): cells.js, query.js (independent), fastdom.js (independent)
 Level 7 (integration): browser.js (depends on cells.js, hashfmt.js, routing.js)
 Level 8 (application): ui/*, interaction/*, icons.js, formats.js, workflows.js

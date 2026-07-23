@@ -10,7 +10,12 @@
 import { unwrap } from "./cells.js";
 import { hi as htmlHi } from "./utils/html.js";
 import { bool, entries, idem, len, type } from "./utils.js";
-import { toCamelCase, toKebabCase, toSnakeCase, words } from "./utils/text.js";
+import {
+	toCamelCase,
+	toKebabCase,
+	toSnakeCase,
+	words as splitWords,
+} from "./utils/text.js";
 
 const NA = "―";
 const DEFAULTS = {
@@ -59,6 +64,10 @@ function selected(value) {
 }
 function text(value) {
 	return `${value}`;
+}
+
+function words(value) {
+	return splitWords(value).join(" ");
 }
 
 function unwrapped(value) {
