@@ -77,15 +77,62 @@ describe("cell.reconcile", () => {
 		expect(paths.some((p) => p.startsWith("logs.1"))).toBe(false)
 	})
 
-	test("array shrink replaces the array node", () => {
-		const state = cell({ logs: [{ id: 1 }, { id: 2 }, { id: 3 }] })
+	test("array middle remove keeps remaining element identity", () => {
+		const a = { id: 1 }
+		const b = { id: 2 }
+		const c = { id: 3 }
+		const state = cell({ logs: [a, b, c] })
 		const paths = []
 		state.sub((_v, path) => {
 			paths.push(path == null ? null : path.join("."))
 		})
 		state.reconcile({ logs: [{ id: 1 }, { id: 3 }] })
 		expect(state.value.logs).toEqual([{ id: 1 }, { id: 3 }])
+		expect(state.value.logs[0]).toBe(a)
+		expect(state.value.logs[1]).toBe(c)
 		expect(paths).toContain("logs")
+	})
+
+	test("array tail pop keeps prefix element identity", () => {
+		const a = { id: 1 }
+		const b = { id: 2 }
+		const c = { id: 3 }
+		const state = cell({ logs: [a, b, c] })
+		state.reconcile({ logs: [{ id: 1 }, { id: 2 }] })
+		expect(state.value.logs.length).toBe(2)
+		expect(state.value.logs[0]).toBe(a)
+		expect(state.value.logs[1]).toBe(b)
+	})
+
+	test("array multi-remove replaces when not a single shift/tail pop", () => {
+		const a = { id: 1, v: 0 }
+		const b = { id: 2 }
+		const c = { id: 3 }
+		const d = { id: 4 }
+		const state = cell({ logs: [a, b, c, d] })
+		state.reconcile({
+			logs: [
+				{ id: 1, v: 1 },
+				{ id: 2 },
+			],
+		})
+		expect(state.value.logs).toEqual([
+			{ id: 1, v: 1 },
+			{ id: 2 },
+		])
+		expect(state.value.logs.length).toBe(2)
+	})
+
+	test("array tail multi-pop keeps prefix element identity", () => {
+		const a = { id: 1 }
+		const b = { id: 2 }
+		const c = { id: 3 }
+		const d = { id: 4 }
+		const state = cell({ logs: [a, b, c, d] })
+		state.reconcile({ logs: [{ id: 1 }, { id: 2 }] })
+		expect(state.value.logs.length).toBe(2)
+		expect(state.value.logs[0]).toBe(a)
+		expect(state.value.logs[1]).toBe(b)
 	})
 
 	test("array append keeps existing element identity", () => {
@@ -101,6 +148,24 @@ describe("cell.reconcile", () => {
 		})
 		expect(state.value.logs.length).toBe(3)
 		expect(state.value.logs[0]).toBe(first)
+		expect(state.value.logs[1]).toBe(second)
+		expect(state.value.logs[2]).toEqual({ id: 3, type: "error" })
+	})
+
+	test("array append with prefix content change still patches", () => {
+		const first = { id: 1, type: "info" }
+		const second = { id: 2, type: "warn" }
+		const state = cell({ logs: [first, second] })
+		state.reconcile({
+			logs: [
+				{ id: 1, type: "error" },
+				{ id: 2, type: "warn" },
+				{ id: 3, type: "error" },
+			],
+		})
+		expect(state.value.logs.length).toBe(3)
+		// Endpoint sample sees first element changed → full prefix reconcile path.
+		expect(state.value.logs[0].type).toBe("error")
 		expect(state.value.logs[1]).toBe(second)
 		expect(state.value.logs[2]).toEqual({ id: 3, type: "error" })
 	})

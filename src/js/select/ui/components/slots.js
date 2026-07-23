@@ -1308,6 +1308,138 @@ class UISlot {
 		existing.render(merged, changedKeys);
 	}
 
+	// True when list keys are positional 0..n-1 (index mode or $key: index).
+	_isIndexShapedList() {
+		if (!this._listKeyMode || this._listKeyMode === "index") {
+			return true;
+		}
+		const keys = this._listKeys;
+		if (!keys?.length) {
+			return false;
+		}
+		for (let i = 0; i < keys.length; i++) {
+			if (keys[i] !== i) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	// Trusted tail-append: prefix is unchanged (path notify proved it). Sync
+	// wrapper bags without deep-eq or re-render, mount only the new tail item.
+	_renderTrustedAppend(data) {
+		const previousLength = this._listLength || 0;
+		if (!data || data.length !== previousLength + 1 || !this._isIndexShapedList()) {
+			return false;
+		}
+		const nextKeys = this._listKeys || new Array(data.length);
+		for (let i = 0; i < previousLength; i++) {
+			nextKeys[i] = i;
+			this._syncMappedWrapper(i, data[i]);
+		}
+		let previous =
+			previousLength > 0
+				? this._lastMappedNode(this.mapping.get(previousLength - 1))
+				: null;
+		nextKeys[previousLength] = previousLength;
+		previous = this._renderMapped(previousLength, data[previousLength], previous);
+		nextKeys.length = data.length;
+		this._listKeys = nextKeys;
+		this._listLength = data.length;
+		this._listItems = data;
+		this._listKeyMode = this._listKeyMode || "index";
+		return true;
+	}
+
+	// Trusted single remove when removeAt is known (or tail). Skips full-list eq scan.
+	_renderTrustedRemoveAt(data, removeAt) {
+		const previousLength = this._listLength || 0;
+		if (
+			!data ||
+			data.length !== previousLength - 1 ||
+			removeAt < 0 ||
+			removeAt > data.length ||
+			!this._isIndexShapedList()
+		) {
+			return false;
+		}
+		return this._renderIndexRemoveAt(data, removeAt, previousLength);
+	}
+
+	// Presentation-only refresh after a positional shift: update key/$key and
+	// re-run label-like behaviors without touching value subtrees.
+	_renderShiftedPresentation(k, item) {
+		const existing = this.mapping.get(k);
+		if (
+			!(item instanceof AppliedUITemplate) ||
+			!isUIInstance(existing) ||
+			item.template !== existing.template
+		) {
+			this._renderMapped(k, item, null);
+			return;
+		}
+		const next = item.data;
+		const prev = existing.data;
+		if (
+			!prev ||
+			!next ||
+			typeof prev !== "object" ||
+			typeof next !== "object" ||
+			Array.isArray(prev) ||
+			Array.isArray(next)
+		) {
+			existing.update(next);
+			existing._lastApplied = item;
+			return;
+		}
+		// Mutate bag in place; keep value ref (payload already matched).
+		if ("value" in next) {
+			prev.value = next.value;
+		}
+		let labelDirty = false;
+		for (const key in next) {
+			if (key === "value") {
+				continue;
+			}
+			const nv = next[key];
+			if (!Object.is(prev[key], nv)) {
+				prev[key] = nv;
+				labelDirty = true;
+			}
+		}
+		existing._lastApplied = item;
+		existing.data = prev;
+		if (!labelDirty) {
+			return;
+		}
+		const behavior = existing.template?.behavior;
+		const out = existing.out;
+		if (!behavior || !out) {
+			return;
+		}
+		for (const slotKey in out) {
+			if (slotKey === "value" || slotKey === "text") {
+				continue;
+			}
+			const fn = behavior[slotKey];
+			const slots = out[slotKey];
+			if (!fn || !slots) {
+				continue;
+			}
+			const deps = existing._behaviorDeps?.get(slotKey);
+			if (deps && !deps.has("key") && !deps.has("$key") && !deps.has("label")) {
+				continue;
+			}
+			const v = fn(existing, prev, null);
+			if (existing._behaviorValues) {
+				existing._behaviorValues.set(slotKey, v);
+			}
+			for (let s = 0; s < slots.length; s++) {
+				slots[s].render(v);
+			}
+		}
+	}
+
 	// Single-index remove: unmount R, rekey R+1..end → R..end-1, then update
 	// shifted rows (labels only when payload matches). DOM order stays correct
 	// after unmounting R — no node moves needed.
@@ -1341,7 +1473,7 @@ class UISlot {
 		this._listKeys = nextKeys;
 		// Prefix is unchanged; only shifted rows need label/key refresh.
 		for (let i = removeAt; i < data.length; i++) {
-			this._renderShiftedMapped(i, data[i]);
+			this._renderShiftedPresentation(i, data[i]);
 		}
 		this._listLength = data.length;
 		this._listItems = data;
@@ -1370,7 +1502,7 @@ class UISlot {
 			insertAt > 0 ? this._lastMappedNode(this.mapping.get(insertAt - 1)) : null;
 		previous = this._renderMapped(insertAt, data[insertAt], previous);
 		for (let i = insertAt + 1; i < data.length; i++) {
-			this._renderShiftedMapped(i, data[i]);
+			this._renderShiftedPresentation(i, data[i]);
 			previous = this._lastMappedNode(this.mapping.get(i)) || previous;
 		}
 		this._listLength = data.length;

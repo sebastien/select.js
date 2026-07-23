@@ -168,10 +168,29 @@ function applyReconcile(cell, basePath, target, previous) {
 			}
 			return;
 		}
-		// Append-only growth: patch prefix by index, then write new tail indices.
-		// Keeps existing element identity when only the tail is new (structuredClone
-		// of a tree after push still deep-matches the prefix).
+		// Append-only growth. Pure single-append (length +1, full prefix eq):
+		// keep previous element refs and one set of […previous, tail]. One prefix
+		// walk (eq) then identity compose — UI Object.is-short-circuits instead
+		// of re-diffing. Prefix mutations fall through to per-index reconcile.
 		if (nextLen > prevLen) {
+			if (nextLen === prevLen + 1) {
+				let prefixEq = true;
+				for (let i = 0; i < prevLen; i++) {
+					if (!eq(target[i], previous[i])) {
+						prefixEq = false;
+						break;
+					}
+				}
+				if (prefixEq) {
+					const next = new Array(nextLen);
+					for (let i = 0; i < prevLen; i++) {
+						next[i] = previous[i];
+					}
+					next[prevLen] = target[prevLen];
+					reconcileSet(cell, basePath, next);
+					return;
+				}
+			}
 			for (let i = 0; i < prevLen; i++) {
 				basePath.push(i);
 				applyReconcile(cell, basePath, target[i], previous[i]);
@@ -184,7 +203,53 @@ function applyReconcile(cell, basePath, target, previous) {
 			}
 			return;
 		}
-		// Shrink (and other length changes): replace the array node.
+		// Shrink: identity-preserving single remove (incl. tail). Find removeAt
+		// by prefix scan; sanity-check only the first shifted element (not full
+		// O(n) array eq — that dominated 1000-log splices). Compose kept previous
+		// refs so UI Object.is-short-circuits. Combined remove+mutate in one
+		// reconcile falls back when the shifted-element check fails.
+		// Never index-prefix-reconcile a middle remove (pairs wrong rows).
+		if (nextLen === prevLen - 1) {
+			let removeAt = nextLen;
+			for (let i = 0; i < nextLen; i++) {
+				if (!eq(target[i], previous[i])) {
+					removeAt = i;
+					break;
+				}
+			}
+			if (
+				removeAt >= nextLen ||
+				eq(target[removeAt], previous[removeAt + 1])
+			) {
+				const next = new Array(nextLen);
+				for (let i = 0; i < removeAt; i++) {
+					next[i] = previous[i];
+				}
+				for (let i = removeAt; i < nextLen; i++) {
+					next[i] = previous[i + 1];
+				}
+				reconcileSet(cell, basePath, next);
+				return;
+			}
+		} else if (nextLen < prevLen && prevLen <= 64) {
+			// Tail-only multi-pop on modest lists: prefix matches → keep refs.
+			let tailOnly = true;
+			for (let i = 0; i < nextLen; i++) {
+				if (!eq(target[i], previous[i])) {
+					tailOnly = false;
+					break;
+				}
+			}
+			if (tailOnly) {
+				const next = new Array(nextLen);
+				for (let i = 0; i < nextLen; i++) {
+					next[i] = previous[i];
+				}
+				reconcileSet(cell, basePath, next);
+				return;
+			}
+		}
+		// Ambiguous shrink: one replace (UI list engine handles shift/eq).
 		reconcileSet(cell, basePath, target);
 		return;
 	}

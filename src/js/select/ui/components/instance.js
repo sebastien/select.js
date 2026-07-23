@@ -10,7 +10,7 @@
 import { asText, eq } from "../../utils.js";
 import { log, TemplateParser } from "../templates.js";
 
-import { UIEvent } from "./model.js";
+import { AppliedUITemplate, UIEvent } from "./model.js";
 import { options } from "./registry.js";
 import {
 	applyNamedProcessors,
@@ -849,7 +849,9 @@ class UIInstance {
 	// is missing from the mapping (new index/key) or a key was deleted.
 	// `treeAtSlot` is the current collection value from the store (parent.data may
 	// still hold a stale plain snapshot until a full render runs).
-	_refreshCollectionSlot(slot, treeAtSlot = undefined) {
+	// `hint` may be `{ op: "append" }` or `{ op: "remove", at }` when the path
+	// notify already proved the structural mutation (skip full-list eq scans).
+	_refreshCollectionSlot(slot, treeAtSlot = undefined, hint = undefined) {
 		const parent = slot?.parent;
 		if (!(parent instanceof UIInstance) || parent._isDisposed) {
 			return false;
@@ -886,6 +888,29 @@ class UIInstance {
 		} else if (!behaviorData) {
 			behaviorData = {};
 		}
+		// Path-proven structural mutations: avoid full collection remap when the
+		// slot already has row wrappers we can reuse (append one / remove one).
+		if (
+			hint?.op === "append" &&
+			Array.isArray(treeAtSlot) &&
+			typeof slot._renderTrustedAppend === "function"
+		) {
+			const local = this._renderCollectionAppendLocal(slot, treeAtSlot);
+			if (local) {
+				return true;
+			}
+		} else if (
+			hint?.op === "remove" &&
+			Array.isArray(treeAtSlot) &&
+			typeof slot._renderTrustedRemoveAt === "function"
+		) {
+			const at =
+				typeof hint.at === "number" ? hint.at : (slot._listLength || 1) - 1;
+			const local = this._renderCollectionRemoveLocal(slot, treeAtSlot, at);
+			if (local) {
+				return true;
+			}
+		}
 		// Behaviors receive the same view shape as render() (unwrap root store).
 		const viewData = renderViewData(behaviorData);
 		const rendered = behavior(parent, viewData, null);
@@ -902,8 +927,122 @@ class UIInstance {
 				),
 			);
 		}
+		// Path-proven structural mutations: skip full-list deep-eq detection.
+		if (hint?.op === "append" && typeof slot._renderTrustedAppend === "function") {
+			if (slot._renderTrustedAppend(rendered)) {
+				return true;
+			}
+		} else if (
+			hint?.op === "remove" &&
+			typeof slot._renderTrustedRemoveAt === "function"
+		) {
+			const at =
+				typeof hint.at === "number" ? hint.at : (slot._listLength || 1) - 1;
+			if (slot._renderTrustedRemoveAt(rendered, at)) {
+				return true;
+			}
+		}
 		slot.render(rendered);
 		return true;
+	}
+
+	// True when row bags hold the raw collection element in `.value` (inspector
+	// pattern). False when a processor reshapes entries (e.g. `{ id, value }`).
+	_collectionRowUsesRawEntry(slot, treeAtSlot) {
+		const sample = slot._listItems?.[0];
+		if (!(sample instanceof AppliedUITemplate)) {
+			return false;
+		}
+		const data = sample.data;
+		if (!data || typeof data !== "object" || !("value" in data)) {
+			return false;
+		}
+		// Match sample against any current element by identity (store-stable refs).
+		for (let i = 0; i < treeAtSlot.length; i++) {
+			if (Object.is(data.value, treeAtSlot[i])) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// Append one row without re-running the collection behavior over all items.
+	// Only for raw-entry row shapes; reshaping processors fall back to behavior.
+	_renderCollectionAppendLocal(slot, treeAtSlot) {
+		const prevLen = slot._listLength || 0;
+		if (
+			!Array.isArray(treeAtSlot) ||
+			treeAtSlot.length !== prevLen + 1 ||
+			!slot._listItems?.length ||
+			!this._collectionRowUsesRawEntry(slot, treeAtSlot)
+		) {
+			return false;
+		}
+		const sample = slot._listItems[0];
+		const entry = treeAtSlot[prevLen];
+		const sampleData = sample.data;
+		const rowData = {
+			...sampleData,
+			key: `#${prevLen}`,
+			value: entry,
+		};
+		if ("$key" in sampleData) {
+			rowData.$key = prevLen;
+		}
+		const row = sample.template.apply(rowData);
+		const next = new Array(prevLen + 1);
+		for (let i = 0; i < prevLen; i++) {
+			next[i] = slot._listItems[i];
+		}
+		next[prevLen] = row;
+		return slot._renderTrustedAppend(next);
+	}
+
+	// Remove one row without re-running the collection behavior over all items.
+	// Safe when wrappers already hold the kept element refs (identity shrink).
+	_renderCollectionRemoveLocal(slot, treeAtSlot, removeAt) {
+		const prevLen = slot._listLength || 0;
+		const prevItems = slot._listItems;
+		if (
+			!Array.isArray(treeAtSlot) ||
+			!prevItems ||
+			treeAtSlot.length !== prevLen - 1 ||
+			removeAt < 0 ||
+			removeAt > treeAtSlot.length ||
+			!this._collectionRowUsesRawEntry(slot, treeAtSlot)
+		) {
+			return false;
+		}
+		const next = new Array(treeAtSlot.length);
+		for (let i = 0, j = 0; i < prevLen; i++) {
+			if (i === removeAt) {
+				continue;
+			}
+			const item = prevItems[i];
+			// Kept row must still point at the element now at index j.
+			if (
+				item instanceof AppliedUITemplate &&
+				item.data &&
+				typeof item.data === "object" &&
+				"value" in item.data &&
+				!Object.is(item.data.value, treeAtSlot[j])
+			) {
+				return false;
+			}
+			if (item instanceof AppliedUITemplate && item.data && typeof item.data === "object") {
+				const data = item.data;
+				if ("key" in data || "$key" in data) {
+					const shifted = { ...data, key: `#${j}` };
+					if ("$key" in data) {
+						shifted.$key = j;
+					}
+					item.data = shifted;
+				}
+			}
+			next[j] = item;
+			j++;
+		}
+		return slot._renderTrustedRemoveAt(next, removeAt);
 	}
 
 	_mappingGet(slot, key) {
@@ -919,6 +1058,57 @@ class UIInstance {
 		return child;
 	}
 
+	// Derive a trusted list mutation hint from slot tracking + new array refs.
+	// Only returns a hint when Object.is proves identity-preserving append/remove
+	// (e.g. after surgical cell shrink). Otherwise undefined → full eq detect.
+	static _listMutationHint(slot, nextArray) {
+		if (!slot || !Array.isArray(nextArray)) {
+			return undefined;
+		}
+		const prevLen = slot._listLength || 0;
+		const nextLen = nextArray.length;
+		const prevItems = slot._listItems;
+		if (!prevItems || prevLen === 0) {
+			return undefined;
+		}
+		const prevValue = (item) => {
+			if (
+				item &&
+				typeof item === "object" &&
+				item.data &&
+				typeof item.data === "object" &&
+				"value" in item.data
+			) {
+				return item.data.value;
+			}
+			return item;
+		};
+		if (nextLen === prevLen + 1) {
+			for (let i = 0; i < prevLen; i++) {
+				if (!Object.is(nextArray[i], prevValue(prevItems[i]))) {
+					return undefined;
+				}
+			}
+			return { op: "append" };
+		}
+		if (nextLen === prevLen - 1) {
+			let removeAt = nextLen;
+			for (let i = 0; i < nextLen; i++) {
+				if (!Object.is(nextArray[i], prevValue(prevItems[i]))) {
+					removeAt = i;
+					break;
+				}
+			}
+			for (let i = removeAt; i < nextLen; i++) {
+				if (!Object.is(nextArray[i], prevValue(prevItems[i + 1]))) {
+					return undefined;
+				}
+			}
+			return { op: "remove", at: removeAt };
+		}
+		return undefined;
+	}
+
 	_applyReactivePathToSlot(slot, path, treeAtSlot) {
 		if (!slot?.mapping || !path?.length) {
 			return false;
@@ -929,7 +1119,24 @@ class UIInstance {
 		// this collection via its behavior (list fast-paths handle DOM).
 		if (!(child instanceof UIInstance)) {
 			if (path.length === 1) {
-				return this._refreshCollectionSlot(slot, treeAtSlot);
+				let hint;
+				if (Array.isArray(treeAtSlot)) {
+					const prevLen = slot._listLength || 0;
+					const headIndex =
+						typeof head === "number"
+							? head
+							: Number.isInteger(Number(head)) && String(Number(head)) === String(head)
+								? Number(head)
+								: NaN;
+					if (
+						Number.isInteger(headIndex) &&
+						headIndex === prevLen &&
+						treeAtSlot.length === prevLen + 1
+					) {
+						hint = { op: "append" };
+					}
+				}
+				return this._refreshCollectionSlot(slot, treeAtSlot, hint);
 			}
 			return false;
 		}
@@ -949,7 +1156,25 @@ class UIInstance {
 				Object.hasOwn(treeAtSlot, head)
 			)
 		) {
-			return this._refreshCollectionSlot(slot, treeAtSlot);
+			let hint;
+			if (Array.isArray(treeAtSlot)) {
+				const prevLen = slot._listLength || 0;
+				const headIndex =
+					typeof head === "number"
+						? head
+						: Number.isInteger(Number(head)) && String(Number(head)) === String(head)
+							? Number(head)
+							: NaN;
+				if (
+					Number.isInteger(headIndex) &&
+					treeAtSlot.length === prevLen - 1 &&
+					headIndex >= 0 &&
+					headIndex <= treeAtSlot.length
+				) {
+					hint = { op: "remove", at: headIndex };
+				}
+			}
+			return this._refreshCollectionSlot(slot, treeAtSlot, hint);
 		}
 		const valueSlots = child.out?.value;
 		if (valueSlots?.length) {
@@ -988,14 +1213,17 @@ class UIInstance {
 							nested.data = { ...nested.data, value: entryValue };
 						}
 						for (let j = 0; j < nested.out.items.length; j++) {
-							if (
-								this._refreshCollectionSlot(nested.out.items[j], entryValue)
-							) {
+							const itemsSlot = nested.out.items[j];
+							const hint = entryIsArray
+								? UIInstance._listMutationHint(itemsSlot, entryValue)
+								: undefined;
+							if (this._refreshCollectionSlot(itemsSlot, entryValue, hint)) {
 								return true;
 							}
 						}
 					}
 				}
+				// Type change or non-collection value replace at this entry.
 				const prev = child.data;
 				if (prev && typeof prev === "object" && !Array.isArray(prev)) {
 					child.update({ ...prev, value: entryValue });
@@ -1561,6 +1789,24 @@ class UIInstance {
 			for (const k in data) {
 				const existing = this.data[k];
 				const updated = data[k];
+				if (Object.is(existing, updated)) {
+					continue;
+				}
+				// Type/shape change (scalar↔object↔array): skip deep eq.
+				const exArr = Array.isArray(existing);
+				const upArr = Array.isArray(updated);
+				if (
+					exArr !== upArr ||
+					(existing === null) !== (updated === null) ||
+					typeof existing !== typeof updated
+				) {
+					same = false;
+					if (!changedKeys) {
+						changedKeys = new Set();
+					}
+					changedKeys.add(k);
+					continue;
+				}
 				if (!eq(existing, updated)) {
 					same = false;
 					if (!changedKeys) {

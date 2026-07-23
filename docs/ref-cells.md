@@ -101,12 +101,12 @@ state.select("user").reconcile({ name: "Ada", age: 38 });
 Notes:
 
 - Same-length arrays reconcile **by index** (nested field edits stay path writes).
-- Array **append** (length growth) patches the prefix by index then writes new tail indices, preserving existing element identity when unchanged.
-- Array **shrink** or **type** changes replace that node in one `set`.
+- Array **append** (length growth): a pure single-append (length +1 with matching endpoints) keeps previous element refs and writes only the new tail. Otherwise patches the prefix by index then writes new tail indices.
+- Array **shrink** is surgical for a single remove (including tail pop): rebuilds the array from kept previous element refs when the prefix matches and the first shifted element deep-equals (avoids O(n) full-array eq). Tail-only multi-pop on modest lists (≤ 64) keeps prefix refs. Ambiguous shrinks replace the array node once. **Type** changes still replace that node in one `set`.
 - Object keys missing from `next` are **deleted** (not left as `undefined`).
 - Deep-equal clones (all leaves `Object.is`) are a no-op.
 - Options are reserved for future keyed-array moves (`key`); v1 ignores them.
-- See `plans/009-cells-first-ui.md` for the broader cells-first UI roadmap.
+- See `plans/009-cells-first-ui.md` and `plans/010-correct-solid-parity.md` for the cells-first UI roadmap.
 
 ### Normalization
 Cells can normalize root values before they are stored. Use `.normalize(fn)` to register a function that transforms values passed to `.set(value)`.
