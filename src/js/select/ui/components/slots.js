@@ -1205,9 +1205,7 @@ class UISlot {
 		return null;
 	}
 
-	// Refresh a row whose payload was already verified equal during shift
-	// detection. Avoids deep-eq on `value` (the expensive part for large trees)
-	// and only re-renders presentation fields (key/path/label/…).
+	// Refresh a retained row whose payload was already verified equal.
 	_renderShiftedMapped(k, item) {
 		const existing = this.mapping.get(k);
 		if (
@@ -1218,94 +1216,8 @@ class UISlot {
 			this._renderMapped(k, item, null);
 			return;
 		}
-		const prev = existing.data;
-		const next = item.data;
-		if (
-			!prev ||
-			!next ||
-			typeof prev !== "object" ||
-			typeof next !== "object" ||
-			Array.isArray(prev) ||
-			Array.isArray(next) ||
-			!("value" in next)
-		) {
-			existing.update(next);
-			existing._lastApplied = item;
-			return;
-		}
-		const changedKeys = new Set();
-		// Mutate a single bag when possible to avoid per-row object spreads.
-		const merged =
-			prev === next
-				? prev
-				: prev && Object.getPrototypeOf(prev) === Object.prototype
-					? prev
-					: { ...prev };
-		if (merged !== next) {
-			for (const key in next) {
-				if (key === "value") {
-					// Content already matched via _itemPayloadEq; keep nested trees.
-					merged.value = next.value;
-					continue;
-				}
-				const pv = prev[key];
-				const nv = next[key];
-				if (!Object.is(pv, nv)) {
-					merged[key] = nv;
-					// Presentation fields are typically strings/numbers — skip deep eq.
-					if (pv !== nv) {
-						changedKeys.add(key);
-					}
-				}
-			}
-		}
+		existing.update(item.data);
 		existing._lastApplied = item;
-		existing.data = merged;
-		if (!changedKeys.size) {
-			return;
-		}
-		// Fast path: payload (`value`) is unchanged — refresh only out-behaviors
-		// whose tracked deps intersect changedKeys (e.g. label from key/index).
-		const behavior = existing.template.behavior;
-		const out = existing.out;
-		if (behavior && out && !changedKeys.has("value")) {
-			let ran = false;
-			for (const slotKey in out) {
-				const fn = behavior[slotKey];
-				const slots = out[slotKey];
-				if (!fn || !slots) {
-					continue;
-				}
-				const deps = existing._behaviorDeps?.get(slotKey);
-				if (deps) {
-					let needed = false;
-					for (const dep of deps) {
-						if (changedKeys.has(dep)) {
-							needed = true;
-							break;
-						}
-					}
-					if (!needed) {
-						continue;
-					}
-				} else if (slotKey === "value" || slotKey === "text") {
-					// Without deps, skip value-like slots when payload is stable.
-					continue;
-				}
-				const v = fn(existing, merged, null);
-				if (existing._behaviorValues) {
-					existing._behaviorValues.set(slotKey, v);
-				}
-				for (let s = 0; s < slots.length; s++) {
-					slots[s].render(v);
-				}
-				ran = true;
-			}
-			if (ran || existing._behaviorDeps) {
-				return;
-			}
-		}
-		existing.render(merged, changedKeys);
 	}
 
 	// True when list keys are positional 0..n-1 (index mode or $key: index).
@@ -1329,7 +1241,11 @@ class UISlot {
 	// wrapper bags without deep-eq or re-render, mount only the new tail item.
 	_renderTrustedAppend(data) {
 		const previousLength = this._listLength || 0;
-		if (!data || data.length !== previousLength + 1 || !this._isIndexShapedList()) {
+		if (
+			!data ||
+			data.length !== previousLength + 1 ||
+			!this._isIndexShapedList()
+		) {
 			return false;
 		}
 		const nextKeys = this._listKeys || new Array(data.length);
@@ -1342,7 +1258,11 @@ class UISlot {
 				? this._lastMappedNode(this.mapping.get(previousLength - 1))
 				: null;
 		nextKeys[previousLength] = previousLength;
-		previous = this._renderMapped(previousLength, data[previousLength], previous);
+		previous = this._renderMapped(
+			previousLength,
+			data[previousLength],
+			previous,
+		);
 		nextKeys.length = data.length;
 		this._listKeys = nextKeys;
 		this._listLength = data.length;
@@ -1366,8 +1286,7 @@ class UISlot {
 		return this._renderIndexRemoveAt(data, removeAt, previousLength);
 	}
 
-	// Presentation-only refresh after a positional shift: update key/$key and
-	// re-run label-like behaviors without touching value subtrees.
+	// Refresh retained data after a positional shift.
 	_renderShiftedPresentation(k, item) {
 		const existing = this.mapping.get(k);
 		if (
@@ -1378,66 +1297,8 @@ class UISlot {
 			this._renderMapped(k, item, null);
 			return;
 		}
-		const next = item.data;
-		const prev = existing.data;
-		if (
-			!prev ||
-			!next ||
-			typeof prev !== "object" ||
-			typeof next !== "object" ||
-			Array.isArray(prev) ||
-			Array.isArray(next)
-		) {
-			existing.update(next);
-			existing._lastApplied = item;
-			return;
-		}
-		// Mutate bag in place; keep value ref (payload already matched).
-		if ("value" in next) {
-			prev.value = next.value;
-		}
-		let labelDirty = false;
-		for (const key in next) {
-			if (key === "value") {
-				continue;
-			}
-			const nv = next[key];
-			if (!Object.is(prev[key], nv)) {
-				prev[key] = nv;
-				labelDirty = true;
-			}
-		}
+		existing.update(item.data);
 		existing._lastApplied = item;
-		existing.data = prev;
-		if (!labelDirty) {
-			return;
-		}
-		const behavior = existing.template?.behavior;
-		const out = existing.out;
-		if (!behavior || !out) {
-			return;
-		}
-		for (const slotKey in out) {
-			if (slotKey === "value" || slotKey === "text") {
-				continue;
-			}
-			const fn = behavior[slotKey];
-			const slots = out[slotKey];
-			if (!fn || !slots) {
-				continue;
-			}
-			const deps = existing._behaviorDeps?.get(slotKey);
-			if (deps && !deps.has("key") && !deps.has("$key") && !deps.has("label")) {
-				continue;
-			}
-			const v = fn(existing, prev, null);
-			if (existing._behaviorValues) {
-				existing._behaviorValues.set(slotKey, v);
-			}
-			for (let s = 0; s < slots.length; s++) {
-				slots[s].render(v);
-			}
-		}
 	}
 
 	// Single-index remove: unmount R, rekey R+1..end → R..end-1, then update
@@ -1471,6 +1332,9 @@ class UISlot {
 			nextKeys[i] = i;
 		}
 		this._listKeys = nextKeys;
+		for (let i = 0; i < removeAt; i++) {
+			this._syncMappedWrapper(i, data[i]);
+		}
 		// Prefix is unchanged; only shifted rows need label/key refresh.
 		for (let i = removeAt; i < data.length; i++) {
 			this._renderShiftedPresentation(i, data[i]);
@@ -1498,8 +1362,13 @@ class UISlot {
 		}
 		// Publish keys before mount so _nextMappedNodeAfterKey sees the shift.
 		this._listKeys = nextKeys;
+		for (let i = 0; i < insertAt; i++) {
+			this._syncMappedWrapper(i, data[i]);
+		}
 		let previous =
-			insertAt > 0 ? this._lastMappedNode(this.mapping.get(insertAt - 1)) : null;
+			insertAt > 0
+				? this._lastMappedNode(this.mapping.get(insertAt - 1))
+				: null;
 		previous = this._renderMapped(insertAt, data[insertAt], previous);
 		for (let i = insertAt + 1; i < data.length; i++) {
 			this._renderShiftedPresentation(i, data[i]);
@@ -1510,8 +1379,8 @@ class UISlot {
 		return true;
 	}
 
-	// Sync instance data bag to the latest wrapper without re-rendering.
-	// Used when payload content is unchanged at this index.
+	// Sync retained instances through update so init-owned reactives receive
+	// changed presentation/state props even when payload identity is unchanged.
 	_syncMappedWrapper(k, item) {
 		const existing = this.mapping.get(k);
 		if (
@@ -1519,7 +1388,9 @@ class UISlot {
 			isUIInstance(existing) &&
 			item.template === existing.template
 		) {
-			existing.data = item.data;
+			// NOTE: It's important to call update as otherwise changes
+			// may not progagate.
+			existing.update(item.data);
 			existing._lastApplied = item;
 			return;
 		}
@@ -1622,6 +1493,9 @@ class UISlot {
 					return false;
 				}
 			}
+			for (let i = 0; i < prevLen; i++) {
+				this._syncMappedWrapper(nextKeys[i], data[i]);
+			}
 			let previous =
 				prevLen > 0
 					? this._lastMappedNode(this.mapping.get(previousKeys[prevLen - 1]))
@@ -1640,6 +1514,9 @@ class UISlot {
 				if (!this._itemPayloadEq(data[i], this._listItems[i])) {
 					return false;
 				}
+			}
+			for (let i = 0; i < nextLen; i++) {
+				this._syncMappedWrapper(nextKeys[i], data[i]);
 			}
 			const dropped = previousKeys[prevLen - 1];
 			const v = this.mapping.get(dropped);
@@ -1832,9 +1709,7 @@ class UISlot {
 				this._listKeyMode === "stable" &&
 				first &&
 				last &&
-				(previous
-					? previous.nextSibling !== first
-					: last.nextSibling !== next)
+				(previous ? previous.nextSibling !== first : last.nextSibling !== next)
 			) {
 				this._mountInstance(
 					isUIInstance(mapped) ? mapped : { nodes: [mapped] },
@@ -1914,9 +1789,7 @@ class UISlot {
 					nextKeys[i] = this._resolveCollectionItemKey(data[i], i);
 				}
 				const previousKeys = this._listKeys;
-				if (
-					this._tryRenderStableAppendOrTail(data, nextKeys, previousKeys)
-				) {
+				if (this._tryRenderStableAppendOrTail(data, nextKeys, previousKeys)) {
 					return;
 				}
 				// Index-shaped stable keys (0..n) can use positional shift opts.
@@ -1963,7 +1836,13 @@ class UISlot {
 				}
 				if (this._listItems && data.length > previousLength) {
 					let appendOnly = true;
-					if (previousLength > 0 && !Object.is(data[previousLength - 1], this._listItems[previousLength - 1])) {
+					if (
+						previousLength > 0 &&
+						!Object.is(
+							data[previousLength - 1],
+							this._listItems[previousLength - 1],
+						)
+					) {
 						appendOnly = false;
 					} else {
 						for (let i = 0; i < previousLength; i++) {

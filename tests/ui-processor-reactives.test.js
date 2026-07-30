@@ -699,6 +699,157 @@ describe("ui processor reactive handling", () => {
 		window.close?.();
 	});
 
+	test("mapped children merge changed props into stable initializer cells", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { cell } = await import("../src/js/select/index.js");
+		const { ui } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `<div id="app"></div>`;
+
+		const Row = ui(
+			`<button out:disabled="pending" out:aria-busy="busy" out="label"></button>`,
+		)
+			.init((_self, data) => {
+				const pending = cell(data?.pending ?? false);
+				return {
+					pending,
+					busy: cell.derived([pending], ([value]) => (value ? "true" : undefined)),
+				};
+			})
+			.does({
+				label: (_self, { label, loadingLabel, pending }) =>
+					pending.value ? loadingLabel : label,
+			});
+		const List = ui(`<div out="items"></div>`).does({
+			items: (_self, { items }) => Row.map(items),
+		});
+		const instance = List.new()
+			.set({
+				items: [
+					{
+						value: "review",
+						pending: false,
+						label: "Review",
+						loadingLabel: "Reviewing…",
+					},
+				],
+			})
+			.mount("#app");
+		const row = instance.out.items[0].mapping.get(0);
+		const pending = row.data.pending;
+		const button = document.querySelector("#app button");
+
+		expect(button.textContent).toBe("Review");
+		expect(button.disabled).toBe(false);
+		expect(button.hasAttribute("aria-busy")).toBe(false);
+
+		instance.update({
+			items: [
+				{
+					value: "review",
+					pending: true,
+					label: "Review",
+					loadingLabel: "Reviewing…",
+				},
+			],
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(row.data.pending).toBe(pending);
+		expect(pending.value).toBe(true);
+		expect(button.textContent).toBe("Reviewing…");
+		expect(button.disabled).toBe(true);
+		expect(button.getAttribute("aria-busy")).toBe("true");
+
+		instance.update({
+			items: [
+				{
+					value: "review",
+					pending: false,
+					label: "Review",
+					loadingLabel: "Reviewing…",
+				},
+			],
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(row.data.pending).toBe(pending);
+		expect(pending.value).toBe(false);
+		expect(button.textContent).toBe("Review");
+		expect(button.disabled).toBe(false);
+		expect(button.hasAttribute("aria-busy")).toBe(false);
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
+	test("derived mapped props update stable initializer cells", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { cell } = await import("../src/js/select/index.js");
+		const { ui } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `<div id="app"></div>`;
+
+		const operation = cell(null);
+		const status = cell.derived([operation], ([operation]) => {
+			const pending = operation?.action === "review";
+			return {
+				actions: [
+					{
+						value: "review",
+						pending,
+						label: pending ? "Review Again" : "Review",
+						loadingLabel: "Reviewing…",
+					},
+					...(pending
+						? [
+								{
+									value: "complete",
+									pending: false,
+									label: "Complete",
+									loadingLabel: "Completing…",
+								},
+							]
+						: []),
+				],
+			};
+		});
+		const Row = ui(`<button out:disabled="pending" out="label"></button>`)
+			.init((_self, data) => ({
+				pending: cell(data?.pending ?? false),
+			}))
+			.does({
+				label: (_self, { label, loadingLabel, pending }) =>
+					pending.value ? loadingLabel : label,
+			});
+		const List = ui(`<div out="items"></div>`).does({
+			items: (_self, { status }) => Row.map(status.value.actions),
+		});
+		const instance = List.new().set({ status }).mount("#app");
+		const buttons = document.querySelectorAll("#app button");
+
+		operation.set({ status: "pending", action: "review" });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(buttons[0].textContent).toBe("Reviewing…");
+		expect(buttons[0].disabled).toBe(true);
+		expect(document.querySelectorAll("#app button")[1].textContent).toBe("Complete");
+		expect(document.querySelectorAll("#app button")[1].disabled).toBe(false);
+
+		operation.set(null);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(buttons[0].textContent).toBe("Review");
+		expect(buttons[0].disabled).toBe(false);
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
 	test("list updates rerender new wrappers with shared mutated data", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
