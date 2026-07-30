@@ -51,17 +51,30 @@ console.log(count.value)   // 5
 console.log(doubled.value) // 10
 ```
 
-### Deferred Cells
-A `Deferred` cell is a mutable reactive value that delays its update by a specified amount of time. If multiple updates occur within that delay, only the last one is applied (debouncing).
+### Scheduled Cells
+A cell can debounce, throttle, or batch writes via `schedule`. Specs are
+`["defer"|"throttle"|"batch", delay]`, a shared utils/async scheduler instance,
+or `null`. `deferred(value, delay)` is a thin alias for defer. Shared `batch`
+schedulers flush multiple cells in one turn.
 
 ```javascript
-import { deferred } from "./cells.js";
-const query = deferred("", 300);
-query.sub((val) => console.log("Searching for:", val));
+import { cell, deferred } from "./cells.js";
+import { batch } from "./utils/async.js";
 
+const query = deferred("", 300);
+// same as: cell("", { schedule: ["defer", 300] })
 query.set("h");
-query.set("he");
-query.set("hel"); // Only this will trigger the subscription after 300ms
+query.set("hel"); // only "hel" publishes after 300ms
+
+const group = batch(undefined, 50);
+const a = cell(0, { schedule: group });
+const b = cell(0, { schedule: group });
+a.set(1);
+b.set(2); // both apply together on flush
+
+const pos = cell({ x: 0 }, { schedule: ["throttle", 16] });
+pos.schedule(null); // immediate again
+pos.set({ x: 1 }, undefined, true); // force bypasses schedule
 ```
 
 ### Path-based Selection
@@ -100,6 +113,7 @@ state.select("user").reconcile({ name: "Ada", age: 38 });
 
 Notes:
 
+- Reconcile bypasses `schedule` so diffs apply in the current turn.
 - Same-length arrays reconcile **by index** (nested field edits stay path writes).
 - Array **append** (length growth): a pure single-append (length +1 with matching endpoints) keeps previous element refs and writes only the new tail. Otherwise patches the prefix by index then writes new tail indices.
 - Array **shrink** is surgical for a single remove (including tail pop): rebuilds the array from kept previous element refs when the prefix matches and the first shifted element deep-equals (avoids O(n) full-array eq). Tail-only multi-pop on modest lists (≤ 64) keeps prefix refs. Ambiguous shrinks replace the array node once. **Type** changes still replace that node in one `set`.
@@ -167,13 +181,13 @@ state.set(2, "a.b");
 
 ### The `cell` module:
 
-- `cell(value?)`: Factory function to create a new `Cell` instance.
+- `cell(value?, options?)`: Factory function to create a new `Cell`. Options: `{ pending, schedule }`.
 - `cells(value|object)`: Default export. Returns a `Cell` for non-object values, or an object of `Cell` instances for plain-object input.
 - `cell.store(initial?)` / `cellStore(initial?)`: Root `Cell` for app/tree state (shallow-copies plain objects). Same pattern as `cell.derived`. `cell.store.map` is `cells`.
-- `reconcile(target, value, options?)`: Diff-merges plain `value` into a `Cell` or `Selected`.
+- `reconcile(target, value, options?)`: Diff-merges plain `value` into a `Cell` or `Selected` (bypasses schedule).
 - `browser(options?)`: Factory that returns browser-backed `path`, `query`, `hash`, `local(key, dflt, opts?)`, and `internal(name, value)` cells.
 	- Default `query`/`hash` serialization uses hashformat syntax (for example `a=1,b=(2,3)`).
-- `deferred(value?, delay)`: Factory function to create a new `Deferred` cell instance for debounced updates.
+- `deferred(value?, delay)`: Alias for `cell(value, { schedule: ["defer", delay] })`.
 - `derived(template, processor?, initial?)`: Factory function to create a new `Derivation` instance. `template` can be a cell, an array of cells, or a function.
 - `effect(inputs, effector)`: Factory helper that subscribes to all reactives in `inputs`, runs `effector(expanded, path, origin)`, and returns an idempotent disposer.
 - `access(context, path, offset?)`: Utility to read a nested value from a plain object/array by path.
@@ -184,8 +198,10 @@ state.set(2, "a.b");
 ### Reactive Instance Methods (Cell / Selected / Derivation):
 
 - `.get(key?)`: Returns the value of the cell, or a specific property if `key` is provided.
-- `.set(value, path?, force?)`: Updates the value. If `path` is provided, updates a nested property. If `force` is true, triggers updates even if the value hasn't changed.
-- `.reconcile(value, options?)`: Diff-merges plain `value` onto this reactive (batched path writes). Also available as `reconcile(target, value, options?)`.
+- `.set(value, path?, force?)`: Updates the value. If `path` is provided, updates a nested property. If `force` is true, applies immediately (bypasses schedule) and still forces equal-value publishes.
+- `.schedule(spec)`: On `Cell`, attaches/replaces/clears a write scheduler (`["defer"|"throttle"|"batch", delay]`, shared async scheduler, or `null`).
+- `.flush()`: On `Cell`, runs the attached scheduler immediately.
+- `.reconcile(value, options?)`: Diff-merges plain `value` onto this reactive (batched path writes, bypasses schedule). Also available as `reconcile(target, value, options?)`.
 - `.normalize(fn)`: Registers a root-value normalizer applied to `.set(value)` updates.
 - `.updater(fn)`: On `Derivation`, registers a single write-through handler used by `.set(...)` and `.merge(...)`.
 - `.select(path)`: Returns a `Selected` instance linked to a specific path in the current cell.
@@ -197,7 +213,7 @@ state.set(2, "a.b");
 - `.merge(value)`: Merges arrays/objects when possible, otherwise replaces with `value`.
 - `.push(value)`: Appends an item to the current value (`Cell` and `Selected` support this).
 - `.refresh()`: Forces the reactive value to re-evaluate its state.
-- `.dispose()`: Releases subscriptions/resources for reactive helpers that support lifecycle (`Selected`, `Deferred`, `Derivation`).
+- `.dispose()`: Releases subscriptions/resources for reactive helpers that support lifecycle (`Selected`, `Cell` schedule, `Derivation`).
 
 ### Reactive Instance Properties:
 

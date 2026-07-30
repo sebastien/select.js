@@ -31,6 +31,14 @@
 // ----------------------------------------------------------------------------
 
 import {
+	Batched as AsyncBatched,
+	Deferred as AsyncDeferred,
+	Throttled as AsyncThrottled,
+	batch as asyncBatch,
+	defer as asyncDefer,
+	throttle as asyncThrottle,
+} from "./utils/async.js";
+import {
 	access,
 	assigned,
 	eq,
@@ -45,6 +53,7 @@ let refreshStamp = 0;
 let batchDepth = 0;
 let isFlushingPubs = false;
 const pendingPubs = [];
+const scheduleBridges = new WeakMap();
 
 function flushPendingPubs() {
 	if (isFlushingPubs || pendingPubs.length === 0) {
@@ -117,8 +126,17 @@ function reconcilePath(basePath, key) {
 }
 
 function reconcileSet(cell, basePath, value) {
-	const p = basePath.length ? (Array.isArray(basePath) ? basePath.slice() : basePath) : Nothing;
-	cell.set(value, p);
+	const p = basePath.length
+		? Array.isArray(basePath)
+			? basePath.slice()
+			: basePath
+		: Nothing;
+	// Bypass cell.schedule so diff applies in this turn.
+	if (typeof cell._update === "function") {
+		cell._update(value, p);
+	} else {
+		cell.set(value, p, true);
+	}
 }
 
 // Removes object keys by rewriting the parent object (set(undefined) leaves
@@ -217,10 +235,7 @@ function applyReconcile(cell, basePath, target, previous) {
 					break;
 				}
 			}
-			if (
-				removeAt >= nextLen ||
-				eq(target[removeAt], previous[removeAt + 1])
-			) {
+			if (removeAt >= nextLen || eq(target[removeAt], previous[removeAt + 1])) {
 				const next = new Array(nextLen);
 				for (let i = 0; i < removeAt; i++) {
 					next[i] = previous[i];
@@ -419,6 +434,177 @@ function parseReactiveOptions(initial, strategy, pending) {
 		updateStrategy,
 		pendingStrategy: pendingStrategy === "clear" ? "clear" : "keep",
 	};
+}
+
+// ----------------------------------------------------------------------------
+//
+// SECTION: Schedule Bridge
+//
+// ----------------------------------------------------------------------------
+
+// Bridges utils/async schedulers onto cell writes. One scheduler instance can
+// be shared across cells; defer/throttle keep last-write-per-cell, batched
+// keeps every op and flushes them together inside `batch()`.
+
+function isAsyncScheduler(value) {
+	return (
+		value instanceof AsyncDeferred ||
+		value instanceof AsyncThrottled ||
+		value instanceof AsyncBatched
+	);
+}
+
+function createAsyncScheduler(kind, delay = 0) {
+	switch (kind) {
+		case "defer":
+		case "deferred":
+			return asyncDefer(undefined, delay, false);
+		case "throttle":
+		case "throttled":
+			return asyncThrottle(undefined, delay, false);
+		case "batch":
+		case "batched":
+			return asyncBatch(undefined, delay);
+		default:
+			throw new TypeError(
+				`cell.schedule: unknown kind "${kind}" (use defer, throttle, or batch)`,
+			);
+	}
+}
+
+// Resolves a schedule spec to an async scheduler instance, or `null`.
+// Accepts `null`/`false`, `["defer"|"throttle"|"batch", delay?]`, or a
+// Deferred/Throttled/Batched instance from utils/async.
+function normalizeSchedule(spec) {
+	if (spec === undefined || spec === null || spec === false) {
+		return null;
+	}
+	if (Array.isArray(spec)) {
+		return createAsyncScheduler(spec[0], spec[1] || 0);
+	}
+	if (typeof spec === "string") {
+		return createAsyncScheduler(spec, 0);
+	}
+	if (isAsyncScheduler(spec)) {
+		return spec;
+	}
+	throw new TypeError(
+		"cell.schedule: expected null, [kind, delay], or Deferred/Throttled/Batched",
+	);
+}
+
+function ensureScheduleBridge(scheduler) {
+	let bridge = scheduleBridges.get(scheduler);
+	if (bridge) {
+		return bridge;
+	}
+	const pending = new Map();
+	const cells = new Set();
+	const isBatched = scheduler instanceof AsyncBatched;
+	bridge = { scheduler, pending, cells, isBatched };
+	if (isBatched) {
+		scheduler.callback = (ops) => {
+			batch(() => {
+				for (let i = 0; i < ops.length; i++) {
+					const op = ops[i];
+					if (!op?.cell || op.cell._schedule !== scheduler) {
+						continue;
+					}
+					op.cell._update(op.value, op.path, op.force);
+				}
+			});
+		};
+	} else {
+		scheduler.callback = () => {
+			const ops = [];
+			for (const [target, op] of pending) {
+				ops.push([target, op]);
+			}
+			pending.clear();
+			batch(() => {
+				for (let i = 0; i < ops.length; i++) {
+					const [target, op] = ops[i];
+					if (target._schedule !== scheduler) {
+						continue;
+					}
+					target._update(op.value, op.path, op.force);
+				}
+			});
+		};
+	}
+	scheduleBridges.set(scheduler, bridge);
+	return bridge;
+}
+
+function dropCellSchedulePending(cell) {
+	const scheduler = cell._schedule;
+	if (!scheduler) {
+		return;
+	}
+	const bridge = scheduleBridges.get(scheduler);
+	if (!bridge) {
+		return;
+	}
+	bridge.pending.delete(cell);
+	if (bridge.isBatched && Array.isArray(scheduler.items)) {
+		const next = [];
+		for (let i = 0; i < scheduler.items.length; i++) {
+			if (scheduler.items[i]?.cell !== cell) {
+				next.push(scheduler.items[i]);
+			}
+		}
+		scheduler.items = next;
+	}
+}
+
+function detachCellSchedule(cell) {
+	const scheduler = cell._schedule;
+	if (!scheduler) {
+		return;
+	}
+	const bridge = scheduleBridges.get(scheduler);
+	if (bridge) {
+		bridge.pending.delete(cell);
+		bridge.cells.delete(cell);
+		if (bridge.isBatched && Array.isArray(scheduler.items)) {
+			const next = [];
+			for (let i = 0; i < scheduler.items.length; i++) {
+				if (scheduler.items[i]?.cell !== cell) {
+					next.push(scheduler.items[i]);
+				}
+			}
+			scheduler.items = next;
+		}
+		const idle =
+			bridge.cells.size === 0 &&
+			bridge.pending.size === 0 &&
+			(!bridge.isBatched || !scheduler.items.length);
+		if (idle) {
+			scheduler.cancel();
+		}
+	}
+	cell._schedule = undefined;
+}
+
+function enqueueCellSchedule(cell, op) {
+	const scheduler = cell._schedule;
+	if (!scheduler) {
+		cell._update(op.value, op.path, op.force);
+		return;
+	}
+	const bridge = ensureScheduleBridge(scheduler);
+	bridge.cells.add(cell);
+	if (bridge.isBatched) {
+		scheduler.push({
+			cell,
+			value: op.value,
+			path: op.path,
+			force: op.force,
+		});
+	} else {
+		bridge.pending.set(cell, op);
+		scheduler.push();
+	}
 }
 
 // ----------------------------------------------------------------------------
@@ -965,7 +1151,7 @@ class Selected extends Reactive {
 		let updated;
 		const cur = this.value;
 		if (!Array.isArray(cur)) {
-			updated = (cur === undefined || cur === null) ? [value] : [cur, value];
+			updated = cur === undefined || cur === null ? [value] : [cur, value];
 		} else {
 			const len = cur.length;
 			updated = new Array(len + 1);
@@ -1003,18 +1189,80 @@ class Selected extends Reactive {
 // ```
 
 class Cell extends Reactive {
-	constructor(value = Nothing, pending = "keep") {
+	constructor(value = Nothing, options = "keep") {
 		super();
 		this._promiseToken = 0;
-		this.pending = pending === "clear" ? "clear" : "keep";
 		this._pendingPrevious = undefined;
+		this._schedule = undefined;
+		let pending = "keep";
+		let scheduleSpec;
+		if (typeof options === "string") {
+			pending = options;
+		} else if (options && typeof options === "object") {
+			if (typeof options.pending === "string") {
+				pending = options.pending;
+			}
+			if (options.schedule !== undefined) {
+				scheduleSpec = options.schedule;
+			}
+		}
+		this.pending = pending === "clear" ? "clear" : "keep";
+		// Initial value applies immediately (schedule does not delay construction).
 		if (value !== Nothing) {
 			this._update(value, Nothing, true);
+		}
+		if (scheduleSpec !== undefined) {
+			this.schedule(scheduleSpec);
 		}
 	}
 
 	_refreshSelections(path, previous = undefined) {
 		refreshSelections(this, path, previous);
+	}
+
+	// Method: schedule
+	// Attaches a write scheduler (`["defer"|"throttle"|"batch", delay]`, a
+	// shared utils/async instance, or `null` for immediate updates). Swapping
+	// cancels this cell's pending scheduled writes.
+	schedule(spec = null) {
+		detachCellSchedule(this);
+		const next = normalizeSchedule(spec);
+		if (!next) {
+			return this;
+		}
+		const bridge = ensureScheduleBridge(next);
+		bridge.cells.add(this);
+		this._schedule = next;
+		return this;
+	}
+
+	// Method: flush
+	// Forces the attached scheduler to run now (applies all pending ops on a
+	// shared scheduler).
+	flush() {
+		if (this._schedule) {
+			this._schedule.run();
+		}
+		return this;
+	}
+
+	// Method: dispose
+	// Cancels this cell's pending scheduled writes and detaches its schedule.
+	dispose() {
+		detachCellSchedule(this);
+		return this;
+	}
+
+	_scheduleUpdate(value, path, force = false) {
+		if (force || !this._schedule) {
+			if (force) {
+				dropCellSchedulePending(this);
+			}
+			this._update(value, path, force);
+			return this;
+		}
+		enqueueCellSchedule(this, { value, path, force: false });
+		return this;
 	}
 
 	// Internal update implementation. Applies value, updates selections,
@@ -1138,34 +1386,30 @@ class Cell extends Reactive {
 	}
 
 	// Sets value (at optional `path`). Creates nested structure as needed.
+	// When a schedule is attached, writes are coalesced unless `force` is true.
 	set(value, path = Nothing, force = false) {
-		// TODO: Should detect a change
-		this._update(value, path, force);
-		return this;
+		return this._scheduleUpdate(value, path, force);
 	}
 
 	// Clears value (at optional `path`) by setting it to `undefined`.
 	clear(path = Nothing, force = false) {
-		this._update(undefined, path, force);
-		return this;
+		return this._scheduleUpdate(undefined, path, force);
 	}
 
 	merge(value, path = Nothing) {
 		path = pathify(path, Nothing);
 		const current = path ? access(this.value, path) : this.value;
 		if (current === undefined) {
-			this._update(value, path);
+			return this._scheduleUpdate(value, path);
 		} else if (Array.isArray(current) && Array.isArray(value)) {
-			this._update([...current, ...value], path);
+			return this._scheduleUpdate([...current, ...value], path);
 		} else if (
 			Object.getPrototypeOf(current) === Object.prototype &&
 			Object.getPrototypeOf(value) === Object.prototype
 		) {
-			this._update({ ...current, ...value }, path);
-		} else {
-			this._update(value, path);
+			return this._scheduleUpdate({ ...current, ...value }, path);
 		}
-		return this;
+		return this._scheduleUpdate(value, path);
 	}
 
 	// Appends value to array. Converts non-array to array first.
@@ -1173,15 +1417,14 @@ class Cell extends Reactive {
 		let updated;
 		const cur = this.value;
 		if (!Array.isArray(cur)) {
-			updated = (cur === undefined || cur === null) ? [value] : [cur, value];
+			updated = cur === undefined || cur === null ? [value] : [cur, value];
 		} else {
 			const len = cur.length;
 			updated = new Array(len + 1);
 			for (let i = 0; i < len; i++) updated[i] = cur[i];
 			updated[len] = value;
 		}
-		this._update(updated, Nothing);
-		return this;
+		return this._scheduleUpdate(updated, Nothing);
 	}
 
 	// Diffs plain `value` onto this cell, writing only changed paths via `set`.
@@ -1195,47 +1438,6 @@ class Cell extends Reactive {
 	// ```
 	reconcile(value, options = undefined) {
 		return reconcile(this, value, options);
-	}
-}
-
-// ----------------------------------------------------------------------------
-//
-// SECTION: Deferred
-//
-// ----------------------------------------------------------------------------
-
-// Class: Deferred
-// A cell that debounces updates. `set()` triggers after `delay` ms of
-// inactivity. Useful for search inputs, sliders, etc.
-//
-// Attributes:
-// - `delay`: number - milliseconds to debounce
-class Deferred extends Cell {
-	constructor(value = Nothing, delay = 0) {
-		super(value);
-		this.delay = delay;
-		this._timer = null;
-	}
-
-	// Sets value after debounce delay. Cancels pending update if called again.
-	set(value, path = Nothing, force = false) {
-		if (this._timer) {
-			clearTimeout(this._timer);
-		}
-		this._timer = setTimeout(() => {
-			this._timer = null;
-			this._update(value, path, force);
-		}, this.delay);
-		return this;
-	}
-
-	// Clears pending update timer.
-	dispose() {
-		if (this._timer) {
-			clearTimeout(this._timer);
-			this._timer = null;
-		}
-		return this;
 	}
 }
 
@@ -1932,11 +2134,8 @@ class Switched extends Reactive {
 // c.set(100)  // Logs: 100
 // ```
 
-function cell(value, pending = "keep") {
-	return new Cell(
-		value,
-		typeof pending === "object" ? pending.pending : pending,
-	);
+function cell(value, options = "keep") {
+	return new Cell(value, options);
 }
 
 // Function: cells
@@ -1990,16 +2189,16 @@ cellStore.map = cells;
 cellStore.reconcile = reconcile;
 
 // Function: deferred
-// Factory that creates a new Deferred (debounced) cell.
+// Factory that creates a Cell with a defer schedule (debounced writes).
+// Equivalent to `cell(value, { schedule: ["defer", delay] })`.
 //
 // Parameters:
 // - `value`: any - initial cell value
 // - `delay`: number - debounce delay in milliseconds
 //
-// Returns: Deferred
-
-function deferred(value, delay) {
-	return new Deferred(value, delay);
+// Returns: Cell
+function deferred(value, delay = 0) {
+	return cell(value, { schedule: ["defer", delay] });
 }
 
 // Function: derived
@@ -2195,9 +2394,8 @@ export {
 	batch,
 	Cell,
 	cell,
-	cells,
 	cellStore,
-	Deferred,
+	cells,
 	Derivation,
 	deferred,
 	derived,
