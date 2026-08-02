@@ -367,6 +367,20 @@ function sorttarget(node, name) {
 	);
 }
 
+function copyCanvases(source, target) {
+	const sources = source.querySelectorAll("canvas");
+	const targets = target.querySelectorAll("canvas");
+	for (let i = 0; i < sources.length && i < targets.length; i += 1) {
+		const from = sources[i];
+		const to = targets[i];
+		if (to.width !== from.width || to.height !== from.height) {
+			to.width = from.width;
+			to.height = from.height;
+		}
+		to.getContext("2d")?.drawImage(from, 0, 0);
+	}
+}
+
 // Function: sort
 // Starts a sortable interaction. The source is represented by a clone while
 // dragging, and successful default drops move the original item.
@@ -377,29 +391,33 @@ function sort(event, options = {}) {
 		? find(sourceNode.parentNode, settings.list)
 		: undefined;
 	if (!sourceNode || !sourceList) return undefined;
-	event.preventDefault();
-	const session = createSession(sourceNode, event, settings, "sort");
-	const index = sortIndex(sourceNode, sourceList, settings);
-	session.source = {
-		...descriptor(sourceNode, settings.item, "data-sortable-item"),
-		listNode: sourceList,
-		listId: listId(sourceList, settings),
-		index,
-	};
-	session.placeholder = createPlaceholder(sourceNode, settings);
-	sourceList.insertBefore(session.placeholder, sourceNode);
-	sourceNode.classList.add(settings.sourceHiddenClass);
-	startSortPreview(session, event);
-	updateDragPreview(session, event);
+	let session;
 	return drag(
 		event,
 		(ev) => {
+			if (!session) {
+				ev.preventDefault();
+				session = createSession(sourceNode, event, settings, "sort");
+				const index = sortIndex(sourceNode, sourceList, settings);
+				session.source = {
+					...descriptor(sourceNode, settings.item, "data-sortable-item"),
+					listNode: sourceList,
+					listId: listId(sourceList, settings),
+					index,
+				};
+				session.placeholder = createPlaceholder(sourceNode, settings);
+				copyCanvases(sourceNode, session.placeholder);
+				sourceList.insertBefore(session.placeholder, sourceNode);
+				sourceNode.classList.add(settings.sourceHiddenClass);
+				startSortPreview(session, event);
+			}
 			updateSort(session, ev);
 			updateDragPreview(session, ev);
 			settings.onMove?.(state(session, ev));
 		},
-		(ev) => finishSort(session, ev),
+		(ev) => session && finishSort(session, ev),
 		null,
+		settings.threshold,
 	);
 }
 
@@ -412,6 +430,7 @@ function sortOptions(options) {
 		placeholder: options.placeholder !== false,
 		placeholderClass: options.placeholderClass ?? "sortable-placeholder",
 		sourceHiddenClass: options.sourceHiddenClass ?? "is-dragging-source-hidden",
+		threshold: options.threshold ?? 0,
 	};
 }
 
@@ -436,8 +455,14 @@ function draggableOptions(options) {
 function startSortPreview(session, _event) {
 	if (!session.options.dragPreview) return;
 	session.preview = session.sourceNode.cloneNode(true);
+	copyCanvases(session.sourceNode, session.preview);
+	session.preview.classList.remove(session.options.sourceHiddenClass);
 	session.preview.classList.add(session.options.previewClass);
+	session.preview.classList.add("sh-2");
 	session.preview.style.position = "fixed";
+	session.preview.style.boxSizing = "border-box";
+	session.preview.style.width = `${session.box.width}px`;
+	session.preview.style.height = `${session.box.height}px`;
 	session.preview.style.pointerEvents = "none";
 	session.options.overlay?.appendChild(session.preview);
 }

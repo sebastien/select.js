@@ -10,7 +10,6 @@
 import browser from "./browser.js";
 import cells from "./cells.js";
 import fastdom from "./fastdom.js";
-import workflow from "./workflows.js";
 import icons from "./icons.js";
 import * as interaction from "./interaction.js";
 import $ from "./query.js";
@@ -18,23 +17,24 @@ import * as routing from "./routing.js";
 import ui from "./ui/index.js";
 import { dates } from "./utils/dates.js";
 import * as utils from "./utils.js";
+import workflow from "./workflows.js";
 
 export * from "./browser.js";
 export * from "./cells.js";
 export { expand } from "./cells.js";
 export * from "./fastdom.js";
+export { debug, FORMATS, format } from "./formats.js";
 export * from "./icons.js";
 export * from "./interaction.js";
 export * from "./routing.js";
+export * from "./snappable.js";
 export * from "./ui/index.js";
 export { remap } from "./ui/index.js";
 export * from "./utils.js";
-export { debug, format, FORMATS } from "./formats.js";
 
 export {
 	$,
 	browser,
-	workflow,
 	cells,
 	dates,
 	fastdom,
@@ -43,6 +43,7 @@ export {
 	routing,
 	ui,
 	utils,
+	workflow,
 };
 
 // EOF

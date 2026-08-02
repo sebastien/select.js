@@ -26,7 +26,7 @@ function dragtarget(node, name) {
 // Starts a mouse drag on `event.target` and invokes `move` and `end` callbacks
 // with a shared drag context. The optional gesture overlay is transparent to
 // hit-testing so higher-level interactions can use `elementFromPoint`.
-function drag(event, move, end, overlay = "dragging") {
+function drag(event, move, end, overlay = "dragging", threshold = 0) {
 	const context = {};
 	// We add an overlay, which we can remove if className is null.
 	if (overlay && !drag.overlay) {
@@ -79,6 +79,9 @@ function drag(event, move, end, overlay = "dragging") {
 		mousemove: (ev) => {
 			data.dx = ev.pageX - dragging.ox;
 			data.dy = ev.pageY - dragging.oy;
+			if (Math.hypot(data.dx, data.dy) < threshold) {
+				return;
+			}
 			data.isFirst = dragging.step === 0;
 			dragging.step += 1;
 			const result = move?.(ev, data);
