@@ -1520,6 +1520,7 @@ function unbindReactiveSources(owner) {
 // updates and notifies when any source cell changes.
 //
 // Attributes:
+// - `isDerivation`: boolean - always true
 // - `template`: any - template with nested reactive cells
 // - `processor`: function? - transforms expanded template values
 // - `reactors`: Array<function> - internal subscription handlers
@@ -1534,6 +1535,7 @@ class Derivation extends Reactive {
 		pending = "keep",
 	) {
 		super();
+		this.isDerivation = true;
 		this.template = template;
 		this.processor = processor;
 		this.updateStrategy = Derivation.UpdateStrategy(updateStrategy);

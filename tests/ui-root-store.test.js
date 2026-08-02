@@ -135,4 +135,47 @@ describe("ui root store as instance.data", () => {
 		document.body.innerHTML = ""
 		window.close?.()
 	})
+
+	test("root store path miss re-renders only deps of the changed tree key", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" })
+		setupGlobals(window)
+
+		const cell = (await import("../src/js/select/cells.js")).default
+		const { ui } = await import("../src/js/select/ui.js")
+
+		document.body.innerHTML = `<div id="app"></div>`
+
+		const counts = { title: 0, note: 0 }
+		const plain = (v) => (v?.isReactive === true ? v.value : v)
+		const View = ui(
+			`<div><h1 out="title"></h1><p out="note"></p></div>`,
+		).does({
+			title: (_self, data) => {
+				counts.title += 1
+				return plain(data).title
+			},
+			note: (_self, data) => {
+				counts.note += 1
+				return plain(data).note
+			},
+		})
+
+		const store = cell.store({ title: "Hello", note: "World" })
+		const instance = View.new().set(store).mount("#app")
+		await new Promise((r) => setTimeout(r, 0))
+		expect(counts).toEqual({ title: 1, note: 1 })
+		expect(document.querySelector("h1").textContent).toBe("Hello")
+
+		// Nested path under `title` cannot walk into a scalar out slot; fallback
+		// should still be granular so `note` does not re-run.
+		store.set("Hi", ["title"])
+		await new Promise((r) => setTimeout(r, 10))
+		expect(document.querySelector("h1").textContent).toBe("Hi")
+		expect(counts.title).toBeGreaterThanOrEqual(2)
+		expect(counts.note).toBe(1)
+
+		instance.unmount()
+		document.body.innerHTML = ""
+		window.close?.()
+	})
 })

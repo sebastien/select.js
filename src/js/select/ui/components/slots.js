@@ -13,6 +13,7 @@ import { isInputNode, log, TemplateParser } from "../templates.js";
 import { AppliedUITemplate } from "./model.js";
 import {
 	createWhenPredicate,
+	resolveTemplatePath,
 	SLOT_DEFAULT_KEY,
 	setNodeText,
 } from "./runtime.js";
@@ -27,22 +28,63 @@ function isUIInstance(value) {
 	return UIInstanceClass !== null && value instanceof UIInstanceClass;
 }
 
-function resolveTemplatePath(nodes, rootIndex, tailPath) {
-	let node = nodes[rootIndex];
-	if (tailPath) {
-		for (let i = 0; i < tailPath.length; i++) {
-			node = node ? node.childNodes[tailPath[i]] : node;
-		}
-	}
-	return node;
-}
-
 function assignTemplatePath(slot, node, parent, path) {
 	slot.node = node;
 	slot.parent = parent;
 	slot.path = path;
 	slot.rootIndex = path[0];
 	slot.tailPath = path.length > 1 ? path.slice(1) : null;
+}
+
+// Walks root nodes and descendants matching `[attrName]`, calling
+// `visit(node, root, rootIndex)` for each match (root first when it matches).
+function walkAttributeNodes(attrName, nodes, visit) {
+	const selector = `[${attrName}]`;
+	for (let i = 0; i < nodes.length; i++) {
+		const parent = nodes[i];
+		if (parent.matches?.(selector)) {
+			visit(parent, parent, i);
+		}
+		if (parent.querySelectorAll) {
+			for (const node of parent.querySelectorAll(selector)) {
+				visit(node, parent, i);
+			}
+		}
+	}
+}
+
+// Walks each root and all element descendants, calling `visit(node, root, rootIndex)`.
+function walkElementNodes(nodes, visit) {
+	for (let i = 0; i < nodes.length; i++) {
+		const parent = nodes[i];
+		visit(parent, parent, i);
+		if (parent.querySelectorAll) {
+			for (const node of parent.querySelectorAll("*")) {
+				visit(node, parent, i);
+			}
+		}
+	}
+}
+
+// Shared cssText parser (one element, reused). Returns [[prop, value], ...] or null.
+let _styleParseNode = null;
+function parseCssText(cssText) {
+	if (!cssText || typeof cssText !== "string") {
+		return null;
+	}
+	if (!_styleParseNode && typeof document !== "undefined") {
+		_styleParseNode = document.createElement("div");
+	}
+	if (!_styleParseNode) {
+		return null;
+	}
+	_styleParseNode.style.cssText = cssText;
+	const entries = [];
+	for (const prop of _styleParseNode.style) {
+		entries.push([prop, _styleParseNode.style.getPropertyValue(prop)]);
+	}
+	_styleParseNode.style.cssText = "";
+	return entries;
 }
 
 class UITemplateSlot {
@@ -84,13 +126,12 @@ class UITemplateSlot {
 	static Path(node, parent, path) {
 		const res = [];
 		while (node !== parent) {
-			res.splice(
-				0,
-				0,
+			res.push(
 				Array.prototype.indexOf.call(node.parentNode.childNodes, node),
 			);
 			node = node.parentNode;
 		}
+		res.reverse();
 		return path ? path.concat(res) : res;
 	}
 
@@ -100,8 +141,7 @@ class UITemplateSlot {
 	static Find(name, nodes, processor = undefined) {
 		const res = {};
 		let count = 0;
-		const selector = `[${name}]`;
-		const add = (node, parent, i) => {
+		walkAttributeNodes(name, nodes, (node, parent, i) => {
 			const k = node.getAttribute(name);
 			node.removeAttribute(name);
 			let v = new UITemplateSlot(
@@ -134,19 +174,7 @@ class UITemplateSlot {
 				res[k].push(v);
 			}
 			count++;
-			return res;
-		};
-		for (let i = 0; i < nodes.length; i++) {
-			const parent = nodes[i];
-			if (parent.matches?.(selector)) {
-				add(parent, parent, i);
-			}
-			if (parent.querySelectorAll) {
-				for (const node of parent.querySelectorAll(`[${name}]`)) {
-					add(node, parent, i);
-				}
-			}
-		}
+		});
 		return count ? res : null;
 	}
 
@@ -155,7 +183,6 @@ class UITemplateSlot {
 	static FindWhen(nodes) {
 		const res = {};
 		let count = 0;
-		const selector = `[when]`;
 		const pathToSourceKey = (path) => {
 			if (!path?.length) {
 				return null;
@@ -310,17 +337,7 @@ class UITemplateSlot {
 			count++;
 		};
 
-		for (let i = 0; i < nodes.length; i++) {
-			const parent = nodes[i];
-			if (parent.matches?.(selector)) {
-				add(parent, parent, i);
-			}
-			if (parent.querySelectorAll) {
-				for (const node of parent.querySelectorAll(selector)) {
-					add(node, parent, i);
-				}
-			}
-		}
+		walkAttributeNodes("when", nodes, add);
 		return count ? res : null;
 	}
 
@@ -348,57 +365,50 @@ class UITemplateSlot {
 		const res = {};
 		const template = [];
 		let count = 0;
-		for (let i = 0; i < nodes.length; i++) {
-			const parent = nodes[i];
-			const processNode = (node) => {
-				if (!node.attributes) return;
-				const toRemove = [];
-				for (const attr of node.attributes) {
-					if (attr.name.startsWith(prefix)) {
-						const attrName = attr.name.slice(prefix.length);
-						const slotName = attr.value || attrName;
-						const parsed = TemplateParser.ParseOutAttributeBinding(slotName);
-						const binding = parsed.binding;
-						const sourceKey = binding?.sourceMap?.length
-							? TemplateParser.FormatBindingSourceMap(binding.sourceMap)
-							: (binding?.sourceKey ?? slotName);
-						const processorsKey =
-							TemplateParser.FormatProcessorList(binding?.processors) || "";
-						const bindingKey =
-							parsed.mode === "binding"
-								? `${sourceKey}|${processorsKey}`
-								: parsed.mode === "comparison"
-									? `${sourceKey}|${processorsKey}|${parsed.operator || ""}|${parsed.rawValue || ""}`
-									: slotName;
-						const originalValue = node.getAttribute(attrName);
-						toRemove.push(attr.name);
+		walkElementNodes(nodes, (node, parent, i) => {
+			if (!node.attributes) return;
+			const toRemove = [];
+			for (const attr of node.attributes) {
+				if (attr.name.startsWith(prefix)) {
+					const attrName = attr.name.slice(prefix.length);
+					const slotName = attr.value || attrName;
+					const parsed = TemplateParser.ParseOutAttributeBinding(slotName);
+					const binding = parsed.binding;
+					const sourceKey = binding?.sourceMap?.length
+						? TemplateParser.FormatBindingSourceMap(binding.sourceMap)
+						: (binding?.sourceKey ?? slotName);
+					const processorsKey =
+						TemplateParser.FormatProcessorList(binding?.processors) || "";
+					const bindingKey =
+						parsed.mode === "binding"
+							? `${sourceKey}|${processorsKey}`
+							: parsed.mode === "comparison"
+								? `${sourceKey}|${processorsKey}|${parsed.operator || ""}|${parsed.rawValue || ""}`
+								: slotName;
+					const originalValue = node.getAttribute(attrName);
+					toRemove.push(attr.name);
 
-						const slot = new UIAttributeTemplateSlot(
-							node,
-							parent,
-							UITemplateSlot.Path(node, parent, [i]),
-							attrName,
-							slotName,
-							originalValue,
-							parsed,
-						);
+					const slot = new UIAttributeTemplateSlot(
+						node,
+						parent,
+						UITemplateSlot.Path(node, parent, [i]),
+						attrName,
+						slotName,
+						originalValue,
+						parsed,
+					);
 
-						if (parsed.mode === "template") {
-							template.push(slot);
-						} else {
-							if (!res[bindingKey]) res[bindingKey] = [];
-							res[bindingKey].push(slot);
-						}
-						count++;
+					if (parsed.mode === "template") {
+						template.push(slot);
+					} else {
+						if (!res[bindingKey]) res[bindingKey] = [];
+						res[bindingKey].push(slot);
 					}
+					count++;
 				}
-				for (const name of toRemove) node.removeAttribute(name);
-			};
-			processNode(parent);
-			if (parent.querySelectorAll) {
-				for (const node of parent.querySelectorAll("*")) processNode(node);
 			}
-		}
+			for (const name of toRemove) node.removeAttribute(name);
+		});
 		if (!count) {
 			return null;
 		}
@@ -414,63 +424,56 @@ class UITemplateSlot {
 	static FindEvent(prefix, nodes) {
 		const res = {};
 		let count = 0;
-		for (let i = 0; i < nodes.length; i++) {
-			const parent = nodes[i];
-			const processNode = (node) => {
-				if (!node.attributes) return;
-				const toRemove = [];
-				for (const attr of node.attributes) {
-					if (attr.name.startsWith(prefix)) {
-						const eventType = attr.name.slice(prefix.length);
-						const parsed = TemplateParser.ParseEventEffect(
-							attr.value,
-							eventType,
+		walkElementNodes(nodes, (node, parent, i) => {
+			if (!node.attributes) return;
+			const toRemove = [];
+			for (const attr of node.attributes) {
+				if (attr.name.startsWith(prefix)) {
+					const eventType = attr.name.slice(prefix.length);
+					const parsed = TemplateParser.ParseEventEffect(
+						attr.value,
+						eventType,
+					);
+					if (!parsed) {
+						log.warn(
+							"UITemplateSlot.FindEvent: invalid event effect, details",
+							{
+								eventType,
+								effect: attr.value,
+							},
 						);
-						if (!parsed) {
-							log.warn(
-								"UITemplateSlot.FindEvent: invalid event effect, details",
-								{
-									eventType,
-									effect: attr.value,
-								},
-							);
-							toRemove.push(attr.name);
-							continue;
-						}
-						const handlerName =
-							parsed.mode === "handler"
-								? parsed.handlerName || eventType
-								: parsed.mode === "assign"
-									? `@${TemplateParser.FormatBindingPath(parsed.targetPath)}`
-									: `!${parsed.publishEvent}:${parsed.binding?.sourceMap?.length ? TemplateParser.FormatBindingSourceMap(parsed.binding.sourceMap) : parsed.binding?.sourceKey || "data"}`;
 						toRemove.push(attr.name);
-
-						const slot = new UIEventTemplateSlot(
-							node,
-							parent,
-							UITemplateSlot.Path(node, parent, [i]),
-							eventType,
-							handlerName,
-							parsed.mode,
-							parsed.publishEvent,
-							parsed.targetPath,
-							parsed.binding,
-							parsed.stopPropagation,
-							parsed.preventDefault,
-						);
-
-						if (!res[handlerName]) res[handlerName] = [];
-						res[handlerName].push(slot);
-						count++;
+						continue;
 					}
+					const handlerName =
+						parsed.mode === "handler"
+							? parsed.handlerName || eventType
+							: parsed.mode === "assign"
+								? `@${TemplateParser.FormatBindingPath(parsed.targetPath)}`
+								: `!${parsed.publishEvent}:${parsed.binding?.sourceMap?.length ? TemplateParser.FormatBindingSourceMap(parsed.binding.sourceMap) : parsed.binding?.sourceKey || "data"}`;
+					toRemove.push(attr.name);
+
+					const slot = new UIEventTemplateSlot(
+						node,
+						parent,
+						UITemplateSlot.Path(node, parent, [i]),
+						eventType,
+						handlerName,
+						parsed.mode,
+						parsed.publishEvent,
+						parsed.targetPath,
+						parsed.binding,
+						parsed.stopPropagation,
+						parsed.preventDefault,
+					);
+
+					if (!res[handlerName]) res[handlerName] = [];
+					res[handlerName].push(slot);
+					count++;
 				}
-				for (const name of toRemove) node.removeAttribute(name);
-			};
-			processNode(parent);
-			if (parent.querySelectorAll) {
-				for (const node of parent.querySelectorAll("*")) processNode(node);
 			}
-		}
+			for (const name of toRemove) node.removeAttribute(name);
+		});
 		return count ? res : null;
 	}
 
@@ -496,43 +499,34 @@ class UITemplateSlot {
 			slot.inputProperty = inputProperty;
 			return slot;
 		};
-		for (let i = 0; i < nodes.length; i++) {
-			const parent = nodes[i];
-			const processNode = (node) => {
-				if (!node.attributes) {
-					return;
-				}
-				const toRemove = [];
-				for (const attr of node.attributes) {
-					if (!attr.name.startsWith("inout:")) {
-						continue;
-					}
-					const inputProperty = attr.name.slice("inout:".length);
-					if (!inputProperty) {
-						continue;
-					}
-					const defaultKey = inputProperty || "value";
-					const key = `${attr.value || defaultKey}`.trim() || defaultKey;
-					toRemove.push(attr.name);
-					const slot = createInOutSlot(node, parent, i, inputProperty, key);
-					if (res[key] === undefined) {
-						res[key] = [slot];
-					} else {
-						res[key].push(slot);
-					}
-					count++;
-				}
-				for (let j = 0; j < toRemove.length; j++) {
-					node.removeAttribute(toRemove[j]);
-				}
-			};
-			processNode(parent);
-			if (parent.querySelectorAll) {
-				for (const node of parent.querySelectorAll("*")) {
-					processNode(node);
-				}
+		walkElementNodes(nodes, (node, parent, i) => {
+			if (!node.attributes) {
+				return;
 			}
-		}
+			const toRemove = [];
+			for (const attr of node.attributes) {
+				if (!attr.name.startsWith("inout:")) {
+					continue;
+				}
+				const inputProperty = attr.name.slice("inout:".length);
+				if (!inputProperty) {
+					continue;
+				}
+				const defaultKey = inputProperty || "value";
+				const key = `${attr.value || defaultKey}`.trim() || defaultKey;
+				toRemove.push(attr.name);
+				const slot = createInOutSlot(node, parent, i, inputProperty, key);
+				if (res[key] === undefined) {
+					res[key] = [slot];
+				} else {
+					res[key].push(slot);
+				}
+				count++;
+			}
+			for (let j = 0; j < toRemove.length; j++) {
+				node.removeAttribute(toRemove[j]);
+			}
+		});
 		return count ? res : null;
 	}
 }
@@ -586,8 +580,11 @@ class UIAttributeSlot {
 			template.attrName === "class"
 				? new Set((template.originalValue || "").split(/\s+/).filter(Boolean))
 				: null;
-		this.originalStyle =
-			template.attrName === "style" ? template.originalValue || "" : null;
+		// Parse original style once (not on every render).
+		this.originalStyles =
+			template.attrName === "style" && template.originalValue
+				? parseCssText(template.originalValue)
+				: null;
 		this.appliedClasses = new Set();
 		this.appliedStyles = new Map();
 	}
@@ -674,15 +671,11 @@ class UIAttributeSlot {
 			this.node.style.removeProperty(prop);
 		}
 		this.appliedStyles.clear();
-		if (this.originalStyle) {
-			const tempDiv = document.createElement("div");
-			tempDiv.style.cssText = this.originalStyle;
-			for (const prop of tempDiv.style) {
+		if (this.originalStyles) {
+			for (let i = 0; i < this.originalStyles.length; i++) {
+				const [prop, val] = this.originalStyles[i];
 				if (!this.node.style.getPropertyValue(prop)) {
-					this.node.style.setProperty(
-						prop,
-						tempDiv.style.getPropertyValue(prop),
-					);
+					this.node.style.setProperty(prop, val);
 				}
 			}
 		}
@@ -696,10 +689,10 @@ class UIAttributeSlot {
 				}
 			}
 		} else {
-			const tempDiv = document.createElement("div");
-			tempDiv.style.cssText = value;
-			for (const prop of tempDiv.style) {
-				const val = tempDiv.style.getPropertyValue(prop);
+			const entries = parseCssText(value);
+			if (!entries) return;
+			for (let i = 0; i < entries.length; i++) {
+				const [prop, val] = entries[i];
 				this.node.style.setProperty(prop, val);
 				this.appliedStyles.set(prop, val);
 			}

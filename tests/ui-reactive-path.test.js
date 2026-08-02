@@ -84,6 +84,59 @@ describe("ui reactive path updates", () => {
 		window.close?.()
 	})
 
+	test("append after leaf path update uses local list fast-path", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" })
+		setupGlobals(window)
+		if (window.DOMParser) globalThis.DOMParser = window.DOMParser
+
+		globalThis.SELECT_UI_LIST_STATS = true
+		globalThis.SELECT_UI_LIST_STATS_COUNTS = null
+
+		// Use the inspector framework app (dict root → list under key).
+		const { createApp } = await import(
+			"../benchmarks/inspector/frameworks/selectui.js"
+		)
+
+		document.body.innerHTML = `<div id="app"></div>`
+		const root = document.querySelector("#app")
+		const app = await createApp(root, {
+			logs: [
+				{ type: "info", msg: "a" },
+				{ type: "warn", msg: "b" },
+			],
+		})
+		await new Promise((r) => setTimeout(r, 0))
+
+		// Leaf update then append (identity-preserving reconcile) must hit appendLocal
+		app.update({
+			logs: [
+				{ type: "info", msg: "a!" },
+				{ type: "warn", msg: "b" },
+			],
+		})
+		await new Promise((r) => setTimeout(r, 0))
+		app.update({
+			logs: [
+				{ type: "info", msg: "a!" },
+				{ type: "warn", msg: "b" },
+				{ type: "error", msg: "c" },
+			],
+		})
+		await new Promise((r) => setTimeout(r, 10))
+
+		const counts = globalThis.SELECT_UI_LIST_STATS_COUNTS || {}
+		expect(document.body.textContent).toContain("a!")
+		expect(document.body.textContent).toContain("c")
+		expect(counts.appendLocal || 0).toBeGreaterThanOrEqual(1)
+		expect(counts.fullSlotRender || 0).toBe(0)
+
+		globalThis.SELECT_UI_LIST_STATS = false
+		globalThis.SELECT_UI_LIST_STATS_COUNTS = null
+		app.dispose()
+		document.body.innerHTML = ""
+		window.close?.()
+	})
+
 	test("unmount releases cell subscriptions", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" })
 		setupGlobals(window)

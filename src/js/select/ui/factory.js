@@ -18,6 +18,7 @@ import {
 	COMPONENTS,
 	component as componentRegistry,
 	options,
+	registerComponent,
 	UITemplate,
 } from "./components.js";
 import {
@@ -617,7 +618,7 @@ function createTemplateComponent(
 		}
 		const component = createComponent(template, nodes, appliedDefinition);
 		if (autoFormatName) {
-			format(autoFormatName, component);
+			registerComponentFormat(autoFormatName, component);
 		}
 		return component;
 	}
@@ -636,7 +637,7 @@ function createTemplateComponent(
 		);
 		const component = createComponent(template, nodes, appliedDefinition);
 		if (autoFormatName) {
-			format(autoFormatName, component);
+			registerComponentFormat(autoFormatName, component);
 		}
 		return component;
 	}
@@ -694,23 +695,8 @@ function createLexicalTemplateScope(parentScope = undefined) {
 	return Object.create(parentScope ?? null);
 }
 
-function registerComponentFormat(name, component) {
-	if (!name) {
-		return;
-	}
-	const existing = FORMATS[name];
-	if (existing && existing !== component) {
-		log.warn(
-			"ui.formats: duplicate component key, keeping first registration, details",
-			{
-				key: name,
-				existing,
-				ignored: component,
-			},
-		);
-		return;
-	}
-	format(name, component);
+function registerComponentFormat(name, componentValue) {
+	registerComponent(name, componentValue);
 }
 
 function visitImmediateNestedTemplates(node, visitor) {

@@ -20,6 +20,7 @@
 import { toCamelCase, toKebabCase } from "../formats.js";
 import { asText, def, eq, isObject, Nothing } from "../utils.js";
 import { getUIInstance } from "./components/instance.js";
+import { UI_PARENT_ATTRIBUTE } from "./components/runtime.js";
 import { hashText, log } from "./templates.js";
 
 // Constant: Disconnect
@@ -28,7 +29,6 @@ const Disconnect = Symbol.for("Disconnect");
 // Constant: Adopted
 // Lifecycle sentinel fired when a component is adopted into a new document.
 const Adopted = Symbol.for("Adopted");
-const UI_PARENT_ATTRIBUTE = "ui-parent";
 const BaseHTMLElement = globalThis.HTMLElement || class {};
 const documentStyleSheetCache = new WeakMap();
 const documentStyleSubscribers = new WeakMap();

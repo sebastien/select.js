@@ -22,6 +22,7 @@ export {
 	Dynamic,
 	lazy,
 	options,
+	registerComponent,
 } from "./components/registry.js";
 export {
 	UIAttributeSlot,

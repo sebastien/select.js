@@ -53,7 +53,7 @@
 
 <body>
 	<h1>Lazy Component Loading</h1>
-	<p>This example demonstrates lazy loading a component via <code>lazy()</code>. The "heavy" component is loaded asynchronously and the parent polls for completion.</p>
+	<p>This example demonstrates lazy loading a component via <code>lazy()</code>. The "heavy" component is loaded asynchronously; the parent re-renders when the loader resolves.</p>
 
 	<div id="App"></div>
 
@@ -91,23 +91,8 @@
 				}
 				return HeavyComponent(data)
 			},
-			load: (self, _data) => {
-				self.update({ loaded: true })
-				// Poll for lazy load completion
-				const poll = () => {
-					// HeavyComponent will return null until loaded
-					// We force a re-render every 100ms to check
-					if (self.data._pollActive) {
-						self.render()
-						requestAnimationFrame(poll)
-					}
-				}
-				self.update({ _pollActive: true })
-				poll()
-			},
-			reset: (self, _data) => {
-				self.update({ loaded: false, _pollActive: false })
-			}
+			load: (self) => self.update({ loaded: true }),
+			reset: (self) => self.update({ loaded: false }),
 		})
 
 		App.new().mount("#App")

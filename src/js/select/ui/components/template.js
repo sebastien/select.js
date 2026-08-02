@@ -273,9 +273,9 @@ class UITemplate {
 		return this;
 	}
 
-	// FIXME: Should be on
-	// Subscribes to events. `event` can be string name or object mapping.
-	// Handler receives (instance, data, event).
+	// Subscribes to runtime events. `event` can be string name or object mapping.
+	// Handler receives (instance, data, event). Named `sub` because `on` holds
+	// the parsed `on:` event-slot map from the template.
 	sub(event, handler = undefined) {
 		if (typeof event === "string") {
 			if (!handler) {

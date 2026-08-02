@@ -22,6 +22,41 @@ import { log, setNodeText, TemplateParser } from "../templates.js";
 
 const SLOT_DEFAULT_KEY = "_";
 const SKIP_INPUT_UPDATE = Symbol("skip-input-update");
+// Host attribute linking a custom element back to a mounted UIInstance parent.
+const UI_PARENT_ATTRIBUTE = "ui-parent";
+
+// Active UIInstance while behaviors run (used by lazy() to schedule re-render).
+let _currentUIInstance = null;
+
+// Function: getCurrentUIInstance
+// Returns the UIInstance currently executing a behavior, if any.
+function getCurrentUIInstance() {
+	return _currentUIInstance;
+}
+
+// Function: runWithUIInstance
+// Runs `fn` with `instance` as the current UIInstance context.
+function runWithUIInstance(instance, fn) {
+	const previous = _currentUIInstance;
+	_currentUIInstance = instance;
+	try {
+		return fn();
+	} finally {
+		_currentUIInstance = previous;
+	}
+}
+
+// Walks `nodes[rootIndex]` along `tailPath` child indices.
+function resolveTemplatePath(nodes, rootIndex, tailPath) {
+	let node = nodes[rootIndex];
+	if (tailPath) {
+		for (let i = 0; i < tailPath.length; i++) {
+			node = node ? node.childNodes[tailPath[i]] : node;
+		}
+	}
+	return node;
+}
+
 function getInputBindingProperty(node, preferred = undefined) {
 	return preferred
 		? preferred
@@ -596,6 +631,7 @@ export {
 	createWhenPredicate,
 	finalizeRenderProcessorValue,
 	formatBindingSource,
+	getCurrentUIInstance,
 	getInputBindingProperty,
 	getInputEventValue,
 	hasTrackedNonReactiveObjectDeps,
@@ -606,12 +642,15 @@ export {
 	resolveMappedSourceValue,
 	resolveRenderableValue,
 	resolveSourceValue,
+	resolveTemplatePath,
 	resolveTemplateTokens,
+	runWithUIInstance,
 	SKIP_INPUT_UPDATE,
 	SLOT_DEFAULT_KEY,
 	scheduleRenderTask,
 	setNodeText,
 	snapshotReactiveDependencyRevisions,
+	UI_PARENT_ATTRIBUTE,
 };
 
 // EOF
