@@ -310,11 +310,21 @@ class UIInstance {
 	}
 
 	static _setReactiveValue(target, value, path) {
+		if (UIInstance._isReadOnlyDerivation(target)) {
+			return;
+		}
 		if (Array.isArray(path)) {
 			target.set(value, path);
 		} else {
 			target.set(value);
 		}
+	}
+
+	static _isReadOnlyDerivation(value) {
+		return (
+			value?.constructor?.name === "Derivation" &&
+			typeof value._updater !== "function"
+		);
 	}
 
 	static _writeDataPath(self, targetPath, value) {
@@ -368,6 +378,13 @@ class UIInstance {
 		for (const key in incoming) {
 			const next = incoming[key];
 			const current = merged[key];
+			// Derived init state is an output, not a writable input slot. Keeping it
+			// authoritative prevents an incoming prop from writing into it.
+			if (UIInstance._isReadOnlyDerivation(current)) {
+				self?._clearReactiveTopLevelFusion(key);
+				merged[key] = current;
+				continue;
+			}
 			if (current?.isReactive && next?.isReactive) {
 				self?._fuseReactiveTopLevel(key, current, next);
 				merged[key] = current;
@@ -1685,10 +1702,10 @@ class UIInstance {
 					(result === null || typeof result !== "object") &&
 					slotValue?.isReactive
 				) {
-					slotValue.set(result);
+					UIInstance._setReactiveValue(slotValue, result);
 				}
 			} else if (slotValue?.isReactive) {
-				slotValue.set(inputValue);
+				UIInstance._setReactiveValue(slotValue, inputValue);
 			} else {
 				this.update({ [name]: inputValue });
 			}

@@ -27,6 +27,13 @@
 //
 // ----------------------------------------------------------------------------
 
+function cancelTimeout(task) {
+	if (task.timeout) {
+		clearTimeout(task.timeout);
+		task.timeout = undefined;
+	}
+}
+
 // Class: Deferred
 // Mutable deferred task that can be rescheduled, cancelled, or run immediately.
 // Each `push` resets the timer so only the last schedule after a quiet period
@@ -61,10 +68,7 @@ class Deferred {
 	// Method: cancel
 	// Cancels the currently scheduled timeout if one exists.
 	cancel() {
-		if (this.timeout) {
-			clearTimeout(this.timeout);
-			this.timeout = undefined;
-		}
+		cancelTimeout(this);
 	}
 
 	// Method: run
@@ -143,10 +147,7 @@ class Throttled {
 	// Method: cancel
 	// Cancels the currently scheduled trailing timeout if one exists.
 	cancel() {
-		if (this.timeout) {
-			clearTimeout(this.timeout);
-			this.timeout = undefined;
-		}
+		cancelTimeout(this);
 	}
 
 	// Method: run
@@ -223,10 +224,7 @@ class Batched {
 	// Method: cancel
 	// Cancels any pending flush and discards aggregated values.
 	cancel() {
-		if (this.timeout) {
-			clearTimeout(this.timeout);
-			this.timeout = undefined;
-		}
+		cancelTimeout(this);
 		this.items = [];
 	}
 
@@ -237,10 +235,7 @@ class Batched {
 	}
 
 	_flush() {
-		if (this.timeout) {
-			clearTimeout(this.timeout);
-			this.timeout = undefined;
-		}
+		cancelTimeout(this);
 		this._last = Date.now();
 		const batch = this.items;
 		this.items = [];

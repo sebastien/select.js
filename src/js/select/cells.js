@@ -1447,6 +1447,74 @@ class Cell extends Reactive {
 //
 // ----------------------------------------------------------------------------
 
+function hasPendingReactiveSources(sources) {
+	for (let i = 0; i < sources.length; i++) {
+		if (sources[i]?.isPending) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function templateHasPendingReactiveSources(template) {
+	let hasPending = false;
+	walkReactiveSources(template, (cell) => {
+		if (cell?.isPending) {
+			hasPending = true;
+		}
+	});
+	return hasPending;
+}
+
+function bindReactiveSources(owner, template) {
+	if (owner.isBound) {
+		return owner;
+	}
+	owner.isBound = true;
+	walkReactiveSources(template, (cell) => {
+		const reactor = (value) => {
+			const isPromise = !!(value && typeof value.then === "function");
+			if (owner.updateStrategy === "immediate") {
+				owner._recompute();
+				return;
+			}
+			if (isPromise) {
+				owner.isPending = true;
+				return;
+			}
+			if (owner.updateStrategy === "join" && owner._hasPendingSources()) {
+				owner.isPending = true;
+				return;
+			}
+			owner._recompute();
+		};
+		cell.sub(reactor);
+		if (cell?.isReactive && typeof cell.acquire === "function") {
+			cell.acquire();
+			owner.acquired.push(cell);
+		}
+		owner.sources.push(cell);
+		owner.reactors.push(reactor);
+	});
+	return owner;
+}
+
+function unbindReactiveSources(owner) {
+	if (!owner.isBound) {
+		return owner;
+	}
+	for (let i = 0; i < owner.sources.length; i++) {
+		owner.sources[i].unsub(owner.reactors[i]);
+	}
+	owner.reactors.length = 0;
+	owner.sources.length = 0;
+	while (owner.acquired.length) {
+		owner.acquired.pop().release();
+	}
+	owner.isBound = false;
+	return owner;
+}
+
 // Class: Derivation
 // A reactive value computed from a template of source cells. Automatically
 // updates and notifies when any source cell changes.
@@ -1530,22 +1598,11 @@ class Derivation extends Reactive {
 	}
 
 	_hasPendingSources() {
-		for (let i = 0; i < this.sources.length; i++) {
-			if (this.sources[i]?.isPending) {
-				return true;
-			}
-		}
-		return false;
+		return hasPendingReactiveSources(this.sources);
 	}
 
 	_templateHasPendingSources() {
-		let hasPending = false;
-		walkReactiveSources(this.template, (cell) => {
-			if (cell?.isPending) {
-				hasPending = true;
-			}
-		});
-		return hasPending;
+		return templateHasPendingReactiveSources(this.template);
 	}
 
 	_apply(value, publish = true) {
@@ -1625,57 +1682,12 @@ class Derivation extends Reactive {
 
 	// Subscribes to all reactive cells in template.
 	bind() {
-		if (this.isBound) {
-			return this;
-		}
-		this.isBound = true;
-		walkReactiveSources(this.template, (cell) => {
-			const reactor = (value) => {
-				const isPromise = !!(value && typeof value.then === "function");
-				if (this.updateStrategy === "immediate") {
-					this._recompute();
-					return;
-				}
-				if (isPromise) {
-					this.isPending = true;
-					return;
-				}
-				if (this.updateStrategy === "join" && this._hasPendingSources()) {
-					this.isPending = true;
-					return;
-				}
-				this._recompute();
-			};
-			cell.sub(reactor);
-			if (cell?.isReactive && typeof cell.acquire === "function") {
-				cell.acquire();
-				this.acquired.push(cell);
-			}
-			this.sources.push(cell);
-			this.reactors.push(reactor);
-		});
-		return this;
+		return bindReactiveSources(this, this.template);
 	}
 
 	// Unsubscribes from all source cells.
 	unbind() {
-		if (!this.isBound) {
-			return this;
-		}
-		for (let i = 0; i < this.sources.length; i++) {
-			this.sources[i].unsub(this.reactors[i]);
-		}
-		while (this.reactors.length) {
-			this.reactors.pop();
-		}
-		while (this.sources.length) {
-			this.sources.pop();
-		}
-		while (this.acquired.length) {
-			this.acquired.pop().release();
-		}
-		this.isBound = false;
-		return this;
+		return unbindReactiveSources(this);
 	}
 
 	// Unsubscribes and clears references.
@@ -1820,22 +1832,11 @@ class Switched extends Reactive {
 	}
 
 	_hasPendingSources() {
-		for (let i = 0; i < this.sources.length; i++) {
-			if (this.sources[i]?.isPending) {
-				return true;
-			}
-		}
-		return false;
+		return hasPendingReactiveSources(this.sources);
 	}
 
 	_inputsHavePendingSources() {
-		let hasPending = false;
-		walkReactiveSources(this.inputs, (cell) => {
-			if (cell?.isPending) {
-				hasPending = true;
-			}
-		});
-		return hasPending;
+		return templateHasPendingReactiveSources(this.inputs);
 	}
 
 	_publish(value, path = Nothing, origin = this, previous = undefined) {
@@ -1974,56 +1975,11 @@ class Switched extends Reactive {
 	}
 
 	bind() {
-		if (this.isBound) {
-			return this;
-		}
-		this.isBound = true;
-		walkReactiveSources(this.inputs, (cell) => {
-			const reactor = (value) => {
-				const isPromise = !!(value && typeof value.then === "function");
-				if (this.updateStrategy === "immediate") {
-					this._recompute();
-					return;
-				}
-				if (isPromise) {
-					this.isPending = true;
-					return;
-				}
-				if (this.updateStrategy === "join" && this._hasPendingSources()) {
-					this.isPending = true;
-					return;
-				}
-				this._recompute();
-			};
-			cell.sub(reactor);
-			if (cell?.isReactive && typeof cell.acquire === "function") {
-				cell.acquire();
-				this.acquired.push(cell);
-			}
-			this.sources.push(cell);
-			this.reactors.push(reactor);
-		});
-		return this;
+		return bindReactiveSources(this, this.inputs);
 	}
 
 	unbind() {
-		if (!this.isBound) {
-			return this;
-		}
-		for (let i = 0; i < this.sources.length; i++) {
-			this.sources[i].unsub(this.reactors[i]);
-		}
-		while (this.reactors.length) {
-			this.reactors.pop();
-		}
-		while (this.sources.length) {
-			this.sources.pop();
-		}
-		while (this.acquired.length) {
-			this.acquired.pop().release();
-		}
-		this.isBound = false;
-		return this;
+		return unbindReactiveSources(this);
 	}
 
 	dispose() {
@@ -2377,6 +2333,7 @@ const walk = Reactive.Walk;
 const expand = Reactive.Expand;
 
 Object.assign(cell, {
+	map: cells,
 	derived,
 	switched,
 	batch,
@@ -2411,19 +2368,6 @@ export {
 	walk,
 };
 
-export default Object.assign(cell, {
-	map: cells,
-	derived,
-	switched,
-	batch,
-	deferred,
-	selected,
-	unwrap,
-	effect,
-	walk,
-	expand,
-	reconcile,
-	store: cellStore,
-});
+export default cell;
 
 // EOF

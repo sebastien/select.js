@@ -159,6 +159,59 @@ function parseHTMLResponse(text) {
 		: content;
 }
 
+function normalizeWritePath(path) {
+	return pathify(path, Nothing);
+}
+
+function isForcedWrite(options) {
+	return (
+		options === true ||
+		!!(
+			options &&
+			typeof options === "object" &&
+			!Array.isArray(options) &&
+			options.force
+		)
+	);
+}
+
+function mergeWriteValue(scope, path, value) {
+	if (!path || path.length === 0) return value;
+	if (path.length === 1 && isObject(scope) && isObject(value)) {
+		return sanitize({ ...scope, ...value });
+	}
+	return sanitize(assigned(scope, path, value));
+}
+
+function writeCellValue(cell, value, path, options, normalize = undefined) {
+	const resolvedPath = normalizeWritePath(path);
+	const force = isForcedWrite(options);
+	let next = cell.merge
+		? mergeWriteValue(cell.value, resolvedPath, value)
+		: resolvedPath
+			? sanitize(assigned(cell.value, resolvedPath, value))
+			: value;
+	if (normalize) next = normalize(next);
+	if (!force && eq(cell.value, next)) return null;
+	cell._update(
+		resolvedPath ? access(next, resolvedPath) : next,
+		resolvedPath,
+		force,
+	);
+	return { path: resolvedPath };
+}
+
+function syncCellValue(cell, value, normalize = undefined) {
+	cell._update(normalize ? normalize(value) : value, Nothing, false);
+}
+
+function historyMode(options, dflt = "replace") {
+	if (options && typeof options === "object" && !Array.isArray(options)) {
+		return options.mode === "push" ? "push" : dflt;
+	}
+	return dflt;
+}
+
 class LocationValueCell extends Cell {
 	constructor(value, options = {}) {
 		super(value);
@@ -168,64 +221,19 @@ class LocationValueCell extends Cell {
 		this.writer = options.writer;
 	}
 
-	static NormalizePathArg(path) {
-		return pathify(path, Nothing);
-	}
-
-	static IsForcedWrite(options) {
-		return (
-			options === true ||
-			!!(
-				options &&
-				typeof options === "object" &&
-				!Array.isArray(options) &&
-				options.force
-			)
-		);
-	}
-
-	static HistoryMode(options, dflt = "replace") {
-		if (options && typeof options === "object" && !Array.isArray(options)) {
-			return options.mode === "push" ? "push" : dflt;
-		}
-		return dflt;
-	}
-
-	static MergeAtPath(scope, p, value) {
-		if (!p || p.length === 0) return value;
-		if (p.length === 1 && isObject(scope) && isObject(value)) {
-			return sanitize({ ...scope, ...value });
-		}
-		return sanitize(assigned(scope, p, value));
-	}
-
 	set(value, p = Nothing, options = false) {
-		const resolvedPath = LocationValueCell.NormalizePathArg(p);
-		const force = LocationValueCell.IsForcedWrite(options);
-		let next = this.merge
-			? LocationValueCell.MergeAtPath(this.value, resolvedPath, value)
-			: resolvedPath
-				? sanitize(assigned(this.value, resolvedPath, value))
-				: value;
-		if (this._valueNormalizer) next = this._valueNormalizer(next);
-		if (!force && eq(this.value, next)) return this;
-		this._update(
-			resolvedPath ? access(next, resolvedPath) : next,
-			resolvedPath,
-			force,
-		);
-		if (this.writer) {
+		const write = writeCellValue(this, value, p, options, this._valueNormalizer);
+		if (write && this.writer) {
 			this.writer(this.value, {
-				mode: LocationValueCell.HistoryMode(options, this.mode),
-				path: resolvedPath,
+				mode: historyMode(options, this.mode),
+				path: write.path,
 			});
 		}
 		return this;
 	}
 
 	sync(value) {
-		if (this._valueNormalizer) value = this._valueNormalizer(value);
-		this._update(value, Nothing, false);
+		syncCellValue(this, value, this._valueNormalizer);
 		return this;
 	}
 }
@@ -381,25 +389,13 @@ class LocalStorageCell extends Cell {
 	}
 
 	set(value, p = Nothing, options = false) {
-		const resolvedPath = LocationValueCell.NormalizePathArg(p);
-		const force = LocationValueCell.IsForcedWrite(options);
-		const next = this.merge
-			? LocationValueCell.MergeAtPath(this.value, resolvedPath, value)
-			: resolvedPath
-				? sanitize(assigned(this.value, resolvedPath, value))
-				: value;
-		if (!force && eq(this.value, next)) return this;
-		this._update(
-			resolvedPath ? access(next, resolvedPath) : next,
-			resolvedPath,
-			force,
-		);
-		if (this.writer) this.writer(this.value, { path: resolvedPath });
+		const write = writeCellValue(this, value, p, options);
+		if (write && this.writer) this.writer(this.value, { path: write.path });
 		return this;
 	}
 
 	sync(value) {
-		this._update(value, Nothing, false);
+		syncCellValue(this, value);
 		return this;
 	}
 }

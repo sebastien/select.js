@@ -63,6 +63,33 @@ afterEach(() => {
 });
 
 describe("interaction draggable", () => {
+	test("resolves named targets through nested elements", async () => {
+		const window = setup();
+		const { dragtarget } = await import("../src/js/select/interaction/drag.js");
+		const { draggabletarget, droptarget, sorttarget } = await import(
+			"../src/js/select/interaction/draggable.js"
+		);
+		const dragNode = window.document.createElement("div");
+		dragNode.dataset.drag = "drag";
+		const draggableNode = window.document.createElement("div");
+		draggableNode.dataset.draggable = "source";
+		const dropNode = window.document.createElement("div");
+		dropNode.dataset.dropTarget = "target";
+		const sortNode = window.document.createElement("div");
+		sortNode.dataset.sortableItem = "item";
+		const child = window.document.createElement("span");
+		sortNode.append(child);
+		dropNode.append(sortNode);
+		draggableNode.append(dropNode);
+		dragNode.append(draggableNode);
+
+		expect(dragtarget(child, "drag")).toBe(dragNode);
+		expect(draggabletarget(child, "source")).toBe(draggableNode);
+		expect(droptarget(child, "target")).toBe(dropNode);
+		expect(sorttarget(child, "item")).toBe(sortNode);
+		expect(droptarget(child, "missing")).toBeUndefined();
+	})
+
 	test("appends a source clone to an accepted target by default", async () => {
 		const window = setup();
 		const { draggable } = await import(

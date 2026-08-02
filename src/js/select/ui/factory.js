@@ -22,6 +22,7 @@ import {
 } from "./components.js";
 import {
 	HTML,
+	hashText,
 	log,
 	pruneTemplateWhitespace,
 	TemplateRegistry,
@@ -34,14 +35,6 @@ const TEMPLATE_STYLE_RESOURCES = new WeakMap();
 const JSON_RESOURCES = new Map();
 const STYLE_RESOURCES = new Map();
 const SVG_RESOURCES = new Map();
-
-function hashText(value) {
-	let hash = 0;
-	for (let i = 0; i < value.length; i++) {
-		hash = (hash * 31 + value.charCodeAt(i)) | 0;
-	}
-	return hash;
-}
 
 function resolveScopeDocument(scope = document) {
 	if (scope?.nodeType === Node.DOCUMENT_NODE) {
@@ -206,6 +199,37 @@ function applyDefinitionToTemplate(tmpl, definition) {
 	return tmpl;
 }
 
+function assignDefinitionMethods(component, definition, tmpl = undefined) {
+	Object.assign(component, {
+		init: (...args) => {
+			definition.initializer = args[0];
+			tmpl?.init(...args);
+			return component;
+		},
+		does: (...args) => {
+			mergeDefinitionBehavior(definition, args[0]);
+			tmpl?.does(...args);
+			return component;
+		},
+		on: (...args) => {
+			mergeDefinitionSub(definition, ...args);
+			tmpl?.sub(...args);
+			return component;
+		},
+		sub: (...args) => {
+			mergeDefinitionSub(definition, ...args);
+			tmpl?.sub(...args);
+			return component;
+		},
+		cleanup: (...args) => {
+			definition.doCleanup = args[0];
+			tmpl?.cleanup(...args);
+			return component;
+		},
+	});
+	return component;
+}
+
 function createDefinitionComponent(name = null, scope = document) {
 	const definition = createDefinitionState(name);
 	const component = (..._args) => {
@@ -236,28 +260,8 @@ function createDefinitionComponent(name = null, scope = document) {
 		},
 		using: (selection, boundScope = scope) =>
 			createTemplateComponent(selection, boundScope, definition),
-		init: (init) => {
-			definition.initializer = init;
-			return component;
-		},
-		does: (behavior) => {
-			mergeDefinitionBehavior(definition, behavior);
-			return component;
-		},
-		on: (...args) => {
-			mergeDefinitionSub(definition, ...args);
-			return component;
-		},
-		sub: (...args) => {
-			mergeDefinitionSub(definition, ...args);
-			return component;
-		},
-		cleanup: (handler) => {
-			definition.doCleanup = handler;
-			return component;
-		},
 	});
-	return component;
+	return assignDefinitionMethods(component, definition);
 }
 
 function normalizeResourceURL(url, scope = document) {
@@ -752,34 +756,10 @@ function createComponent(
 		new: (...args) => tmpl.new(...args),
 		using: (selection, scope = tmpl.scope) =>
 			createTemplateComponent(selection, scope, localDefinition),
-		init: (...args) => {
-			localDefinition.initializer = args[0];
-			tmpl.init(...args);
-			return component;
-		},
 		map: (...args) => tmpl.map(...args),
 		apply: (...args) => tmpl.apply(...args),
-		does: (...args) => {
-			mergeDefinitionBehavior(localDefinition, args[0]);
-			tmpl.does(...args);
-			return component;
-		},
-		on: (...args) => {
-			mergeDefinitionSub(localDefinition, ...args);
-			tmpl.sub(...args);
-			return component;
-		},
-		sub: (...args) => {
-			mergeDefinitionSub(localDefinition, ...args);
-			tmpl.sub(...args);
-			return component;
-		},
-		cleanup: (...args) => {
-			localDefinition.doCleanup = args[0];
-			tmpl.cleanup(...args);
-			return component;
-		},
 	});
+	assignDefinitionMethods(component, localDefinition, tmpl);
 	const localTemplates = new Map();
 	const registerLocalTemplate = (
 		templateNode,

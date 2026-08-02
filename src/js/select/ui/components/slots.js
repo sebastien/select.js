@@ -27,6 +27,24 @@ function isUIInstance(value) {
 	return UIInstanceClass !== null && value instanceof UIInstanceClass;
 }
 
+function resolveTemplatePath(nodes, rootIndex, tailPath) {
+	let node = nodes[rootIndex];
+	if (tailPath) {
+		for (let i = 0; i < tailPath.length; i++) {
+			node = node ? node.childNodes[tailPath[i]] : node;
+		}
+	}
+	return node;
+}
+
+function assignTemplatePath(slot, node, parent, path) {
+	slot.node = node;
+	slot.parent = parent;
+	slot.path = path;
+	slot.rootIndex = path[0];
+	slot.tailPath = path.length > 1 ? path.slice(1) : null;
+}
+
 class UITemplateSlot {
 	static MergeMaps(...maps) {
 		let count = 0;
@@ -307,11 +325,7 @@ class UITemplateSlot {
 	}
 
 	constructor(node, parent, path) {
-		this.node = node;
-		this.parent = parent;
-		this.path = path;
-		this.rootIndex = path[0];
-		this.tailPath = path.length > 1 ? path.slice(1) : null;
+		assignTemplatePath(this, node, parent, path);
 		this.predicate = undefined;
 		this.predicatePlaceholder = undefined;
 		this.binding = undefined;
@@ -319,13 +333,7 @@ class UITemplateSlot {
 
 	// Resolves to actual node in cloned instance `nodes`.
 	resolve(nodes) {
-		let node = nodes[this.rootIndex];
-		if (this.tailPath) {
-			for (let i = 0; i < this.tailPath.length; i++) {
-				node = node ? node.childNodes[this.tailPath[i]] : node;
-			}
-		}
-		return node;
+		return resolveTemplatePath(nodes, this.rootIndex, this.tailPath);
 	}
 
 	// Applies this template slot to `nodes`, returning a UISlot.
@@ -542,11 +550,7 @@ class UITemplateSlot {
 // - `originalValue`: string? - original attribute value for additive behavior
 class UIAttributeTemplateSlot {
 	constructor(node, parent, path, attrName, slotName, originalValue, parsed) {
-		this.node = node;
-		this.parent = parent;
-		this.path = path;
-		this.rootIndex = path[0];
-		this.tailPath = path.length > 1 ? path.slice(1) : null;
+		assignTemplatePath(this, node, parent, path);
 		this.attrName = attrName;
 		this.slotName = slotName;
 		this.originalValue = originalValue;
@@ -559,13 +563,7 @@ class UIAttributeTemplateSlot {
 	}
 
 	resolve(nodes) {
-		let node = nodes[this.rootIndex];
-		if (this.tailPath) {
-			for (let i = 0; i < this.tailPath.length; i++) {
-				node = node ? node.childNodes[this.tailPath[i]] : node;
-			}
-		}
-		return node;
+		return resolveTemplatePath(nodes, this.rootIndex, this.tailPath);
 	}
 
 	apply(nodes, parent) {
@@ -793,11 +791,7 @@ class UIEventTemplateSlot {
 		stopPropagation = false,
 		preventDefault = false,
 	) {
-		this.node = node;
-		this.parent = parent;
-		this.path = path;
-		this.rootIndex = path[0];
-		this.tailPath = path.length > 1 ? path.slice(1) : null;
+		assignTemplatePath(this, node, parent, path);
 		this.eventType = eventType;
 		this.handlerName = handlerName;
 		this.mode = mode;
@@ -809,13 +803,7 @@ class UIEventTemplateSlot {
 	}
 
 	resolve(nodes) {
-		let node = nodes[this.rootIndex];
-		if (this.tailPath) {
-			for (let i = 0; i < this.tailPath.length; i++) {
-				node = node ? node.childNodes[this.tailPath[i]] : node;
-			}
-		}
-		return node;
+		return resolveTemplatePath(nodes, this.rootIndex, this.tailPath);
 	}
 
 	apply(nodes, parent) {
@@ -1205,21 +1193,6 @@ class UISlot {
 		return null;
 	}
 
-	// Refresh a retained row whose payload was already verified equal.
-	_renderShiftedMapped(k, item) {
-		const existing = this.mapping.get(k);
-		if (
-			!(item instanceof AppliedUITemplate) ||
-			!isUIInstance(existing) ||
-			item.template !== existing.template
-		) {
-			this._renderMapped(k, item, null);
-			return;
-		}
-		existing.update(item.data);
-		existing._lastApplied = item;
-	}
-
 	// True when list keys are positional 0..n-1 (index mode or $key: index).
 	_isIndexShapedList() {
 		if (!this._listKeyMode || this._listKeyMode === "index") {
@@ -1286,21 +1259,6 @@ class UISlot {
 		return this._renderIndexRemoveAt(data, removeAt, previousLength);
 	}
 
-	// Refresh retained data after a positional shift.
-	_renderShiftedPresentation(k, item) {
-		const existing = this.mapping.get(k);
-		if (
-			!(item instanceof AppliedUITemplate) ||
-			!isUIInstance(existing) ||
-			item.template !== existing.template
-		) {
-			this._renderMapped(k, item, null);
-			return;
-		}
-		existing.update(item.data);
-		existing._lastApplied = item;
-	}
-
 	// Single-index remove: unmount R, rekey R+1..end → R..end-1, then update
 	// shifted rows (labels only when payload matches). DOM order stays correct
 	// after unmounting R — no node moves needed.
@@ -1337,7 +1295,7 @@ class UISlot {
 		}
 		// Prefix is unchanged; only shifted rows need label/key refresh.
 		for (let i = removeAt; i < data.length; i++) {
-			this._renderShiftedPresentation(i, data[i]);
+			this._syncMappedWrapper(i, data[i]);
 		}
 		this._listLength = data.length;
 		this._listItems = data;
@@ -1371,7 +1329,7 @@ class UISlot {
 				: null;
 		previous = this._renderMapped(insertAt, data[insertAt], previous);
 		for (let i = insertAt + 1; i < data.length; i++) {
-			this._renderShiftedPresentation(i, data[i]);
+			this._syncMappedWrapper(i, data[i]);
 			previous = this._lastMappedNode(this.mapping.get(i)) || previous;
 		}
 		this._listLength = data.length;
@@ -1948,7 +1906,9 @@ class UISlot {
 
 	// Shows the slot (replaces placeholder with actual node).
 	show() {
-		// TODO: Edge case when the slot is a direct node in the instance `.nodes`.
+		if (this.template.tailPath === null && this.parent?.nodes) {
+			this.parent.nodes[this.template.rootIndex] = this.node;
+		}
 		if (this.predicatePlaceholder?.parentNode) {
 			this.predicatePlaceholder.parentNode.replaceChild(
 				this.node,
@@ -1960,8 +1920,13 @@ class UISlot {
 
 	// Hides the slot (replaces node with placeholder).
 	hide() {
-		// TODO: Edge case when the slot is a direct node in the instance `.nodes`.
-		if (this.predicatePlaceholder && this.node.parentNode) {
+		if (!this.predicatePlaceholder) {
+			return this;
+		}
+		if (this.template.tailPath === null && this.parent?.nodes) {
+			this.parent.nodes[this.template.rootIndex] = this.predicatePlaceholder;
+		}
+		if (this.node.parentNode) {
 			this.node.parentNode.replaceChild(this.predicatePlaceholder, this.node);
 		}
 		return this;

@@ -44,7 +44,7 @@ Attributes, classes, style, layout, events:
 ### Differences with jQuery
 
 - SVG nodes are supported as first-class targets
-- Targets modern browsers (IE10+ baseline in project docs)
+- Targets modern browsers with native `matches`, `dataset`, and `classList`
 - Uses CSS selectors only (no Sizzle/jQuery selector extensions)
 - Focuses on `ELEMENT_NODE` selections
 - Avoids key/property normalization for performance

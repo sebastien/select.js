@@ -41,6 +41,29 @@ release: $(PATH_RUN)/task/project-release-$(PROJECT_VERSION).task
 	@
 
 
+.PHONY: _dist-files dist ci
+
+_dist-files: $(DIST_FILES)
+
+dist:
+	@set -eu; \
+	stage=$$(mktemp -d ".dist.stage.XXXXXX"); \
+	backup="$$stage.previous"; \
+	trap 'rm -rf "$$stage" "$$backup"' EXIT; \
+	$(MAKE) --no-print-directory _dist-files DIST_ROOT="$$stage"; \
+	if find "$$stage" -type f \( -name "*.gz" -o -path "*/www/*" \) | grep -q .; then \
+		echo "[DIST] unexpected deployment artifact"; \
+		exit 1; \
+	fi; \
+	if find "$$stage/select" -type f -name "*.min.js" ! -name "index.min.js" | grep -q .; then \
+		echo "[DIST] unexpected leaf minified module"; \
+		exit 1; \
+	fi; \
+	if [ -d dist ]; then mv dist "$$backup"; fi; \
+	mv "$$stage" dist; \
+	stage=""; \
+	rm -rf "$$backup"
+
 .PHONY: ci
 ci:
 	@set -eu
@@ -52,9 +75,10 @@ ci:
 	FMT_SNAPSHOT_2=$$(mktemp); \
 	DIST_SNAPSHOT_1=$$(mktemp); \
 	DIST_SNAPSHOT_2=$$(mktemp); \
-	trap 'rm -rf "$$TMP_DIR" "$$FMT_SNAPSHOT_1" "$$FMT_SNAPSHOT_2" "$$DIST_SNAPSHOT_1" "$$DIST_SNAPSHOT_2"' EXIT; \
+	trap 'mise trust --untrust -y "$$TMP_DIR/repo/mise.toml" >/dev/null 2>&1 || true; rm -rf "$$TMP_DIR" "$$FMT_SNAPSHOT_1" "$$FMT_SNAPSHOT_2" "$$DIST_SNAPSHOT_1" "$$DIST_SNAPSHOT_2"' EXIT; \
 	mkdir -p "$$TMP_DIR/repo"; \
 	tar --exclude=.git -cf - . | tar -C "$$TMP_DIR/repo" -xf -; \
+	mise trust -y "$$TMP_DIR/repo/mise.toml"; \
 	echo "[CI] checking fmt idempotence"; \
 	$(MAKE) -C "$$TMP_DIR/repo" fmt; \
 	find "$$TMP_DIR/repo" -type f -print0 | sort -z | xargs -0 sha256sum > "$$FMT_SNAPSHOT_1"; \
@@ -67,7 +91,12 @@ ci:
 	echo "[CI] checking dist idempotence"; \
 	$(MAKE) -C "$$TMP_DIR/repo" dist; \
 	if [ -d "$$TMP_DIR/repo/dist" ]; then find "$$TMP_DIR/repo/dist" -type f -print0 | sort -z | xargs -0 sha256sum > "$$DIST_SNAPSHOT_1"; else : > "$$DIST_SNAPSHOT_1"; fi; \
+	touch "$$TMP_DIR/repo/dist/select/stale.js"; \
 	$(MAKE) -C "$$TMP_DIR/repo" dist; \
+	if [ -e "$$TMP_DIR/repo/dist/select/stale.js" ]; then \
+		echo "[CI] make dist retained a stale artifact"; \
+		exit 1; \
+	fi; \
 	if [ -d "$$TMP_DIR/repo/dist" ]; then find "$$TMP_DIR/repo/dist" -type f -print0 | sort -z | xargs -0 sha256sum > "$$DIST_SNAPSHOT_2"; else : > "$$DIST_SNAPSHOT_2"; fi; \
 	if ! cmp -s "$$DIST_SNAPSHOT_1" "$$DIST_SNAPSHOT_2"; then \
 		echo "[CI] make dist is not idempotent"; \
@@ -75,32 +104,27 @@ ci:
 	fi
 	@echo "[CI] OK"
 
-dist/select/%.js: src/js/select/%.js
+$(DIST_ROOT)/select/%.js: src/js/select/%.js
 	@mkdir -p $(dir $@); true
 	cat src/js/select/$*.js > "$@"
 	echo "[DIST] $$(du -hs $@)"
 
-dist/select/index.js: src/js/select/index.js $(SOURCES_JS)
+$(DIST_ROOT)/select/index.js: src/js/select/index.js $(SOURCES_JS)
+	@mkdir -p $(dir $@); true
+	@printf 'export * from "../selectjs.js";\n' > "$@"
+	echo "[DIST] $$(du -hs $@)"
+
+$(DIST_ROOT)/select/index.min.js: src/js/select/index.js $(SOURCES_JS)
+	@mkdir -p $(dir $@); true
+	@printf 'export*from"../selectjs.min.js";\n' > "$@"
+	echo "[DIST] $$(du -hs $@)"
+
+$(DIST_ROOT)/selectjs.js: src/js/select/index.js $(SOURCES_JS)
 	@mkdir -p $(dir $@); true
 	@$(CMD) bun build --bundle --format=esm --outfile="$@" "$<"
 	echo "[DIST] $$(du -hs $@)"
 
-dist/select/%.min.js: dist/select/%.js
-	@mkdir -p $(dir $@); true
-	@$(CMD) bun build --minify --outfile="$@" "$<"
-	echo "[DIST] $$(du -hs $@)"
-
-dist/select/index.min.js: src/js/select/index.js $(SOURCES_JS)
-	@mkdir -p $(dir $@); true
-	@$(CMD) bun build --bundle --format=esm --minify --outfile="$@" "$<"
-	echo "[DIST] $$(du -hs $@)"
-
-dist/selectjs.js: src/js/select/index.js $(SOURCES_JS)
-	@mkdir -p $(dir $@); true
-	@$(CMD) bun build --bundle --format=esm --outfile="$@" "$<"
-	echo "[DIST] $$(du -hs $@)"
-
-dist/selectjs.min.js: src/js/select/index.js $(SOURCES_JS)
+$(DIST_ROOT)/selectjs.min.js: src/js/select/index.js $(SOURCES_JS)
 	@mkdir -p $(dir $@); true
 	@tmp="$@.bundle.js"; \
 	rm -f "$$tmp"; \

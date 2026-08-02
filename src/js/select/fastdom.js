@@ -14,13 +14,9 @@
 const win = typeof globalThis !== "undefined" && globalThis.window;
 
 // Constant: raf
-// Normalized animation-frame scheduler, with a timeout fallback outside the DOM.
+// Animation-frame scheduler with fallbacks for non-DOM use.
 const raf = win
-	? win.requestAnimationFrame ||
-		win.webkitRequestAnimationFrame ||
-		win.mozRequestAnimationFrame ||
-		win.msRequestAnimationFrame ||
-		((cb) => setTimeout(() => cb(0), 16))
+	? win.requestAnimationFrame || ((cb) => setTimeout(() => cb(0), 16))
 	: (cb) => cb(0);
 
 // ----------------------------------------------------------------------------

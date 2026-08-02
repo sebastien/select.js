@@ -159,6 +159,64 @@ describe("ui init reactive fusion", () => {
 		window.close()
 	})
 
+	test("keeps read-only init derivations out of incoming prop fusion", async () => {
+		const window = new Window({ url: "http://localhost:8000/fusion" })
+		setupGlobals(window)
+		const { cell, derived } = await import("../src/js/select/index.js")
+		const { ui } = await import("../src/js/select/ui.js")
+
+		const upstream = cell(true)
+		const Component = ui(`<div out="status"></div>`)
+			.init(() => {
+				const source = cell(false)
+				return { status: derived(source, (value) => value) }
+			})
+			.does({
+				status: (_self, { status }) => String(status.value),
+			})
+
+		const instance = Component.new().set({ status: upstream }).mount(document.body)
+
+		expect(instance.data.status.value).toBe(false)
+		expect(document.body.textContent?.trim()).toBe("false")
+
+		upstream.set(false)
+		instance.update({ status: undefined })
+		await nextTick()
+		expect(instance.data.status.value).toBe(false)
+
+		instance.unmount()
+		window.close()
+	})
+
+	test("does not write read-only derivations through an input binding", async () => {
+		const window = new Window({ url: "http://localhost:8000/fusion" })
+		setupGlobals(window)
+		const { cell, derived } = await import("../src/js/select/index.js")
+		const { ui } = await import("../src/js/select/ui.js")
+		const Component = ui(`<input inout:value="value">`).init(() => {
+			const source = cell(false)
+			return { value: derived(source, (value) => value) }
+		})
+		const instance = Component.new().mount(document.body)
+		const value = instance.data.value
+		const set = value.set
+		let writes = 0
+		value.set = (...args) => {
+			writes += 1
+			return set.apply(value, args)
+		}
+		const input = document.querySelector("input")
+		input.value = "true"
+		input.dispatchEvent(new Event("input", { bubbles: true }))
+
+		expect(writes).toBe(0)
+		expect(value.value).toBe(false)
+
+		instance.unmount()
+		window.close()
+	})
+
 	test("rerenders every behavior that depends on a resolved root derived value", async () => {
 		const window = new Window({ url: "http://localhost:8000/derived-render" })
 		setupGlobals(window)

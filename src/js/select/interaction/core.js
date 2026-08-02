@@ -45,9 +45,17 @@ function target(node, pred) {
 	return undefined;
 }
 
+function attributeTarget(node, attribute, name = undefined) {
+	return target(node, (element) =>
+		!name
+			? element.hasAttribute(attribute)
+			: element.getAttribute(attribute) === name,
+	);
+}
+
 const core = { bind, unbind, target };
 
-export { bind, core, target, unbind };
+export { attributeTarget, bind, core, target, unbind };
 export default core;
 
 // EOF

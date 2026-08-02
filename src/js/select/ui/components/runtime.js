@@ -16,8 +16,9 @@
 import { unwrap } from "../../cells.js";
 import { FORMATS } from "../../formats.js";
 import { expand, isPascalCase, microtask } from "../../utils.js";
+import { isThenable } from "../../utils/values.js";
 
-import { isInputNode, log, TemplateParser } from "../templates.js";
+import { log, setNodeText, TemplateParser } from "../templates.js";
 
 const SLOT_DEFAULT_KEY = "_";
 const SKIP_INPUT_UPDATE = Symbol("skip-input-update");
@@ -46,26 +47,6 @@ function getInputEventValue(node, event, property = "value") {
 		}
 	}
 	return target.value;
-}
-function setNodeText(node, text) {
-	switch (node.nodeType) {
-		case Node.TEXT_NODE:
-			if (node.data !== text) node.data = text;
-			break;
-		case Node.ELEMENT_NODE:
-			if (isInputNode(node)) {
-				if (node.nodeName === "DETAILS") {
-					const next = !!text;
-					if (node.open !== next) node.open = next;
-				} else if (node.value !== text) {
-					node.value = text;
-				}
-			} else if (node.textContent !== text) {
-				node.textContent = text;
-			}
-			break;
-	}
-	return node;
 }
 function normalizeSourceKey(sourceKey) {
 	if (sourceKey === "data" || sourceKey === ".") return "";
@@ -607,15 +588,6 @@ function hasTrackedNonReactiveObjectDeps(data, deps) {
 		}
 	}
 	return false;
-}
-
-function isThenable(value) {
-	return (
-		value !== null &&
-		value !== undefined &&
-		(typeof value === "object" || typeof value === "function") &&
-		typeof value.then === "function"
-	);
 }
 
 export {

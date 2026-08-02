@@ -39,6 +39,10 @@ class Snappable {
 		this.sticky = new Int32Array(this.capacity * 4);
 		this.links = new Int32Array(this.capacity * 4);
 		this.links.fill(-1);
+		this.parents = new Int32Array(this.capacity);
+		this.parents.fill(-1);
+		this.parentSides = new Int8Array(this.capacity);
+		this.parentSides.fill(-1);
 		this.cells = new Array(this.capacity);
 		this.buckets = new Map();
 		this.marks = new Uint32Array(this.capacity);
@@ -101,7 +105,7 @@ class Snappable {
 	}
 
 	// Function: attach
-	// Attaches opposite matching sticky sides of `id` and `targetId`.
+	// Attaches `id` as a child of `targetId` through opposite matching sticky sides.
 	attach(id, side, targetId, targetSide = undefined) {
 		const slot = this._slot(id);
 		const target = this._slot(targetId);
@@ -126,6 +130,24 @@ class Snappable {
 		return result;
 	}
 
+	// Function: attachments
+	// Returns the directed sticky attachments in this space.
+	attachments() {
+		const result = [];
+		for (let slot = 0; slot < this.count; slot++) {
+			const parent = this.parents[slot];
+			if (!this.active[slot] || parent < 0) continue;
+			const side = this.parentSides[slot];
+			result.push({
+				id: this._id(slot),
+				side: sideName(side),
+				targetId: this._id(parent),
+				targetSide: sideName(OPPOSITE[side]),
+			});
+		}
+		return result;
+	}
+
 	// Function: leader
 	// Marks `id` as the explicit leader for its adhesion component.
 	leader(id, value = true) {
@@ -134,15 +156,19 @@ class Snappable {
 	}
 
 	// Function: begin
-	// Starts a transaction that translates the adhesion component containing `id`.
+	// Starts a transaction that translates `id` and its owned descendants.
 	begin(id, options = {}) {
 		const slot = this._slot(id);
 		if (options.pull === undefined) {
-			const component = this._component(slot);
-			const leader = this._leader(component);
-			if (slot === leader) return new SnapDrag(this, component);
-			const branch = this._branch(leader, slot);
-			return new SnapDrag(this, branch.slots, branch.pull);
+			if (this.leaders[slot]) return new SnapDrag(this, this._component(slot));
+			const parent = this.parents[slot];
+			return new SnapDrag(
+				this,
+				this._subtree(slot),
+				parent < 0
+					? undefined
+					: { slot, side: this.parentSides[slot], target: parent },
+			);
 		}
 		const side = sideIndex(options.pull);
 		const target = this.links[slot * 4 + side];
@@ -212,10 +238,13 @@ class Snappable {
 		if (this._component(slot).includes(target)) {
 			throw new Error("Sticky borders cannot create adhesion cycles");
 		}
+		if (this.parents[slot] >= 0) this._unlink(slot, this.parentSides[slot]);
 		this._unlink(slot, side);
 		this._unlink(target, targetSide);
 		this.links[slot * 4 + side] = target;
 		this.links[target * 4 + targetSide] = slot;
+		this.parents[slot] = target;
+		this.parentSides[slot] = side;
 	}
 
 	_unlink(slot, side) {
@@ -225,6 +254,17 @@ class Snappable {
 		this.links[offset] = -1;
 		const targetOffset = target * 4 + OPPOSITE[side];
 		if (this.links[targetOffset] === slot) this.links[targetOffset] = -1;
+		if (this.parents[slot] === target && this.parentSides[slot] === side) {
+			this.parents[slot] = -1;
+			this.parentSides[slot] = -1;
+		}
+		if (
+			this.parents[target] === slot &&
+			this.parentSides[target] === OPPOSITE[side]
+		) {
+			this.parents[target] = -1;
+			this.parentSides[target] = -1;
+		}
 	}
 
 	_component(slot) {
@@ -247,58 +287,18 @@ class Snappable {
 		return result;
 	}
 
-	_leader(slots) {
-		let leader = slots[0];
-		for (let i = 1; i < slots.length; i++) {
-			const slot = slots[i];
-			if (this.leaders[slot] && !this.leaders[leader]) {
-				leader = slot;
-				continue;
-			}
-			if (this.leaders[slot] !== this.leaders[leader]) continue;
-			if (
-				this.y[slot] < this.y[leader] ||
-				(this.y[slot] === this.y[leader] && this.x[slot] < this.x[leader]) ||
-				(this.y[slot] === this.y[leader] &&
-					this.x[slot] === this.x[leader] &&
-					slot < leader)
-			)
-				leader = slot;
-		}
-		return leader;
-	}
-
-	_branch(leader, slot) {
-		const parents = new Int32Array(this.count);
-		const parentSides = new Int8Array(this.count);
-		parents.fill(-2);
-		const queue = [leader];
-		parents[leader] = -1;
-		for (let i = 0; i < queue.length; i++) {
-			const current = queue[i];
-			for (const side of SIDES) {
-				const target = this.links[current * 4 + side];
-				if (target < 0 || parents[target] !== -2) continue;
-				parents[target] = current;
-				parentSides[target] = OPPOSITE[side];
-				queue.push(target);
-			}
-		}
+	_subtree(slot) {
 		const result = [slot];
 		for (let i = 0; i < result.length; i++) {
 			const current = result[i];
 			for (const childSide of SIDES) {
 				const candidate = this.links[current * 4 + childSide];
-				if (candidate >= 0 && parents[candidate] === current) {
+				if (candidate >= 0 && this.parents[candidate] === current) {
 					result.push(candidate);
 				}
 			}
 		}
-		const side = parentSides[slot];
-		return {
-			slots: result,
-			pull: { slot, side, target: parents[slot] },
-		};
+		return result;
 	}
 
 	_index(slot) {
@@ -388,6 +388,12 @@ class Snappable {
 		const links = grow(this.links, capacity * 4);
 		links.fill(-1, this.links.length);
 		this.links = links;
+		const parents = grow(this.parents, capacity);
+		parents.fill(-1, this.parents.length);
+		this.parents = parents;
+		const parentSides = grow(this.parentSides, capacity);
+		parentSides.fill(-1, this.parentSides.length);
+		this.parentSides = parentSides;
 		this.sticky = grow(this.sticky, capacity * 4);
 		this.marks = grow(this.marks, capacity);
 		this.cells.length = capacity;
@@ -623,12 +629,17 @@ function choose(space, candidate, best, previous, pull = undefined) {
 			? space.tolerance + space.hysteresis
 			: space.tolerance;
 	if (Math.abs(candidate.delta) > limit) return best;
-	if (!best || candidate.key === previous) return candidate;
-	if (best.key === previous) return best;
+	if (!best) return candidate;
 	if (candidate.kind !== best.kind)
 		return candidate.kind === "adhesion" ? candidate : best;
-	if (Math.abs(candidate.delta) !== Math.abs(best.delta))
-		return Math.abs(candidate.delta) < Math.abs(best.delta) ? candidate : best;
+	const candidateDelta = Math.abs(candidate.delta);
+	const bestDelta = Math.abs(best.delta);
+	if (candidate.key === previous)
+		return candidateDelta <= bestDelta + space.hysteresis ? candidate : best;
+	if (best.key === previous)
+		return bestDelta <= candidateDelta + space.hysteresis ? best : candidate;
+	if (candidateDelta !== bestDelta)
+		return candidateDelta < bestDelta ? candidate : best;
 	return (candidate.overlap ?? 0) > (best.overlap ?? 0) ? candidate : best;
 }
 

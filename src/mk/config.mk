@@ -14,16 +14,14 @@ PROJECT_VERSION:=$(shell grep version < package.json | cut -d: -f2 | sed 's|[", 
 # PREP_ALL:=
 
 SOURCES_JS:=$(shell find src/js/select -name "*.js")
+DIST_ROOT?=dist
 
-BUNDLE_JS:=dist/selectjs.js dist/selectjs.min.js dist/selectjs.min.js.gz
+BUNDLE_JS=$(DIST_ROOT)/selectjs.js $(DIST_ROOT)/selectjs.min.js
 
-BUILD_ALL+=\
-	$(SOURCES_JS:src/js/select/%.js=dist/select/%.js)\
-	$(SOURCES_JS:src/js/select/%.js=dist/select/%.min.js)\
-	$(BUNDLE_JS)
+DIST_FILES=$(SOURCES_JS:src/js/select/%.js=$(DIST_ROOT)/select/%.js) $(DIST_ROOT)/select/index.min.js $(BUNDLE_JS)
 
-DIST_ALL+=$(BUILD_ALL)
-CLEAN_ALL+=$(BUILD_ALL)
+BUILD_ALL+=$(DIST_FILES)
+CLEAN_ALL+=$(DIST_FILES)
 
 RUN_ALL+=run-http
 

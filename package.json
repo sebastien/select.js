@@ -2,7 +2,21 @@
 	"name": "select",
 	"version": "0.9.0",
 	"description": "A small jQuery-like library for DOM+SVG manipulation",
-	"main": "src/js/select/index.js",
+	"type": "module",
+	"main": "./src/js/select/index.js",
+	"exports": {
+		".": "./src/js/select/index.js",
+		"./*.js": "./src/js/select/*.js",
+		"./src/js/select/*": "./src/js/select/*",
+		"./dist/*": "./dist/*",
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"src/js/select/",
+		"dist/",
+		"README.md",
+		"LICENSE.md"
+	],
 	"homepage": "https://github.com/sebastien/select.js#readme",
 	"repository": {
 		"type": "git",
@@ -25,9 +39,11 @@
 		"test:dist": "make dist && REQUIRE_DIST=1 bun test tests/dist-exports.test.js tests/int-examples.test.ts",
 		"test:int": "bun test tests/int-examples.test.ts",
 		"test:int:update": "UPDATE_FIXTURES=1 bun test tests/int-examples.test.ts",
+		"test:package": "node scripts/test-package.mjs",
 		"bench:inspector": "node scripts/bench-inspector.mjs",
 		"bench:inspector:happy": "node benchmarks/inspector/run-compare.mjs",
-		"bench:inspector:chrome": "node benchmarks/inspector/run-node.js"
+		"bench:inspector:chrome": "node benchmarks/inspector/run-node.cjs",
+		"prepack": "make dist && bun run test:dist && bun run test:package"
 	},
 	"devDependencies": {
 		"eslint": "^10.6.0",

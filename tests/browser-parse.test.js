@@ -17,6 +17,41 @@ function restoreGlobal(key, snapshot) {
 	}
 }
 
+const BROWSER_GLOBALS = [
+	"window",
+	"document",
+	"Node",
+	"Element",
+	"HTMLElement",
+	"DocumentFragment",
+	"Text",
+	"Comment",
+	"Document",
+	"DOMParser",
+	"MutationObserver",
+	"CustomEvent",
+	"Event",
+	"MouseEvent",
+	"KeyboardEvent",
+	"NodeFilter",
+	"SVGElement",
+	"customElements",
+	"requestAnimationFrame",
+	"cancelAnimationFrame",
+	"navigator",
+	"getComputedStyle",
+]
+
+function snapshotGlobals(keys = BROWSER_GLOBALS) {
+	return keys.map((key) => [key, snapshotGlobal(key)])
+}
+
+function restoreGlobals(snapshots) {
+	for (let i = 0; i < snapshots.length; i++) {
+		restoreGlobal(snapshots[i][0], snapshots[i][1])
+	}
+}
+
 function setupGlobals(window) {
 	window.SyntaxError = SyntaxError
 	window.TypeError = TypeError
@@ -85,6 +120,56 @@ describe("Browser.ref", () => {
 		expect(instance.query.value).toEqual({
 			users: { list: [{ name: "Lin" }] },
 		})
+	})
+})
+
+describe("Browser-backed writes", () => {
+	test("merges, normalizes, and forces URL query writes", () => {
+		const window = new Window({ url: "http://localhost:8000/start" })
+		const snapshots = snapshotGlobals()
+		try {
+			setupGlobals(window)
+			const instance = new Browser()
+			const changes = []
+			instance.location.query.sub((value, path) => changes.push({ value, path }))
+
+			instance.query.set(2, ["page"])
+			instance.query.set("name", ["sort"])
+			expect(instance.query.value).toEqual({ page: 2, sort: "name" })
+			expect(window.location.search).toBe("?page=2,sort=name")
+
+			instance.query.set({ page: 2, sort: "name" }, undefined, { force: true })
+			expect(changes).toHaveLength(3)
+
+			instance.hash.set({ panel: "home" })
+			expect(window.location.hash).toBe("#panel=home")
+		} finally {
+			window.close()
+			restoreGlobals(snapshots)
+		}
+	})
+
+	test("writes merged nested local state through the storage cell", () => {
+		const window = new Window({ url: "http://localhost:8000/local" })
+		const snapshots = snapshotGlobals()
+		try {
+			setupGlobals(window)
+			const instance = new Browser()
+			const preferences = instance.local("preferences", { theme: "light" })
+
+			preferences.set("dark", ["theme"])
+			preferences.set("compact", ["layout", "density"])
+			expect(preferences.value).toEqual({
+				theme: "dark",
+				layout: { density: "compact" },
+			})
+			expect(JSON.parse(window.localStorage.getItem("preferences"))).toEqual(
+				preferences.value,
+			)
+		} finally {
+			window.close()
+			restoreGlobals(snapshots)
+		}
 	})
 })
 

@@ -270,19 +270,52 @@ function setupGlobals(window) {
 		`
 
 		const Repro = ui("WhenNestedLocalTemplateRepro").does({
-			Value() {
-				return Repro.Boolean({ value: true })
+			Value(_self, data) {
+				return Repro.Boolean(data)
 			},
 		})
 
-		Repro.new().mount("#app")
+		const instance = Repro.new().set({ value: true }).mount("#app")
 
 		expect(document.querySelectorAll("#app ui-icon")).toHaveLength(1)
 		expect(document.querySelector("#app .yes")).not.toBeNull()
 		expect(document.querySelector("#app .no")).toBeNull()
 
+		instance.set({ value: false })
+		expect(document.querySelectorAll("#app ui-icon")).toHaveLength(1)
+		expect(document.querySelector("#app .yes")).toBeNull()
+		expect(document.querySelector("#app .no")).not.toBeNull()
+
+		instance.set({ value: true })
+		expect(document.querySelectorAll("#app ui-icon")).toHaveLength(1)
+		expect(document.querySelector("#app .yes")).not.toBeNull()
+		expect(document.querySelector("#app .no")).toBeNull()
+		instance.unmount()
+
 		globalThis.fetch = originalFetch
 		document.body.innerHTML = ""
+		window.close?.()
+	})
+
+	test("keeps direct-root conditional nodes synchronized before mounting", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" })
+		setupGlobals(window)
+		const { ui } = await import("../src/js/select/ui.js")
+		const instance = ui(`
+			<span class="yes" when="value==true">yes</span>
+			<span class="no" when="value!=true">no</span>
+		`)
+			.new()
+			.set({ value: true })
+			.mount(document.body)
+
+		expect(document.querySelectorAll("span")).toHaveLength(1)
+		expect(document.querySelector(".yes")).not.toBeNull()
+		instance.set({ value: false })
+		expect(document.querySelectorAll("span")).toHaveLength(1)
+		expect(document.querySelector(".no")).not.toBeNull()
+		instance.unmount()
+		expect(document.querySelectorAll("span")).toHaveLength(0)
 		window.close?.()
 	})
 })

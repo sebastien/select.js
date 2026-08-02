@@ -20,7 +20,7 @@
 import { toCamelCase, toKebabCase } from "../formats.js";
 import { asText, def, eq, isObject, Nothing } from "../utils.js";
 import { getUIInstance } from "./components/instance.js";
-import { log } from "./templates.js";
+import { hashText, log } from "./templates.js";
 
 // Constant: Disconnect
 // Lifecycle sentinel fired when a component disconnects from the DOM.
@@ -75,14 +75,6 @@ function isStyleSheetMutation(mutation) {
 		}
 	}
 	return false;
-}
-
-function hashText(value) {
-	let hash = 0;
-	for (let i = 0; i < value.length; i++) {
-		hash = (hash * 31 + value.charCodeAt(i)) | 0;
-	}
-	return hash;
 }
 
 function scheduleDocumentStyleSync(doc) {

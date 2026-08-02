@@ -37,23 +37,10 @@ import { logger } from "./utils.js";
 // SUBSECTION: Selection Helpers
 // ============================================================================
 
-// Constant: _match
-// Internal browser capability detection for element matching.
-// Maps to `1` for standard `matches`, `2` for moz, `3` for webkit, or `null`.
-
-const _match = Element.prototype.matches
-	? 1
-	: Element.prototype.mozMatchesSelector
-		? 2
-		: Element.prototype.webkitMatchesSelector
-			? 3
-			: null;
-
 const log = logger("select");
 
 // Function: match
-// Tests if `node` matches the given CSS `selector`. Uses native browser
-// methods when available with fallback to manual parent query.
+// Tests if `node` matches the given CSS `selector`.
 //
 // Parameters:
 // - `selector`: string - CSS selector to test
@@ -61,64 +48,29 @@ const log = logger("select");
 //
 // Returns: boolean - true if node matches selector
 
-const match = _match
-	? (selector, node) => {
-			let index;
-			// NOTE: This is where we support the jQuery-like suffixes
-			if (selector.startsWith(":first")) {
-				selector = selector.substring(0, selector.length - 6);
-				index = 0;
-			}
-			if (index === undefined) {
-				try {
-					switch (_match) {
-						case 1:
-							return node?.matches?.(selector);
-						case 2:
-							return node?.mozMatchesSelector?.(selector);
-						case 3:
-							return node?.webkitMatchesSelector?.(selector);
-						default:
-							log.error("match: browser not supported, details", {
-								selector,
-								node,
-								match: _match,
-							});
-							select.STATUS = "FAILED";
-							return node.matches(selector);
-					}
-				} catch (e) {
-					// NOTE: When entering a bad selector, we might get an error that we propagate here.
-					log.error("match: exception occurred with selector, details", {
-						selector,
-						node,
-						error: e,
-					});
-					return null;
-				}
-			} else {
-				const matches = query(selector, undefined, index);
-				return matches[index] === node;
-			}
-		}
-	: (selector, node) => {
-			if (selector.endsWith(":first")) {
-				return query(selector, node) === node;
-			} else {
-				// NOTE: This is an implementation of `matchSelector` replacing one that
-				// would not be already available.
-				const parent = node.parentNode;
-				if (parent) {
-					const matching = parent.querySelectorAll(selector);
-					for (let i = 0; i < matching.length; i++) {
-						if (matching[i] === node) {
-							return true;
-						}
-					}
-				}
-				return false;
-			}
-		};
+function match(selector, node) {
+	let index;
+	// NOTE: This is where we support the jQuery-like suffixes
+	if (selector.startsWith(":first")) {
+		selector = selector.substring(0, selector.length - 6);
+		index = 0;
+	}
+	if (index !== undefined) {
+		const matches = query(selector, undefined, index);
+		return matches[index] === node;
+	}
+	try {
+		return node?.matches?.(selector);
+	} catch (error) {
+		// NOTE: When entering a bad selector, we might get an error that we propagate here.
+		log.error("match: exception occurred with selector, details", {
+			selector,
+			node,
+			error,
+		});
+		return null;
+	}
+}
 
 // Function: query
 // Queries all descendants of `scope` matching `selector`. Wraps
@@ -212,6 +164,21 @@ function filter(selector, nodes) {
 		}
 	}
 	return result;
+}
+
+function insertBefore(value, parent, reference, operation) {
+	if (Selection.Is(value) || typeof value.length !== "undefined") {
+		for (let i = 0; i < value.length; i++) {
+			parent.insertBefore(value[i], reference);
+		}
+	} else if (typeof value.nodeType !== "undefined") {
+		parent.insertBefore(value, reference);
+	} else {
+		log.error(
+			`Selection.${operation}: value is expected to be Node, [Node] or Selection, details`,
+			{ value },
+		);
+	}
 }
 
 // ----------------------------------------------------------------------------
@@ -648,11 +615,7 @@ class Selection extends Array {
 			for (let i = 0; i < value.length; i++) {
 				this.append(value[i]);
 			}
-		} else if (typeof value === "string") {
-			for (let i = 0; i < this.length; i++) {
-				this[i].appendChild(document.createTextNode(value));
-			}
-		} else if (typeof value === "number") {
+		} else if (typeof value === "string" || typeof value === "number") {
 			for (let i = 0; i < this.length; i++) {
 				this[i].appendChild(document.createTextNode(value));
 			}
@@ -685,11 +648,7 @@ class Selection extends Array {
 			for (let i = 0; i < value.length; i++) {
 				this.prepend(value[i]);
 			}
-		} else if (typeof value === "string") {
-			for (let i = 0; i < this.length; i++) {
-				this[i].insertBefore(document.createTextNode(value), child);
-			}
-		} else if (typeof value === "number") {
+		} else if (typeof value === "string" || typeof value === "number") {
 			for (let i = 0; i < this.length; i++) {
 				this[i].insertBefore(document.createTextNode(value), child);
 			}
@@ -748,41 +707,11 @@ class Selection extends Array {
 			scope = scope.nextSibling;
 		}
 		if (scope) {
-			if (Selection.Is(value)) {
-				for (let i = 0; i < value.length; i++) {
-					scope.parentNode.insertBefore(value[i], scope);
-				}
-			} else if (typeof value.length !== "undefined") {
-				for (let i = 0; i < value.length; i++) {
-					scope.parentNode.insertBefore(value[i], scope);
-				}
-			} else if (typeof value.nodeType !== "undefined") {
-				scope.parentNode.insertBefore(value, scope);
-			} else {
-				log.error(
-					"Selection.after: value is expected to be Node, [Node] or Selection, details",
-					{ value },
-				);
-			}
+			insertBefore(value, scope.parentNode, scope, "after");
 		} else {
 			// FIXME: Really not sure about that
 			scope = node.parentNode;
-			if (Selection.Is(value)) {
-				for (let i = 0; i < value.length; i++) {
-					scope.appendChild(value[i]);
-				}
-			} else if (typeof value.length !== "undefined") {
-				for (let i = 0; i < value.length; i++) {
-					scope.appendChild(value[i]);
-				}
-			} else if (typeof value.nodeType !== "undefined") {
-				scope.appendChild(value);
-			} else {
-				log.error(
-					"Selection.after: value is expected to be Node, [Node] or Selection, details",
-					{ value },
-				);
-			}
+			insertBefore(value, scope, null, "after");
 		}
 		return this;
 	}
@@ -795,22 +724,7 @@ class Selection extends Array {
 		const node = this[0];
 		const scope = node;
 		const parent = scope.parentNode;
-		if (Selection.Is(value)) {
-			for (let i = 0; i < value.length; i++) {
-				parent.insertBefore(value[i], scope);
-			}
-		} else if (typeof value.length !== "undefined") {
-			for (let i = 0; i < value.length; i++) {
-				parent.insertBefore(value[i], scope);
-			}
-		} else if (typeof value.nodeType !== "undefined") {
-			parent.insertBefore(value, scope);
-		} else {
-			log.error(
-				"Selection.before: value is expected to be Node, [Node] or Selection, details",
-				{ value },
-			);
-		}
+		insertBefore(value, parent, scope, "before");
 		return this;
 	}
 
@@ -1119,51 +1033,22 @@ class Selection extends Array {
 			if (!node) {
 				return undefined;
 			}
-			if (node.dataset) {
-				const r = {};
-				// NOTE: We do need to expand the dataset, and not
-				// return the dataset as is.
-				for (const k in node.dataset) {
-					let v = node.dataset[k];
-					try {
-						v = JSON.parse(v);
-					} catch (_e) {}
-					r[k] = v;
-				}
-				return r;
+			const result = {};
+			// NOTE: We do need to expand the dataset, and not return it as is.
+			for (const k in node.dataset) {
+				let value = node.dataset[k];
+				try {
+					value = JSON.parse(value);
+				} catch (_e) {}
+				result[k] = value;
 			}
-			const a = node.attributes;
-			let r;
-			for (let j = 0; j < a.length; j++) {
-				const _ = a[j];
-				const n = _.name;
-				if (n.startsWith("data-")) {
-					let v = _.value;
-					// NOTE: We don't call `data` again for performance.
-					try {
-						v = JSON.parse(v);
-					} catch (_e) {}
-					// FIXME: Hopefully this won't produce a weird
-					// reference issue.
-					r = r || {};
-					r[n.substring(5, n.length)] = v;
-				}
-			}
-			return r;
+			return result;
 		} else if (typeof name === "string") {
-			const data_name = `data-${name}`;
 			let serialized;
 			if (typeof value === "undefined") {
 				for (let i = 0; i < this.length; i++) {
 					const node = this[i];
-					let attr_value;
-					if (node.hasAttribute(data_name)) {
-						attr_value = node.getAttribute(data_name);
-					}
-					let value =
-						typeof node.dataset !== "undefined"
-							? node.dataset[name]
-							: attr_value;
+					let value = node.dataset[name];
 					try {
 						value = JSON.parse(value);
 					} catch (_e) {}
@@ -1176,11 +1061,7 @@ class Selection extends Array {
 				serialized = typeof value === "string" ? value : JSON.stringify(value);
 				for (let i = 0; i < this.length; i++) {
 					const node = this[i];
-					if (typeof node.dataset !== "undefined") {
-						node.dataset[name] = serialized;
-					} else {
-						node.setAttribute(data_name, serialized);
-					}
+					node.dataset[name] = serialized;
 				}
 				return this;
 			}
@@ -1193,7 +1074,7 @@ class Selection extends Array {
 	}
 
 	// Adds class(es) to all nodes. Accepts single class, array, or multiple args.
-	// Handles both classList API and fallback for SVG.
+	// Uses the native classList API for HTML and SVG elements.
 	addClass(...classNames) {
 		if (classNames.length > 1) {
 			for (let i = 0; i < classNames.length; i++) {
@@ -1210,23 +1091,7 @@ class Selection extends Array {
 		}
 		for (let i = 0; i < this.length; i++) {
 			const node = this[i];
-			if (node.classList) {
-				node.classList.add(className);
-			} else {
-				const c = node.getAttribute("class");
-				if (c && c.length > 0) {
-					const m = c.indexOf(className);
-					const la = c.length || 0;
-					const lc = className.length;
-					const n = m + lc;
-					const p = m - 1;
-					if (!((m === 0 || c[p] === " ") && (n === la || c[n] === " "))) {
-						node.setAttribute(`${c} ${className}`);
-					}
-				} else {
-					node.setAttribute(className);
-				}
-			}
+			node.classList.add(className);
 		}
 		return this;
 	}
@@ -1235,61 +1100,14 @@ class Selection extends Array {
 	removeClass(className) {
 		for (let i = 0; i < this.length; i++) {
 			const node = this[i];
-			if (node.classList) {
-				node.classList.remove(className);
-			} else {
-				let c = node.getAttribute("class");
-				if (c && c.length > 0) {
-					const m = c.indexOf(className);
-					if (m >= 0) {
-						const la = c.length || 0;
-						const lc = className.length;
-						let nc = "";
-						// NOTE: This is an optimized version of the classlist. We could do
-						// a simple split/join, but I *assume* this is faster. Premature
-						// optimization FTW!
-						while (m >= 0) {
-							const n = m + lc;
-							const p = m - 1;
-							if ((m === 0 || c[p] === " ") && (n === la || c[n] === " ")) {
-								nc += c.substr(0, m);
-							} else {
-								nc += c.substr(0, m + lc);
-							}
-							c = c.substr(m + lc);
-						}
-						nc += c;
-						node.setAttribute("class", nc);
-					}
-				}
-			}
+			node.classList.remove(className);
 		}
 		return this;
 	}
 
 	// Tests if any node has the given class.
 	hasClass(name) {
-		const lc = (name || "").length;
-		for (let i = 0; i < this.length; i++) {
-			const node = this[i];
-			if (typeof node.classList !== "undefined") {
-				return node.classList.contains(name);
-			} else {
-				const c = node.className || "";
-				if (c && c.length > 0) {
-					const m = c.indexOf(name);
-					if (m >= 0) {
-						const la = c.length || 0;
-						const p = m - 1;
-						const n = m + lc + 1;
-						if ((m === 0 || c[p] === " ") && (m === la || c[n] === " ")) {
-							return true;
-						}
-					}
-				}
-			}
-		}
-		return false;
+		return this[0]?.classList.contains(name) || false;
 	}
 
 	// Toggles class based on `value`. If `value` is function, called with
@@ -1388,21 +1206,19 @@ class Selection extends Array {
 		return { left: nb.left - pb.left, top: nb.top - pb.top };
 	}
 
-	// Gets or sets `scrollTop`. Only works for DOM nodes.
-	scrollTop(value) {
-		// TODO
+	_scroll(property, value) {
 		const has_value = value !== undefined && value !== null;
 		for (let i = 0; i < this.length; i++) {
 			const node = this[i];
 			if (Selection.IsDOM(node)) {
 				if (has_value) {
-					node.scrollTop = value;
+					node[property] = value;
 				} else {
-					return node.scrollTop;
+					return node[property];
 				}
 			} else {
 				// FIXME: Implement me
-				log.error("Selection.scrollTop: not implemented for SVG, details", {
+				log.error(`Selection.${property}: not implemented for SVG, details`, {
 					node,
 					value,
 				});
@@ -1411,27 +1227,14 @@ class Selection extends Array {
 		return undefined;
 	}
 
+	// Gets or sets `scrollTop`. Only works for DOM nodes.
+	scrollTop(value) {
+		return this._scroll("scrollTop", value);
+	}
+
 	// Gets or sets `scrollLeft`. Only works for DOM nodes.
 	scrollLeft(value) {
-		// TODO
-		const has_value = value !== undefined && value !== null;
-		for (let i = 0; i < this.length; i++) {
-			const node = this[i];
-			if (Selection.IsDOM(node)) {
-				if (has_value) {
-					node.scrollLeft = value;
-				} else {
-					return node.scrollLeft;
-				}
-			} else {
-				// FIXME: Implement me
-				log.error("Selection.scrollLeft: not implemented for SVG, details", {
-					node,
-					value,
-				});
-			}
-		}
-		return undefined;
+		return this._scroll("scrollLeft", value);
 	}
 
 	// ============================================================================

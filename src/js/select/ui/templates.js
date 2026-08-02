@@ -632,6 +632,14 @@ function pruneTemplateWhitespace(node) {
 	}
 }
 
+function hashText(value) {
+	let hash = 0;
+	for (let i = 0; i < value.length; i++) {
+		hash = (hash * 31 + value.charCodeAt(i)) | 0;
+	}
+	return hash;
+}
+
 // Function: setNodeText
 // Applies `text` to a text node or form-like element value in place.
 function setNodeText(node, text) {
@@ -657,6 +665,7 @@ function setNodeText(node, text) {
 
 export {
 	HTML,
+	hashText,
 	isInputNode,
 	isPrunableWhitespaceText,
 	log,

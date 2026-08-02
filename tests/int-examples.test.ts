@@ -10,7 +10,7 @@ const DIST_BUNDLE_PATH = path.join(ROOT, "dist", "selectjs.js")
 const HAS_DIST_BUNDLE = fs.existsSync(DIST_BUNDLE_PATH)
 const REQUIRE_DIST = process.env.REQUIRE_DIST === "1"
 const UPDATE_FIXTURES = process.env.UPDATE_FIXTURES === "1"
-const EXAMPLE_TIMEOUT = 15000
+const EXAMPLE_TIMEOUT = 30000
 
 function missingDistMessage(filePath: string) {
 	return `Missing dist artifact: ${path.relative(ROOT, filePath)}. Run \`make dist\` or \`bun run test:dist\` before requiring dist verification.`

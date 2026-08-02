@@ -7,36 +7,20 @@
 // Mouse drag, drop, and sort interaction helpers. Draggable interactions use
 // nested source and target descriptors; <sort> moves the source item.
 
-import { target } from "./core.js";
+import { attributeTarget, target } from "./core.js";
 import drag from "./drag.js";
 import placement from "./placement.js";
 
 // Function: draggabletarget
 // Walks up from `node` to find a draggable source, optionally matching `name`.
 function draggabletarget(node, name) {
-	while (node && node.nodeType === Node.ELEMENT_NODE) {
-		const element = node;
-		if (!name && element.hasAttribute("data-draggable")) return element;
-		if (name && element.getAttribute("data-draggable") === name) {
-			return element;
-		}
-		node = element.parentNode;
-	}
-	return undefined;
+	return attributeTarget(node, "data-draggable", name);
 }
 
 // Function: droptarget
 // Walks up from `node` to find a drop target, optionally matching `name`.
 function droptarget(node, name) {
-	while (node && node.nodeType === Node.ELEMENT_NODE) {
-		const element = node;
-		if (!name && element.hasAttribute("data-drop-target")) return element;
-		if (name && element.getAttribute("data-drop-target") === name) {
-			return element;
-		}
-		node = element.parentNode;
-	}
-	return undefined;
+	return attributeTarget(node, "data-drop-target", name);
 }
 
 // Function: draggable
@@ -361,10 +345,7 @@ function clearSession(session, committed = false) {
 // Function: sorttarget
 // Walks up from `node` to find a sortable item, optionally matching `name`.
 function sorttarget(node, name) {
-	return find(
-		node,
-		name ? `[data-sortable-item="${name}"]` : "[data-sortable-item]",
-	);
+	return attributeTarget(node, "data-sortable-item", name);
 }
 
 function copyCanvases(source, target) {

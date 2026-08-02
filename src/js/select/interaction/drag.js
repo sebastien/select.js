@@ -7,19 +7,13 @@
 // Module: select/interaction/drag
 // Drag interaction helpers.
 
-import { bind, unbind } from "./core.js";
+import { attributeTarget, bind, unbind } from "./core.js";
 
 // Function: dragtarget
 // Walks up from `node` to find a `data-drag` target, optionally matching
 // `name`.
 function dragtarget(node, name) {
-	while (node && node.nodeType === Node.ELEMENT_NODE) {
-		const element = node;
-		if (!name && element.hasAttribute("data-drag")) return element;
-		if (name && element.getAttribute("data-drag") === name) return element;
-		node = element.parentNode;
-	}
-	return node?.nodeType === Node.ELEMENT_NODE ? node : undefined;
+	return attributeTarget(node, "data-drag", name);
 }
 
 // Function: drag
