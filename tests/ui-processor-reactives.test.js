@@ -785,6 +785,28 @@ describe("ui processor reactive handling", () => {
 		window.close?.();
 	});
 
+	test("mapped conditional children render their labels on mount", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui } = await import("../src/js/select/ui.js");
+
+		document.body.innerHTML = `<div id="app"></div>`;
+
+		const Part = ui(`<button when="label" out="label"></button>`);
+		const List = ui(`<div out="items"></div>`).does({
+			items: (_self, { items }) => Part.map(items),
+		});
+		const instance = List.new()
+			.set({ items: [{ label: "Review", element: document.createElement("textarea") }] })
+			.mount("#app");
+
+		expect(document.querySelector("#app button")?.textContent).toBe("Review");
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
 	test("derived mapped props update stable initializer cells", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);

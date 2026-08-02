@@ -1569,8 +1569,8 @@ class UISlot {
 			if (item instanceof AppliedUITemplate) {
 				const data = this._mergeSlots(item);
 				r = item.template.new(this.parent);
-				r.set(data, k);
 				this._mountInstance(r, this._nextMountNode(k, previous));
+				r.set(data, k);
 				// Record the wrapper we are rendering so future passes can
 				// ultra-fast-path when the exact same wrapper object is provided.
 				r._lastApplied = item;
@@ -1602,8 +1602,8 @@ class UISlot {
 						const nextNode = lastNode ? lastNode.nextSibling : null;
 						r.unmount();
 						const newInstance = item.template.new(this.parent);
-						newInstance.set(data, k);
 						this._mountInstance(newInstance, nextNode);
+						newInstance.set(data, k);
 						newInstance._lastApplied = item;
 						this.mapping.set(k, newInstance);
 					}
