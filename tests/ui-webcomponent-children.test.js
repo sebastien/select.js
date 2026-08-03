@@ -373,4 +373,46 @@ describe("ui webcomponent projected children", () => {
 
 		window.close?.();
 	});
+
+	test("invalidates style signatures for type changes and cleans up on reconnect", async () => {
+		const window = new Window({ url: "http://localhost:8000/webcomponent" });
+		setupGlobals(window);
+		const { ui, webcomponent } = await import("../src/js/select/ui/index.js");
+		const { getDocumentStylesSignature } = await import(
+			"../src/js/select/ui/styles.js"
+		);
+
+		const Styled = ui(`<div class="signature-token">Styled</div>`);
+		const name = `x-style-lifecycle-${Date.now()}`;
+		webcomponent(name, Styled, {});
+		const element = document.createElement(name);
+		document.body.appendChild(element);
+		await flush();
+
+		const style = document.createElement("style");
+		style.textContent = ".signature-token { color: red; }";
+		document.head.appendChild(style);
+		const before = getDocumentStylesSignature(document);
+		style.setAttribute("type", "text/css; changed");
+		const after = getDocumentStylesSignature(document);
+		expect(after).not.toBe(before);
+
+		await flush();
+		element.remove();
+		await flush();
+		if ("adoptedStyleSheets" in element.shadowRoot) {
+			expect(element.shadowRoot.adoptedStyleSheets.length).toBe(0);
+		} else {
+			expect(element.shadowRoot.querySelectorAll("style").length).toBe(0);
+		}
+
+		document.body.appendChild(element);
+		await flush();
+		await flush();
+		if ("adoptedStyleSheets" in element.shadowRoot) {
+			expect(element.shadowRoot.adoptedStyleSheets.length).toBeGreaterThan(0);
+		}
+
+		window.close?.();
+	});
 });
