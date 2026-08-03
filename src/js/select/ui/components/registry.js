@@ -28,12 +28,12 @@ function isComponentValue(value) {
 }
 
 // Mirrors a component into FORMATS so `|Name` processors resolve it.
-function mirrorComponentToFormats(key, value) {
+function mirrorComponentToFormats(key, value, replace = false) {
 	if (!key || !isComponentValue(value)) {
 		return
 	}
 	const existing = FORMATS[key]
-	if (existing && existing !== value) {
+	if (!replace && existing && existing !== value) {
 		if (isComponentValue(existing)) {
 			return
 		}
@@ -59,12 +59,13 @@ function mirrorFormatToComponents(key, value) {
 // Function: component
 // Gets or sets a named component in the Dynamic registry. When setting a
 // component value, also registers it in FORMATS so template processors can
-// resolve `|Name`.
+// resolve `|Name`. Explicit registration replaces an earlier component with
+// the same name in both registries.
 function component(name, ...value) {
 	if (name && typeof name === "object" && !Array.isArray(name)) {
 		for (const key in name) {
 			COMPONENTS[key] = name[key]
-			mirrorComponentToFormats(key, name[key])
+			mirrorComponentToFormats(key, name[key], true)
 		}
 		return COMPONENTS
 	}
@@ -77,7 +78,7 @@ function component(name, ...value) {
 	}
 	if (value.length) {
 		COMPONENTS[key] = value[0]
-		mirrorComponentToFormats(key, value[0])
+		mirrorComponentToFormats(key, value[0], true)
 		return value[0]
 	}
 	return COMPONENTS[key]
