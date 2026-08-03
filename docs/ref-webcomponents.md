@@ -101,7 +101,7 @@ the `data` argument inside `init(...)` on first mount.
 ---
 
 ### 4. Reactivity and Cell Bindings
-If a `Cell` or other reactive instance from `select/cells.js` is passed as a property or bound to a tracked attribute of the custom element, Select automatically subscribes to its updates and triggers a re-render of the component when the reactive value changes.
+If a `Cell` or other reactive instance from `select/state/cells/index.js` is passed as a property or bound to a tracked attribute of the custom element, Select automatically subscribes to its updates and triggers a re-render of the component when the reactive value changes.
 
 When the component is disconnected from the DOM, all active reactive subscriptions are cleaned up automatically to prevent memory leaks.
 

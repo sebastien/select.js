@@ -21,8 +21,9 @@ state (`select/cells.js`), browser-backed state (`select/browser.js`), routing
 general utility bundle.
 
 The aggregate entry point is `select/index.js`, which re-exports the companion
-modules for projects that prefer a single import surface. The focused modules
-remain available for direct imports.
+modules for projects that prefer a single import surface. Focused domains are
+also available through `select/core`, `select/state`, `select/ui`,
+`select/features`, and `select/utils`.
 
 While `select/query.js` is fast, the `select/ui.js` library is not the fastest,
 but it is light enough for embedded UIs, plugins, and small tools. In the JSON
@@ -60,9 +61,9 @@ You can learn more about each component:
 </script>
 
 <script type="module">
-import $ from "@./query.js"
-import cell from "@./cells.js"
-import ui from "@./ui.js"
+import $ from "@./core/query.js"
+import cell from "@./state/cells/index.js"
+import ui from "@./ui/index.js"
 
 const Counter = ui(`
   <div>

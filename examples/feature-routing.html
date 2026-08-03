@@ -227,9 +227,9 @@
 	</template>
 
 	<script type="module">
-		import browser from "@./browser.js"
-		import { routed } from "@./routing.js"
-		import ui from "@./ui.js"
+		import browser from "@./state/browser/index.js"
+		import { routed } from "@./state/routing/index.js"
+		import ui from "@./ui/index.js"
 
 		const state = browser()
 		const panelCell = state.hash.select(["panel"])

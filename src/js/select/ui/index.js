@@ -13,8 +13,8 @@
 //
 // ----------------------------------------------------------------------------
 
-import { FORMATS, format } from "../formats.js";
-import { len, type } from "../utils.js";
+import { FORMATS, format } from "../features/formats.js";
+import { len, type } from "../utils/index.js";
 import { remap } from "../utils/transform.js";
 import {
 	AppliedUITemplate,
@@ -33,7 +33,7 @@ import {
 	UISlot,
 	UITemplate,
 	UITemplateSlot,
-} from "./components.js";
+} from "./components/index.js";
 import { ui } from "./factory.js";
 import {
 	Adopted,

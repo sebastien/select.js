@@ -1,6 +1,6 @@
 # Select Browser Reference
 
-`@select/browser.js` provides browser-backed reactive state for URL and
+`@select/state/browser/index.js` provides browser-backed reactive state for URL and
 `localStorage`.
 
 ## API
@@ -31,7 +31,7 @@ instance API as the factory return value.
 
 ### Exported serializers
 
-`@select/browser.js` exports these reusable serializer objects:
+`@select/state/browser/index.js` exports these reusable serializer objects:
 
 - `record`
 - `query`
@@ -368,7 +368,7 @@ await done
 ## Example
 
 ```javascript
-import browser, { query, hash, record } from "@select/browser.js"
+import browser, { query, hash, record } from "@select/state/browser/index.js"
 
 const state = browser({
 	query,

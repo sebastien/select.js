@@ -1,13 +1,13 @@
 # Select Workflows Reference
 
-`@select/workflows.js` runs named generator steps with nested execution,
+`@select/features/workflows.js` runs named generator steps with nested execution,
 retrying, TTL caching, lifecycle history, hooks, and browser-state event
 bindings.
 
 ## Quick Start
 
 ```javascript
-import workflow, { WorkflowRuntime } from "@select/workflows.js"
+import workflow, { WorkflowRuntime } from "@select/features/workflows.js"
 
 const tasks = workflow({
 	*LoadUser(id) {
@@ -50,7 +50,7 @@ tagged generator stream; pass that stream to `run` or yield it from another
 workflow step.
 
 ```javascript
-import { run, step } from "@select/workflows.js"
+import { run, step } from "@select/features/workflows.js"
 
 const Refresh = step(function* (id) {
 	return yield api.get(`/items/${id}`)
@@ -153,7 +153,7 @@ Use `on` to make a workflow step react to a `Browser#pub(eventName, value)`
 event. The option maps event names to one callback or an array of callbacks.
 
 ```javascript
-import { Browser, browser } from "@select/browser.js"
+import { Browser, browser } from "@select/state/browser/index.js"
 
 const state = browser()
 const tasks = workflow({

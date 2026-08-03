@@ -13,14 +13,14 @@
 //
 // ----------------------------------------------------------------------------
 
-import { FORMATS, format } from "../formats.js";
+import { FORMATS, format } from "../features/formats.js";
 import {
 	COMPONENTS,
 	component as componentRegistry,
 	options,
 	registerComponent,
 	UITemplate,
-} from "./components.js";
+} from "./components/index.js";
 import {
 	HTML,
 	hashText,

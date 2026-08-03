@@ -19,12 +19,12 @@ Browser-backed reactive state for URL and `localStorage`.
 - `put(channelName, value, ttl?)` / `get(channelName)`: non-blocking channel queue
 - `send(channelName, value, timeout?)` / `receive(channelName, timeout?)`: async channel handoff
 
-`@select/browser.js` also exports `Browser`, the class used by `browser(options?)`.
+`@select/state/browser/index.js` also exports `Browser`, the class used by `browser(options?)`.
 
 ## Quick Start
 
 ```javascript
-import browser from "@select/browser.js"
+import browser from "@select/state/browser/index.js"
 
 const state = browser()
 
@@ -66,7 +66,7 @@ await done
 
 ## Serializer Exports
 
-`@select/browser.js` also exports reusable serializers:
+`@select/state/browser/index.js` also exports reusable serializers:
 
 - `record`: `{ parse, format }` sanitizer for plain records
 - `query`: `{ parse, format }` serializer for `location.search`

@@ -1,8 +1,8 @@
-# Select Cells (`select/cells.js`)
+# Select Cells (`select/state/cells/index.js`)
 
 ## Fine-grained reactive values and derivations
 
-Select Cells provides minimal reactive primitives used by `select/ui.js` and
+Select Cells provides minimal reactive primitives used by `select/ui/index.js` and
 usable on their own. It focuses on explicit updates, path-based selection,
 and lightweight pub/sub.
 
@@ -59,7 +59,7 @@ and lightweight pub/sub.
 ### Using
 
 ```javascript
-import cell, { derived } from "@select/cells.js"
+import cell, { derived } from "@select/state/cells/index.js"
 
 const count = cell(0)
 const doubled = derived([count], (n) => n * 2)
@@ -88,7 +88,7 @@ console.log(doubled.value) // 10
 Multiple cell declaration example:
 
 ```javascript
-import cells from "@select/cells.js"
+import cells from "@select/state/cells/index.js"
 
 const { name, age } = cells({ name: "Ada", age: 37 })
 
@@ -99,7 +99,7 @@ age.set(38)
 Store-mode root (app/tree state) example:
 
 ```javascript
-import cell from "@select/cells.js"
+import cell from "@select/state/cells/index.js"
 
 // One root cell for a whole document/tree (like cell.derived / cell.batch)
 const state = cell.store({
@@ -132,7 +132,7 @@ state.reconcile(nextTree)
 Browser-backed state example:
 
 ```javascript
-import { browser } from "@select/browser.js"
+import { browser } from "@select/state/browser/index.js"
 
 const state = browser()
 const sidebar = state.query.select("sidebar")
@@ -168,7 +168,7 @@ Cells are designed to stay small. Prefer extension by composition:
 wrap `cell()` and `derived()` in module-specific helpers for domain state.
 
 ```javascript
-import cell, { derived } from "@select/cells.js"
+import cell, { derived } from "@select/state/cells/index.js"
 
 export const counter = (initial = 0) => {
   const value = cell(initial)

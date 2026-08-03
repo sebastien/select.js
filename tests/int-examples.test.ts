@@ -244,19 +244,19 @@ async function loadDistBundle(cacheKey: string) {
 }
 
 function resolveDistModule(bundle: Record<string, any>, specifier: string) {
-	if (specifier === "@./ui.js") {
+	if (specifier === "@./ui.js" || specifier === "@./ui/index.js") {
 		return { ...bundle, default: bundle.ui, ui: bundle.ui }
 	}
-	if (specifier === "@./cells.js") {
+	if (specifier === "@./cells.js" || specifier === "@./state/cells/index.js") {
 		return { ...bundle, default: bundle.cells, cells: bundle.cells }
 	}
-	if (specifier === "@./icons.js") {
+	if (specifier === "@./icons.js" || specifier === "@./features/icons.js") {
 		return wrapIconsModule({ ...bundle, default: bundle.icons, icons: bundle.icons })
 	}
-	if (specifier === "@./browser.js") {
+	if (specifier === "@./browser.js" || specifier === "@./state/browser/index.js") {
 		return { ...bundle, default: bundle.browser, browser: bundle.browser }
 	}
-	if (specifier === "@./routing.js") {
+	if (specifier === "@./routing.js" || specifier === "@./state/routing/index.js") {
 		return { ...bundle, default: bundle.routing, routing: bundle.routing }
 	}
 	if (specifier === "@./index.js") {
@@ -286,7 +286,9 @@ async function executeExample(examplePath: string, mode: "src" | "dist" = "src")
 			}
 			const p = path.join(ROOT, "src", "js", "select", specifier.replace("@./", ""))
 			const mod = await import(withCacheKey(pathToFileURL(p), cacheKey).href)
-			return specifier === "@./icons.js" ? wrapIconsModule(mod) : mod
+			return specifier === "@./icons.js" || specifier === "@./features/icons.js"
+				? wrapIconsModule(mod)
+				: mod
 		}
 		if (specifier.startsWith("./") || specifier.startsWith("../")) {
 			const p = path.resolve(path.dirname(examplePath), specifier)

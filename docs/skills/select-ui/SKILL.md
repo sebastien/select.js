@@ -1,12 +1,12 @@
 ---
 name: select-ui
-description: Use when building or modifying UI with select/ui.js, including template bindings, component behavior, cells-based reactive state, derived/deferred state, and browser-backed state from select/browser.js.
+description: Use when building or modifying UI with select/ui/index.js, including template bindings, component behavior, cells-based reactive state, derived/deferred state, and browser-backed state from select/state/browser/index.js.
 ---
 
 # Select UI
 
-Use this skill when the task touches `select/ui.js`, `select/cells.js`, or
-`select/browser.js`.
+Use this skill when the task touches `select/ui/index.js`,
+`select/state/cells/index.js`, or `select/state/browser/index.js`.
 
 Prefer working from existing patterns in the repo before introducing new ones.
 This library is direct, DOM-oriented, and performance-sensitive.
@@ -24,7 +24,7 @@ Use this skill for:
 ## Workflow
 
 1. Inspect the existing template and behavior shape first.
-2. Keep rendering in `select/ui.js` templates and behavior maps.
+2. Keep rendering in `select/ui/index.js` templates and behavior maps.
 3. Keep mutable state in `cell(...)` when the UI must react to it.
 4. Use `derived(...)` for computed state instead of hand-synchronizing values.
 5. Use `browser()` only for browser resources: `path`, `query`, `hash`, and
@@ -39,7 +39,7 @@ Use this skill for:
 Prefer this shape:
 
 ```javascript
-import ui from "@select/ui.js"
+import ui from "@select/ui/index.js"
 
 const Counter = ui("#Counter")
 	.init(() => ({ count: 0 }))
@@ -81,8 +81,8 @@ instead of mutating DOM manually when a binding can express the same thing.
 Use cells for reactive state inside `.init(...)` or shared module state.
 
 ```javascript
-import ui from "@select/ui.js"
-import { cell, derived } from "@select/cells.js"
+import ui from "@select/ui/index.js"
+import { cell, derived } from "@select/state/cells/index.js"
 
 const Counter = ui("#Counter").init(() => {
 	const count = cell(0)
@@ -113,8 +113,8 @@ Notes:
 Use `browser()` for browser-backed reactive state:
 
 ```javascript
-import ui from "@select/ui.js"
-import { browser } from "@select/browser.js"
+import ui from "@select/ui/index.js"
+import { browser } from "@select/state/browser/index.js"
 
 const state = browser()
 const App = ui("#App").does({
@@ -155,7 +155,7 @@ wrapped custom element is mounted outside a Select template tree, set
 `ui-parent` manually to the parent instance id.
 
 ```javascript
-import ui, { webcomponent } from "@select/ui.js"
+import ui, { webcomponent } from "@select/ui/index.js"
 
 const Badge = ui(`<span out="label"></span>`).does({
 	label: (_self, { label }) => label ?? "Badge",
@@ -178,7 +178,7 @@ Read these files when you need exact behavior or edge cases:
 - `docs/ref-ui.md`
 - `docs/cells.md`
 - `docs/ref-cells.md`
-- `src/js/select/browser.js`
+- `src/js/select/state/browser/index.js`
 
 Read examples when you need repo-native patterns:
 

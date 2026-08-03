@@ -13,7 +13,7 @@
 //
 // ----------------------------------------------------------------------------
 
-import { FORMATS, format } from "../../formats.js"
+import { FORMATS, format } from "../../features/formats.js"
 import { log } from "../templates.js"
 import { getCurrentUIInstance } from "./runtime.js"
 

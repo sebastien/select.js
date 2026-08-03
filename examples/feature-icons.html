@@ -183,9 +183,9 @@
 	</template>
 
 	<script type="module">
-		import { cell, derived } from "@./cells.js"
-		import { icon, install } from "@./icons.js"
-		import ui from "@./ui.js"
+		import { cell, derived } from "@./state/cells/index.js"
+		import { icon, install } from "@./features/icons.js"
+		import ui from "@./ui/index.js"
 
 			install("ui-icon")
 			install("ui-icon-cdn", { source: "https://api.iconify.design" })

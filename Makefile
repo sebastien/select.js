@@ -1,6 +1,6 @@
 ##  SDK Bootstrapping
 SDK_PATH=deps/sdk
-MODULES=std js mise
+SDK_MODULES=std js mise
 ifeq ($(origin SDK_URL), undefined)
   SDK_URL:=git@github.com:littletoolkit/littlesdk.git
 endif

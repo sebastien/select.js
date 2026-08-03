@@ -48,10 +48,23 @@ Object.defineProperty(globalThis, "navigator", { configurable: true, value: wind
 const root = await import("select")
 const cells = await import("select/cells.js")
 const query = await import("select/query.js")
+const canonicalCells = await import("select/state/cells")
+const canonicalQuery = await import("select/core/query.js")
+const canonicalUI = await import("select/ui")
+const canonicalUtils = await import("select/utils")
 await import("select/utils/search.js")
 await import("select/src/js/select/query.js")
 await import("select/dist/select/query.js")
-if (root.cell !== cells.cell || typeof query.default !== "function") throw new Error("package export identity check failed")
+if (
+ root.cell !== cells.cell ||
+ root.cell !== canonicalCells.cell ||
+ typeof query.default !== "function" ||
+ canonicalQuery.default !== query.default ||
+ typeof canonicalUI.default !== "function" ||
+ typeof canonicalUtils.len !== "function"
+) {
+ throw new Error("package export identity check failed")
+}
 window.close()
 `,
 	)

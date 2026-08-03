@@ -1,33 +1,3 @@
-// Project: Select.js
-// Author:  Sebastien Pierre
-// License: BSD-3
-// Created: 2026-05-07
-// Updated: 2026-06-16
-
-// Module: select/interaction
-// Aggregates DOM interaction helpers into a stable import surface.
-
-import core from "./interaction/core.js";
-import drag from "./interaction/drag.js";
-import draggable, { sort } from "./interaction/draggable.js";
-import keyboard, { autoresize, Keyboard } from "./interaction/keyboard.js";
-import placement from "./interaction/placement.js";
-
-export * from "./interaction/core.js";
-export * from "./interaction/drag.js";
-export * from "./interaction/draggable.js";
-export * from "./interaction/keyboard.js";
-export * from "./interaction/placement.js";
-
-export default {
-	...core,
-	drag,
-	draggable,
-	keyboard,
-	Keyboard,
-	autoresize,
-	placement,
-	sort,
-};
-
-// EOF
+// Deprecated compatibility entry point. Use `./ui/interaction/index.js`.
+export * from "./ui/interaction/index.js";
+export { default } from "./ui/interaction/index.js";

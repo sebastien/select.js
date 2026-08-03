@@ -2,7 +2,7 @@
 
 The search helpers provide recursive value matching, predicate composition, and
 small text-query parsing. They live in `select/utils/search.js` and are also
-available as the `search` export from `@select/utils.js`.
+available as the `search` export from `@select/utils/index.js`.
 
 ## Importing
 
@@ -15,7 +15,7 @@ import { match, predicate, textfilter } from "@select/utils/search.js"
 Or use the default search bundle:
 
 ```javascript
-import { search } from "@select/utils.js"
+import { search } from "@select/utils/index.js"
 
 const matches = search.match(value, criteria)
 const filter = search.text("alpha OR beta")

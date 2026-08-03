@@ -48,8 +48,8 @@
 	</div>
 	<div id="app" class="tree"></div>
 	<script type="module">
-		import cell from "@./cells.js"
-		import { ui, remap } from "@./ui.js"
+		import cell from "@./state/cells/index.js"
+		import { ui, remap } from "@./ui/index.js"
 
 		const plain = (v) => (v?.isReactive === true ? v.value : v)
 
