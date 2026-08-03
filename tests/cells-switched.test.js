@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { cell, switched } from "../src/js/select/cells.js"
+import { cell, switched } from "../src/js/select/state/cells.js"
 
 describe("cells.switched", () => {
 	test("mirrors updates from the current reactive target", () => {

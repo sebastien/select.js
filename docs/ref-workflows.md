@@ -153,7 +153,7 @@ Use `on` to make a workflow step react to a `Browser#pub(eventName, value)`
 event. The option maps event names to one callback or an array of callbacks.
 
 ```javascript
-import { Browser, browser } from "@select/state/browser/index.js"
+import { Browser, browser } from "@select/state/browser.js"
 
 const state = browser()
 const tasks = workflow({

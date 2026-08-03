@@ -58,7 +58,7 @@ describe("icons.load", () => {
 		setupGlobals(window)
 		originalFetch = globalThis.fetch
 		originalDateNow = Date.now
-		;({ load } = await import("../src/js/select/icons.js"))
+		;({ load } = await import("../src/js/select/features/icons.js"))
 	})
 
 	afterAll(() => {

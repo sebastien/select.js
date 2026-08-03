@@ -65,9 +65,9 @@ afterEach(() => {
 describe("interaction draggable", () => {
 	test("resolves named targets through nested elements", async () => {
 		const window = setup();
-		const { dragtarget } = await import("../src/js/select/interaction/drag.js");
+		const { dragtarget } = await import("../src/js/select/features/interaction/drag.js");
 		const { draggabletarget, droptarget, sorttarget } = await import(
-			"../src/js/select/interaction/draggable.js"
+			"../src/js/select/features/interaction/draggable.js"
 		);
 		const dragNode = window.document.createElement("div");
 		dragNode.dataset.drag = "drag";
@@ -93,7 +93,7 @@ describe("interaction draggable", () => {
 	test("appends a source clone to an accepted target by default", async () => {
 		const window = setup();
 		const { draggable } = await import(
-			"../src/js/select/interaction/draggable.js"
+			"../src/js/select/features/interaction/draggable.js"
 		);
 		const source = window.document.createElement("button");
 		source.dataset.draggable = "card";
@@ -120,7 +120,7 @@ describe("interaction draggable", () => {
 	test("rejects a target through accept and cleans up previews", async () => {
 		const window = setup();
 		const { draggable } = await import(
-			"../src/js/select/interaction/draggable.js"
+			"../src/js/select/features/interaction/draggable.js"
 		);
 		const source = window.document.createElement("div");
 		source.dataset.draggable = "card";
@@ -150,7 +150,7 @@ describe("interaction draggable", () => {
 	test("lets a drop callback replace the default clone commit", async () => {
 		const window = setup();
 		const { draggable } = await import(
-			"../src/js/select/interaction/draggable.js"
+			"../src/js/select/features/interaction/draggable.js"
 		);
 		const source = window.document.createElement("div");
 		source.dataset.draggable = "card";
@@ -181,7 +181,7 @@ describe("interaction draggable", () => {
 	test("replaces the drop target with a committed target preview", async () => {
 		const window = setup();
 		const { draggable } = await import(
-			"../src/js/select/interaction/draggable.js"
+			"../src/js/select/features/interaction/draggable.js"
 		);
 		const source = window.document.createElement("div");
 		source.dataset.draggable = "card";
@@ -207,7 +207,7 @@ describe("interaction draggable", () => {
 	test("copies the target slot when replacing it", async () => {
 		const window = setup();
 		const { draggable } = await import(
-			"../src/js/select/interaction/draggable.js"
+			"../src/js/select/features/interaction/draggable.js"
 		);
 		const source = window.document.createElement("div");
 		source.dataset.draggable = "card";
@@ -232,7 +232,7 @@ describe("interaction draggable", () => {
 	test("replaces a stable custom drop preview", async () => {
 		const window = setup();
 		const { draggable } = await import(
-			"../src/js/select/interaction/draggable.js"
+			"../src/js/select/features/interaction/draggable.js"
 		);
 		const source = window.document.createElement("div");
 		source.dataset.draggable = "card";
@@ -267,7 +267,7 @@ describe("interaction draggable", () => {
 	test("toggles hover and drop classes on the target", async () => {
 		const window = setup();
 		const { draggable } = await import(
-			"../src/js/select/interaction/draggable.js"
+			"../src/js/select/features/interaction/draggable.js"
 		);
 		const source = window.document.createElement("div");
 		source.dataset.draggable = "card";
@@ -297,7 +297,7 @@ describe("interaction draggable", () => {
 	test("supports source actions and restores remove-drag on cancellation", async () => {
 		const window = setup();
 		const { draggable } = await import(
-			"../src/js/select/interaction/draggable.js"
+			"../src/js/select/features/interaction/draggable.js"
 		);
 		const source = window.document.createElement("div");
 		source.dataset.draggable = "card";
@@ -345,7 +345,7 @@ describe("interaction draggable", () => {
 	test("supports move as an alias for remove-drag and rejects unknown actions", async () => {
 		const window = setup();
 		const { draggable } = await import(
-			"../src/js/select/interaction/draggable.js"
+			"../src/js/select/features/interaction/draggable.js"
 		);
 		const source = window.document.createElement("div");
 		source.dataset.draggable = "card";
@@ -375,7 +375,7 @@ describe("interaction draggable", () => {
 	test("matches sources and targets from selector arrays", async () => {
 		const window = setup();
 		const { draggable } = await import(
-			"../src/js/select/interaction/draggable.js"
+			"../src/js/select/features/interaction/draggable.js"
 		);
 		const source = window.document.createElement("div");
 		source.className = "stash";
@@ -401,7 +401,7 @@ describe("interaction draggable", () => {
 	test("replaces target content and restores it when cancelled", async () => {
 		const window = setup();
 		const { draggable } = await import(
-			"../src/js/select/interaction/draggable.js"
+			"../src/js/select/features/interaction/draggable.js"
 		);
 		const source = window.document.createElement("div");
 		source.dataset.draggable = "card";
@@ -455,7 +455,7 @@ describe("interaction draggable", () => {
 	test("accepts an explicit source node without a draggable attribute", async () => {
 		const window = setup();
 		const { draggable } = await import(
-			"../src/js/select/interaction/draggable.js"
+			"../src/js/select/features/interaction/draggable.js"
 		);
 		const source = window.document.createElement("div");
 		source.getBoundingClientRect = () => rect(0, 0, 80, 30);
@@ -480,7 +480,7 @@ describe("interaction draggable", () => {
 	test("passes and retains the current source and target preview nodes", async () => {
 		const window = setup();
 		const { draggable } = await import(
-			"../src/js/select/interaction/draggable.js"
+			"../src/js/select/features/interaction/draggable.js"
 		);
 		const source = window.document.createElement("div");
 		source.dataset.draggable = "card";
@@ -529,7 +529,7 @@ describe("interaction draggable", () => {
 	test("keeps the target stable when the pointer moves over its preview", async () => {
 		const window = setup();
 		const { draggable } = await import(
-			"../src/js/select/interaction/draggable.js"
+			"../src/js/select/features/interaction/draggable.js"
 		);
 		const source = window.document.createElement("div");
 		source.dataset.draggable = "card";
@@ -595,7 +595,7 @@ describe("interaction draggable", () => {
 
 	test("sort moves the original item to the resolved insertion index", async () => {
 		const window = setup();
-		const { sort } = await import("../src/js/select/interaction/draggable.js");
+		const { sort } = await import("../src/js/select/features/interaction/draggable.js");
 		const list = window.document.createElement("div");
 		list.dataset.sortableList = "list";
 		list.dataset.axis = "y";

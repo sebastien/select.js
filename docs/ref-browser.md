@@ -1,6 +1,6 @@
 # Select Browser Reference
 
-`@select/state/browser/index.js` provides browser-backed reactive state for URL and
+`@select/state/browser.js` provides browser-backed reactive state for URL and
 `localStorage`.
 
 ## API
@@ -31,7 +31,7 @@ instance API as the factory return value.
 
 ### Exported serializers
 
-`@select/state/browser/index.js` exports these reusable serializer objects:
+`@select/state/browser.js` exports these reusable serializer objects:
 
 - `record`
 - `query`
@@ -280,7 +280,7 @@ Returns a cell that resolves to the same normalized value as `fetch(input, optio
 
 ### `routes(map)`
 
-Binds route handlers from `select/routing` to browser location cells.
+Binds route handlers from `select/state/routing.js` to browser location cells.
 
 - keys without `#` match `path` (`location.pathname`)
 - keys starting with `#` match the hash bare path (`hash.value.path`); the `#` is stripped before matching
@@ -368,7 +368,7 @@ await done
 ## Example
 
 ```javascript
-import browser, { query, hash, record } from "@select/state/browser/index.js"
+import browser, { query, hash, record } from "@select/state/browser.js"
 
 const state = browser({
 	query,

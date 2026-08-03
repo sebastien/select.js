@@ -37,7 +37,7 @@ import {
 	batch as asyncBatch,
 	defer as asyncDefer,
 	throttle as asyncThrottle,
-} from "../../utils/async.js";
+} from "../utils/async.js";
 import {
 	access,
 	assigned,
@@ -46,7 +46,7 @@ import {
 	Nothing,
 	path as pathify,
 	Something,
-} from "../../utils/index.js";
+} from "../utils.js";
 
 const log = logger("select.cells");
 let refreshStamp = 0;

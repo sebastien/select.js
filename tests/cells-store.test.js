@@ -4,7 +4,7 @@ import cell, {
 	cells,
 	cellStore,
 	reconcile,
-} from "../src/js/select/cells.js"
+} from "../src/js/select/state/cells.js"
 
 describe("cell.store / cellStore", () => {
 	test("returns a cell with shallow-copied plain object", () => {

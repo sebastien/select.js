@@ -4,12 +4,12 @@
 // Created: 2026-05-15
 // Updated: 2026-06-18
 
-// Module: select/formats
+// Module: select/features/formats
 // String case format helpers shared across modules.
 
-import { unwrap } from "../state/cells/index.js";
+import { unwrap } from "../state/cells.js";
 import { hi as htmlHi } from "../utils/html.js";
-import { bool, entries, idem, len, type } from "../utils/index.js";
+import { bool, entries, idem, len, type } from "../utils.js";
 import {
 	toCamelCase,
 	toKebabCase,

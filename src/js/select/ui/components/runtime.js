@@ -14,8 +14,8 @@
 // ----------------------------------------------------------------------------
 
 import { FORMATS } from "../../features/formats.js";
-import { unwrap } from "../../state/cells/index.js";
-import { expand, isPascalCase, microtask } from "../../utils/index.js";
+import { unwrap } from "../../state/cells.js";
+import { expand, isPascalCase, microtask } from "../../utils.js";
 import { isThenable } from "../../utils/values.js";
 
 import { log, setNodeText, TemplateParser } from "../templates.js";

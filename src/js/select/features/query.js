@@ -26,7 +26,7 @@
 // TODO: Updated documentation so that Node -> Element where relevant
 // FIXME: Test length of arguments instead of typeof
 
-import { logger } from "../utils/index.js";
+import { logger } from "../utils.js";
 
 // ----------------------------------------------------------------------------
 //

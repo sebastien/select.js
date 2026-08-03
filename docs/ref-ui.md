@@ -330,7 +330,7 @@ const Pill = Badge.using("./feature-template-load.fragment.tpl#BadgePill")
 Module-local load + bare name example:
 
 ```javascript
-import { ui } from "../../js/select/ui/index.js"
+import { ui } from "../../js/select/ui.js"
 
 await ui.load(import.meta.url.replace(".js", ".html"))
 

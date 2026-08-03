@@ -4,7 +4,7 @@
 // Created: 2026-04-23
 // Updated: 2026-06-02
 
-// Module: select/fastdom
+// Module: select/ui/fastdom
 // Batches DOM reads and writes to reduce layout thrashing. This module is a
 // FastDOM scheduling pattern that exposes a shared instance for queueing
 // measurement and mutation work.

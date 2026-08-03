@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
 	<meta charset="utf-8" />
@@ -68,12 +68,12 @@
 		<li>
 			<div when="!data.edited">
 				<span out="label">Placeholder</span>
-				<button on:click="edit">Edit</button>
-				<button on:click="remove">Remove</button>
+				<button type="button" on:click="edit">Edit</button>
+				<button type="button" on:click="remove">Remove</button>
 			</div>
 			<div when="data.edited">
 				<input in="editedLabel" />
-				<button on:click="save">Save</button>
+				<button type="button" on:click="save">Save</button>
 				<button type="button" on:click="cancel">cancel</button>
 			</div>
 		</li>
@@ -83,11 +83,11 @@
 		<ul out="items">
 			<li>Empty</li>
 		</ul>
-		<button on:click="add">Add</button>
+		<button type="button" on:click="add">Add</button>
 	</template>
 
 	<script type="module">
-		import {ui} from "@./ui/index.js"
+		import {ui} from "@./ui.js"
 
 		const TodoItem = ui("#TodoItem").does({
 			label: (_self, {label}) => label,

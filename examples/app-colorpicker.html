@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>Select UI ― Color Picker (Cells)</title>
@@ -137,8 +137,8 @@
       </div>
     </template>
     <script type="module">
-      import cell, {derived} from "@./state/cells/index.js"
-      import ui from "@./ui/index.js"
+      import cell, {derived} from "@./state/cells.js"
+      import ui from "@./ui.js"
 
 	  const clamp255 = (value) => {
 	  	const n = Number(value)

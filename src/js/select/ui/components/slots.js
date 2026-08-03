@@ -7,7 +7,7 @@
 // Module: select/ui/components/slots
 // Template slot descriptors and mounted slot renderers.
 
-import { asText, eq } from "../../utils/index.js";
+import { asText, eq } from "../../utils.js";
 import { isInputNode, log, TemplateParser } from "../templates.js";
 
 import { AppliedUITemplate } from "./model.js";

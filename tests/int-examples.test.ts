@@ -244,19 +244,19 @@ async function loadDistBundle(cacheKey: string) {
 }
 
 function resolveDistModule(bundle: Record<string, any>, specifier: string) {
-	if (specifier === "@./ui.js" || specifier === "@./ui/index.js") {
+	if (specifier === "@./ui.js" || specifier === "@./ui.js") {
 		return { ...bundle, default: bundle.ui, ui: bundle.ui }
 	}
-	if (specifier === "@./cells.js" || specifier === "@./state/cells/index.js") {
+	if (specifier === "@./cells.js" || specifier === "@./state/cells.js") {
 		return { ...bundle, default: bundle.cells, cells: bundle.cells }
 	}
 	if (specifier === "@./icons.js" || specifier === "@./features/icons.js") {
 		return wrapIconsModule({ ...bundle, default: bundle.icons, icons: bundle.icons })
 	}
-	if (specifier === "@./browser.js" || specifier === "@./state/browser/index.js") {
+	if (specifier === "@./browser.js" || specifier === "@./state/browser.js") {
 		return { ...bundle, default: bundle.browser, browser: bundle.browser }
 	}
-	if (specifier === "@./routing.js" || specifier === "@./state/routing/index.js") {
+	if (specifier === "@./routing.js" || specifier === "@./state/routing.js") {
 		return { ...bundle, default: bundle.routing, routing: bundle.routing }
 	}
 	if (specifier === "@./index.js") {

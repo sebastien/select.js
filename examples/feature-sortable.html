@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>Select UI ― Sortable Lists and Tree</title>
@@ -309,7 +309,7 @@
     </main>
     <div id="sortable-overlay" class="sortable-overlay"></div>
     <template id="SortableItem">
-      <button class="card" on:mousedown="startSort" out:data-sortable-item="id" out:data-index="index">
+      <button type="button" class="card" on:mousedown="startSort" out:data-sortable-item="id" out:data-index="index">
         <strong out="label"></strong>
         <span out="meta"></span>
       </button>
@@ -340,7 +340,7 @@
 
       <template id="TreeNode">
         <article class="tree-node" out:data-sortable-item="id" out:data-index="index">
-          <button class="card" on:mousedown="startSort">
+          <button type="button" class="card" on:mousedown="startSort">
             <strong out="label"></strong>
             <span out="meta"></span>
           </button>
@@ -354,8 +354,8 @@
         </div>
       </template>
     <script type="module">
-      import { sort } from "@./ui/interaction/index.js"
-      import { ui } from "@./ui/index.js"
+      import { ui } from "@./ui.js"
+      import { sort } from "@./features/interaction/index.js"
 
       // ----------------------------------------------------------------------------
       // SORTABLE PRIMITIVES

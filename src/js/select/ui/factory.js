@@ -20,7 +20,7 @@ import {
 	options,
 	registerComponent,
 	UITemplate,
-} from "./components/index.js";
+} from "./components.js";
 import {
 	HTML,
 	hashText,

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { Window } from "happy-dom"
-import browser, { Browser, hash } from "../src/js/select/browser.js"
+import browser, { Browser, hash } from "../src/js/select/state/browser.js"
 
 function snapshotGlobal(key) {
 	return {

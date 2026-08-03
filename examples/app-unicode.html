@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
 	<meta charset="utf-8" />
@@ -242,14 +242,14 @@
 	<div id="ui"></div>
 
 	<template id="BlockItem">
-		<button class="block-item" out:class="classes" out:data-block-start="start" on:click="selectBlock" out:aria-label="ariaLabel">
+		<button type="button" class="block-item" out:class="classes" out:data-block-start="start" on:click="selectBlock" out:aria-label="ariaLabel">
 			<span class="block-name" out="name">Block Name</span>
 			<span class="block-range" out="range">U+0000..U+00FF</span>
 		</button>
 	</template>
 
 	<template id="CharCell">
-		<button class="char-cell" on:click="copy" out:title="title" out:aria-label="title">
+		<button type="button" class="char-cell" on:click="copy" out:title="title" out:aria-label="title">
 			<span class="char-glyph" out="char">A</span>
 			<span class="char-code" out="code">U+0041</span>
 		</button>
@@ -292,7 +292,7 @@
 	</template>
 
 	<script type="module">
-		import ui from "@./ui/index.js"
+		import ui from "@./ui.js"
 
 		const BLOCKS_TEXT = `
 0000..007F; Basic Latin

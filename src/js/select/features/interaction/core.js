@@ -4,7 +4,7 @@
 // Created: 2026-06-16
 // Updated: 2026-06-16
 
-// Module: select/interaction/core
+// Module: select/features/interaction/core
 // Core DOM interaction helpers.
 
 // Function: bind

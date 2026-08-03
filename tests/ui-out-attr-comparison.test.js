@@ -112,7 +112,7 @@ function setupGlobals(window) {
 	test("supports processors on comparison left-hand values", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui, format } = await import("../src/js/select/ui/index.js");
+		const { ui, format } = await import("../src/js/select/ui.js");
 
 		format("toNumber", (value) => Number(value));
 

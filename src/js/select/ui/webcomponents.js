@@ -18,7 +18,7 @@
 // ----------------------------------------------------------------------------
 
 import { toCamelCase, toKebabCase } from "../features/formats.js";
-import { asText, def, eq, isObject, Nothing } from "../utils/index.js";
+import { asText, def, eq, isObject, Nothing } from "../utils.js";
 import { getUIInstance } from "./components/instance.js";
 import { UI_PARENT_ATTRIBUTE } from "./components/runtime.js";
 import { hashText, log } from "./templates.js";

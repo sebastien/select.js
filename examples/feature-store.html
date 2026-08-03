@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 	<meta charset="utf-8" />
 	<title>Select UI — Store mode</title>
@@ -41,15 +41,15 @@
 		path writes and <code>reconcile</code> instead of replacing plain bags.
 	</p>
 	<div class="row">
-		<button id="inc">Increment count</button>
-		<button id="add">Add item</button>
-		<button id="patch">Reconcile snapshot</button>
-		<button id="reset">Reset</button>
+		<button type="button" id="inc">Increment count</button>
+		<button type="button" id="add">Add item</button>
+		<button type="button" id="patch">Reconcile snapshot</button>
+		<button type="button" id="reset">Reset</button>
 	</div>
 	<div id="app" class="tree"></div>
 	<script type="module">
-		import cell from "@./state/cells/index.js"
-		import { ui, remap } from "@./ui/index.js"
+		import cell from "@./state/cells.js"
+		import { remap, ui } from "@./ui.js"
 
 		const plain = (v) => (v?.isReactive === true ? v.value : v)
 

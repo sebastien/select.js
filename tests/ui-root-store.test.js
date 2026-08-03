@@ -33,7 +33,7 @@ describe("ui root store as instance.data", () => {
 		const window = new Window({ url: "http://localhost:8000/repro" })
 		setupGlobals(window)
 
-		const cell = (await import("../src/js/select/cells.js")).default
+		const cell = (await import("../src/js/select/state/cells.js")).default
 		const { ui, remap } = await import("../src/js/select/ui.js")
 
 		document.body.innerHTML = `<div id="app"></div>`
@@ -98,7 +98,7 @@ describe("ui root store as instance.data", () => {
 		const window = new Window({ url: "http://localhost:8000/repro" })
 		setupGlobals(window)
 
-		const cell = (await import("../src/js/select/cells.js")).default
+		const cell = (await import("../src/js/select/state/cells.js")).default
 		const { ui, remap } = await import("../src/js/select/ui.js")
 
 		document.body.innerHTML = `<div id="app"></div>`
@@ -140,7 +140,7 @@ describe("ui root store as instance.data", () => {
 		const window = new Window({ url: "http://localhost:8000/repro" })
 		setupGlobals(window)
 
-		const cell = (await import("../src/js/select/cells.js")).default
+		const cell = (await import("../src/js/select/state/cells.js")).default
 		const { ui } = await import("../src/js/select/ui.js")
 
 		document.body.innerHTML = `<div id="app"></div>`

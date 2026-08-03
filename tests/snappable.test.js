@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { Snappable } from "../src/js/select/snappable.js";
+import { Snappable } from "../src/js/select/features/interaction/snappable.js";
 
 describe("snappable", () => {
 	test("snaps matching opposite sticky borders and commits their adhesion", () => {

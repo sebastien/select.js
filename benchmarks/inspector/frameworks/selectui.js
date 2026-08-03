@@ -1,4 +1,4 @@
-import cell from "../../../src/js/select/cells.js"
+import cell from "../../../src/js/select/state/cells.js"
 import { remap, ui } from "../../../src/js/select/ui.js"
 
 const getType = (value) =>

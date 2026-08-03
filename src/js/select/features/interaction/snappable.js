@@ -3,7 +3,7 @@
 // License: BSD-3
 // Created: 2026-08-01
 
-// Module: select/snappable
+// Module: select/features/interaction/snappable
 // Maintains rectangles in a coordinate space and resolves alignment snapping and
 // sticky border adhesion without requiring DOM layout or rendering.
 
@@ -307,7 +307,10 @@ class Snappable {
 		for (let i = 0; i < cells.length; i++) {
 			const key = cells[i];
 			let bucket = this.buckets.get(key);
-			if (!bucket) this.buckets.set(key, (bucket = []));
+			if (!bucket) {
+				bucket = [];
+				this.buckets.set(key, bucket);
+			}
 			bucket.push(slot);
 		}
 	}

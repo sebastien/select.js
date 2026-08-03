@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { cell, derived, switched } from "../src/js/select/cells.js";
+import { cell, derived, switched } from "../src/js/select/state/cells.js";
 
 function deferred() {
 	let resolve;

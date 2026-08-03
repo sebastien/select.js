@@ -8,7 +8,7 @@
 // Browser-backed reactive state for URL and local storage. The browser API
 // exposes `ref(value)` for reactive references, `val(value)` for plain value
 // coercion, `parse(value)` as the compatibility dispatcher combining both,
-// `routes(map)` to bind path/hash route handlers from `select/routing`, and
+// `routes(map)` to bind path/hash route handlers from `select/state/routing.js`, and
 // in-memory messaging via `pub`/`sub` events and `put`/`get`/`send`/`receive`
 // channels.
 
@@ -18,7 +18,7 @@ import {
 	looksLikeHashText,
 	query,
 	RecordFormat,
-} from "../../utils/hashfmt.js";
+} from "../utils/hashfmt.js";
 import {
 	access,
 	assigned,
@@ -28,9 +28,9 @@ import {
 	Nothing,
 	path as pathify,
 	sanitize,
-} from "../../utils/index.js";
-import { Cell, cell } from "../cells/index.js";
-import { routed } from "../routing/index.js";
+} from "../utils.js";
+import { Cell, cell } from "./cells.js";
+import { routed } from "./routing.js";
 
 const log = logger("select.browser");
 const OPTIONS_SINGLETON = "OPTIONS";

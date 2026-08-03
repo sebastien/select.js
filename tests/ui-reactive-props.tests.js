@@ -27,9 +27,9 @@ function installDomEnvironment() {
 beforeEach(async () => {
 	installDomEnvironment();
 	if (!ui || !cell || !format) {
-		({ ui } = await import("../src/js/select/ui/index.js"));
-		({ cell } = await import("../src/js/select/cells.js"));
-		({ format } = await import("../src/js/select/formats.js"));
+		({ ui } = await import("../src/js/select/ui.js"));
+		({ cell } = await import("../src/js/select/state/cells.js"));
+		({ format } = await import("../src/js/select/features/formats.js"));
 	}
 });
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
 	<meta charset="utf-8" />
@@ -73,9 +73,9 @@
 			<h2>Select UI component</h2>
 			<x-ui-counter id="counter" title="Web Counter" count="2"></x-ui-counter>
 			<div class="controls">
-				<button id="counter-dec">count -1 (attribute)</button>
-				<button id="counter-inc">count +1 (attribute)</button>
-				<button id="counter-title">toggle title</button>
+				<button type="button" id="counter-dec">count -1 (attribute)</button>
+				<button type="button" id="counter-inc">count +1 (attribute)</button>
+				<button type="button" id="counter-title">toggle title</button>
 			</div>
 		</section>
 
@@ -83,8 +83,8 @@
 			<h2>Pure render function component</h2>
 			<x-pure-badge id="badge" label="Ready" tone="info"></x-pure-badge>
 			<div class="controls">
-				<button id="badge-tone">toggle tone</button>
-				<button id="badge-label">toggle label</button>
+				<button type="button" id="badge-tone">toggle tone</button>
+				<button type="button" id="badge-label">toggle label</button>
 			</div>
 		</section>
 
@@ -96,15 +96,15 @@
 	</div>
 
 	<script type="module">
-		import ui, { webcomponent } from "@./ui/index.js"
+		import ui, { webcomponent } from "@./ui.js"
 
 		const Counter = ui(`
 			<section style="display:grid;gap:8px;padding:10px;border:1px solid #ccd5ff;border-radius:8px;background:#f7f9ff;">
 				<strong out="title">Counter</strong>
 				<div>
-					<button on:click="dec">-</button>
+					<button type="button" on:click="dec">-</button>
 					<span out="count" style="padding:0 8px;">0</span>
-					<button on:click="inc">+</button>
+					<button type="button" on:click="inc">+</button>
 				</div>
 			</section>
 		`).does({
@@ -120,9 +120,9 @@
 			<section style="display:grid;gap:8px;padding:10px;border:1px solid #cbe7d8;border-radius:8px;background:#f5fff8;">
 				<strong out="label">Stepper</strong>
 				<div>
-					<button on:click="decrement">-</button>
+				<button type="button" on:click="decrement">-</button>
 					<span out="count" style="padding:0 8px;">0</span>
-					<button on:click="increment">+</button>
+				<button type="button" on:click="increment">+</button>
 				</div>
 			</section>
 		`).does({

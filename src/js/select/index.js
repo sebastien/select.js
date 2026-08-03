@@ -7,30 +7,30 @@
 // Module: select/index
 // Aggregates the core and companion modules into a single import surface.
 
-import fastdom from "./core/fastdom.js";
+import fastdom from "./ui/fastdom.js";
 import icons from "./features/icons.js";
-import $ from "./core/query.js";
+import $ from "./features/query.js";
 import workflow from "./features/workflows.js";
-import browser from "./state/browser/index.js";
-import cells from "./state/cells/index.js";
-import * as routing from "./state/routing/index.js";
-import ui from "./ui/index.js";
-import * as interaction from "./ui/interaction/index.js";
+import browser from "./state/browser.js";
+import cells from "./state/cells.js";
+import * as routing from "./state/routing.js";
+import ui from "./ui.js";
+import * as interaction from "./features/interaction/index.js";
 import { dates } from "./utils/dates.js";
-import * as utils from "./utils/index.js";
+import * as utils from "./utils.js";
 
-export * from "./core/fastdom.js";
+export * from "./ui/fastdom.js";
 export { debug, FORMATS, format } from "./features/formats.js";
 export * from "./features/icons.js";
-export * from "./features/snappable.js";
-export * from "./state/browser/index.js";
-export * from "./state/cells/index.js";
-export { expand } from "./state/cells/index.js";
-export * from "./state/routing/index.js";
-export * from "./ui/index.js";
-export { remap } from "./ui/index.js";
-export * from "./ui/interaction/index.js";
-export * from "./utils/index.js";
+export * from "./features/interaction/snappable.js";
+export * from "./state/browser.js";
+export * from "./state/cells.js";
+export { expand } from "./state/cells.js";
+export * from "./state/routing.js";
+export * from "./ui.js";
+export { remap } from "./ui.js";
+export * from "./features/interaction/index.js";
+export * from "./utils.js";
 
 export {
 	$,

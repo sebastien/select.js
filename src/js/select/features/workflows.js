@@ -4,7 +4,7 @@
 // Created: 2026-07-16
 // Updated: 2026-07-16
 
-// Module: select/workflows
+// Module: select/features/workflows
 // Generator-based workflow runner with named steps, TTL result caching
 // (via select/utils/storage), transparent retries, lifecycle logging, and
 // duration history. The runtime keeps a live call stack of nested step
@@ -38,7 +38,7 @@
 // const data2 = await runtime.run(LoadPosts(1))
 // ```
 
-import { browser } from "../state/browser/index.js";
+import { browser } from "../state/browser.js";
 import { Backoff, Retry } from "../utils/http.js";
 import { logger } from "../utils/logger.js";
 import { store } from "../utils/storage.js";

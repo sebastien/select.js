@@ -19,7 +19,7 @@ function setupGlobals(win) {
 beforeAll(async () => {
 	window = new Window()
 	setupGlobals(window)
-	;({ select } = await import("../src/js/select/query.js"))
+	;({ select } = await import("../src/js/select/features/query.js"))
 })
 
 afterAll(() => {

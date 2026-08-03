@@ -7,7 +7,7 @@ import {
 	RouteWildcard,
 	route,
 	routed,
-} from "../src/js/select/routing";
+} from "../src/js/select/state/routing.js";
 
 // Test 1: Basic static route matching
 function testBasicStaticRoutes() {

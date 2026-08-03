@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { cell, deferred, reconcile } from "../src/js/select/cells.js";
+import { cell, deferred, reconcile } from "../src/js/select/state/cells.js";
 import {
 	batch as asyncBatch,
 	defer,

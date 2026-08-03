@@ -31,7 +31,7 @@ describe("FastDOM", () => {
 		}
 		Object.assign(globalThis, { window: activeWindow })
 		const { FastDOM } = await import(
-			`../src/js/select/fastdom.js?test=${Date.now()}`
+			`../src/js/select/ui/fastdom.js?test=${Date.now()}`
 		)
 		const scheduler = new FastDOM()
 		const calls = []

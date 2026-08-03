@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
 	<meta charset="utf-8" />
@@ -95,7 +95,7 @@
 	<template id="App">
 		<div>
 			<div class="controls">
-				<button on:click="toggleMode">Toggle Mode</button>
+				<button type="button" on:click="toggleMode">Toggle Mode</button>
 			</div>
 
 			<h3>Template-driven slots (slot="name" in placeholder)</h3>
@@ -120,7 +120,7 @@
 	</template>
 
 	<script type="module">
-		import { ui } from "@./ui/index.js"
+		import { ui } from "@./ui.js"
 
 		const Card = ui("#Card")
 

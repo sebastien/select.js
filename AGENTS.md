@@ -44,11 +44,11 @@ make clean
 ### Imports
 ```javascript
 // Good - ES6 named imports
-import { walk, expand, cell, derived } from "./select/cells.js"
+import { walk, expand, cell, derived } from "./select/state/cells.js"
 
 // Good - Default imports with aliases
 import S from "../js/select.js"
-import ui from "@./ui/index.js"
+import ui from "@./ui.js"
 
 // Good - Multiple exports
 import { ui, remap } from "@./select/ui.js"

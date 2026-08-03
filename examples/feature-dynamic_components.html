@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
 	<meta charset="utf-8" />
@@ -119,10 +119,10 @@
 			<span class="type-badge heading">Heading</span>
 			<h2 out="text">Heading</h2>
 			<div class="controls">
-				<button on:click="makeHeading" class="active">H</button>
-				<button on:click="makeParagraph">P</button>
-				<button on:click="makeCode">C</button>
-				<button on:click="remove">×</button>
+				<button type="button" on:click="makeHeading" class="active">H</button>
+				<button type="button" on:click="makeParagraph">P</button>
+				<button type="button" on:click="makeCode">C</button>
+				<button type="button" on:click="remove">×</button>
 			</div>
 		</div>
 	</template>
@@ -132,10 +132,10 @@
 			<span class="type-badge paragraph">Paragraph</span>
 			<p out="text">Paragraph</p>
 			<div class="controls">
-				<button on:click="makeHeading">H</button>
-				<button on:click="makeParagraph" class="active">P</button>
-				<button on:click="makeCode">C</button>
-				<button on:click="remove">×</button>
+				<button type="button" on:click="makeHeading">H</button>
+				<button type="button" on:click="makeParagraph" class="active">P</button>
+				<button type="button" on:click="makeCode">C</button>
+				<button type="button" on:click="remove">×</button>
 			</div>
 		</div>
 	</template>
@@ -145,10 +145,10 @@
 			<span class="type-badge code">Code</span>
 			<pre out="text">code</pre>
 			<div class="controls">
-				<button on:click="makeHeading">H</button>
-				<button on:click="makeParagraph">P</button>
-				<button on:click="makeCode" class="active">C</button>
-				<button on:click="remove">×</button>
+				<button type="button" on:click="makeHeading">H</button>
+				<button type="button" on:click="makeParagraph">P</button>
+				<button type="button" on:click="makeCode" class="active">C</button>
+				<button type="button" on:click="remove">×</button>
 			</div>
 		</div>
 	</template>
@@ -156,17 +156,17 @@
 	<template id="Editor">
 		<div>
 			<div class="editor-actions">
-				<button on:click="addHeading">Add Heading</button>
-				<button on:click="addParagraph">Add Paragraph</button>
-				<button on:click="addCode">Add Code Block</button>
-				<button on:click="randomize">Randomize Types</button>
+				<button type="button" on:click="addHeading">Add Heading</button>
+				<button type="button" on:click="addParagraph">Add Paragraph</button>
+				<button type="button" on:click="addCode">Add Code Block</button>
+				<button type="button" on:click="randomize">Randomize Types</button>
 			</div>
 			<div out="blocks"></div>
 		</div>
 	</template>
 
 	<script type="module">
-		import { Dynamic, ui } from "@./ui/index.js"
+		import { Dynamic, ui } from "@./ui.js"
 
 		const HeadingBlock = ui("#HeadingBlock").does({
 			text: (_self, { text }) => text,

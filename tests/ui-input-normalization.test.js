@@ -74,7 +74,7 @@ describe("ui input normalization", () => {
 		const window = new Window({ url: "http://localhost:8000/input-normalization" })
 		setupGlobals(window)
 		const { ui } = await import("../src/js/select/ui.js")
-		const { cell } = await import("../src/js/select/cells.js")
+		const { cell } = await import("../src/js/select/state/cells.js")
 
 		const amount = cell(9)
 		const Component = ui(`<input type="number" in="amount" />`)

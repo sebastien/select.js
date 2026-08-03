@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
 	<meta charset="utf-8" />
@@ -157,9 +157,9 @@
 	<template id="ManualRouting">
 		<div class="stack">
 			<div class="nav">
-				<button on:click="goHome">#panel=home</button>
-				<button on:click="goDocs">#panel=docs</button>
-				<button on:click="goAbout">#panel=about</button>
+				<button type="button" on:click="goHome">#panel=home</button>
+				<button type="button" on:click="goDocs">#panel=docs</button>
+				<button type="button" on:click="goAbout">#panel=about</button>
 			</div>
 			<div class="status" out="fragment"></div>
 			<div class="note">Current panel: <strong out="panel"></strong></div>
@@ -214,11 +214,11 @@
 	<template id="RoutedPanels">
 		<div class="stack">
 			<div class="nav">
-				<button on:click="goRoot">#route=/</button>
-				<button on:click="goSettings">#route=/settings</button>
-				<button on:click="goActivity">#route=/profile/activity</button>
-				<button on:click="goSecurity">#route=/profile/security</button>
-				<button on:click="goMissing">#route=/reports/daily</button>
+				<button type="button" on:click="goRoot">#route=/</button>
+				<button type="button" on:click="goSettings">#route=/settings</button>
+				<button type="button" on:click="goActivity">#route=/profile/activity</button>
+				<button type="button" on:click="goSecurity">#route=/profile/security</button>
+				<button type="button" on:click="goMissing">#route=/reports/daily</button>
 			</div>
 			<div class="status" out="fragment"></div>
 			<div class="note">Current route: <strong out="route"></strong></div>
@@ -227,9 +227,9 @@
 	</template>
 
 	<script type="module">
-		import browser from "@./state/browser/index.js"
-		import { routed } from "@./state/routing/index.js"
-		import ui from "@./ui/index.js"
+		import browser from "@./state/browser.js"
+		import { routed } from "@./state/routing.js"
+		import ui from "@./ui.js"
 
 		const state = browser()
 		const panelCell = state.hash.select(["panel"])

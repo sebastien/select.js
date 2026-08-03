@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
 	<meta charset="utf-8" />
@@ -113,9 +113,9 @@
 	<template id="App">
 		<div class="app theme-light" out:class="themeClass">
 			<div class="controls">
-				<button on:click="setLight">Light</button>
-				<button on:click="setDark">Dark</button>
-				<button on:click="setWarm">Warm</button>
+				<button type="button" on:click="setLight">Light</button>
+				<button type="button" on:click="setDark">Dark</button>
+				<button type="button" on:click="setWarm">Warm</button>
 			</div>
 			<h2>Application Root</h2>
 			<div out="layout"></div>
@@ -137,14 +137,14 @@
 	</template>
 
 	<template id="ThemedButton">
-		<button class="button" on:click>
+		<button type="button" class="button" on:click>
 			<span out="label">Button</span>
 		</button>
 	</template>
 
 	<script type="module">
-		import { cell } from "@./state/cells/index.js"
-		import { ui } from "@./ui/index.js"
+		import { cell } from "@./state/cells.js"
+		import { ui } from "@./ui.js"
 
 		const theme = cell("light")
 

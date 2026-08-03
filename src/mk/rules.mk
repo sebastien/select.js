@@ -41,11 +41,14 @@ release: $(PATH_RUN)/task/project-release-$(PROJECT_VERSION).task
 	@
 
 
-.PHONY: _dist-files dist ci
+.PHONY: _dist-files select-dist ci
 
 _dist-files: $(DIST_FILES)
 
-dist:
+.PHONY: dist
+dist: select-dist
+
+select-dist:
 	@set -eu; \
 	stage=$$(mktemp -d ".dist.stage.XXXXXX"); \
 	backup="$$stage.previous"; \

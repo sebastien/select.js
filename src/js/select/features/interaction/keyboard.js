@@ -4,7 +4,7 @@
 // Created: 2026-06-16
 // Updated: 2026-06-16
 
-// Module: select/interaction/keyboard
+// Module: select/features/interaction/keyboard
 // Keyboard helpers and textarea autoresize.
 
 // Function: autoresize

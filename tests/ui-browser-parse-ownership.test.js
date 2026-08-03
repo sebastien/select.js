@@ -45,7 +45,7 @@ describe("ui browser.parse ownership", () => {
 		const window = new Window({ url: "http://localhost:8000/ownership" })
 		setupGlobals(window)
 		const { ui } = await import("../src/js/select/ui.js")
-		const { Browser } = await import("../src/js/select/browser.js")
+		const { Browser } = await import("../src/js/select/state/browser.js")
 		const instanceBrowser = new Browser()
 		const Component = ui("<div></div>").init(() => ({
 			user: instanceBrowser.parse("@users:ada"),
@@ -67,7 +67,7 @@ describe("ui browser.parse ownership", () => {
 		const window = new Window({ url: "http://localhost:8000/webcomponent" })
 		setupGlobals(window)
 		const { ui, webcomponent } = await import("../src/js/select/ui.js")
-		const { Browser } = await import("../src/js/select/browser.js")
+		const { Browser } = await import("../src/js/select/state/browser.js")
 		const instanceBrowser = new Browser()
 		const Component = ui("<div></div>")
 		const name = `x-parse-ownership-${Date.now()}`

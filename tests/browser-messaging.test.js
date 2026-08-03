@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { Browser } from "../src/js/select/browser.js"
+import { Browser } from "../src/js/select/state/browser.js"
 
 function delay(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms))

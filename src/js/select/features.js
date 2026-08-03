@@ -8,7 +8,8 @@
 
 export * from "./formats.js";
 export * from "./icons.js";
-export * from "./snappable.js";
+export * from "./interaction/index.js";
+export * from "./interaction/snappable.js";
 export * from "./workflows.js";
 
 // EOF

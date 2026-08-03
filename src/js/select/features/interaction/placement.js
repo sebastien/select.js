@@ -4,7 +4,7 @@
 // Created: 2026-06-16
 // Updated: 2026-06-16
 
-// Module: select/interaction/placement
+// Module: select/features/interaction/placement
 // Sortable placement helpers for measurement, slot resolution, and placeholder
 // application.
 

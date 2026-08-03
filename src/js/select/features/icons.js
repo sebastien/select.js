@@ -4,10 +4,10 @@
 // Created: 2026-04-23
 // Updated: 2026-06-18
 
-// Module: select/icons
+// Module: select/features/icons
 // SVG icon registry and loader utilities.
 // SEE: https://observablehq.com/@sebastien/icons
-import { logger } from "../utils/index.js";
+import { logger } from "../utils.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 const log = logger("select.icons");

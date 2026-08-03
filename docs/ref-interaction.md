@@ -1,6 +1,6 @@
 # Select Interaction Reference
 
-`@select/ui/interaction/index.js` provides small DOM interaction helpers for event binding,
+`@select/features/interaction/index.js` provides small DOM interaction helpers for event binding,
 mouse dragging, keyboard handling, draggable drop targets, sortable lists, and
 sortable placement.
 
@@ -15,7 +15,7 @@ import {
 	draggable,
 	sort,
 	unbind,
-} from "@select/ui/interaction/index.js"
+} from "@select/features/interaction/index.js"
 ```
 
 The default export is an object containing the same grouped helpers:

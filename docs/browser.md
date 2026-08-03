@@ -19,12 +19,12 @@ Browser-backed reactive state for URL and `localStorage`.
 - `put(channelName, value, ttl?)` / `get(channelName)`: non-blocking channel queue
 - `send(channelName, value, timeout?)` / `receive(channelName, timeout?)`: async channel handoff
 
-`@select/state/browser/index.js` also exports `Browser`, the class used by `browser(options?)`.
+`@select/state/browser.js` also exports `Browser`, the class used by `browser(options?)`.
 
 ## Quick Start
 
 ```javascript
-import browser from "@select/state/browser/index.js"
+import browser from "@select/state/browser.js"
 
 const state = browser()
 
@@ -66,7 +66,7 @@ await done
 
 ## Serializer Exports
 
-`@select/state/browser/index.js` also exports reusable serializers:
+`@select/state/browser.js` also exports reusable serializers:
 
 - `record`: `{ parse, format }` sanitizer for plain records
 - `query`: `{ parse, format }` serializer for `location.search`
@@ -155,7 +155,7 @@ Returns a cell that resolves to the same normalized result as `fetch(input, opti
 
 ## `routes(map)`
 
-Registers handlers from `select/routing` and wires them to browser location state.
+Registers handlers from `select/state/routing.js` and wires them to browser location state.
 
 - Keys **without** a leading `#` match `state.path` (`location.pathname`)
 - Keys **with** a leading `#` match the hash bare path (`state.hash.value.path`)

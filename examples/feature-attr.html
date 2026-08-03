@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
 	<meta charset="utf-8" />
@@ -107,7 +107,7 @@
 	<div id="ui"></div>
 
 	<template id="ActionButton">
-		<button class="btn" out:class="btnClass" out:disabled="isDisabled" out:aria-busy="loading" out:style="customStyle"
+		<button type="button" class="btn" out:class="btnClass" out:disabled="isDisabled" out:aria-busy="loading" out:style="customStyle"
 			out:title="${label|upper} (${variant})" out:data-state="load:${loading}|disable:${disabled}|missing:${doesNotExist}"
 			out:data-width="${column.width|measure+widthScale+widthUnit.suffix}"
 			on:click>
@@ -125,9 +125,9 @@
 			<hr>
 
 			<div class="controls">
-				<button on:click="toggleLoading">Toggle Loading</button>
-				<button on:click="toggleDisabled">Toggle Disabled</button>
-				<button on:click="cycleVariant">Cycle Variant</button>
+				<button type="button" on:click="toggleLoading">Toggle Loading</button>
+				<button type="button" on:click="toggleDisabled">Toggle Disabled</button>
+				<button type="button" on:click="cycleVariant">Cycle Variant</button>
 			</div>
 
 			<hr>
@@ -144,8 +144,8 @@
 	</template>
 
 	<script type="module">
-		import { cell } from "@./state/cells/index.js"
-		import ui from "@./ui/index.js"
+		import { cell } from "@./state/cells.js"
+		import ui from "@./ui.js"
 
 		ui.format("upper", (value) => `${value ?? ""}`.toUpperCase())
 		ui.format("em", (value) => `${value ?? ""}em`)

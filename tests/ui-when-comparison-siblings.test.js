@@ -215,7 +215,7 @@ function setupGlobals(window) {
 				'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle></svg>',
 			)
 		const { ui } = await import("../src/js/select/ui.js")
-		const { install } = await import("../src/js/select/icons.js")
+		const { install } = await import("../src/js/select/features/icons.js")
 
 		install()
 
@@ -255,7 +255,7 @@ function setupGlobals(window) {
 				'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle></svg>',
 			)
 		const { ui } = await import("../src/js/select/ui.js")
-		const { install } = await import("../src/js/select/icons.js")
+		const { install } = await import("../src/js/select/features/icons.js")
 
 		install()
 		document.body.innerHTML = `

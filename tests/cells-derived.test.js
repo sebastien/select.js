@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import cells, { cell, derived } from "../src/js/select/cells.js"
+import cells, { cell, derived } from "../src/js/select/state/cells.js"
 import { Nothing } from "../src/js/select/utils.js"
 
 function foreignReactive(initialValue) {

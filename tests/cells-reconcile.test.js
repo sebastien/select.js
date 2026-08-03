@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { cell, reconcile, selected } from "../src/js/select/cells.js"
+import { cell, reconcile, selected } from "../src/js/select/state/cells.js"
 
 describe("cell.reconcile", () => {
 	test("no-op when value is referentially equal", () => {

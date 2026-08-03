@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
 	<meta charset="utf-8" />
@@ -60,15 +60,15 @@
 	<template id="App">
 		<div>
 			<div class="controls">
-				<button on:click="load">Load Heavy Component</button>
-				<button on:click="reset">Reset</button>
+				<button type="button" on:click="load">Load Heavy Component</button>
+				<button type="button" on:click="reset">Reset</button>
 			</div>
 			<div out="content"></div>
 		</div>
 	</template>
 
 	<script type="module">
-		import { lazy, ui } from "@./ui/index.js"
+		import { lazy, ui } from "@./ui.js"
 
 		// Simulate an async component load
 		const HeavyComponentLoader = () =>

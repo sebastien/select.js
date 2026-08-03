@@ -2,7 +2,7 @@
 
 ## Compatibility barrel for split helpers
 
-`select/utils/index.js` re-exports the helper modules under `select/utils/*.js` and
+`select/utils.js` re-exports the helper modules under `select/utils/*.js` and
 exposes the `sel` bundle for selection helpers. Search helpers live in the
 separate `select/utils/search.js` module.
 
@@ -54,7 +54,7 @@ separate `select/utils/search.js` module.
 ### Using
 
 ```javascript
-import { add, clsx, eq, next, shortword, toggle } from "@select/utils/index.js"
+import { add, clsx, eq, next, shortword, toggle } from "@select/utils.js"
 
 const buttonClass = clsx("btn", { active: true })
 let items = [{ id: 1 }, { id: 2 }]

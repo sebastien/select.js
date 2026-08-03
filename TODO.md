@@ -144,7 +144,7 @@ Duplications & Overlaps ⚠️
 6. Duplicate isInputNode: Both in ui/templates.js and utils/dom.js.
 7. Duplicate isPlainObject/isObject: Appears in utils/values.js, utils/logger.js, and cells.js. They check the same thing but have slightly different implementations.
 8. Duplicate collection iteration patterns: The iitems() generator, each() in traverse, iter() in transform, and ivalues() all implement the same type-dispatch logic (Array → Map → Set → Object → Iterable → Scalar) in subtly different ways.
-9. Double remap functions: ui/index.js:remap() and ui/components/template.js:remapCollection() are identical implementations for mapping over Map/Set/Array/Object.
+9. Double remap functions: ui.js:remap() and ui/components/template.js:remapCollection() are identical implementations for mapping over Map/Set/Array/Object.
 Inconsistencies ⚠️
 1. Export style inconsistency: Some files have a default export and named exports (e.g., cells.js exports both cell and a default Object.assign(cell, {derived, ...})). Some are export-all barrels (utils.js). Some are single-default (query.js).
 2. Naming conventions: Some submodules use generator-style i prefix (iitems, iquery), some don't. The utils/selection.js module has functions like add, remove, has that shadow native Array methods.
@@ -198,7 +198,7 @@ High-Impact
 Medium-Impact
 6. Consolidate case/format functions: toCamelCase, toKebabCase exist in both formats.js and utils/text.js. The format.js versions call utils/text.js but add no extra value.
 7. Unify isInputNode: Now exists in three places. Make utils/dom.js the canonical location.
-8. Deduplicate remap/remapCollection: Identical implementations in ui/index.js and ui/components/template.js.
+8. Deduplicate remap/remapCollection: Identical implementations in ui.js and ui/components/template.js.
 9. Standardize default export pattern: Some modules use Object.assign(fn, {...}) as default, some export a plain object, some export a single class. Consistency would help maintainability.
 6. Summary Assessment
 This is a mature, production-quality codebase (~20K lines) that demonstrates deep JavaScript expertise. The reactive system (cells.js) and the UI template engine (ui/) are particularly well-designed — the slot/template/instance architecture with compiled appliers, behavior tracking proxies, and reactive dependency snapshots shows careful performance engineering.

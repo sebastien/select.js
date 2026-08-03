@@ -415,6 +415,7 @@ const main = async () => {
 	const baseUrl = `http://127.0.0.1:${address.port}`;
 	const browser = await playwright.chromium.launch({
 		headless: !options.headed,
+		args: ["--disable-gpu"],
 	});
 
 	try {

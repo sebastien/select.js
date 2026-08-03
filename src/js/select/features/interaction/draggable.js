@@ -3,7 +3,7 @@
 // License: BSD-3
 // Created: 2026-07-11
 
-// Module: select/interaction/draggable
+// Module: select/features/interaction/draggable
 // Mouse drag, drop, and sort interaction helpers. Draggable interactions use
 // nested source and target descriptors; <sort> moves the source item.
 

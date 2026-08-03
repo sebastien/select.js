@@ -4,7 +4,7 @@
 // Created: 2026-05-07
 // Updated: 2026-06-03
 
-// Module: select/routing
+// Module: select/state/routing
 // URL-like route tokenization and dispatch.
 
 // Class: RoutePattern

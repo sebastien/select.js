@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
 	<meta charset="utf-8" />
@@ -83,16 +83,16 @@
 			<span class="id" out="id">0</span>
 			<span class="value" out="label">Item</span>
 			<span class="render-count" out="renderCount">0</span>
-			<button on:click="increment">+</button>
+			<button type="button" on:click="increment">+</button>
 		</div>
 	</template>
 
 	<template id="App">
 		<div>
 			<div class="controls">
-				<button on:click="addItem">Add Item</button>
-				<button on:click="randomUpdate">Random Update</button>
-				<button on:click="reset">Reset</button>
+				<button type="button" on:click="addItem">Add Item</button>
+				<button type="button" on:click="randomUpdate">Random Update</button>
+				<button type="button" on:click="reset">Reset</button>
 			</div>
 			<div class="stats" out="stats"></div>
 			<div out="items"></div>
@@ -100,7 +100,7 @@
 	</template>
 
 	<script type="module">
-		import { ui } from "@./ui/index.js"
+		import { ui } from "@./ui.js"
 
 		// Track render counts per item for demonstration
 		const renderCounts = new Map()

@@ -4,7 +4,7 @@
 // Created: 2026-06-16
 // Updated: 2026-06-16
 
-// Module: select/interaction/drag
+// Module: select/features/interaction/drag
 // Drag interaction helpers.
 
 import { attributeTarget, bind, unbind } from "./core.js";

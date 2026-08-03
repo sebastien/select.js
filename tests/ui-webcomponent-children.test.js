@@ -213,7 +213,7 @@ describe("ui webcomponent projected children", () => {
 	test("syncs exposed reactive keys through wc:* events for inout bindings", async () => {
 		const window = new Window({ url: "http://localhost:8000/webcomponent" });
 		setupGlobals(window);
-		const { cell } = await import("../src/js/select/cells.js");
+		const { cell } = await import("../src/js/select/state/cells.js");
 		const { ui, webcomponent } = await import("../src/js/select/ui.js");
 
 		const Child = ui(`<input inout:value="text" />`).init(() => ({

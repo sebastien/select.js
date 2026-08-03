@@ -7,7 +7,7 @@ const ROOT = path.resolve(__dirname, "..")
 const DIST_ROOT = path.join(ROOT, "dist")
 const DIST_BUNDLE_PATH = path.join(ROOT, "dist", "selectjs.min.js")
 const DIST_INDEX_MIN_PATH = path.join(ROOT, "dist", "select", "index.min.js")
-const DIST_QUERY_PATH = path.join(ROOT, "dist", "select", "query.js")
+const DIST_QUERY_PATH = path.join(ROOT, "dist", "select", "features", "query.js")
 const HAS_DIST_BUNDLE = fs.existsSync(DIST_BUNDLE_PATH)
 const REQUIRE_DIST = process.env.REQUIRE_DIST === "1"
 
@@ -89,7 +89,7 @@ describe("dist bundle export surface", () => {
 		}
 
 		const window = setupGlobals()
-		const source = await import(pathToFileURL(path.join(ROOT, "src/js/select/query.js")).href)
+		const source = await import(pathToFileURL(path.join(ROOT, "src/js/select/features/query.js")).href)
 		const dist = await import(pathToFileURL(DIST_QUERY_PATH).href)
 		expect(dist.select).toBeDefined()
 		expect(typeof dist.select).toBe(typeof source.select)
@@ -122,7 +122,7 @@ describe("dist bundle export surface", () => {
 			return
 		}
 
-		expect(fs.existsSync(path.join(DIST_ROOT, "select", "query.js"))).toBe(true)
+		expect(fs.existsSync(path.join(DIST_ROOT, "select", "features", "query.js"))).toBe(true)
 		expect(fs.existsSync(path.join(DIST_ROOT, "select", "index.min.js"))).toBe(true)
 		expect(fs.existsSync(path.join(DIST_ROOT, "select", "query.min.js"))).toBe(false)
 		expect(fs.existsSync(path.join(DIST_ROOT, "selectjs.min.js.gz"))).toBe(false)

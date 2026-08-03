@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { Browser, browser } from "../src/js/select/browser.js"
-import { step, WorkflowRuntime, workflow } from "../src/js/select/workflows.js"
+import { Browser, browser } from "../src/js/select/state/browser.js"
+import { step, WorkflowRuntime, workflow } from "../src/js/select/features/workflows.js"
 
 describe("workflows", () => {
 	test("uses the shared browser state by default", () => {

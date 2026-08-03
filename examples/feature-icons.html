@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
 	<meta charset="utf-8" />
@@ -173,19 +173,19 @@
 			<section class="panel">
 				<h2>Quick picks</h2>
 				<div class="swatches">
-					<button on:click="pickSparkles">lucide:sparkles</button>
-					<button on:click="pickAlien">tabler:alien</button>
-					<button on:click="pickAccount">mdi:account</button>
-					<button on:click="pickSchedule">material-symbols:schedule</button>
+					<button type="button" on:click="pickSparkles">lucide:sparkles</button>
+					<button type="button" on:click="pickAlien">tabler:alien</button>
+					<button type="button" on:click="pickAccount">mdi:account</button>
+					<button type="button" on:click="pickSchedule">material-symbols:schedule</button>
 				</div>
 			</section>
 		</div>
 	</template>
 
 	<script type="module">
-		import { cell, derived } from "@./state/cells/index.js"
 		import { icon, install } from "@./features/icons.js"
-		import ui from "@./ui/index.js"
+		import { cell, derived } from "@./state/cells.js"
+		import ui from "@./ui.js"
 
 			install("ui-icon")
 			install("ui-icon-cdn", { source: "https://api.iconify.design" })
