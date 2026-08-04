@@ -244,7 +244,7 @@ async function loadDistBundle(cacheKey: string) {
 }
 
 function resolveDistModule(bundle: Record<string, any>, specifier: string) {
-	if (specifier === "@./ui.js" || specifier === "@./ui.js") {
+	if (specifier === "@./ui/index.js" || specifier === "@./ui") {
 		return { ...bundle, default: bundle.ui, ui: bundle.ui }
 	}
 	if (specifier === "@./cells.js" || specifier === "@./state/cells.js") {

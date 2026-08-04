@@ -28,7 +28,7 @@ import {
 	Nothing,
 	path as pathify,
 	sanitize,
-} from "../utils.js";
+} from "../utils/index.js";
 import { Cell, cell } from "./cells.js";
 import { routed } from "./routing.js";
 

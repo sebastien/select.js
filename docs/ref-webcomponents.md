@@ -11,7 +11,7 @@ This guide describes how to register, configure, and use web components with Sel
 The main entry point is the `webcomponent()` factory function. It defines and registers a custom element with the browser's `customElements` registry.
 
 ```javascript
-import { webcomponent } from "./ui.js"
+import { webcomponent } from "./ui"
 
 webcomponent(name, componentFactory, initial?, options?)
 ```
@@ -38,7 +38,7 @@ By default, web components created with Select use Shadow DOM.
 You can configure the global defaults for all registered web components via **`webcomponent.options`**:
 
 ```javascript
-import { webcomponent } from "./ui.js"
+import { webcomponent } from "./ui"
 
 // Disable Shadow DOM globally (components will mount to Light DOM by default)
 webcomponent.options.shadow = false
@@ -141,7 +141,7 @@ To project all children of your web component into a specific location, simply u
 
 #### 1. Define the Template
 ```javascript
-import ui, { webcomponent } from "./ui.js"
+import ui, { webcomponent } from "./ui"
 
 const Panel = ui(`
   <div class="panel">
@@ -179,7 +179,7 @@ To project specific children into designated areas, use named slots (`<slot name
 
 #### 1. Define the Template
 ```javascript
-import ui, { webcomponent } from "./ui.js"
+import ui, { webcomponent } from "./ui"
 
 const Card = ui(`
   <article class="card">

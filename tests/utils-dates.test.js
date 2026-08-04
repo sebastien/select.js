@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import path from "node:path"
 import { Window } from "happy-dom"
 import { dates } from "../src/js/select/utils/dates.js"
-import * as utils from "../src/js/select/utils.js"
+import * as utils from "../src/js/select/utils/index.js"
 
 const {
 	add,

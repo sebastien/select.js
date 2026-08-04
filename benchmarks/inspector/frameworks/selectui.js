@@ -1,5 +1,5 @@
 import cell from "../../../src/js/select/state/cells.js"
-import { remap, ui } from "../../../src/js/select/ui.js"
+import { remap, ui } from "../../../src/js/select/ui/index.js"
 
 const getType = (value) =>
 	value === undefined || value === null

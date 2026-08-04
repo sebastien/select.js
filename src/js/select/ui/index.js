@@ -13,9 +13,9 @@
 //
 // ----------------------------------------------------------------------------
 
-import { FORMATS, format } from "./features/formats.js";
-import { len, type } from "./utils.js";
-import { remap } from "./utils/transform.js";
+import { FORMATS, format } from "../features/formats.js";
+import { len, type } from "../utils/index.js";
+import { remap } from "../utils/transform.js";
 import {
 	AppliedUITemplate,
 	COMPONENTS,
@@ -33,14 +33,14 @@ import {
 	UISlot,
 	UITemplate,
 	UITemplateSlot,
-} from "./ui/components.js";
-import { ui } from "./ui/factory.js";
+} from "./components.js";
+import { ui } from "./factory.js";
 import {
 	Adopted,
 	Disconnect,
 	UIWebComponent,
 	webcomponent,
-} from "./ui/webcomponents.js";
+} from "./webcomponents.js";
 
 // Function: remap
 // Maps `f` over collection entries while preserving the input container shape.

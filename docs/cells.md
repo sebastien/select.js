@@ -2,7 +2,7 @@
 
 ## Fine-grained reactive values and derivations
 
-Select Cells provides minimal reactive primitives used by `select/ui.js` and
+Select Cells provides minimal reactive primitives used by `select/ui` and
 usable on their own. It focuses on explicit updates, path-based selection,
 and lightweight pub/sub.
 

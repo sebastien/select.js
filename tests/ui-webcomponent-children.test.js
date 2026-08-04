@@ -52,7 +52,7 @@ describe("ui webcomponent projected children", () => {
 	test("assigns host children to the native default slot without adopting them", async () => {
 		const window = new Window({ url: "http://localhost:8000/webcomponent" });
 		setupGlobals(window);
-		const { ui, webcomponent } = await import("../src/js/select/ui.js");
+		const { ui, webcomponent } = await import("../src/js/select/ui/index.js");
 
 		const ProjectChildren = ui(`
 			<div class="shell">
@@ -95,7 +95,7 @@ describe("ui webcomponent projected children", () => {
 	test("assigns named host children to native named slots without data.children", async () => {
 		const window = new Window({ url: "http://localhost:8000/webcomponent" });
 		setupGlobals(window);
-		const { ui, webcomponent } = await import("../src/js/select/ui.js");
+		const { ui, webcomponent } = await import("../src/js/select/ui/index.js");
 
 		const SlotCard = ui(`
 			<article class="card">
@@ -131,7 +131,7 @@ describe("ui webcomponent projected children", () => {
 	test("rebinds wrapped component pub events through ui-parent", async () => {
 		const window = new Window({ url: "http://localhost:8000/webcomponent" });
 		setupGlobals(window);
-		const { ui, webcomponent } = await import("../src/js/select/ui.js");
+		const { ui, webcomponent } = await import("../src/js/select/ui/index.js");
 
 		const Parent = ui(`
 			<section>
@@ -172,7 +172,7 @@ describe("ui webcomponent projected children", () => {
 	test("implicitly binds kebab-case custom elements to their parent instance", async () => {
 		const window = new Window({ url: "http://localhost:8000/webcomponent" });
 		setupGlobals(window);
-		const { ui, webcomponent } = await import("../src/js/select/ui.js");
+		const { ui, webcomponent } = await import("../src/js/select/ui/index.js");
 
 		const Child = ui(`
 			<button on:click="click" out="count"></button>
@@ -214,7 +214,7 @@ describe("ui webcomponent projected children", () => {
 		const window = new Window({ url: "http://localhost:8000/webcomponent" });
 		setupGlobals(window);
 		const { cell } = await import("../src/js/select/state/cells.js");
-		const { ui, webcomponent } = await import("../src/js/select/ui.js");
+		const { ui, webcomponent } = await import("../src/js/select/ui/index.js");
 
 		const Child = ui(`<input inout:value="text" />`).init(() => ({
 			text: cell("Initial"),
@@ -259,7 +259,7 @@ describe("ui webcomponent projected children", () => {
 	test("syncs document styles added after connect into shadow roots", async () => {
 		const window = new Window({ url: "http://localhost:8000/webcomponent" });
 		setupGlobals(window);
-		const { ui, webcomponent } = await import("../src/js/select/ui.js");
+		const { ui, webcomponent } = await import("../src/js/select/ui/index.js");
 
 		const Styled = ui(`<div class="token">Styled</div>`);
 		const name = `x-style-sync-${Date.now()}`;
@@ -320,7 +320,7 @@ describe("ui webcomponent projected children", () => {
 	test("syncs one document style mutation across multiple shadow roots", async () => {
 		const window = new Window({ url: "http://localhost:8000/webcomponent" });
 		setupGlobals(window);
-		const { ui, webcomponent } = await import("../src/js/select/ui.js");
+		const { ui, webcomponent } = await import("../src/js/select/ui/index.js");
 		const hasAdoptedRule = (root, text) =>
 			Array.from(root.adoptedStyleSheets || []).some((sheet) =>
 				Array.from(sheet.cssRules || []).some((rule) => rule.cssText.includes(text)),

@@ -33,7 +33,7 @@ describe("ui registry and lazy", () => {
 	test("ui.register mirrors components into FORMATS for processors", async () => {
 		activeWindow = new Window()
 		setupGlobals(activeWindow)
-		const { Dynamic, FORMATS, ui } = await import("../src/js/select/ui.js")
+		const { Dynamic, FORMATS, ui } = await import("../src/js/select/ui/index.js")
 
 		const Badge = ui(`<span out="label"></span>`).does({
 			label: (_self, { label }) => label ?? "Badge",
@@ -53,7 +53,7 @@ describe("ui registry and lazy", () => {
 	test("FORMATS components resolve via Dynamic without ui.register", async () => {
 		activeWindow = new Window()
 		setupGlobals(activeWindow)
-		const { Dynamic, ui } = await import("../src/js/select/ui.js")
+		const { Dynamic, ui } = await import("../src/js/select/ui/index.js")
 
 		// ui() with a named template registers into FORMATS; Dynamic should see it.
 		document.body.innerHTML = `<template id="DynChip"><b out="label"></b></template>`
@@ -69,7 +69,7 @@ describe("ui registry and lazy", () => {
 	test("lazy re-renders parent when loader resolves", async () => {
 		activeWindow = new Window()
 		setupGlobals(activeWindow)
-		const { lazy, ui } = await import("../src/js/select/ui.js")
+		const { lazy, ui } = await import("../src/js/select/ui/index.js")
 
 		let resolveLoader
 		const loader = () =>

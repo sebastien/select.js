@@ -13,7 +13,7 @@ state and rendering.
 ## Quick Start
 
 ```javascript
-import ui from "./ui.js";
+import ui from "./ui";
 
 // Create a component from HTML
 const Hello = ui(`<div out="message">Loading...</div>`).does({
@@ -110,7 +110,7 @@ Counter.new().set({ n: 0 }).mount("#app");
 
 ```javascript
 import cell from "./cells.js";
-import ui from "./ui.js";
+import ui from "./ui";
 
 const state = cell.store({ n: 0, items: [] });
 
@@ -330,7 +330,7 @@ const Pill = Badge.using("./feature-template-load.fragment.tpl#BadgePill")
 Module-local load + bare name example:
 
 ```javascript
-import { ui } from "../../js/select/ui.js"
+import { ui } from "../../js/select/ui"
 
 await ui.load(import.meta.url.replace(".js", ".html"))
 
@@ -345,7 +345,7 @@ export default Larry
 Select UI can register native custom elements through `webcomponent(...)`.
 
 ```javascript
-import ui, { webcomponent } from "./ui.js";
+import ui, { webcomponent } from "./ui";
 
 const Counter = ui(`
   <section>
@@ -403,7 +403,7 @@ parent instance id explicitly:
 `webcomponent` also accepts pure render functions:
 
 ```javascript
-import { webcomponent } from "./ui.js";
+import { webcomponent } from "./ui";
 
 const Badge = ({ label, tone }) => {
   const node = document.createElement("span");
@@ -1121,7 +1121,7 @@ const List = ui(`<ul out="items"></ul>`)
 Returns the type of a value as a constant.
 
 ```javascript
-import { type } from "./ui.js";
+import { type } from "./ui";
 
 type(null); // type.Null
 type(42); // type.Number
@@ -1147,7 +1147,7 @@ Type constants:
 Returns the length/size of a value.
 
 ```javascript
-import { len } from "./ui.js";
+import { len } from "./ui";
 
 len(null); // 0
 len([1, 2, 3]); // 3
@@ -1162,7 +1162,7 @@ len(new Set([1, 2])); // 2
 Maps over arrays, objects, Maps, or Sets uniformly.
 
 ```javascript
-import { remap } from "./ui.js";
+import { remap } from "./ui";
 
 remap([1, 2, 3], (v) => v * 2); // [2, 4, 6]
 remap({ a: 1, b: 2 }, (v, k) => v * 2); // { a: 2, b: 4 }

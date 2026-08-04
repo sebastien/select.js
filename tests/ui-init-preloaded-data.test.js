@@ -44,7 +44,7 @@ describe("ui init preloaded data", () => {
 	test("passes options.data to init(self, data) before the first set", async () => {
 		const window = new Window({ url: "http://localhost:8000/init-preload" })
 		setupGlobals(window)
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 
 		let sawSelfData = false
 		let seenData = undefined
@@ -73,7 +73,7 @@ describe("ui init preloaded data", () => {
 	test("passes host attributes to init(self, data) for wrapped web components", async () => {
 		const window = new Window({ url: "http://localhost:8000/init-webcomponent" })
 		setupGlobals(window)
-		const { ui, webcomponent } = await import("../src/js/select/ui.js")
+		const { ui, webcomponent } = await import("../src/js/select/ui/index.js")
 
 		let seenData = undefined
 		const Component = ui(`<div out="label"></div>`)

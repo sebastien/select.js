@@ -1,11 +1,11 @@
 ---
 name: select-ui
-description: Use when building or modifying UI with select/ui.js, including template bindings, component behavior, cells-based reactive state, derived/deferred state, and browser-backed state from select/state/browser.js.
+description: Use when building or modifying UI with select/ui, including template bindings, component behavior, cells-based reactive state, derived/deferred state, and browser-backed state from select/state/browser.js.
 ---
 
 # Select UI
 
-Use this skill when the task touches `select/ui.js`,
+Use this skill when the task touches `select/ui`,
 `select/state/cells.js`, or `select/state/browser.js`.
 
 Prefer working from existing patterns in the repo before introducing new ones.
@@ -24,7 +24,7 @@ Use this skill for:
 ## Workflow
 
 1. Inspect the existing template and behavior shape first.
-2. Keep rendering in `select/ui.js` templates and behavior maps.
+2. Keep rendering in `select/ui` templates and behavior maps.
 3. Keep mutable state in `cell(...)` when the UI must react to it.
 4. Use `derived(...)` for computed state instead of hand-synchronizing values.
 5. Use `browser()` only for browser resources: `path`, `query`, `hash`, and
@@ -39,7 +39,7 @@ Use this skill for:
 Prefer this shape:
 
 ```javascript
-import ui from "@select/ui.js"
+import ui from "@select/ui"
 
 const Counter = ui("#Counter")
 	.init(() => ({ count: 0 }))
@@ -81,7 +81,7 @@ instead of mutating DOM manually when a binding can express the same thing.
 Use cells for reactive state inside `.init(...)` or shared module state.
 
 ```javascript
-import ui from "@select/ui.js"
+import ui from "@select/ui"
 import { cell, derived } from "@select/state/cells.js"
 
 const Counter = ui("#Counter").init(() => {
@@ -113,7 +113,7 @@ Notes:
 Use `browser()` for browser-backed reactive state:
 
 ```javascript
-import ui from "@select/ui.js"
+import ui from "@select/ui"
 import { browser } from "@select/state/browser.js"
 
 const state = browser()
@@ -155,7 +155,7 @@ wrapped custom element is mounted outside a Select template tree, set
 `ui-parent` manually to the parent instance id.
 
 ```javascript
-import ui, { webcomponent } from "@select/ui.js"
+import ui, { webcomponent } from "@select/ui"
 
 const Badge = ui(`<span out="label"></span>`).does({
 	label: (_self, { label }) => label ?? "Badge",

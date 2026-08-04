@@ -50,7 +50,7 @@ describe("ui out- prefix attribute bindings", () => {
 	test("out-xlink:href binds attribute with colon in name", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -71,7 +71,7 @@ describe("ui out- prefix attribute bindings", () => {
 	test("bare out- attributes bind as same-name keys", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -92,7 +92,7 @@ describe("ui out- prefix attribute bindings", () => {
 	test("out- prefixed attributes support processors", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui, format } = await import("../src/js/select/ui.js");
+		const { ui, format } = await import("../src/js/select/ui/index.js");
 
 		format("Uppercase", (v) => `${v}`.toUpperCase());
 
@@ -115,7 +115,7 @@ describe("ui out- prefix attribute bindings", () => {
 	test("out- prefix does not interfere with out: prefix", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>

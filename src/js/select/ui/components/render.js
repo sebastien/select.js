@@ -6,7 +6,7 @@
 // Module: select/ui/components/render
 // Data set/update and render pipeline for UIInstance.
 
-import { asText, eq } from "../../utils.js"
+import { asText, eq } from "../../utils/index.js"
 import { log, TemplateParser } from "../templates.js"
 import {
 	applyNamedProcessors,

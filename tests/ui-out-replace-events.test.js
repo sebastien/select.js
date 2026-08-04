@@ -50,7 +50,7 @@ describe("ui out-replace event binding", () => {
 	test("keeps click handlers on static siblings after out-replace", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>

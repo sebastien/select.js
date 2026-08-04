@@ -48,10 +48,10 @@ import { walk, expand, cell, derived } from "./select/state/cells.js"
 
 // Good - Default imports with aliases
 import S from "../js/select.js"
-import ui from "@./ui.js"
+import ui from "@./ui"
 
 // Good - Multiple exports
-import { ui, remap } from "@./select/ui.js"
+import { ui, remap } from "@./select/ui"
 
 // HTML import map setup
 <script type="importmap">

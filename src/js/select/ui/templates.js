@@ -14,7 +14,7 @@
 // ----------------------------------------------------------------------------
 
 import { parseHashValue } from "../utils/hashfmt.js";
-import { logger, type } from "../utils.js";
+import { logger, type } from "../utils/index.js";
 import { isInputNode } from "../utils/dom.js";
 
 const HTML = new DOMParser();

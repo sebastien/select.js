@@ -56,7 +56,7 @@ describe("ui detached mapped values", () => {
 	test("remounts scalar content when its mapped node has been detached", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -87,7 +87,7 @@ describe("ui detached mapped values", () => {
 	test("replaces detached list items in place instead of appending", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>

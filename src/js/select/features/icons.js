@@ -7,7 +7,7 @@
 // Module: select/features/icons
 // SVG icon registry and loader utilities.
 // SEE: https://observablehq.com/@sebastien/icons
-import { logger } from "../utils.js";
+import { logger } from "../utils/index.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 const log = logger("select.icons");

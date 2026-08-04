@@ -35,7 +35,7 @@ describe("ui event forwarding", () => {
 	test("keeps the originating DOM event on forwarded synthetic events", async () => {
 		const window = new Window({ url: "http://localhost:8000/event-forwarding" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -72,7 +72,7 @@ describe("ui event forwarding", () => {
 	test("does not treat synthetic events or instances as state patches", async () => {
 		const window = new Window({ url: "http://localhost:8000/event-return" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `<div id="app"></div>`;
 		const Component = ui(`<button on:click="publish">Publish</button>`).does({
@@ -95,7 +95,7 @@ describe("ui event forwarding", () => {
 	test("applies a plain-object patch resolved by an event promise", async () => {
 		const window = new Window({ url: "http://localhost:8000/event-promise" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `<div id="app"></div>`;
 		const Component = ui(`<button on:click="load" out="label"></button>`).does({

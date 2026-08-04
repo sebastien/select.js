@@ -38,7 +38,7 @@ describe("ui reactive path updates", () => {
 		if (window.DOMParser) globalThis.DOMParser = window.DOMParser
 
 		const { cell } = await import("../src/js/select/state/cells.js")
-		const { ui, remap } = await import("../src/js/select/ui.js")
+		const { ui, remap } = await import("../src/js/select/ui/index.js")
 
 		document.body.innerHTML = `<div id="app"></div>`
 
@@ -143,7 +143,7 @@ describe("ui reactive path updates", () => {
 		if (window.DOMParser) globalThis.DOMParser = window.DOMParser
 
 		const { cell } = await import("../src/js/select/state/cells.js")
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 
 		document.body.innerHTML = `<div id="app"></div>`
 
@@ -175,7 +175,7 @@ describe("ui reactive path updates", () => {
 		if (window.DOMParser) globalThis.DOMParser = window.DOMParser
 
 		const { cell } = await import("../src/js/select/state/cells.js")
-		const { ui, remap } = await import("../src/js/select/ui.js")
+		const { ui, remap } = await import("../src/js/select/ui/index.js")
 
 		document.body.innerHTML = `<div id="app"></div>`
 
@@ -228,7 +228,7 @@ describe("ui reactive path updates", () => {
 		setupGlobals(window)
 		if (window.DOMParser) globalThis.DOMParser = window.DOMParser
 
-		const { ui, remap } = await import("../src/js/select/ui.js")
+		const { ui, remap } = await import("../src/js/select/ui/index.js")
 
 		document.body.innerHTML = `<div id="app"></div>`
 
@@ -281,7 +281,7 @@ describe("ui reactive path updates", () => {
 		if (window.DOMParser) globalThis.DOMParser = window.DOMParser
 
 		const { cell } = await import("../src/js/select/state/cells.js")
-		const { ui, remap } = await import("../src/js/select/ui.js")
+		const { ui, remap } = await import("../src/js/select/ui/index.js")
 
 		document.body.innerHTML = `<div id="app"></div>`
 
@@ -319,7 +319,7 @@ describe("ui reactive path updates", () => {
 		if (window.DOMParser) globalThis.DOMParser = window.DOMParser
 
 		const { cell } = await import("../src/js/select/state/cells.js")
-		const { ui, remap } = await import("../src/js/select/ui.js")
+		const { ui, remap } = await import("../src/js/select/ui/index.js")
 
 		document.body.innerHTML = `<div id="app"></div>`
 

@@ -120,7 +120,7 @@
 
 	<script type="module">
 		import {cell, derived} from "@./state/cells.js"
-		import ui from "@./ui.js"
+		import ui from "@./ui/index.js"
 
 		const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 		const renderStateClass = (derivedCell) => ({status: true, ready: !derivedCell.isPending})

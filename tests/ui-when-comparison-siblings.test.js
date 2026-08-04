@@ -48,7 +48,7 @@ function setupGlobals(window) {
 	test("supports numeric index segments in when comparisons", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" })
 		setupGlobals(window)
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -83,7 +83,7 @@ function setupGlobals(window) {
 	test("clears processed output in the active sibling branch", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" })
 		setupGlobals(window)
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 
 		const instance = ui(`
 			<div>
@@ -108,7 +108,7 @@ function setupGlobals(window) {
 	test("keeps numeric roots invalid in when comparisons", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" })
 		setupGlobals(window)
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -131,7 +131,7 @@ function setupGlobals(window) {
 	test("keeps sibling branches exclusive for true, false and string true", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" })
 		setupGlobals(window)
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -167,7 +167,7 @@ function setupGlobals(window) {
 	test("keeps sibling custom-element branches exclusive", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" })
 		setupGlobals(window)
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 
 		if (!customElements.get("x-probe")) {
 			customElements.define(
@@ -214,7 +214,7 @@ function setupGlobals(window) {
 			new Response(
 				'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle></svg>',
 			)
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 		const { install } = await import("../src/js/select/features/icons.js")
 
 		install()
@@ -254,7 +254,7 @@ function setupGlobals(window) {
 			new Response(
 				'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle></svg>',
 			)
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 		const { install } = await import("../src/js/select/features/icons.js")
 
 		install()
@@ -300,7 +300,7 @@ function setupGlobals(window) {
 	test("keeps direct-root conditional nodes synchronized before mounting", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" })
 		setupGlobals(window)
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 		const instance = ui(`
 			<span class="yes" when="value==true">yes</span>
 			<span class="no" when="value!=true">no</span>

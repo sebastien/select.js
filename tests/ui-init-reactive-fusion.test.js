@@ -45,7 +45,7 @@ describe("ui init reactive fusion", () => {
 		const window = new Window({ url: "http://localhost:8000/fusion" })
 		setupGlobals(window)
 		const { cell, derived } = await import("../src/js/select/index.js")
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 
 		const upstream = cell([{ id: "alpha" }])
 		const Component = ui(`<div out="summary"></div>`)
@@ -84,7 +84,7 @@ describe("ui init reactive fusion", () => {
 		const window = new Window({ url: "http://localhost:8000/fusion" })
 		setupGlobals(window)
 		const { cell, derived } = await import("../src/js/select/index.js")
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 
 		const upstreamA = cell([{ id: "a" }])
 		const upstreamB = cell([{ id: "b" }])
@@ -124,7 +124,7 @@ describe("ui init reactive fusion", () => {
 		const window = new Window({ url: "http://localhost:8000/fusion" })
 		setupGlobals(window)
 		const { cell, derived } = await import("../src/js/select/index.js")
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 
 		const upstream = cell([{ id: "alpha" }])
 		const Component = ui(`<div out="summary"></div>`)
@@ -163,7 +163,7 @@ describe("ui init reactive fusion", () => {
 		const window = new Window({ url: "http://localhost:8000/fusion" })
 		setupGlobals(window)
 		const { cell, derived } = await import("../src/js/select/index.js")
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 
 		const upstream = cell(true)
 		const Component = ui(`<div out="status"></div>`)
@@ -193,7 +193,7 @@ describe("ui init reactive fusion", () => {
 		const window = new Window({ url: "http://localhost:8000/fusion" })
 		setupGlobals(window)
 		const { cell, derived } = await import("../src/js/select/index.js")
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 		const Component = ui(`<input inout:value="value">`).init(() => {
 			const source = cell(false)
 			return { value: derived(source, (value) => value) }
@@ -221,7 +221,7 @@ describe("ui init reactive fusion", () => {
 		const window = new Window({ url: "http://localhost:8000/derived-render" })
 		setupGlobals(window)
 		const { cell, derived } = await import("../src/js/select/index.js")
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 
 		let resolve
 		const pending = new Promise((next) => {

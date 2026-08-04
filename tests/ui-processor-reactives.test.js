@@ -68,7 +68,7 @@ describe("ui processor reactive handling", () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
 		const { cell } = await import("../src/js/select/index.js");
-		const { ui, format } = await import("../src/js/select/ui.js");
+		const { ui, format } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -98,7 +98,7 @@ describe("ui processor reactive handling", () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
 		const { cell } = await import("../src/js/select/index.js");
-		const { ui, format } = await import("../src/js/select/ui.js");
+		const { ui, format } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -128,7 +128,7 @@ describe("ui processor reactive handling", () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
 		const { cell } = await import("../src/js/select/index.js");
-		const { ui, format } = await import("../src/js/select/ui.js");
+		const { ui, format } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -161,7 +161,7 @@ describe("ui processor reactive handling", () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
 		const { cell } = await import("../src/js/select/index.js");
-		const { ui, format } = await import("../src/js/select/ui.js");
+		const { ui, format } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -195,7 +195,7 @@ describe("ui processor reactive handling", () => {
 	test("keeps starred pipelines item-wise through later processors", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui, format } = await import("../src/js/select/ui.js");
+		const { ui, format } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -241,7 +241,7 @@ describe("ui processor reactive handling", () => {
 	test("reapplies starred component processors for cached behavior values", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui, format } = await import("../src/js/select/ui.js");
+		const { ui, format } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -287,7 +287,7 @@ describe("ui processor reactive handling", () => {
 	test("supports dotted processor names in out bindings", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui, format } = await import("../src/js/select/ui.js");
+		const { ui, format } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -314,7 +314,7 @@ describe("ui processor reactive handling", () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
 		const { cell } = await import("../src/js/select/index.js");
-		const { ui, format } = await import("../src/js/select/ui.js");
+		const { ui, format } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -348,7 +348,7 @@ describe("ui processor reactive handling", () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
 		const { cell } = await import("../src/js/select/index.js");
-		const { ui, format } = await import("../src/js/select/ui.js");
+		const { ui, format } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -381,7 +381,7 @@ describe("ui processor reactive handling", () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
 		const { cell } = await import("../src/js/select/index.js");
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -417,7 +417,7 @@ describe("ui processor reactive handling", () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
 		const { cell } = await import("../src/js/select/index.js");
-		const { ui, format } = await import("../src/js/select/ui.js");
+		const { ui, format } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -460,7 +460,7 @@ describe("ui processor reactive handling", () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
 		const { cell } = await import("../src/js/select/index.js");
-		const { ui, format } = await import("../src/js/select/ui.js");
+		const { ui, format } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -494,7 +494,7 @@ describe("ui processor reactive handling", () => {
 	test("preserves non-reactive values unchanged for component processors", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui, format } = await import("../src/js/select/ui.js");
+		const { ui, format } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -529,7 +529,7 @@ describe("ui processor reactive handling", () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
 		const { cell } = await import("../src/js/select/index.js");
-		const { ui, format } = await import("../src/js/select/ui.js");
+		const { ui, format } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -562,7 +562,7 @@ describe("ui processor reactive handling", () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
 		const { cell } = await import("../src/js/select/index.js");
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `<div id="app"></div>`;
 
@@ -623,7 +623,7 @@ describe("ui processor reactive handling", () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
 		const { cell } = await import("../src/js/select/index.js");
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `<div id="app"></div>`;
 
@@ -672,7 +672,7 @@ describe("ui processor reactive handling", () => {
 	test("Component.map rerenders reused keyed wrappers after item updates", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `<div id="app"></div>`;
 
@@ -703,7 +703,7 @@ describe("ui processor reactive handling", () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
 		const { cell } = await import("../src/js/select/index.js");
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `<div id="app"></div>`;
 
@@ -788,7 +788,7 @@ describe("ui processor reactive handling", () => {
 	test("mapped conditional children render their labels on mount", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `<div id="app"></div>`;
 
@@ -811,7 +811,7 @@ describe("ui processor reactive handling", () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
 		const { cell } = await import("../src/js/select/index.js");
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `<div id="app"></div>`;
 
@@ -875,7 +875,7 @@ describe("ui processor reactive handling", () => {
 	test("list updates rerender new wrappers with shared mutated data", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `<div id="app"></div>`;
 
@@ -905,7 +905,7 @@ describe("ui processor reactive handling", () => {
 	test("positional list middle remove keeps remaining row instances and content", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui, remap } = await import("../src/js/select/ui.js");
+		const { ui, remap } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `<div id="app"></div>`;
 
@@ -976,7 +976,7 @@ describe("ui processor reactive handling", () => {
 	test("positional list append mounts only the new row", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui, remap } = await import("../src/js/select/ui.js");
+		const { ui, remap } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `<div id="app"></div>`;
 

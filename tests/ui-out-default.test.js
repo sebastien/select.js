@@ -47,7 +47,7 @@ describe("[default] out=cell?defaultValue", () => {
 	test("default value when cell is undefined", async () => {
 		_window = new Window({ url: "http://localhost:8000/test" })
 		setupGlobals(_window)
-		const { default: ui } = await import("../src/js/select/ui.js")
+		const { default: ui } = await import("../src/js/select/ui/index.js")
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -69,7 +69,7 @@ describe("[default] out=cell?defaultValue", () => {
 	test("default value not applied when cell has a value", async () => {
 		_window = new Window({ url: "http://localhost:8000/test" })
 		setupGlobals(_window)
-		const { default: ui } = await import("../src/js/select/ui.js")
+		const { default: ui } = await import("../src/js/select/ui/index.js")
 
 		document.body.innerHTML = `
 			<div id="app"></div>

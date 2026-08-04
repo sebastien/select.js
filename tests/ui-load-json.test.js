@@ -50,7 +50,7 @@ describe("ui.load json", () => {
 		const window = new Window({ url: "http://localhost:8000/ui-load-json" })
 		setupGlobals(window)
 		const { default: ui } = await import(
-			`../src/js/select/ui.js?ui-load-json=${Date.now()}`
+			`../src/js/select/ui/index.js?ui-load-json=${Date.now()}`
 		)
 		const originalFetch = globalThis.fetch
 		let count = 0
@@ -80,7 +80,7 @@ describe("ui.load json", () => {
 		const window = new Window({ url: "http://localhost:8000/ui-load-json-ext" })
 		setupGlobals(window)
 		const { default: ui } = await import(
-			`../src/js/select/ui.js?ui-load-json-ext=${Date.now()}`
+			`../src/js/select/ui/index.js?ui-load-json-ext=${Date.now()}`
 		)
 		const originalFetch = globalThis.fetch
 		globalThis.fetch = async (input) => {

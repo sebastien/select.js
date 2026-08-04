@@ -6,8 +6,8 @@
 // Module: select/state
 // Public entry point for reactive, browser-backed, and routing state.
 
-export * from "./state/browser.js";
-export * from "./state/cells.js";
-export * from "./state/routing.js";
+export * from "./browser.js";
+export * from "./cells.js";
+export * from "./routing.js";
 
 // EOF

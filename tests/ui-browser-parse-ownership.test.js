@@ -44,7 +44,7 @@ describe("ui browser.parse ownership", () => {
 	test("releases initializer-owned parsed selections on unmount", async () => {
 		const window = new Window({ url: "http://localhost:8000/ownership" })
 		setupGlobals(window)
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 		const { Browser } = await import("../src/js/select/state/browser.js")
 		const instanceBrowser = new Browser()
 		const Component = ui("<div></div>").init(() => ({
@@ -66,7 +66,7 @@ describe("ui browser.parse ownership", () => {
 	test("releases attribute-processor parsed selections on disconnect", async () => {
 		const window = new Window({ url: "http://localhost:8000/webcomponent" })
 		setupGlobals(window)
-		const { ui, webcomponent } = await import("../src/js/select/ui.js")
+		const { ui, webcomponent } = await import("../src/js/select/ui/index.js")
 		const { Browser } = await import("../src/js/select/state/browser.js")
 		const instanceBrowser = new Browser()
 		const Component = ui("<div></div>")

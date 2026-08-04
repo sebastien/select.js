@@ -50,7 +50,7 @@ describe("ui when + out attribute regression", () => {
 	test("logical and shorthand supports falsy and truthy clauses", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -79,7 +79,7 @@ describe("ui when + out attribute regression", () => {
 	test("logical and shorthand supports mixed clause types", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -108,7 +108,7 @@ describe("ui when + out attribute regression", () => {
 	test("baseline conditional item renders only the checked disc", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -142,7 +142,7 @@ describe("ui when + out attribute regression", () => {
 	test("workaround with out::data-checked keeps the same shape", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -176,7 +176,7 @@ describe("ui when + out attribute regression", () => {
 	test("bare out attributes infer same-name when keys", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -208,7 +208,7 @@ describe("ui when + out attribute regression", () => {
 	test("when suffix question mark matches defined values only", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>

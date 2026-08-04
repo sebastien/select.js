@@ -15,7 +15,7 @@ $$\   $$ |$$   ____|$$ |$$   ____|$$ |        $$ |$$\     $$ | \____$$\
 
 *Select.js* is a lightweight toolkit for modern browser interfaces in
 JavaScript. It started as a small DOM/SVG selection library (`select/features/query.js`)
-and now also includes template-driven UI (`select/ui.js`), fine-grained reactive
+and now also includes template-driven UI (`select/ui`), fine-grained reactive
 state (`select/state/cells.js`), browser-backed state (`select/state/browser.js`), routing
 (`select/state/routing.js`), icons (`select/features/icons.js`), interaction helpers, and a
 general utility bundle.
@@ -25,13 +25,13 @@ modules for projects that prefer a single import surface. Focused domains are
 also available through `select/core`, `select/state`, `select/ui`,
 `select/features`, and `select/utils`.
 
-While `select/features/query.js` is fast, the `select/ui.js` library is not the fastest,
+While `select/features/query.js` is fast, the `select/ui` library is not the fastest,
 but it is light enough for embedded UIs, plugins, and small tools. In the JSON
 inspector benchmark, it is competitive with SolidJS (`npm run bench:inspector`).
 
 In that sense, Select is designed to fill the niche for little tools that
 can be composed and embedded. If you want to do a larger scale application,
-have a look at [ui.js](https://github.com/sebastien/ui.js) which offers
+have a look at [ui.js](https://github.com/sebastien/ui) which offers
 high-performance and advanced features for complete web applications.
 
 You can learn more about each component:
@@ -63,7 +63,7 @@ You can learn more about each component:
 <script type="module">
 import $ from "@./features/query.js"
 import cell from "@./state/cells.js"
-import ui from "@./ui.js"
+import ui from "@./ui"
 
 const Counter = ui(`
   <div>
@@ -98,7 +98,7 @@ $("#app").addClass("ready")
 <script type="module">
 import $ from "@select/features/query.js"
 import cell from "@select/state/cells.js"
-import ui from "@select/ui.js"
+import ui from "@select/ui"
 </script>
 ```
 
@@ -116,18 +116,18 @@ import ui from "@select/ui.js"
 - `lazy(loader, placeholder?)`: lazy component loader.
 - `router()`, `routed()`, `route(pattern)`, `RoutePattern`: routing helpers from `select/state/routing.js`.
 - `icon(name, options?)`, `install(...)`, `load(...)`: icon registry helpers from `select/features/icons.js`.
-- `len`, `type`, `remap`: shared utility helpers from `select/ui.js`.
-- `clsx`, `shortword`, `sorted`, `unique`: shared helpers from `select/utils.js` and `select/utils/*.js`.
+- `len`, `type`, `remap`: shared utility helpers from `select/ui`.
+- `clsx`, `shortword`, `sorted`, `unique`: shared helpers from `select/utils` and `select/utils/*.js`.
 - `bind`, `drag`, `draggable`, `sort`, `autoresize`, `Keyboard`: interaction helpers from `select/features/interaction/index.js`. `draggable(event, options?)` uses `[data-draggable]` sources and `[data-drop-target]` targets, appending a clone by default; `data-drop-accept` and `accept(...)` control acceptance, while `preview(...)` and `drop(...)` customize the two effect stages. `sort(event, options?)` provides list placement and moves the original item by default.
 - `fastdom`: batched DOM read/write helper.
 
 ### Modules
 
 - [`docs/select.md`](docs/select.md): `select.js` complete reference (original README split).
-- [`docs/ui.md`](docs/ui.md): `select/ui.js` usage and API guide.
+- [`docs/ui.md`](docs/ui.md): `select/ui` usage and API guide.
 - [`docs/cells.md`](docs/cells.md): `select/state/cells.js` usage and API guide.
 - [`docs/browser.md`](docs/browser.md): `select/state/browser.js` usage and API guide.
-- [`docs/utils.md`](docs/utils.md): `select/utils.js` and the helper submodules usage and API guide.
+- [`docs/utils.md`](docs/utils.md): `select/utils` and the helper submodules usage and API guide.
 - [`docs/icons.md`](docs/icons.md): `select/features/icons.js` CDN icon loading and catalog usage.
 - Routing helpers are covered by [`docs/utils.md`](docs/utils.md) and [`examples/feature-routing.html`](examples/feature-routing.html).
 

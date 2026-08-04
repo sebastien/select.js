@@ -14,10 +14,10 @@ import workflow from "./features/workflows.js";
 import browser from "./state/browser.js";
 import cells from "./state/cells.js";
 import * as routing from "./state/routing.js";
-import ui from "./ui.js";
+import ui from "./ui/index.js";
 import * as interaction from "./features/interaction/index.js";
 import { dates } from "./utils/dates.js";
-import * as utils from "./utils.js";
+import * as utils from "./utils/index.js";
 
 export * from "./ui/fastdom.js";
 export { debug, FORMATS, format } from "./features/formats.js";
@@ -27,10 +27,10 @@ export * from "./state/browser.js";
 export * from "./state/cells.js";
 export { expand } from "./state/cells.js";
 export * from "./state/routing.js";
-export * from "./ui.js";
-export { remap } from "./ui.js";
+export * from "./ui/index.js";
+export { remap } from "./ui/index.js";
 export * from "./features/interaction/index.js";
-export * from "./utils.js";
+export * from "./utils/index.js";
 
 export {
 	$,

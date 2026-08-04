@@ -1,14 +1,14 @@
 # Select Utils/Interaction/Routing Reference Guide
 
-Utility helpers are split across `select/utils.js`, `select/utils/*.js`,
-`select/features/interaction/index.js`, and `select/state/routing.js`. `select/utils.js` is the
+Utility helpers are split across `select/utils`, `select/utils/*.js`,
+`select/features/interaction/index.js`, and `select/state/routing.js`. `select/utils` is the
 compatibility barrel that re-exports the split utility modules. Search helpers
 live in `select/utils/search.js` as a direct import.
 
 ## Quick Start
 
 ```javascript
-import { add, clsx, next, toggle } from "@select/utils.js"
+import { add, clsx, next, toggle } from "@select/utils"
 import { Keyboard, bind, drag } from "@select/features/interaction/index.js"
 import { browser } from "@select/state/browser.js"
 
@@ -38,7 +38,7 @@ console.log(selection[next(selection, 0, -1)])
 
 ## Utility Modules
 
-### `select/utils.js`
+### `select/utils`
 
 Compatibility barrel for the split utility modules.
 

@@ -53,7 +53,7 @@ describe("ui template style extraction", () => {
 		const window = new Window({ url: "http://localhost:8000/template-style" });
 		setupGlobals(window);
 		const uiModule = await import(
-			`../src/js/select/ui.js?style-extract-main=${Date.now()}`,
+			`../src/js/select/ui/index.js?style-extract-main=${Date.now()}`,
 		);
 		const ui = uiModule.default;
 
@@ -98,7 +98,7 @@ describe("ui template style extraction", () => {
 		const window = new Window({ url: "http://localhost:8000/template-style-dedup" });
 		setupGlobals(window);
 		const uiModule = await import(
-			`../src/js/select/ui.js?style-extract-dedup=${Date.now()}`,
+			`../src/js/select/ui/index.js?style-extract-dedup=${Date.now()}`,
 		);
 		const ui = uiModule.default;
 
@@ -115,7 +115,7 @@ describe("ui template style extraction", () => {
 		const window = new Window({ url: "http://localhost:8000/template-style-wc" });
 		setupGlobals(window);
 		const { default: ui, webcomponent } = await import(
-			`../src/js/select/ui.js?style-extract-wc=${Date.now()}`,
+			`../src/js/select/ui/index.js?style-extract-wc=${Date.now()}`,
 		);
 
 		const Styled = ui(`

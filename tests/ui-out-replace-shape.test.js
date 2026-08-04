@@ -50,7 +50,7 @@ describe("ui out-replace DOM shape", () => {
 	test("adjacent out-replace siblings preserve the expected direct child shape", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -86,7 +86,7 @@ describe("ui out-replace DOM shape", () => {
 	test("wrapped out siblings preserve the expected direct child shape", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>

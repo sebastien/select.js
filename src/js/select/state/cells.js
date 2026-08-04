@@ -46,7 +46,7 @@ import {
 	Nothing,
 	path as pathify,
 	Something,
-} from "../utils.js";
+} from "../utils/index.js";
 
 const log = logger("select.cells");
 let refreshStamp = 0;

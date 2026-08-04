@@ -55,7 +55,7 @@ describe("ui input normalization", () => {
 	test("normalizes number inputs for inout bindings", async () => {
 		const window = new Window({ url: "http://localhost:8000/input-normalization" })
 		setupGlobals(window)
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 
 		const Component = ui(`<input type="number" inout:value="amount" />`)
 		const instance = Component.new().set({ amount: 12 }).mount(document.body)
@@ -73,7 +73,7 @@ describe("ui input normalization", () => {
 	test("normalizes empty number inputs to null", async () => {
 		const window = new Window({ url: "http://localhost:8000/input-normalization" })
 		setupGlobals(window)
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 		const { cell } = await import("../src/js/select/state/cells.js")
 
 		const amount = cell(9)

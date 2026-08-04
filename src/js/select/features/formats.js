@@ -9,7 +9,7 @@
 
 import { unwrap } from "../state/cells.js";
 import { hi as htmlHi } from "../utils/html.js";
-import { bool, entries, idem, len, type } from "../utils.js";
+import { bool, entries, idem, len, type } from "../utils/index.js";
 import {
 	toCamelCase,
 	toKebabCase,

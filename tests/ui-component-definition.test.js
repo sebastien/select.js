@@ -33,7 +33,7 @@ describe("ui component definitions", () => {
 	test("keeps fluent definition methods before and after binding a template", async () => {
 		activeWindow = new Window()
 		setupGlobals(activeWindow)
-		const { ui } = await import("../src/js/select/ui.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
 		const init = () => ({ label: "Ready" })
 		const behavior = { label: (_self, data) => data.label }
 		const handler = () => undefined

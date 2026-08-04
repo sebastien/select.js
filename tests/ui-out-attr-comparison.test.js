@@ -50,7 +50,7 @@ function setupGlobals(window) {
 	test("supports numeric index segments in comparison bindings", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -81,7 +81,7 @@ function setupGlobals(window) {
 	test("supports radio checked equality bindings", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
@@ -112,7 +112,7 @@ function setupGlobals(window) {
 	test("supports processors on comparison left-hand values", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui, format } = await import("../src/js/select/ui.js");
+		const { ui, format } = await import("../src/js/select/ui/index.js");
 
 		format("toNumber", (value) => Number(value));
 
@@ -137,7 +137,7 @@ function setupGlobals(window) {
 	test("supports non-equality operators in out attributes", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
-		const { ui } = await import("../src/js/select/ui.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
 
 		document.body.innerHTML = `
 			<div id="app"></div>
