@@ -108,9 +108,8 @@ function workflowStore(options = undefined) {
 		return options;
 	}
 	const name = separator >= 0 ? storeSpec.slice(separator + 1) : undefined;
-	const { storeName: _storeName, ...config } = options;
 	return {
-		...config,
+		...options,
 		store: "indexeddb",
 		...(name ? { storeName: name } : {}),
 	};

@@ -3,6 +3,18 @@ import { describe, expect, test } from "bun:test";
 import { Snappable } from "../src/js/select/features/interaction/snappable.js";
 
 describe("snappable", () => {
+	test("constrains an attached component within bounds", () => {
+		const space = new Snappable();
+		space.add("one", { x: 100, y: 20, width: 80, height: 60 }, { sticky: { right: "pair" } });
+		space.add("two", { x: 180, y: 20, width: 80, height: 60 }, { sticky: { left: "pair" } });
+		space.attach("two", "left", "one");
+
+		expect(space.constrain("one", { x: 0, y: 0, width: 200, height: 100 })).toEqual([
+			expect.objectContaining({ id: "one", x: 40, y: 20 }),
+			expect.objectContaining({ id: "two", x: 120, y: 20 }),
+		]);
+	});
+
 	test("snaps matching opposite sticky borders and commits their adhesion", () => {
 		const space = new Snappable({ tolerance: 8, minOverlap: 20 });
 		space.add(
@@ -80,6 +92,36 @@ describe("snappable", () => {
 		]);
 		expect(space.get("one")).toMatchObject({ x: 30, y: 12 });
 		expect(space.get("two")).toMatchObject({ x: 130, y: 12 });
+	});
+
+	test("moves every child attached to the same parent side", () => {
+		const space = new Snappable();
+		space.add(
+			"parent",
+			{ x: 100, y: 0, width: 100, height: 100 },
+			{ sticky: { left: "panel" } },
+		);
+		space.add(
+			"first",
+			{ x: 0, y: 0, width: 100, height: 100 },
+			{ sticky: { right: "panel" } },
+		);
+		space.add(
+			"second",
+			{ x: 0, y: 120, width: 100, height: 100 },
+			{ sticky: { right: "panel" } },
+		);
+		space.attach("first", "right", "parent");
+		space.attach("first", "right", "parent");
+		space.attach("second", "right", "parent");
+
+		const drag = space.begin("parent");
+		expect(drag.move(20, 10).boxes).toEqual([
+			expect.objectContaining({ id: "parent", x: 120, y: 10 }),
+			expect.objectContaining({ id: "first", x: 20, y: 10 }),
+			expect.objectContaining({ id: "second", x: 20, y: 130 }),
+		]);
+		drag.end();
 	});
 
 	test("keeps attachment ownership transitive", () => {

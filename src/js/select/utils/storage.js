@@ -42,9 +42,15 @@ function isExpired(entry) {
 // In-memory key-value store. Entries may carry `expires` (ms epoch); expired
 // entries are dropped on read.
 class MemoryStore {
-	constructor() {
+	constructor(error = undefined) {
 		this.entries = new Map();
 		this.ready = Promise.resolve();
+		this.health = {
+			kind: "memory",
+			status: error ? "degraded" : "memory",
+			persistent: false,
+			...(error ? { error: error.message } : {}),
+		};
 	}
 
 	async has(key) {
@@ -110,12 +116,25 @@ class IndexedDBStore {
 		this.storeName = options?.storeName || DEFAULT_STORE;
 		this.memory = new MemoryStore();
 		this._db = undefined;
+		this.health = { kind: "indexeddb", status: "opening", persistent: false };
 		this.ready = this._open();
+	}
+
+	fail(stage, error) {
+		this.health = {
+			kind: "indexeddb",
+			status: "error",
+			persistent: false,
+			stage,
+			error: error?.message ?? `${error ?? "Unknown IndexedDB error"}`,
+		};
+		log.error(`IndexedDB ${stage} failed`, error);
 	}
 
 	_open(version = undefined) {
 		const idb = globalThis.indexedDB;
 		if (!idb) {
+			this.fail("open", new Error("IndexedDB is unavailable"));
 			return Promise.resolve(undefined);
 		}
 		return new Promise((resolve, reject) => {
@@ -135,11 +154,13 @@ class IndexedDBStore {
 				}
 				db.onversionchange = () => db.close();
 				this._db = db;
+				this.health = { kind: "indexeddb", status: "ready", persistent: true };
 				resolve(db);
 			};
 			request.onerror = () => reject(request.error);
-		}).catch(() => {
+		}).catch((error) => {
 			this._db = undefined;
+			this.fail("open", error);
 			return undefined;
 		});
 	}
@@ -200,12 +221,13 @@ class IndexedDBStore {
 		await this.ready;
 		const objectStore = this._tx("readwrite");
 		if (!objectStore) {
+			if (this.health.status !== "error") this.fail("write", new Error("IndexedDB is unavailable"));
 			return entry;
 		}
 		try {
 			await this._request(objectStore.put({ key, ...entry }));
-		} catch (_error) {
-			// Non-cloneable values stay in memory only.
+		} catch (error) {
+			this.fail("write", error);
 		}
 		return entry;
 	}
@@ -278,7 +300,7 @@ function store(options = undefined) {
 	if (kind === "indexeddb") {
 		if (!globalThis.indexedDB) {
 			log.warn("indexedDB unavailable; using memory store");
-			return new MemoryStore();
+			return new MemoryStore(new Error("IndexedDB is unavailable"));
 		}
 		const config = typeof options === "string" ? undefined : options;
 		return new IndexedDBStore(config);

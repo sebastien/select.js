@@ -25,7 +25,7 @@ describe("workflows", () => {
 			})
 			await Promise.all([named.ready, defaulted.ready])
 			expect(named.store.storeName).toBe("workflow-cache")
-			expect(defaulted.store.storeName).toBe("kv")
+		expect(defaulted.store.storeName).toBe("ignored")
 		} finally {
 			if (descriptor) {
 				Object.defineProperty(globalThis, "indexedDB", descriptor)

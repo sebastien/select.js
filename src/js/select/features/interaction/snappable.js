@@ -71,6 +71,11 @@ class Snappable {
 		const slot = this.ids.get(id);
 		if (slot === undefined) return false;
 		this._unindex(slot);
+		for (let child = 0; child < this.count; child++) {
+			if (this.active[child] && this.parents[child] === slot) {
+				this._unlink(child, this.parentSides[child]);
+			}
+		}
 		for (const side of SIDES) this._unlink(slot, side);
 		this.active[slot] = 0;
 		this.slotIds[slot] = undefined;
@@ -128,6 +133,38 @@ class Snappable {
 		const result = new Array(slots.length);
 		for (let i = 0; i < slots.length; i++) result[i] = this._id(slots[i]);
 		return result;
+	}
+
+	// Function: constrain
+	// Translates `id` and its sticky-attached component to fit within `bounds`.
+	constrain(id, bounds) {
+		const slots = this._component(this._slot(id));
+		let left = Infinity;
+		let top = Infinity;
+		let right = -Infinity;
+		let bottom = -Infinity;
+		for (const slot of slots) {
+			left = Math.min(left, this.x[slot]);
+			top = Math.min(top, this.y[slot]);
+			right = Math.max(right, this.x[slot] + this.width[slot]);
+			bottom = Math.max(bottom, this.y[slot] + this.height[slot]);
+		}
+		const width = right - left;
+		const height = bottom - top;
+		const x = Math.min(Math.max(bounds.x, left), Math.max(bounds.x, bounds.x + bounds.width - width));
+		const y = Math.min(Math.max(bounds.y, top), Math.max(bounds.y, bounds.y + bounds.height - height));
+		const dx = x - left;
+		const dy = y - top;
+		const boxes = new Array(slots.length);
+		for (let i = 0; i < slots.length; i++) {
+			const slot = slots[i];
+			this._unindex(slot);
+			this.x[slot] += dx;
+			this.y[slot] += dy;
+			this._index(slot);
+			boxes[i] = this._box(slot);
+		}
+		return boxes;
 	}
 
 	// Function: attachments
@@ -232,17 +269,16 @@ class Snappable {
 		}
 		if (
 			this.links[slot * 4 + side] === target &&
-			this.links[target * 4 + targetSide] === slot
+			this.parents[slot] === target &&
+			this.parentSides[slot] === side
 		)
 			return;
-		if (this._component(slot).includes(target)) {
+		if (this._subtree(slot).includes(target)) {
 			throw new Error("Sticky borders cannot create adhesion cycles");
 		}
 		if (this.parents[slot] >= 0) this._unlink(slot, this.parentSides[slot]);
 		this._unlink(slot, side);
-		this._unlink(target, targetSide);
 		this.links[slot * 4 + side] = target;
-		this.links[target * 4 + targetSide] = slot;
 		this.parents[slot] = target;
 		this.parentSides[slot] = side;
 	}
@@ -252,18 +288,9 @@ class Snappable {
 		const target = this.links[offset];
 		if (target < 0) return;
 		this.links[offset] = -1;
-		const targetOffset = target * 4 + OPPOSITE[side];
-		if (this.links[targetOffset] === slot) this.links[targetOffset] = -1;
 		if (this.parents[slot] === target && this.parentSides[slot] === side) {
 			this.parents[slot] = -1;
 			this.parentSides[slot] = -1;
-		}
-		if (
-			this.parents[target] === slot &&
-			this.parentSides[target] === OPPOSITE[side]
-		) {
-			this.parents[target] = -1;
-			this.parentSides[target] = -1;
 		}
 	}
 
@@ -275,12 +302,19 @@ class Snappable {
 		for (let i = 0; i < queue.length; i++) {
 			const current = queue[i];
 			result.push(current);
-			const offset = current * 4;
-			for (const side of SIDES) {
-				const target = this.links[offset + side];
-				if (target >= 0 && this.marks[target] !== this.mark) {
-					this.marks[target] = this.mark;
-					queue.push(target);
+			const parent = this.parents[current];
+			if (parent >= 0 && this.marks[parent] !== this.mark) {
+				this.marks[parent] = this.mark;
+				queue.push(parent);
+			}
+			for (let child = 0; child < this.count; child++) {
+				if (
+					this.active[child] &&
+					this.parents[child] === current &&
+					this.marks[child] !== this.mark
+				) {
+					this.marks[child] = this.mark;
+					queue.push(child);
 				}
 			}
 		}
@@ -291,10 +325,9 @@ class Snappable {
 		const result = [slot];
 		for (let i = 0; i < result.length; i++) {
 			const current = result[i];
-			for (const childSide of SIDES) {
-				const candidate = this.links[current * 4 + childSide];
-				if (candidate >= 0 && this.parents[candidate] === current) {
-					result.push(candidate);
+			for (let child = 0; child < this.count; child++) {
+				if (this.active[child] && this.parents[child] === current) {
+					result.push(child);
 				}
 			}
 		}
