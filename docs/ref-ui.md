@@ -303,6 +303,7 @@ Returns a component function with these methods:
 - `ui.resolveFormat(name)`: Resolve a formatter from `ui.formats`.
 - `ui.options`: Global UI options.
   - `ui.options.componentRootClass` (default `true`): Adds the component name as a class on each component root element when available, with the component class first in `class`.
+  - `ui.options.link` (default `undefined`): Global callback for empty `on:click` bindings on anchors with an `href` attribute. It receives `(self, data, event)`.
 
 Example:
 
@@ -458,6 +459,45 @@ Web component API:
 - `when`: Conditional rendering with shorthand predicates and safe comparisons (no expression eval).
 - `ref`: Provides a reference to the DOM node in the instance's `self.ref`.
 - `slot`: Defines a named slot for content injection.
+
+#### Global Link Handler
+
+An empty `on:click` binding on an anchor with an `href` attribute is dispatched
+to `ui.options.link` instead of a component behavior handler:
+
+```html
+<a href="/projects" on:click>Projects</a>
+```
+
+Configure the callback once at application startup:
+
+```javascript
+import ui from "./ui"
+
+ui.options.link = (self, data, event) => {
+  event.preventDefault()
+
+  const href = event.currentTarget.getAttribute("href")
+  if (!href) return
+
+  const url = new URL(href, document.baseURI)
+  navigate(url, self, data)
+}
+```
+
+The callback is resolved when the event occurs, so assigning a new function
+updates already-mounted links. The callback owns navigation policy and must
+call `event.preventDefault()` when handling the link client-side. If
+`ui.options.link` is not a function, the browser's normal link behavior is
+left unchanged.
+
+Explicit handlers continue to use normal behavior resolution:
+
+```html
+<a href="/projects" on:click="track">Projects</a>
+```
+
+This calls the `track` behavior and does not invoke `ui.options.link`.
 
 
 ### Behavior Definition
@@ -869,11 +909,18 @@ Key inference from `out`/`out:*` on the same element:
 - `when="!?"` + `out="slot"` => `when="!?slot"`
 - `when` + `out:href="mailto:${.}"` => `when="."`
 
-Logical conjunction is supported with `&` between complete `when` clauses:
+Logical conjunction is supported with `&` or `&&` between complete `when` clauses:
 
 - `when="focus&history"`
+- `when="focus&&history"`
 - `when="!focus&history"`
 - `when="?focus&history=ready"`
+
+Logical disjunction is supported with `||`. Conjunction binds more tightly than
+disjunction, so `when="a||b&&c"` means `a || (b && c)`.
+
+- `when="title||description"`
+- `when="ready&&connected||offline"`
 
 If key inference is requested but no `out` slot exists, `when` stays as a
 regular HTML attribute and an error is logged.

@@ -25,6 +25,9 @@ const EXAMPLE_INTERACTIONS: Record<string, (window: Window) => Promise<void> | v
 	"app-todo": async (window) => {
 		const add = Array.from(window.document.querySelectorAll("button")).find((_) => _.textContent?.trim() === "Add")
 		add?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }))
+		await new Promise((resolve) => window.setTimeout(resolve, 10))
+		const remove = Array.from(window.document.querySelectorAll("button")).filter((_) => _.textContent?.trim() === "Remove").at(-1)
+		remove?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }))
 	},
 	"feature-events": async (window) => {
 		const addCounter = Array.from(window.document.querySelectorAll("button")).find((_) => _.textContent?.trim() === "Add Counter")

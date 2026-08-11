@@ -210,6 +210,77 @@ describe("ui webcomponent projected children", () => {
 		window.close?.();
 	});
 
+	test("bubbles projected child events through the hosting web component", async () => {
+		const window = new Window({ url: "http://localhost:8000/webcomponent" });
+		setupGlobals(window);
+		const { ui, webcomponent } = await import("../src/js/select/ui/index.js");
+		const events = [];
+		let stop = false;
+
+		const Creator = ui(`<div class="creator"><slot></slot></div>`).sub({
+			CloseCreator: (_self, _data, event) => {
+				events.push(["creator", event.origin]);
+				if (stop) return false;
+			},
+		});
+		const name = `x-event-slot-${Date.now()}`;
+		webcomponent(name, Creator, {});
+
+		const Parent = ui(`
+			<section>
+				<${name}>
+					<button on:click="!CloseCreator"><span>Close</span></button>
+				</${name}>
+			</section>
+		`).sub({
+			CloseCreator: (_self, _data, event) => {
+				events.push(["parent", event.origin]);
+			},
+		});
+
+		const parent = Parent.new().mount(document.body);
+		await flush();
+		parent.nodes[0]
+			.querySelector("button span")
+			.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		await flush();
+
+		expect(events.map(([name]) => name)).toEqual(["creator", "parent"]);
+
+		events.length = 0;
+		stop = true;
+		parent.nodes[0]
+			.querySelector("button")
+			.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		await flush();
+
+		expect(events.map(([name]) => name)).toEqual(["creator"]);
+
+		events.length = 0;
+		stop = false;
+		const RootParent = ui(`
+			<${name}>
+				<button on:click="!CloseCreator"><span>Close</span></button>
+			</${name}>
+		`).sub({
+			CloseCreator: (_self, _data, event) => {
+				events.push(["root-parent", event.origin]);
+			},
+		});
+		const rootParent = RootParent.new().mount(document.body);
+		await flush();
+		rootParent.nodes[0]
+			.querySelector("button span")
+			.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+		await flush();
+
+		expect(events.map(([name]) => name)).toEqual(["creator", "root-parent"]);
+		rootParent.unmount();
+		parent.unmount();
+
+		window.close?.();
+	});
+
 	test("syncs exposed reactive keys through wc:* events for inout bindings", async () => {
 		const window = new Window({ url: "http://localhost:8000/webcomponent" });
 		setupGlobals(window);
@@ -252,6 +323,89 @@ describe("ui webcomponent projected children", () => {
 			previous: "Initial",
 			current: "Updated",
 		});
+
+		window.close?.();
+	});
+
+	test("keeps a parent cell synchronized across a custom element inout binding", async () => {
+		const window = new Window({ url: "http://localhost:8000/webcomponent" });
+		setupGlobals(window);
+		const { cell } = await import("../src/js/select/state/cells.js");
+		const { ui, webcomponent } = await import("../src/js/select/ui/index.js");
+
+		const Child = ui(`<input inout:value="value" />`);
+		const name = `x-parent-cell-${Date.now()}`;
+		webcomponent(name, Child, { value: String });
+
+		const Parent = ui(`
+			<section>
+				<${name} inout:value="value"></${name}>
+				<output class="value" out="value"></output>
+			</section>
+		`);
+		const value = cell("Initial");
+		Parent.new().set({ value }).mount(document.body);
+		await flush();
+
+		const element = document.querySelector(name);
+		const input = element.shadowRoot.querySelector("input");
+		expect(input.value).toBe("Initial");
+		expect(element.value).toBe(value);
+		expect(element.hasAttribute("value")).toBe(false);
+		let writes = 0;
+		value.sub(() => {
+			writes++;
+		});
+
+		input.value = "Updated";
+		input.dispatchEvent(new Event("input", { bubbles: true }));
+		await flush();
+
+		expect(value.value).toBe("Updated");
+		expect(document.querySelector(".value").textContent).toBe("Updated");
+		expect(writes).toBe(1);
+
+		value.set("Changed externally");
+		await flush();
+
+		expect(input.value).toBe("Changed externally");
+		expect(element.value).toBe(value);
+
+		window.close?.();
+	});
+
+	test("passes reactive object values through custom element out bindings", async () => {
+		const window = new Window({ url: "http://localhost:8000/webcomponent" });
+		setupGlobals(window);
+		const { cell } = await import("../src/js/select/state/cells.js");
+		const { ui, webcomponent } = await import("../src/js/select/ui/index.js");
+
+		const Child = ui(`<output class="values" out="completions"></output>`);
+		const name = `x-out-cell-${Date.now()}`;
+		webcomponent(name, Child, { completions: [] });
+
+		const Parent = ui(`
+			<section>
+				<${name} out:completions="completions"></${name}>
+			</section>
+		`);
+		const completions = cell(["Product designer"]);
+		Parent.new().set({ completions }).mount(document.body);
+		await flush();
+
+		const element = document.querySelector(name);
+		expect(element.completions).toBe(completions);
+		expect(element.hasAttribute("completions")).toBe(false);
+		expect(element.shadowRoot.querySelector(".values").textContent).toBe(
+			"Product designer",
+		);
+
+		completions.set(["Engineering manager"]);
+		await flush();
+
+		expect(element.shadowRoot.querySelector(".values").textContent).toBe(
+			"Engineering manager",
+		);
 
 		window.close?.();
 	});

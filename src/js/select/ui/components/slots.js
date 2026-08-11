@@ -80,7 +80,8 @@ function parseCssText(cssText) {
 	}
 	_styleParseNode.style.cssText = cssText;
 	const entries = [];
-	for (const prop of _styleParseNode.style) {
+	for (let index = 0; index < _styleParseNode.style.length; index++) {
+		const prop = _styleParseNode.style.item(index);
 		entries.push([prop, _styleParseNode.style.getPropertyValue(prop)]);
 	}
 	_styleParseNode.style.cssText = "";
@@ -263,13 +264,19 @@ class UITemplateSlot {
 			);
 
 			if (parsed) {
-				const clauses = parsed.clauses || [parsed];
-				for (let i = 0; i < clauses.length; i++) {
-					if (clauses[i].key) {
-						continue;
+				const leaves = [];
+				const collectLeaves = (value) => {
+					if (value?.clauses?.length) {
+						for (const clause of value.clauses) collectLeaves(clause);
+					} else if (value) {
+						leaves.push(value);
 					}
-					clauses[i].key = inferWhenKeyFromOutAttr(node);
-					if (!clauses[i].key) {
+				};
+				collectLeaves(parsed);
+				for (const clause of leaves) {
+					if (clause.key) continue;
+					clause.key = inferWhenKeyFromOutAttr(node);
+					if (!clause.key) {
 						log.error(
 							"UITemplate: unable to infer [when] key from [out], details",
 							{
@@ -293,7 +300,7 @@ class UITemplateSlot {
 				slot.predicate = createWhenPredicate(parsed);
 				slot.predicatePlaceholder = document.createComment(expr || "when");
 				const groupKey = parsed.clauses?.length
-					? `and:${expr}`
+					? `${parsed.logical || "and"}:${expr}`
 					: `${parsed.mode}:${parsed.key}:${TemplateParser.FormatProcessorList(parsed.processors || [])}:${parsed.operator || ""}:${parsed.rawValue || ""}`;
 				if (res[groupKey] === undefined) {
 					res[groupKey] = [slot];
@@ -434,6 +441,11 @@ class UITemplateSlot {
 						attr.value,
 						eventType,
 					);
+					const isGlobalLink =
+						eventType === "click" &&
+						node.nodeName === "A" &&
+						node.hasAttribute("href") &&
+						!attr.value.trim();
 					if (!parsed) {
 						log.warn(
 							"UITemplateSlot.FindEvent: invalid event effect, details",
@@ -445,8 +457,11 @@ class UITemplateSlot {
 						toRemove.push(attr.name);
 						continue;
 					}
+					const mode = isGlobalLink ? "link" : parsed.mode;
 					const handlerName =
-						parsed.mode === "handler"
+						mode === "link"
+							? "link"
+							: parsed.mode === "handler"
 							? parsed.handlerName || eventType
 							: parsed.mode === "assign"
 								? `@${TemplateParser.FormatBindingPath(parsed.targetPath)}`
@@ -459,7 +474,7 @@ class UITemplateSlot {
 						UITemplateSlot.Path(node, parent, [i]),
 						eventType,
 						handlerName,
-						parsed.mode,
+						mode,
 						parsed.publishEvent,
 						parsed.targetPath,
 						parsed.binding,
@@ -734,6 +749,13 @@ class UIAttributeSlot {
 	}
 
 	_renderAttr(value) {
+		if (this._shouldUsePropertyValue(value)) {
+			if (this.node[this.attrName] !== value) {
+				this.node[this.attrName] = value;
+			}
+			this.node.removeAttribute(this.attrName);
+			return;
+		}
 		const colon = this.attrName.indexOf(":");
 		if (colon > 0) {
 			const prefix = this.attrName.slice(0, colon);

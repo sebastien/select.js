@@ -51,9 +51,40 @@ Exports:
 - `ikeys`, `iitems`, `iremap`, `iwalk`, `ileaves`
 - `logger`
 - `sanitize`, `sanitizer`, `Sanitizer`
-- text helpers such as `shortdict`, `shortword`, `unshortword`, `words`, `re`, `rescape`, `sprintf`, `uid`
+- text helpers such as `shortdict`, `shortword`, `unshortword`, `words`, `re`, `rescape`, `sprintf`, `uid`, `strhash`, `ohash`
 - the remaining split modules (`math`, `transform`, `traverse`, `update`, `values`), including `items(value)` which converts the `iitems` iterator to a plain array
 - `sel`
+
+### Text and hashing helpers
+
+#### `strhash(text, seed = 5381)`
+
+Returns an unsigned 32-bit DJB2-family hash for `text`. The optional `seed`
+allows independent hash streams.
+
+#### `ohash(value, seed = 5381, canonical = true)`
+
+Recursively hashes primitive values and supported containers into an unsigned
+32-bit number. It is a non-cryptographic hash intended to detect differences,
+not to provide security or collision resistance.
+
+`ohash` traverses arrays, strings, plain objects, `Map`, `Set`, and `Date`
+values. Type tags are included, so values with the same textual representation
+but different types do not intentionally share a representation. Cyclic
+references are handled without throwing.
+
+When `canonical` is `true` (the default), plain-object keys are sorted and map
+and set entries are normalized by their hashes. Consequently, insertion order
+does not affect their result. Arrays remain ordered. Pass `false` to preserve
+object enumeration and map/set insertion order.
+
+```javascript
+import { ohash } from "@select/utils"
+
+ohash({ b: 2, a: 1 }) === ohash({ a: 1, b: 2 }) // true
+ohash([1, 2]) === ohash([2, 1]) // false
+ohash(new Date(0)) === ohash(new Date(0)) // true
+```
 
 ### Selection helpers
 

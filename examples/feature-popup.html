@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Select UI ― Popup Panels</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<script type="importmap">
+			{"imports": {"@./": "../src/js/select/" } }
+		</script>
+		<style>
+			* { box-sizing: border-box; }
+			body {
+				max-width: 860px;
+				margin: 0 auto;
+				padding: 24px;
+				color: #172033;
+				font-family: system-ui, sans-serif;
+			}
+			main { display: grid; gap: 20px; }
+			h1, h2, p { margin: 0; }
+			p { color: #52607a; line-height: 1.5; }
+			.grid {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+				gap: 20px;
+			}
+			.card {
+				display: grid;
+				gap: 12px;
+				padding: 16px;
+				border: 1px solid #dde3ee;
+				border-radius: 10px;
+				background: #fafbff;
+			}
+			.clip {
+				overflow: hidden;
+				height: 88px;
+				padding: 12px;
+				border: 1px dashed #b8c3dd;
+				border-radius: 8px;
+				background: #fff;
+			}
+			button {
+				justify-self: start;
+				padding: 8px 12px;
+				border: 1px solid #c5cedf;
+				border-radius: 8px;
+				background: #fff;
+				color: inherit;
+				cursor: pointer;
+			}
+			.menu, .dialog, .growing {
+				min-width: 180px;
+				padding: 10px;
+				border: 1px solid #c5cedf;
+				border-radius: 10px;
+				background: #fff;
+				box-shadow: 0 12px 28px rgba(23, 32, 51, 0.16);
+			}
+			.menu[hidden], .dialog[hidden], .growing[hidden] { display: none; }
+			.menu { display: grid; gap: 4px; }
+			.menu button { width: 100%; text-align: left; }
+			.dialog { width: min(320px, calc(100vw - 24px)); display: grid; gap: 10px; }
+			.growing { display: grid; gap: 8px; }
+			.cover { background: rgba(15, 23, 42, 0.08); }
+			#status { min-height: 1.5em; font-size: 0.9rem; color: #52607a; }
+			@media (max-width: 700px) {
+				.grid { grid-template-columns: 1fr; }
+			}
+		</style>
+	</head>
+	<body>
+		<main>
+			<header>
+				<h1>Popup Panels</h1>
+				<p>
+					<code>popup()</code> portals a panel to <code>document.body</code>,
+					flips it when the preferred side overflows, and can close from an
+					underlay or Escape.
+				</p>
+			</header>
+			<div class="grid">
+				<section class="card">
+					<h2>Clipped parent</h2>
+					<p>The menu is inside <code>overflow: hidden</code>. Portal keeps it visible.</p>
+					<div class="clip">
+						<button type="button" id="menu-trigger">Open menu</button>
+						<div id="menu" class="menu" hidden>
+							<button type="button" data-choice="Edit">Edit</button>
+							<button type="button" data-choice="Duplicate">Duplicate</button>
+							<button type="button" data-choice="Delete">Delete</button>
+						</div>
+					</div>
+				</section>
+				<section class="card">
+					<h2>Dimmed dialog</h2>
+					<p>Underlay click and Escape both close.</p>
+					<button type="button" id="dialog-trigger">Open dialog</button>
+					<div id="dialog" class="dialog" hidden>
+						<strong>Confirm reset</strong>
+						<p>This uses a dimmed cover. Click outside or press Escape.</p>
+						<button type="button" id="dialog-ok">Close</button>
+					</div>
+				</section>
+				<section class="card">
+					<h2>Growing content</h2>
+					<p>Adding rows retriggers placement through ResizeObserver.</p>
+					<button type="button" id="grow-trigger">Open list</button>
+					<div id="growing" class="growing" hidden>
+						<div id="grow-items">
+							<div>Item 1</div>
+						</div>
+						<button type="button" id="grow-add">Add item</button>
+					</div>
+				</section>
+				<section class="card">
+					<h2>Near the edge</h2>
+					<p>This button sits low so the panel flips above the trigger.</p>
+					<div style="min-height: 180px; display: flex; align-items: end;">
+						<button type="button" id="edge-trigger">Open above</button>
+						<div id="edge" class="menu" hidden>
+							<button type="button">Flipped when needed</button>
+						</div>
+					</div>
+				</section>
+			</div>
+			<p id="status" aria-live="polite">Open a panel to begin.</p>
+		</main>
+		<script type="module">
+			import { popup } from "@./features/interaction/index.js"
+
+			const status = document.getElementById("status")
+			let current = null
+
+			function closeCurrent() {
+				current?.close()
+				current = null
+			}
+
+			function openPanel(panel, trigger, options) {
+				if (current?.panel === panel) {
+					closeCurrent()
+					return
+				}
+				closeCurrent()
+				panel.hidden = false
+				current = popup(panel, trigger, {
+					...options,
+					onClose(reason) {
+						panel.hidden = true
+						if (current?.panel === panel) current = null
+						status.textContent = `${panel.id} closed (${reason})`
+						options?.onClose?.(reason)
+					},
+				})
+				status.textContent = `${panel.id} open`
+			}
+
+			document.getElementById("menu-trigger").addEventListener("click", (event) => {
+				openPanel(document.getElementById("menu"), event.currentTarget, {
+					underlay: true,
+				})
+			})
+			document.getElementById("menu").addEventListener("click", (event) => {
+				const choice = event.target.closest("[data-choice]")
+				if (!choice) return
+				status.textContent = `Chose ${choice.dataset.choice}`
+				closeCurrent()
+			})
+
+			document.getElementById("dialog-trigger").addEventListener("click", (event) => {
+				openPanel(document.getElementById("dialog"), event.currentTarget, {
+					underlay: { class: "cover", dim: true },
+				})
+			})
+			document.getElementById("dialog-ok").addEventListener("click", () => closeCurrent())
+
+			const items = document.getElementById("grow-items")
+			document.getElementById("grow-trigger").addEventListener("click", (event) => {
+				items.replaceChildren(Object.assign(document.createElement("div"), { textContent: "Item 1" }))
+				openPanel(document.getElementById("growing"), event.currentTarget, { underlay: true })
+			})
+			document.getElementById("grow-add").addEventListener("click", () => {
+				const row = document.createElement("div")
+				row.textContent = `Item ${items.children.length + 1}`
+				items.appendChild(row)
+			})
+
+			document.getElementById("edge-trigger").addEventListener("click", (event) => {
+				openPanel(document.getElementById("edge"), event.currentTarget, { underlay: true })
+			})
+		</script>
+	</body>
+</html>

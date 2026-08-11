@@ -117,6 +117,7 @@ function registerComponent(name, value) {
 // Module-level options used by UIInstance
 const options = {
 	componentRootClass: true,
+	link: undefined,
 }
 
 // Function: Dynamic

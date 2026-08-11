@@ -371,6 +371,18 @@ function attachRender(UIInstance) {
 					for (const k in set) {
 						let v;
 						const slots = set[k];
+						const preserveReactiveValue = set === this.inout;
+						const renderSlots = (value, raw = undefined) => {
+							for (const slot of slots) {
+								if (slot.predicateSlot?.node.parentNode === null) continue;
+								slot.render(
+									preserveReactiveValue &&
+										slot._shouldUsePropertyValue?.(raw)
+										? raw
+										: value,
+								);
+							}
+						};
 						const templateTokens = withProcessors
 							? slots?.[0]?.template?.template?.tokens
 							: null;
@@ -380,9 +392,7 @@ function attachRender(UIInstance) {
 								templateTokens,
 								renderData,
 							);
-							for (const slot of slots) {
-								slot.render(resolvedTemplate);
-							}
+							renderSlots(resolvedTemplate);
 							continue;
 						}
 						const binding = withProcessors ? slots?.[0]?.template?.binding : null;
@@ -416,10 +426,12 @@ function attachRender(UIInstance) {
 										processed.lastProcessorType,
 									);
 								}
-								for (const slot of slots) {
-									if (slot.predicateSlot?.node.parentNode === null) continue;
-									slot.render(v);
-								}
+								renderSlots(
+									v,
+									preserveReactiveValue
+										? resolveSourceValue(renderData, sourceKey, this)
+										: undefined,
+								);
 								continue;
 							}
 						}
@@ -507,10 +519,7 @@ function attachRender(UIInstance) {
 										processed.lastProcessorType,
 									);
 								}
-								for (const slot of slots) {
-									if (slot.predicateSlot?.node.parentNode === null) continue;
-									slot.render(next);
-								}
+								renderSlots(next);
 							})
 						) {
 							continue;
@@ -529,10 +538,14 @@ function attachRender(UIInstance) {
 								processed.lastProcessorType,
 							);
 						}
-						for (const slot of slots) {
-							if (slot.predicateSlot?.node.parentNode === null) continue;
-							slot.render(v);
-						}
+						renderSlots(
+							v,
+							!hasBehavior && !processors?.length
+								? binding
+									? resolveBindingValue(renderData, binding, false, this)
+									: resolveSourceValue(renderData, sourceKey, this)
+								: undefined,
+						);
 					}
 				};
 		
@@ -613,10 +626,21 @@ function attachRender(UIInstance) {
 							}
 							continue;
 						}
-						v = binding
+						const raw =
+							!hasBehavior && !processors?.length
+								? binding
+									? resolveBindingValue(data, binding, false, this)
+									: resolveSourceValue(data, sourceKey, this)
+								: undefined;
+						const preserveReactiveValue = slots.some((slot) =>
+							slot._shouldUsePropertyValue?.(raw),
+						);
+						v = preserveReactiveValue
+							? raw
+							: binding
 							? resolveBindingValue(renderData, binding, false, this)
 							: resolveSourceValue(renderData, sourceKey, this);
-						v = finalizeOutAttrValue(v);
+						if (!preserveReactiveValue) v = finalizeOutAttrValue(v);
 						for (const slot of slots) {
 							slot.render(v);
 						}

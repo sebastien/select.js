@@ -1,8 +1,8 @@
 # Select Interaction Reference
 
 `@select/features/interaction/index.js` provides small DOM interaction helpers for event binding,
-mouse dragging, keyboard handling, draggable drop targets, sortable lists, and
-sortable placement.
+mouse dragging, keyboard handling, draggable drop targets, sortable lists,
+sortable placement, panel positioning, and popup sessions.
 
 ## Importing
 
@@ -13,6 +13,7 @@ import {
 	bind,
 	drag,
 	draggable,
+	popup,
 	sort,
 	unbind,
 } from "@select/features/interaction/index.js"
@@ -21,7 +22,8 @@ import {
 The default export is an object containing the same grouped helpers:
 `interaction.core`, `interaction.drag`, `interaction.draggable`,
 `interaction.keyboard`, `interaction.Keyboard`, `interaction.autoresize`,
-`interaction.placement`, and `interaction.sort`.
+`interaction.placement`, `interaction.popup`, `interaction.positioning`,
+and `interaction.sort`.
 
 ## Core Helpers
 
@@ -304,6 +306,75 @@ the pointer position and recent pointer motion.
 Inserts `placeholder` before the item at `index`, or appends it when the index
 is past the final item. Returns `true` when the DOM position changes and
 `false` when it is already in the requested position or no list is supplied.
+
+## Positioning Helpers
+
+`positioning` is a pure geometry module. It does not write styles or listen to
+the DOM.
+
+### `place(source, sourcePosition, target, targetPosition)`
+
+Returns a `{ x, y, width, height }` box that aligns `sourcePosition` on `source`
+with `targetPosition` on `target`. Positions are cardinal names (`nw`, `n`,
+`ne`, `w`, `c`, `e`, `sw`, `s`, `se`) or relative `[x, y]` points in `0..1`.
+
+```javascript
+place(panelRect, "n", triggerRect, "s")
+```
+
+### `fit(box, bounds?, options?)`
+
+Applies an overflow policy inside `bounds` (default `viewport()`). `overflow` is
+`none`, `move`, `resize`, or `move-resize`. `padding` insets the bounds.
+`anchor` controls how `resize` shrinks the box.
+
+### `viewport(window?)`
+
+Returns the visible rectangle, using `visualViewport` when present.
+
+### `flip(position, axis)` / `opposite(position)` / `overflows(box, bounds, padding?)`
+
+`flip` inverts a position on `"x"` or `"y"`. `opposite` inverts both axes.
+`overflows` returns signed overflow per side.
+
+### `anchored(source, sourcePos, target, targetPos, bounds?, options?)`
+
+Places `source` on `target`, flips overflowing axes when that reduces overflow,
+then applies `fit`. Pass `flip: false` to skip flipping.
+
+## Popup Sessions
+
+### `popup(panel, trigger, options?)`
+
+Moves `panel` next to `trigger` with `position: fixed`, keeps it inside the
+viewport, and returns `{ panel, trigger, underlay, box, update, close }`.
+
+Defaults:
+
+- `at`: `"s"` — panel `n` on trigger `s`. A pair `["n", "s"]` is also accepted.
+- `portal`: `true` — appends the panel to `document.body`. Pass `false` to leave
+  it in place, or a node to use as the host.
+- `overflow`: `"move-resize"`
+- `padding`: `8`
+- `flip`: `true`
+- `underlay`: `false`. `true` adds a click-to-close cover; a string is a class
+  name; `{ class, dim }` can dim the page.
+- `escape`: `true` — Escape closes the topmost session.
+- `onClose(reason)` — `"underlay"`, `"escape"`, or `"close"`.
+
+```javascript
+const session = popup(menu, button, {
+	at: "s",
+	underlay: { class: "popup-cover", dim: true },
+	onClose: () => menu.hidden = true,
+})
+session.update()
+session.close()
+```
+
+The panel must be measurable (`display` not `none`) when `popup` runs. Call
+`session.update()` after content or trigger layout changes; resize, scroll, and
+`visualViewport` listeners already do that.
 
 ## Keyboard and Input Helpers
 

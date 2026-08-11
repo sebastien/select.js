@@ -34,6 +34,7 @@ Binding note:
 - `ui.resolveFormat(name)`: Looks up a formatter in `ui.formats`.
 - `ui.options`: Global UI options.
   - `componentRootClass` (default `true`): Adds the component name as a class on each component root element (`class="ComponentName ..."`, with the component class first).
+  - `link` (default `undefined`): Callback for `<a href="..." on:click>` bindings. It receives `(self, data, event)` and may call `event.preventDefault()` for client-side navigation.
 - Fallback selector mode: if `ui(selector)` does not resolve any `<template>` but matches regular DOM nodes, those nodes are cloned and used as template source.
   - In this mode, `data='{"...": ...}'` on matched source nodes is parsed as JSON object and used as default instance payload.
   - Invalid JSON throws immediately.
@@ -133,6 +134,20 @@ const Counter = ui("#Counter").does({
 Counter.new().set({ count: 1 }).mount("#app")
 </script>
 ```
+
+For application-wide client-side navigation, assign `ui.options.link`:
+
+```javascript
+ui.options.link = (self, data, event) => {
+	 event.preventDefault()
+	 const href = event.currentTarget.getAttribute("href")
+	 if (!href) return
+	 // Update application routing state here.
+}
+```
+
+An empty `on:click` on an anchor with `href` uses this callback. Explicit
+handlers such as `on:click="track"` continue to resolve normally.
 
 ### Web Components
 
@@ -453,14 +468,21 @@ In template mode, placeholders support optional processor pipelines (`${path|For
 
 `when` uses the same `ui.formats` registry as `out`.
 
-`when` also accepts logical conjunction with `&` between complete shorthand clauses:
+`when` also accepts logical conjunction with `&` or `&&` between complete shorthand clauses:
 
 - `when="focus&history"`
+- `when="focus&&history"`
 - `when="!focus&history"`
 - `when="?focus&history=ready"`
 
 Each side of `&` must be a complete valid `when` clause. `when` still does not
 evaluate arbitrary JavaScript.
+
+Logical disjunction is supported with `||`. Conjunction binds more tightly than
+disjunction, so `when="a||b&&c"` means `a || (b && c)`:
+
+- `when="title||description"`
+- `when="ready&&connected||offline"`
 
 `when` also accepts safe comparison expressions in the form `{slot}{op}{raw_value}`.
 These same comparison expressions also work in `out:<attr>` bindings

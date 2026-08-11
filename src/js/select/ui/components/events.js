@@ -9,6 +9,7 @@
 import { isThenable } from "../../utils/values.js"
 import { log } from "../templates.js"
 import { UIEvent } from "./model.js"
+import { options } from "./registry.js"
 import {
 	applyNamedProcessors,
 	formatBindingSource,
@@ -101,7 +102,14 @@ function attachEvents(UIInstance) {
 		
 		_bindEvent(name, target) {
 			let listener;
-			if (target.mode === "assign" && target.targetPath?.length) {
+			if (target.mode === "link") {
+				listener = (event) => {
+					const handler = options.link;
+					if (typeof handler !== "function") return;
+					const result = handler(this, this.data || {}, event);
+					applyEventResult(this, result);
+				};
+			} else if (target.mode === "assign" && target.targetPath?.length) {
 				listener = (event) => {
 					this._applyEventGuards(target, event);
 					const inputProperty = getInputBindingProperty(target.node);
@@ -212,6 +220,9 @@ function attachEvents(UIInstance) {
 		// ============================================================================
 		pub(event, data, self = true, domEvent = undefined) {
 			const res = new UIEvent(event, data, this, domEvent);
+			if (domEvent && bridgeProjectedEvent(this, res, domEvent)) {
+				return res;
+			}
 			this.onPub(res, self);
 			return res;
 		},
@@ -298,6 +309,41 @@ function attachEvents(UIInstance) {
 			return event;
 		},
 	})
+}
+
+function bridgeProjectedEvent(_instance, event, domEvent) {
+	const target = domEvent?.target;
+	if (!target) return false;
+	let assigned = target.assignedSlot ? target : undefined;
+	let slot = assigned?.assignedSlot;
+	let host = slot?.getRootNode?.()?.host;
+	for (let node = target; !host && node; node = node.parentNode) {
+		if (node.assignedSlot) {
+			assigned = node;
+			slot = node.assignedSlot;
+			host = slot.getRootNode?.()?.host;
+			break;
+		}
+		if (!node.shadowRoot) continue;
+		for (const candidate of node.shadowRoot.querySelectorAll("slot")) {
+			const assignedNodes = candidate.assignedNodes?.({ flatten: true }) || [];
+			if (assignedNodes.some((assignedNode) => assignedNode === target || assignedNode.contains?.(target))) {
+				assigned = assignedNodes.find((assignedNode) => assignedNode === target || assignedNode.contains?.(target));
+				slot = candidate;
+				host = node;
+				break;
+			}
+		}
+	}
+	if (!host || !assigned?.dispatchEvent) return false;
+	assigned.dispatchEvent(
+		new CustomEvent("select:pub", {
+			bubbles: true,
+			composed: true,
+			detail: { event },
+		}),
+	);
+	return true;
 }
 
 export { applyEventResult, attachEvents, isEventStatePatch }

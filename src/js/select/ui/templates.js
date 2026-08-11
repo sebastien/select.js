@@ -498,6 +498,15 @@ class TemplateParser {
 
 	static ParseWhenShorthand(expr) {
 		const source = typeof expr === "string" ? expr.trim() : "";
+		const splitLogical = (value, operators) => {
+			for (const operator of operators) {
+				const parts = value.split(operator);
+				if (parts.length > 1 && parts.every((part) => part.trim())) {
+					return parts;
+				}
+			}
+			return null;
+		};
 		const parseSingleWhen = (input) => {
 			const text = typeof input === "string" ? input.trim() : "";
 			const comparison = TemplateParser.ParseBindingComparison(text);
@@ -545,8 +554,16 @@ class TemplateParser {
 				value: undefined,
 			};
 		};
-		if (source.includes("&")) {
-			const parts = source.split("&");
+		const orParts = splitLogical(source, ["||"]);
+		if (orParts) {
+			return {
+				logical: "or",
+				clauses: orParts.map((part) => TemplateParser.ParseWhenShorthand(part)),
+			};
+		}
+		const andParts = splitLogical(source, ["&&", "&"]);
+		if (andParts) {
+			const parts = andParts;
 			const clauses = new Array(parts.length);
 			for (let i = 0; i < parts.length; i++) {
 				const clause = parseSingleWhen(parts[i]);

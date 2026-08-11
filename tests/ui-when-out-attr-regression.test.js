@@ -105,6 +105,36 @@ describe("ui when + out attribute regression", () => {
 		window.close?.();
 	});
 
+	test("supports logical or and javascript-style and with precedence", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui } = await import("../src/js/select/ui/index.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="WhenLogicalOrRepro">
+				<div class="visible" when="title || description">visible</div>
+				<div class="precedence" when="title || description && ready">precedence</div>
+			</template>
+		`;
+
+		const instance = ui("WhenLogicalOrRepro").new().mount("#app");
+		instance.set({ title: "Title", description: "", ready: false });
+		expect(document.querySelector("#app .visible")).not.toBeNull();
+		expect(document.querySelector("#app .precedence")).not.toBeNull();
+
+		instance.set({ title: "", description: "", ready: true });
+		expect(document.querySelector("#app .visible")).toBeNull();
+		expect(document.querySelector("#app .precedence")).toBeNull();
+
+		instance.set({ title: "", description: "Description", ready: true });
+		expect(document.querySelector("#app .visible")).not.toBeNull();
+		expect(document.querySelector("#app .precedence")).not.toBeNull();
+
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
 	test("baseline conditional item renders only the checked disc", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);

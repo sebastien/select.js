@@ -2,10 +2,10 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
-// Updated: 2026-06-02
+// Updated: 2026-08-15
 
 // Module: select/utils/text
-// Text compression, highlighting, and regular-expression helpers.
+// Text compression, highlighting, regular-expression, and object-hash helpers.
 
 const RE_SHORTWORD = /[A-Za-z][A-Za-z0-9]+/g;
 const RE_OFFKEY = /([^A-Za-z0-9 \t\n])/g;
@@ -320,6 +320,153 @@ function strhash(text, seed = 5381) {
 	return hash >>> 0;
 }
 
+function mix(hash, n) {
+	return (hash * 33) ^ n;
+}
+
+function hashNumber(hash, n) {
+	if (Number.isNaN(n)) {
+		return mix(hash, 0x7ff80000);
+	}
+	if (n === 0) {
+		return mix(hash, 1 / n < 0 ? 1 : 0);
+	}
+	if (n === Infinity) {
+		return mix(hash, 0x7ff00000);
+	}
+	if (n === -Infinity) {
+		return mix(hash, 0xfff00000);
+	}
+	const i = n | 0;
+	if (i === n) {
+		return mix(hash, i);
+	}
+	return strhash(`${n}`, hash);
+}
+
+function hashArray(value, hash, canonical, seen) {
+	const n = value.length;
+	hash = mix(hash, n);
+	for (let i = 0; i < n; i++) {
+		hash = hashValue(value[i], hash, canonical, seen);
+	}
+	return hash;
+}
+
+function hashObject(value, hash, canonical, seen) {
+	const keys = Object.keys(value);
+	const n = keys.length;
+	if (canonical && n > 1) {
+		keys.sort();
+	}
+	hash = mix(hash, n);
+	for (let i = 0; i < n; i++) {
+		const k = keys[i];
+		hash = strhash(k, hash);
+		hash = hashValue(value[k], hash, canonical, seen);
+	}
+	return hash;
+}
+
+function hashMap(value, hash, canonical, seen) {
+	hash = mix(hash, value.size);
+	if (canonical) {
+		const hashes = new Array(value.size);
+		let i = 0;
+		for (const [k, v] of value) {
+			hashes[i++] =
+				hashValue(v, hashValue(k, 5381, canonical, seen), canonical, seen) >>>
+				0;
+		}
+		hashes.sort((a, b) => a - b);
+		for (i = 0; i < hashes.length; i++) {
+			hash = mix(hash, hashes[i]);
+		}
+		return hash;
+	}
+	for (const [k, v] of value) {
+		hash = hashValue(k, hash, canonical, seen);
+		hash = hashValue(v, hash, canonical, seen);
+	}
+	return hash;
+}
+
+function hashSet(value, hash, canonical, seen) {
+	hash = mix(hash, value.size);
+	if (canonical) {
+		const hashes = new Array(value.size);
+		let i = 0;
+		for (const v of value) {
+			hashes[i++] = hashValue(v, 5381, canonical, seen) >>> 0;
+		}
+		hashes.sort((a, b) => a - b);
+		for (i = 0; i < hashes.length; i++) {
+			hash = mix(hash, hashes[i]);
+		}
+		return hash;
+	}
+	for (const v of value) {
+		hash = hashValue(v, hash, canonical, seen);
+	}
+	return hash;
+}
+
+function hashValue(value, hash, canonical, seen) {
+	switch (typeof value) {
+		case "undefined":
+			return mix(hash, 1);
+		case "boolean":
+			return mix(mix(hash, 3), value ? 1 : 0);
+		case "number":
+			return hashNumber(mix(hash, 4), value);
+		case "bigint":
+			return strhash(`${value}`, mix(hash, 5));
+		case "symbol":
+			return strhash(value.description ?? "", mix(hash, 6));
+		case "string":
+			return strhash(value, mix(hash, 7));
+		case "function":
+			return strhash(value.name, mix(hash, 8));
+	}
+	if (value === null) {
+		return mix(hash, 2);
+	}
+	if (seen) {
+		if (seen.has(value)) {
+			return mix(hash, 0);
+		}
+	} else {
+		seen = new WeakSet();
+	}
+	seen.add(value);
+	if (value instanceof Date) {
+		hash = hashNumber(mix(hash, 9), value.getTime());
+	} else if (Array.isArray(value)) {
+		hash = hashArray(value, mix(hash, 10), canonical, seen);
+	} else if (value instanceof Map) {
+		hash = hashMap(value, mix(hash, 11), canonical, seen);
+	} else if (value instanceof Set) {
+		hash = hashSet(value, mix(hash, 12), canonical, seen);
+	} else if (
+		value.constructor === Object ||
+		Object.getPrototypeOf(value) === null
+	) {
+		hash = hashObject(value, mix(hash, 13), canonical, seen);
+	} else {
+		hash = strhash(value.constructor?.name ?? "", mix(hash, 14));
+	}
+	seen.delete(value);
+	return hash;
+}
+
+// Function: ohash
+// Walks `value` and returns a non-cryptographic hash number using optional
+// `seed`. When `canonical` is true, object keys and map/set entries are
+// order-independent.
+function ohash(value, seed = 5381, canonical = true) {
+	return hashValue(value, seed, canonical !== false, undefined) >>> 0;
+}
+
 // Function: numcode
 // Encodes integer `number` using the given `alphabet`.
 function numcode(
@@ -474,6 +621,7 @@ export {
 	isPascalCase,
 	isSnakeCase,
 	numcode,
+	ohash,
 	re,
 	reducematches,
 	rescape,

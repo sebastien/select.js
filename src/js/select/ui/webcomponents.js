@@ -244,6 +244,13 @@ class UIWebComponent extends BaseHTMLElement {
 		this._ownedAttributeReactiveRefs = new Map();
 		this._ownedPropertyReactiveRefs = new Map();
 		this._internalReactiveSubs = new Map();
+		this._onSelectPub = (event) => {
+			const published = event.detail?.event;
+			if (published && this.instance) {
+				event.stopPropagation();
+				this.instance.onPub(published, true);
+			}
+		};
 		this.data = { ...this.initialData };
 	}
 
@@ -522,6 +529,7 @@ class UIWebComponent extends BaseHTMLElement {
 	}
 
 	connectedCallback() {
+		this.addEventListener("select:pub", this._onSelectPub);
 		this._ensureDocumentStyles();
 		this.attributeData = this.readAttributes();
 		this._syncOwnedReactiveRefs(
@@ -534,6 +542,7 @@ class UIWebComponent extends BaseHTMLElement {
 	}
 
 	disconnectedCallback() {
+		this.removeEventListener("select:pub", this._onSelectPub);
 		this.trigger(Disconnect);
 		this._clearInternalReactiveSubs();
 		if (this.instance) {

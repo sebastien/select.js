@@ -552,6 +552,17 @@ function createSingleWhenPredicate(
 }
 
 function createWhenPredicate(parsed) {
+	if (parsed?.logical === "or") {
+		const predicates = (parsed.clauses || []).map((clause) =>
+			createWhenPredicate(clause),
+		);
+		return (self, data) => {
+			for (const predicate of predicates) {
+				if (predicate(self, data)) return true;
+			}
+			return false;
+		};
+	}
 	if (parsed?.clauses?.length) {
 		const predicates = new Array(parsed.clauses.length);
 		for (let i = 0; i < parsed.clauses.length; i++) {

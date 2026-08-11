@@ -16,7 +16,7 @@ separate `select/utils/search.js` module.
 - `select/utils/logger.js`: `logger`
 - `select/utils/math.js`: math helpers used by the library internals
 - `select/utils/sanitize.js`: `Sanitizer`, `sanitize`, `sanitizer`
-- `select/utils/text.js`: text helpers such as `shortdict`, `shortword`, `unshortword`, `words`, `re`, `rescape`, `sprintf`, `uid`
+- `select/utils/text.js`: text helpers such as `shortdict`, `shortword`, `unshortword`, `words`, `re`, `rescape`, `sprintf`, `uid`, `strhash`, `ohash`
 - `select/utils/transform.js`, `traverse.js`, `update.js`, `values.js`: the remaining utility helpers re-exported by the barrel, including `assign(scope, path, value, merge?, offset?)` for nested writes with `undefined` path segments mapped to the next free numeric slot and missing `undefined` containers materialized as arrays, and `items(value)` which converts the `iitems` iterator to a plain array.
 
 ### Selection helpers
@@ -45,11 +45,13 @@ separate `select/utils/search.js` module.
 - `select/utils/search.js` exports `match(value, criteria)`, `predicate(...criteria)`, and `textfilter(text)`.
 - Import it directly when you need those helpers.
 
-### Text compression helpers
+### Text and hashing helpers
 
 - `shortdict(text)`: Builds a frequency-sorted dictionary mapped to short base-26 tokens.
 - `shortword(text, dict?)`: Replaces dictionary words with short tokens.
 - `unshortword(text, dict?)`: Restores text compressed with `shortword`.
+- `strhash(text, seed?)`: Hashes `text` to an unsigned 32-bit number.
+- `ohash(value, seed?, canonical?)`: Walks values and returns a non-cryptographic unsigned 32-bit hash. Objects, maps, and sets use canonical order by default; pass `false` to preserve their insertion order. Arrays remain order-sensitive. Cyclic values are supported.
 
 ### Using
 
@@ -63,4 +65,17 @@ items = add(items, { id: 3 })
 
 console.log(items[next(items, 0, -1)])
 console.log(eq(shortword("hello hello world"), shortword("hello hello world")))
+```
+
+`ohash` is intended for detecting likely structural changes, not for security or
+cryptographic purposes:
+
+```javascript
+import { ohash } from "@select/utils"
+
+const before = ohash({ name: "Ada", tags: new Set(["math", "code"]) })
+const after = ohash({ tags: new Set(["code", "math"]), name: "Ada" })
+
+console.log(before === after) // true: canonical object and Set traversal
+console.log(ohash(["a", "b"]) === ohash(["b", "a"])) // false
 ```
