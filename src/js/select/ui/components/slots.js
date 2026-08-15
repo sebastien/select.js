@@ -462,10 +462,10 @@ class UITemplateSlot {
 						mode === "link"
 							? "link"
 							: parsed.mode === "handler"
-							? parsed.handlerName || eventType
-							: parsed.mode === "assign"
-								? `@${TemplateParser.FormatBindingPath(parsed.targetPath)}`
-								: `!${parsed.publishEvent}:${parsed.binding?.sourceMap?.length ? TemplateParser.FormatBindingSourceMap(parsed.binding.sourceMap) : parsed.binding?.sourceKey || "data"}`;
+								? parsed.handlerName || eventType
+								: parsed.mode === "assign"
+									? `@${TemplateParser.FormatBindingPath(parsed.targetPath)}`
+									: `!${parsed.publishEvent}:${parsed.binding?.sourceMap?.length ? TemplateParser.FormatBindingSourceMap(parsed.binding.sourceMap) : parsed.binding?.sourceKey || "data"}`;
 					toRemove.push(attr.name);
 
 					const slot = new UIEventTemplateSlot(
@@ -860,6 +860,7 @@ class UISlot {
 		this.parent = parent;
 		this.node = node;
 		this.replaceNode = template.replaceNode === true;
+		this.predicateVisible = true;
 		this.replaceNodeMerge = null;
 		this._replaceRef = null;
 		if (this.replaceNode && this.node?.nodeType === Node.ELEMENT_NODE) {
@@ -956,6 +957,16 @@ class UISlot {
 		}
 		for (let i = 0; i < nodes.length; i++) {
 			this._mergeReplaceNodeDecorations(nodes[i]);
+		}
+	}
+
+	setPredicateVisible(value) {
+		if (this.predicateVisible === value) {
+			return;
+		}
+		this.predicateVisible = value;
+		if (!value) {
+			this._clearMapped();
 		}
 	}
 

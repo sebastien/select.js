@@ -199,6 +199,17 @@ to work efficiently.
 Default behavior (no explicit key) uses array indices, which is fine for
 static or append-only lists. For dynamic lists, supply a stable key.
 
+### Virtual Grid
+
+`virtual(options)` returns a component that renders a fixed-size viewport over a
+large collection. `options.item` is the normal item component. Layout options
+are `cellWidth`, `cellHeight`, `gap`, `columns` (`"auto"` or a number), and
+`overscan` rows. Instance data accepts `items`, or `count` with `itemAt(index)`.
+
+The component keeps a bounded pool of item instances and passes each item a
+`virtualIndex`. It publishes `Visible` with `{ index, end }` when the visible
+window changes. Use `scrollTo` with a logical index to position the viewport.
+
 ### Nested Templates
 
 Templates can be nested to create complex structures. You can define a child

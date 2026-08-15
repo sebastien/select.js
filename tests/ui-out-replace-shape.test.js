@@ -122,4 +122,43 @@ describe("ui out-replace DOM shape", () => {
 		document.body.innerHTML = "";
 		window.close?.();
 	});
+
+	test("conditional out-replace slots render and switch without host elements", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui } = await import("../src/js/select/ui/index.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="ConditionalOutReplaceRepro">
+				<main>
+					<div when="page=home" out-replace=".|Home"></div>
+					<div when="page=settings" out-replace=".|Settings"></div>
+				</main>
+			</template>
+			<template name="Home"><article class="home">Home</article></template>
+			<template name="Settings"><article class="settings">Settings</article></template>
+		`;
+
+		const Repro = ui("ConditionalOutReplaceRepro").init(() => ({
+			page: "home",
+		}));
+		ui("Home");
+		ui("Settings");
+		const instance = Repro.new().mount("#app");
+		const main = document.querySelector("#app main");
+
+		expect(main.children.length).toBe(1);
+		expect(main.firstElementChild?.className).toBe("Home home");
+		expect(main.querySelector(".settings")).toBeNull();
+
+		instance.update({ page: "settings" });
+		expect(main.children.length).toBe(1);
+		expect(main.firstElementChild?.className).toBe("Settings settings");
+		expect(main.querySelector(".home")).toBeNull();
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
 });

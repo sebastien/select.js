@@ -9,6 +9,7 @@ import { Window } from "happy-dom"
 
 let window
 let load
+let install
 let fetchCalls
 let fetchStub
 let originalFetch
@@ -58,7 +59,7 @@ describe("icons.load", () => {
 		setupGlobals(window)
 		originalFetch = globalThis.fetch
 		originalDateNow = Date.now
-		;({ load } = await import("../src/js/select/features/icons.js"))
+		;({ load, install } = await import("../src/js/select/features/icons.js"))
 	})
 
 	afterAll(() => {
@@ -77,6 +78,17 @@ describe("icons.load", () => {
 			return response('<svg viewBox="0 0 24 24"><path d="M0 0h24v24H0z"/></svg>')
 		}
 		globalThis.fetch = fetchStub
+	})
+
+	test("installs multiple icon element names with distinct constructors", () => {
+		const firstName = "ui-icon-test-a"
+		const secondName = "ui-icon-test-b"
+		install(firstName)
+		install(secondName)
+
+		expect(customElements.get(firstName)).toBeDefined()
+		expect(customElements.get(secondName)).toBeDefined()
+		expect(customElements.get(firstName)).not.toBe(customElements.get(secondName))
 	})
 
 	test("retries after backoff for a transient load failure", async () => {

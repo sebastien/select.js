@@ -292,8 +292,13 @@ class UIInstance {
 				for (const predicateSlot of this.when[k]) {
 					for (const outKey in this.out) {
 						for (const outSlot of this.out[outKey]) {
-							if (predicateSlot.node.contains(outSlot.node))
+							if (predicateSlot.node.contains(outSlot.node)) {
 								outSlot.predicateSlot = predicateSlot;
+								if (outSlot.replaceNode) {
+									predicateSlot.replacementSlots ??= new Set();
+									predicateSlot.replacementSlots.add(outSlot);
+								}
+							}
 						}
 					}
 				}
@@ -576,7 +581,6 @@ class UIInstance {
 		}
 		return this;
 	}
-
 }
 
 attachReactive(UIInstance)

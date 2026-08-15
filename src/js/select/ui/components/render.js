@@ -38,7 +38,6 @@ function attachRender(UIInstance) {
 			return this._renderer;
 		},
 
-		
 		_scheduleRender(changedKeys = null) {
 			if (this._renderQueued || this._isDisposed) {
 				if (changedKeys?.size) {
@@ -83,7 +82,6 @@ function attachRender(UIInstance) {
 			return this;
 		},
 
-		
 		// Updates data with granular change detection. Only re-renders changed fields
 		// when possible. Handles reactive cell subscription management.
 		//
@@ -182,7 +180,6 @@ function attachRender(UIInstance) {
 			return this;
 		},
 
-		
 		// Tests if any of `deps` changed in `changedKeys`.
 		_depsChanged(deps, changedKeys) {
 			for (const key of deps) {
@@ -193,7 +190,6 @@ function attachRender(UIInstance) {
 			return false;
 		},
 
-		
 		// Direct update for simple out= bindings on scalar path notify (skips full render + schedule).
 		// Only for keys without behavior (behaviors may have logic/side effects).
 		_tryDirectOutUpdate(key, val) {
@@ -204,13 +200,17 @@ function attachRender(UIInstance) {
 			if (!slots?.length) return false;
 			for (let i = 0; i < slots.length; i++) {
 				const slot = slots[i];
-				if (slot.predicateSlot?.node.parentNode === null) continue;
+				if (
+					slot.replaceNode && slot.predicateSlot
+						? !slot.predicateVisible
+						: slot.predicateSlot?.node.parentNode === null
+				)
+					continue;
 				slot.render(val);
 			}
 			return true;
 		},
 
-		
 		_reactiveDepsChanged(depRevisions, data) {
 			if (!depRevisions || depRevisions.size === 0 || !data) {
 				return false;
@@ -232,7 +232,6 @@ function attachRender(UIInstance) {
 			return false;
 		},
 
-		
 		_trackAsyncBehaviorValue(key, value, onResolved) {
 			if (!isThenable(value)) {
 				return false;
@@ -242,7 +241,10 @@ function attachRender(UIInstance) {
 			this._asyncBehaviorTokens.set(key, token);
 			value.then(
 				(resolved) => {
-					if (this._isDisposed || this._asyncBehaviorTokens.get(key) !== token) {
+					if (
+						this._isDisposed ||
+						this._asyncBehaviorTokens.get(key) !== token
+					) {
 						return;
 					}
 					onResolved(resolved);
@@ -252,12 +254,13 @@ function attachRender(UIInstance) {
 			return true;
 		},
 
-		
 		_applyEagerBehaviorResult(entryKey, result, data) {
 			if (result === undefined) {
 				return data;
 			}
-			const stateKey = entryKey.endsWith("!") ? entryKey.slice(0, -1) : entryKey;
+			const stateKey = entryKey.endsWith("!")
+				? entryKey.slice(0, -1)
+				: entryKey;
 			if (!stateKey) {
 				return data;
 			}
@@ -273,7 +276,6 @@ function attachRender(UIInstance) {
 			return { ...data, [stateKey]: result };
 		},
 
-		
 		_runEagerBehaviors(data) {
 			const behavior = this.template.behavior;
 			if (!behavior) {
@@ -292,8 +294,6 @@ function attachRender(UIInstance) {
 			});
 		},
 
-		
-		
 		render(data = this.data, changedKeys = null) {
 			if (!this.template) {
 				log.error(
@@ -330,7 +330,12 @@ function attachRender(UIInstance) {
 			if (this.when) {
 				for (const k in this.when) {
 					for (const slot of this.when[k]) {
-						if (slot.template.predicate(this, renderData)) {
+						const visible = slot.template.predicate(this, renderData);
+						if (slot.replacementSlots) {
+							for (const replacementSlot of slot.replacementSlots) {
+								replacementSlot.setPredicateVisible(visible);
+							}
+						} else if (visible) {
 							slot.show();
 						} else {
 							slot.hide();
@@ -374,10 +379,14 @@ function attachRender(UIInstance) {
 						const preserveReactiveValue = set === this.inout;
 						const renderSlots = (value, raw = undefined) => {
 							for (const slot of slots) {
-								if (slot.predicateSlot?.node.parentNode === null) continue;
+								if (
+									slot.replaceNode && slot.predicateSlot
+										? !slot.predicateVisible
+										: slot.predicateSlot?.node.parentNode === null
+								)
+									continue;
 								slot.render(
-									preserveReactiveValue &&
-										slot._shouldUsePropertyValue?.(raw)
+									preserveReactiveValue && slot._shouldUsePropertyValue?.(raw)
 										? raw
 										: value,
 								);
@@ -399,7 +408,7 @@ function attachRender(UIInstance) {
 						const sourceKey = formatBindingSource(binding) || k;
 						const processors = binding?.processors || null;
 						const hasBehavior = behavior?.[sourceKey];
-		
+
 						if (isGranular && this._behaviorDeps && this._behaviorValues) {
 							const deps = this._behaviorDeps.get(k);
 							const depRevisions = this._behaviorDepRevisions?.get(k);
@@ -435,7 +444,7 @@ function attachRender(UIInstance) {
 								continue;
 							}
 						}
-		
+
 						// Behavior handlers: track plain-object deps on first run so later
 						// granular updates can reuse cached results (shallow proxy).
 						if (hasBehavior) {
@@ -500,7 +509,7 @@ function attachRender(UIInstance) {
 						}
 						if (v === undefined && binding?.defaultValue !== undefined)
 							v = binding.defaultValue;
-		
+
 						if (
 							hasBehavior &&
 							this._trackAsyncBehaviorValue(k, v, (resolved) => {
@@ -548,7 +557,7 @@ function attachRender(UIInstance) {
 						);
 					}
 				};
-		
+
 				renderSet(this.out, true);
 				renderSet(this.inout);
 				renderSet(this.in);

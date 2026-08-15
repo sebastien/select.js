@@ -111,6 +111,26 @@ Notes:
 - Works with plain ESM and browser-native templates/DOM
 - Keeps rendering granular at the slot level
 
+### Virtual grids
+
+`virtual({ item })` creates a fixed-size, scroll-windowed grid while keeping the
+item itself as a normal Select UI component. Pass `count` and `itemAt(index)`
+for large or lazy collections, or pass `items` for an existing array:
+
+```javascript
+const Grid = virtual({ item: Cell, cellWidth: 82, cellHeight: 72 })
+
+const view = Grid({
+  count: 100000,
+  itemAt: (index) => ({ label: values[index] }),
+})
+```
+
+Only visible cells plus `overscan` rows are mounted. The pool is keyed by its
+physical slot, so scrolling updates existing component instances instead of
+creating and disposing one instance per logical item. `windowOf()` is exported
+for applications that need the range calculation without the component.
+
 ### Using
 
 ```html

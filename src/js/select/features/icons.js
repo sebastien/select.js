@@ -475,7 +475,11 @@ function install(name = "ui-icon", options = {}) {
 	Object.assign(IconDefaults, options);
 	// Register the custom element
 	if (!customElements.get(name)) {
-		customElements.define(name, IconElement);
+		// The custom-elements registry does not allow the same constructor under
+		// multiple names. Keep the implementation shared, but give each tag its
+		// own constructor identity.
+		const Element = class extends IconElement {};
+		customElements.define(name, Element);
 	}
 }
 

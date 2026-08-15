@@ -35,6 +35,7 @@ import {
 	UITemplateSlot,
 } from "./components.js";
 import { ui } from "./factory.js";
+import { virtual, windowOf } from "./virtual.js";
 import {
 	Adopted,
 	Disconnect,
@@ -72,6 +73,8 @@ export {
 	UITemplateSlot,
 	UIWebComponent,
 	ui,
+	virtual,
+	windowOf,
 	webcomponent,
 };
 
