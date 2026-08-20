@@ -26,7 +26,7 @@ function popup(panel, trigger, options = {}) {
 	const settings = configure(options)
 	const [sourcePos, targetPos] = anchors(settings.at)
 	const win = viewOf(panel) ?? viewOf(trigger)
-	const host = hostOf(settings.portal, panel)
+	const host = settings.place ? hostOf(settings.portal, panel) : null
 	const previous = snapshot(panel)
 	const restore = host ? attached(panel) : null
 	let closed = false
@@ -53,20 +53,26 @@ function popup(panel, trigger, options = {}) {
 		session.underlay = layer
 	}
 
-	panel.style.position = "fixed"
-	panel.style.zIndex = `${z + 1}`
+	if (settings.place) {
+		panel.style.position = "fixed"
+		panel.style.zIndex = `${z + 1}`
+	}
 	if (host) {
 		if (layer) host.appendChild(layer)
-		host.appendChild(panel)
+		if (settings.place) host.appendChild(panel)
 	} else if (layer && panel.parentNode) {
 		panel.parentNode.insertBefore(layer, panel)
 	}
 
-	const observers = observe(panel, trigger, win, scheduleUpdate)
-	update()
+	const observers = settings.place
+		? observe(panel, trigger, win, scheduleUpdate)
+		: { disconnect() {} }
+	if (settings.place) update()
+	if (settings.outside) bindOutside()
+	focusPanel(panel, settings.focus)
 
 	function update() {
-		if (closed) return session
+		if (closed || !settings.place) return session
 		const triggerBox = boxOf(trigger.getBoundingClientRect())
 		const panelBox = naturalBox(panel)
 		const bounds = viewport(win)
@@ -94,9 +100,10 @@ function popup(panel, trigger, options = {}) {
 		closed = true
 		remove(session)
 		observers.disconnect()
+		unbindOutside()
 		layer?.removeEventListener("click", onUnderlay)
 		layer?.remove()
-		restoreStyles(panel, previous)
+		if (settings.place) restoreStyles(panel, previous)
 		restore?.()
 		settings.onClose?.(reason)
 		return session
@@ -104,6 +111,28 @@ function popup(panel, trigger, options = {}) {
 
 	function onUnderlay() {
 		close("underlay")
+	}
+
+	function onOutside(event) {
+		const path =
+			typeof event.composedPath === "function" ? event.composedPath() : []
+		if (path.includes(panel) || path.includes(trigger)) return
+		if (panel.contains?.(event.target) || trigger.contains?.(event.target))
+			return
+		close("outside")
+	}
+
+	function bindOutside() {
+		const doc = panel.ownerDocument ?? globalThis.document
+		doc?.addEventListener("pointerdown", onOutside, true)
+		session.outside = onOutside
+	}
+
+	function unbindOutside() {
+		if (!session.outside) return
+		const doc = panel.ownerDocument ?? globalThis.document
+		doc?.removeEventListener("pointerdown", onOutside, true)
+		session.outside = undefined
 	}
 
 	return session
@@ -118,6 +147,9 @@ function configure(options) {
 		portal: options.portal ?? true,
 		underlay: options.underlay ?? false,
 		escape: options.escape !== false,
+		place: options.place !== false,
+		outside: options.outside === true,
+		focus: options.focus ?? false,
 		onClose: options.onClose,
 	}
 }
@@ -126,6 +158,39 @@ function anchors(at) {
 	if (typeof at === "string" || isPoint(at)) return [opposite(at), at]
 	if (Array.isArray(at) && at.length === 2) return at
 	throw new Error("Popup `at` requires a position or [source, target] pair")
+}
+
+function focusPanel(panel, focus) {
+	if (!focus) return
+	const node =
+		focus?.nodeType ? focus
+		: typeof focus === "string" ? findFocusable(panel, focus)
+		: findFocusable(panel)
+	node?.focus?.()
+}
+
+function findFocusable(root, selector) {
+	const fields =
+		selector ||
+		"input:not([disabled]),select:not([disabled]),textarea:not([disabled])"
+	const controls = selector
+		? [selector]
+		: [
+				fields,
+				`${fields},button:not([disabled]),[href],[tabindex]:not([tabindex="-1"])`,
+			]
+	const roots = [root]
+	const slot = root.querySelector?.("slot")
+	if (slot?.assignedElements)
+		roots.push(...slot.assignedElements({ flatten: true }))
+	for (const query of controls) {
+		for (const node of roots) {
+			if (!node) continue
+			if (node.matches?.(query)) return node
+			const found = node.querySelector?.(query)
+			if (found) return found
+		}
+	}
 }
 
 function isPoint(value) {

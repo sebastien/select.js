@@ -354,13 +354,19 @@ Defaults:
 - `at`: `"s"` — panel `n` on trigger `s`. A pair `["n", "s"]` is also accepted.
 - `portal`: `true` — appends the panel to `document.body`. Pass `false` to leave
   it in place, or a node to use as the host.
+- `place`: `true` — positions the panel with `position: fixed`. Pass `false` to
+  keep the panel in flow and skip geometry.
 - `overflow`: `"move-resize"`
 - `padding`: `8`
 - `flip`: `true`
 - `underlay`: `false`. `true` adds a click-to-close cover; a string is a class
   name; `{ class, dim }` can dim the page.
+- `outside`: `false` — when `true`, a pointerdown outside the panel and trigger
+  closes the session (`"outside"`).
 - `escape`: `true` — Escape closes the topmost session.
-- `onClose(reason)` — `"underlay"`, `"escape"`, or `"close"`.
+- `focus`: `false`. `true` focuses the first field in the panel (including
+  slotted content); a selector or node focuses that target.
+- `onClose(reason)` — `"underlay"`, `"escape"`, `"outside"`, or `"close"`.
 
 ```javascript
 const session = popup(menu, button, {

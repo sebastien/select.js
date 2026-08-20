@@ -444,7 +444,7 @@ class UITemplateSlot {
 					const isGlobalLink =
 						eventType === "click" &&
 						node.nodeName === "A" &&
-						node.hasAttribute("href") &&
+						(node.hasAttribute("href") || node.hasAttribute("out:href")) &&
 						!attr.value.trim();
 					if (!parsed) {
 						log.warn(

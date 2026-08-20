@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-13
-// Updated: 2026-06-20
+// Updated: 2026-08-20
 
 // Module: select/utils/dates
 // Date arithmetic helpers built around a canonical `DateNum` representation.
@@ -19,6 +19,9 @@
 // Conversion rules:
 // - `DateTuple` and `DateNum` are civil time values without timezone metadata
 // - `Timestamp` and `Date` conversions use UTC fields
+// - `format.date` / `asDate` treat numbers as Unix timestamps in seconds
+// - DateNum `0` is year 0 and collides with timestamp `0`; format DateNum with
+//   `dates.format`, not `asDate`
 
 const MS_PER_MINUTE = 1000 * 60;
 const MS_PER_HOUR = MS_PER_MINUTE * 60;
@@ -129,6 +132,21 @@ const WeekDay = {
 		"Sunday",
 	],
 };
+
+const MONTH_NAMES = Object.freeze([
+	"January",
+	"February",
+	"March",
+	"April",
+	"May",
+	"June",
+	"July",
+	"August",
+	"September",
+	"October",
+	"November",
+	"December",
+]);
 
 const PERIODS = Object.freeze({
 	day: "day",
@@ -574,30 +592,79 @@ function days(value = undefined) {
 	return res;
 }
 
+// Function: weekStartOffset
+// Resolves a week-start value to the <weekday> offset. Monday is `0` and
+// Sunday is `6`. Accepts a number, `"monday"` / `"sunday"`, or an options
+// object with `weekStart` or `offset`.
+function weekStartOffset(value = 0) {
+	if (value && typeof value === "object") {
+		if (value.weekStart === "sunday") return 6;
+		if (value.weekStart === "monday") return 0;
+		if (Number.isInteger(value.weekStart)) {
+			return ((value.weekStart % 7) + 7) % 7;
+		}
+		if (Number.isInteger(value.offset)) {
+			return ((value.offset % 7) + 7) % 7;
+		}
+		return 0;
+	}
+	if (value === "sunday") return 6;
+	if (value === "monday") return 0;
+	const n = Number(value);
+	return Number.isInteger(n) ? ((n % 7) + 7) % 7 : 0;
+}
+
 // Function: week
 // Returns the start of the calendar week containing `value` as `DateNum`.
-// `offset` follows <weekday>, where Monday is `0` and Sunday is `6`.
+// `offset` follows <weekday>, where Monday is `0` and Sunday is `6`. Also
+// accepts `{ weekStart: "monday"|"sunday" }` or `{ offset }`.
 function week(value = undefined, offset = 0) {
+	const resolved = weekStartOffset(offset);
 	const p = toTuple(value === undefined ? now() : value);
 	const wday = (weekday(p[0], p[1], p[2]) + 1) % 7;
-	const delta = (wday - offset + 7) % 7;
+	const delta = (wday - resolved + 7) % 7;
 	return fromTuple([p[0], p[1], p[2]]) - delta * MS_PER_DAY;
 }
 
 // Function: weeks
 // Returns the start of each calendar week intersecting the month of `value` as
 // `DateNum`. `offset` follows <weekday>, where Monday is `0` and Sunday is `6`.
+// Also accepts `{ weekStart: "monday"|"sunday" }` or `{ offset }`.
 function weeks(value = undefined, offset = 0) {
+	const resolved = weekStartOffset(offset);
 	const p = toTuple(value === undefined ? now() : value);
 	const endDay = monthdays(p[0], p[1]);
-	const start = week(fromTuple([p[0], p[1], 1]), offset);
-	const end = week(fromTuple([p[0], p[1], endDay]), offset);
-	const span = Math.floor((end - start) / (MS_PER_DAY * 7)) + 1;
+	const first = week(fromTuple([p[0], p[1], 1]), resolved);
+	const last = week(fromTuple([p[0], p[1], endDay]), resolved);
+	const span = Math.floor((last - first) / (MS_PER_DAY * 7)) + 1;
 	const res = new Array(span);
-	let current = start;
+	let current = first;
 	for (let i = 0; i < span; i++) {
 		res[i] = current;
 		current += MS_PER_DAY * 7;
+	}
+	return res;
+}
+
+// Function: monthgrid
+// Returns a fixed-length padded month view as `DateNum` values. Starts at the
+// week containing the first of the month and spans `weeks` complete weeks
+// (default `6`, so 42 days).
+//
+// Example:
+// ```javascript
+// dates.monthgrid(value)
+// dates.monthgrid(value, { weekStart: "sunday", weeks: 6 })
+// ```
+function monthgrid(value = undefined, options = {}) {
+	const count =
+		Number.isInteger(options.weeks) && options.weeks > 0 ? options.weeks : 6;
+	const origin = value === undefined ? now() : value;
+	const gridStart = week(start(origin, PERIODS.month), options);
+	const n = count * 7;
+	const res = new Array(n);
+	for (let i = 0; i < n; i++) {
+		res[i] = gridStart + i * MS_PER_DAY;
 	}
 	return res;
 }
@@ -611,7 +678,7 @@ function start(value = undefined, grain = PERIODS.month, options = {}) {
 		case PERIODS.day:
 			return fromTuple([p[0], p[1], p[2]]);
 		case PERIODS.week:
-			return week(value, options.offset ?? 0);
+			return week(value, options);
 		case PERIODS.month:
 			return fromTuple([p[0], p[1], 1]);
 		case PERIODS.quarter:
@@ -620,6 +687,116 @@ function start(value = undefined, grain = PERIODS.month, options = {}) {
 			return fromTuple([p[0], 1, 1]);
 		default:
 			return fromTuple([p[0], p[1], 1]);
+	}
+}
+
+// Function: same
+// Returns true when `a` and `b` share the same `grain` period. Default grain
+// is the civil day, so time of day is ignored.
+//
+// Example:
+// ```javascript
+// dates.same(a, b)
+// dates.same(a, b, dates.PERIODS.month)
+// ```
+function same(a, b, grain = PERIODS.day) {
+	if (a == null || b == null) return false;
+	if (grain === PERIODS.week) {
+		return start(a, PERIODS.week) === start(b, PERIODS.week);
+	}
+	const n =
+		grain === PERIODS.year
+			? 1
+			: grain === PERIODS.month
+				? 2
+				: grain === PERIODS.day
+					? 3
+					: grain === "hour"
+						? 4
+						: grain === "minute"
+							? 5
+							: grain === "second"
+								? 6
+								: 3;
+	const left = toTuple(a);
+	const right = toTuple(b);
+	for (let i = 0; i < n; i++) {
+		if (left[i] !== right[i]) return false;
+	}
+	return true;
+}
+
+// Function: with
+// Returns `value` with the given civil `parts` applied. Omitted or invalid
+// keys are kept. `day` is clamped to the length of the resulting month.
+//
+// Example:
+// ```javascript
+// dates.with(value, { day: 15 })
+// dates.with(value, { year: 2027, month: 2 })
+// ```
+function withParts(value, parts = {}) {
+	if (!parts || typeof parts !== "object") return value;
+	const p = toTuple(value === undefined ? now() : value);
+	const asInt = (key) => {
+		const n = Number(parts[key]);
+		return Number.isInteger(n) ? n : undefined;
+	};
+	const year = asInt("year");
+	const month = asInt("month");
+	const day = asInt("day");
+	const hour = asInt("hour");
+	const minute = asInt("minute");
+	const second = asInt("second");
+	const y = year !== undefined ? year : p[0];
+	const m = month !== undefined && month >= 1 && month <= 12 ? month : p[1];
+	const max = monthdays(y, m);
+	const rawDay = day !== undefined && day >= 1 ? day : p[2];
+	const d = rawDay > max ? max : rawDay;
+	const h = hour !== undefined && hour >= 0 && hour < 24 ? hour : p[3];
+	const mn = minute !== undefined && minute >= 0 && minute < 60 ? minute : p[4];
+	const s = second !== undefined && second >= 0 && second < 60 ? second : p[5];
+	return fromTuple([y, m, d, h, mn, s]);
+}
+
+// Function: format
+// Formats a canonical `DateNum` as civil text. Does not use `asDate`; numbers
+// here are DateNum, not Unix timestamps.
+//
+// `kind` is one of `date`, `time`, `times`, `datetime`, `year`, `month`,
+// `day`, `monthname`, `dayname`, `weekday`.
+//
+// Example:
+// ```javascript
+// dates.format(value, "date")      // "2026-06-11"
+// dates.format(value, "time")      // "13:45"
+// dates.format(value, "monthname") // "June"
+// ```
+function format(value, kind = "date") {
+	const p = toTuple(value === undefined ? now() : value);
+	const pad = (n) => (n < 10 ? `0${n}` : `${n}`);
+	const wday = weekday(p[0], p[1], p[2]);
+	switch (kind) {
+		case "time":
+			return `${pad(p[3])}:${pad(p[4])}`;
+		case "times":
+			return `${pad(p[3])}:${pad(p[4])}:${pad(p[5])}`;
+		case "datetime":
+			return `${format(value, "date")} ${format(value, "time")}`;
+		case "year":
+			return `${p[0]}`;
+		case "month":
+			return pad(p[1]);
+		case "day":
+			return pad(p[2]);
+		case "monthname":
+			return MONTH_NAMES[p[1] - 1] ?? "";
+		case "dayname":
+			return WeekDay.names[wday] ?? "";
+		case "weekday":
+			return (WeekDay.names[wday] ?? "").slice(0, 3);
+		default:
+			return `${p[0]}-${pad(p[1])}-${pad(p[2])}`;
 	}
 }
 
@@ -673,6 +850,7 @@ const dates = {
 	dist,
 	div,
 	divmul,
+	format,
 	fromDate,
 	fromTimestamp,
 	fromTuple,
@@ -684,6 +862,8 @@ const dates = {
 	leaps,
 	Minute,
 	Month,
+	MONTH_NAMES,
+	monthgrid,
 	MS_PER_DAY,
 	MS_PER_HOUR,
 	MS_PER_MINUTE,
@@ -694,6 +874,7 @@ const dates = {
 	now,
 	PERIODS,
 	periods,
+	same,
 	Second,
 	SPLIT_DAYS,
 	second,
@@ -708,6 +889,8 @@ const dates = {
 	week,
 	weekday,
 	weeks,
+	weekStartOffset,
+	with: withParts,
 	YEAR_DAYS,
 	YEAR_MONTHS,
 	Year,

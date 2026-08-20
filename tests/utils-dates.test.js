@@ -1,8 +1,8 @@
-import { describe, expect, test } from "bun:test"
-import path from "node:path"
-import { Window } from "happy-dom"
-import { dates } from "../src/js/select/utils/dates.js"
-import * as utils from "../src/js/select/utils/index.js"
+import { describe, expect, test } from "bun:test";
+import path from "node:path";
+import { Window } from "happy-dom";
+import { dates } from "../src/js/select/utils/dates.js";
+import * as utils from "../src/js/select/utils/index.js";
 
 const {
 	add,
@@ -12,6 +12,7 @@ const {
 	days,
 	diffcal,
 	dist,
+	format,
 	fromDate,
 	fromTimestamp,
 	fromTuple,
@@ -19,10 +20,12 @@ const {
 	minute,
 	month,
 	monthdays,
+	monthgrid,
 	months,
 	now,
 	PERIODS,
 	periods,
+	same,
 	second,
 	start,
 	timezone,
@@ -33,12 +36,13 @@ const {
 	weeks,
 	year,
 	yeardays,
-} = dates
+} = dates;
+const withParts = dates.with;
 
-const ROOT = path.resolve(import.meta.dir, "..")
+const ROOT = path.resolve(import.meta.dir, "..");
 
 function setupGlobals() {
-	const window = new Window()
+	const window = new Window();
 	Object.assign(globalThis, {
 		window,
 		document: window.document,
@@ -62,128 +66,130 @@ function setupGlobals() {
 		cancelAnimationFrame: window.cancelAnimationFrame.bind(window),
 		navigator: window.navigator,
 		getComputedStyle: window.getComputedStyle.bind(window),
-	})
-	return window
+	});
+	return window;
 }
 
 function pathToFileURL(filePath) {
-	let resolved = path.resolve(filePath).replace(/\\/g, "/")
+	let resolved = path.resolve(filePath).replace(/\\/g, "/");
 	if (!resolved.startsWith("/")) {
-		resolved = `/${resolved}`
+		resolved = `/${resolved}`;
 	}
-	return new URL(`file://${resolved}`)
+	return new URL(`file://${resolved}`);
 }
 
 describe("utils.dates export surface", () => {
 	test("exports dates namespace from utils and top-level index", async () => {
-		const window = setupGlobals()
-		const index = await import(pathToFileURL(path.join(ROOT, "src/js/select/index.js")).href)
-		expect(utils.dates).toBeDefined()
-		expect(utils.dates.fromTuple).toBe(fromTuple)
-		expect(utils.dates.toTuple).toBe(toTuple)
-		expect(index.dates).toBeDefined()
-		expect(index.dates.toTimestamp).toBe(toTimestamp)
-		expect(index.fromTuple).toBeUndefined()
-		window.close()
-	})
-})
+		const window = setupGlobals();
+		const index = await import(
+			pathToFileURL(path.join(ROOT, "src/js/select/index.js")).href
+		);
+		expect(utils.dates).toBeDefined();
+		expect(utils.dates.fromTuple).toBe(fromTuple);
+		expect(utils.dates.toTuple).toBe(toTuple);
+		expect(index.dates).toBeDefined();
+		expect(index.dates.toTimestamp).toBe(toTimestamp);
+		expect(index.fromTuple).toBeUndefined();
+		window.close();
+	});
+});
 
 describe("utils.dates calendar helpers", () => {
 	test("calculates year and month day counts", () => {
-		expect(yeardays(2024)).toBe(366)
-		expect(yeardays(2023)).toBe(365)
-		expect(yeardays(2023, 3)).toBe(59)
-		expect(yeardays(2024, 3)).toBe(60)
-		expect(monthdays(2023, 2)).toBe(28)
-		expect(monthdays(2024, 2)).toBe(29)
-	})
+		expect(yeardays(2024)).toBe(366);
+		expect(yeardays(2023)).toBe(365);
+		expect(yeardays(2023, 3)).toBe(59);
+		expect(yeardays(2024, 3)).toBe(60);
+		expect(monthdays(2023, 2)).toBe(28);
+		expect(monthdays(2024, 2)).toBe(29);
+	});
 
 	test("calculates days for a given year start", () => {
-		expect(datedays(2024)).toBe(datedays(2024, 1, 1))
-	})
+		expect(datedays(2024)).toBe(datedays(2024, 1, 1));
+	});
 
 	test("progresses by 365 days for non-leap years", () => {
-		expect(datedays(2024) - datedays(2023)).toBe(365)
-	})
+		expect(datedays(2024) - datedays(2023)).toBe(365);
+	});
 
 	test("progresses by 366 days for leap years", () => {
-		expect(datedays(2025) - datedays(2024)).toBe(366)
-	})
+		expect(datedays(2025) - datedays(2024)).toBe(366);
+	});
 
 	test("handles month progression correctly within a year", () => {
-		expect(datedays(2023, 2, 1) - datedays(2023, 1, 1)).toBe(31)
-		expect(datedays(2023, 3, 1) - datedays(2023, 2, 1)).toBe(28)
-	})
+		expect(datedays(2023, 2, 1) - datedays(2023, 1, 1)).toBe(31);
+		expect(datedays(2023, 3, 1) - datedays(2023, 2, 1)).toBe(28);
+	});
 
 	test("handles leap and non-leap February correctly", () => {
-		const leapFeb28 = datedays(2024, 2, 28)
-		const leapFeb29 = datedays(2024, 2, 29)
-		const leapMar1 = datedays(2024, 3, 1)
-		expect(leapFeb29 - leapFeb28).toBe(1)
-		expect(leapMar1 - leapFeb29).toBe(1)
+		const leapFeb28 = datedays(2024, 2, 28);
+		const leapFeb29 = datedays(2024, 2, 29);
+		const leapMar1 = datedays(2024, 3, 1);
+		expect(leapFeb29 - leapFeb28).toBe(1);
+		expect(leapMar1 - leapFeb29).toBe(1);
 
-		const feb28 = datedays(2023, 2, 28)
-		const mar1 = datedays(2023, 3, 1)
-		expect(mar1 - feb28).toBe(1)
-	})
+		const feb28 = datedays(2023, 2, 28);
+		const mar1 = datedays(2023, 3, 1);
+		expect(mar1 - feb28).toBe(1);
+	});
 
 	test("validates century rules for leap years", () => {
-		expect(datedays(1901) - datedays(1900)).toBe(365)
-		expect(datedays(2001) - datedays(2000)).toBe(366)
-	})
+		expect(datedays(1901) - datedays(1900)).toBe(365);
+		expect(datedays(2001) - datedays(2000)).toBe(366);
+	});
 
 	test("calculates day progression correctly", () => {
-		expect(datedays(2024, 1, 10) - datedays(2024, 1, 1)).toBe(9)
-	})
-})
+		expect(datedays(2024, 1, 10) - datedays(2024, 1, 1)).toBe(9);
+	});
+});
 
 describe("utils.dates conversion helpers", () => {
 	test("converts explicitly between supported date representations", () => {
-		const tuple = [2024, 6, 10, 12, 34, 56]
-		const dateNum = fromTuple(tuple)
-		const iso = "2024-06-10T12:34:56.000Z"
-		expect(toTuple(dateNum)).toEqual(tuple)
-		expect(toDate(dateNum).toISOString()).toBe(iso)
-		expect(toTimestamp(dateNum)).toBe(1718022896)
-		expect(fromDate(new Date(iso))).toBe(dateNum)
-		expect(fromTimestamp(1718022896)).toBe(dateNum)
-	})
+		const tuple = [2024, 6, 10, 12, 34, 56];
+		const dateNum = fromTuple(tuple);
+		const iso = "2024-06-10T12:34:56.000Z";
+		expect(toTuple(dateNum)).toEqual(tuple);
+		expect(toDate(dateNum).toISOString()).toBe(iso);
+		expect(toTimestamp(dateNum)).toBe(1718022896);
+		expect(fromDate(new Date(iso))).toBe(dateNum);
+		expect(fromTimestamp(1718022896)).toBe(dateNum);
+	});
 
 	test("converts explicit date components to a numeric value", () => {
-		const result = fromTuple([2024, 1, 1])
-		expect(result).toBeTypeOf("number")
-		expect(result).toBeGreaterThan(0)
-	})
+		const result = fromTuple([2024, 1, 1]);
+		expect(result).toBeTypeOf("number");
+		expect(result).toBeGreaterThan(0);
+	});
 
 	test("converts Date objects consistently using UTC fields", () => {
-		const value = new Date("2024-01-01T00:00:00Z")
-		expect(fromDate(value)).toBe(fromTuple([2024, 1, 1]))
-	})
+		const value = new Date("2024-01-01T00:00:00Z");
+		expect(fromDate(value)).toBe(fromTuple([2024, 1, 1]));
+	});
 
 	test("includes time components correctly", () => {
-		const base = fromTuple([2024, 1, 1])
-		const withTime = fromTuple([2024, 1, 1, 12, 30, 30])
+		const base = fromTuple([2024, 1, 1]);
+		const withTime = fromTuple([2024, 1, 1, 12, 30, 30]);
 		expect(withTime - base).toBe(
 			12 * by.hour.step + 30 * by.minute.step + 30 * by.second.step,
-		)
-	})
+		);
+	});
 
 	test("matches Date object input and explicit components with time", () => {
-		const d = new Date("2024-01-01T14:15:16Z")
-		expect(fromDate(d)).toBe(fromTuple([2024, 1, 1, 14, 15, 16]))
-	})
+		const d = new Date("2024-01-01T14:15:16Z");
+		expect(fromDate(d)).toBe(fromTuple([2024, 1, 1, 14, 15, 16]));
+	});
 
 	test("handles leap years and non-leap years correctly", () => {
-		const leapFeb28 = fromTuple([2024, 2, 28])
-		const leapFeb29 = fromTuple([2024, 2, 29])
-		const leapMar1 = fromTuple([2024, 3, 1])
-		expect(leapFeb29 - leapFeb28).toBe(by.day.step)
-		expect(leapMar1 - leapFeb29).toBe(by.day.step)
+		const leapFeb28 = fromTuple([2024, 2, 28]);
+		const leapFeb29 = fromTuple([2024, 2, 29]);
+		const leapMar1 = fromTuple([2024, 3, 1]);
+		expect(leapFeb29 - leapFeb28).toBe(by.day.step);
+		expect(leapMar1 - leapFeb29).toBe(by.day.step);
 
-		const feb28 = fromTuple([2023, 2, 28])
-		const mar1 = fromTuple([2023, 3, 1])
-		expect(mar1 - feb28).toBe(by.day.step)
-	})
+		const feb28 = fromTuple([2023, 2, 28]);
+		const mar1 = fromTuple([2023, 3, 1]);
+		expect(mar1 - feb28).toBe(by.day.step);
+	});
 
 	test("round-trips selected dates", () => {
 		const inputs = [
@@ -198,110 +204,138 @@ describe("utils.dates conversion helpers", () => {
 			[1582, 10, 4],
 			[1600, 2, 29],
 			[1700, 2, 28],
-		]
+		];
 
 		for (const [y, m, d] of inputs) {
-			const [ry, rm, rd, rh, rmn, rs] = toTuple(fromTuple([y, m, d]))
-			expect([ry, rm, rd, rh, rmn, rs]).toEqual([y, m, d, 0, 0, 0])
+			const [ry, rm, rd, rh, rmn, rs] = toTuple(fromTuple([y, m, d]));
+			expect([ry, rm, rd, rh, rmn, rs]).toEqual([y, m, d, 0, 0, 0]);
 		}
-	})
+	});
 
 	test("round-trips time components", () => {
-		const parts = [2024, 5, 20, 14, 30, 45]
-		expect(toTuple(fromTuple(parts))).toEqual(parts)
-	})
+		const parts = [2024, 5, 20, 14, 30, 45];
+		expect(toTuple(fromTuple(parts))).toEqual(parts);
+	});
 
 	test("supports canonical extraction through toTuple", () => {
-		expect(toTuple(fromDate(new Date("2024-01-01T00:00:00Z"))).slice(0, 3)).toEqual([
-			2024,
-			1,
-			1,
-		])
+		expect(
+			toTuple(fromDate(new Date("2024-01-01T00:00:00Z"))).slice(0, 3),
+		).toEqual([2024, 1, 1]);
 		expect(toTuple(fromTuple([2024, 1, 2, 3, 4, 5])).slice(0, 3)).toEqual([
-			2024,
-			1,
-			2,
-		])
-	})
+			2024, 1, 2,
+		]);
+	});
 
 	test("exposes date part accessors and now helper on canonical values", () => {
-		const d = new Date("2024-05-20T14:30:45Z")
-		const dn = fromTuple([2024, 5, 20, 14, 30, 45])
-		expect(year(fromDate(d))).toBe(2024)
-		expect(month(fromDate(d))).toBe(5)
-		expect(day(fromDate(d))).toBe(20)
-		expect(hour(fromDate(d))).toBe(14)
-		expect(minute(fromDate(d))).toBe(30)
-		expect(second(fromDate(d))).toBe(45)
-		expect(year(dn)).toBe(2024)
-		expect(month(dn)).toBe(5)
-		expect(day(dn)).toBe(20)
-		expect(hour(dn)).toBe(14)
-		expect(minute(dn)).toBe(30)
-		expect(second(dn)).toBe(45)
-		expect(year(fromTuple([2024, 5, 20, 14, 30, 45]))).toBe(2024)
-		expect(month(fromTuple([2024, 5, 20, 14, 30, 45]))).toBe(5)
-		expect(day(fromTuple([2024, 5, 20, 14, 30, 45]))).toBe(20)
-		expect(hour(fromTuple([2024, 5, 20, 14, 30, 45]))).toBe(14)
-		expect(minute(fromTuple([2024, 5, 20, 14, 30, 45]))).toBe(30)
-		expect(second(fromTuple([2024, 5, 20, 14, 30, 45]))).toBe(45)
-		expect(toTuple(now())).toHaveLength(6)
-	})
+		const d = new Date("2024-05-20T14:30:45Z");
+		const dn = fromTuple([2024, 5, 20, 14, 30, 45]);
+		expect(year(fromDate(d))).toBe(2024);
+		expect(month(fromDate(d))).toBe(5);
+		expect(day(fromDate(d))).toBe(20);
+		expect(hour(fromDate(d))).toBe(14);
+		expect(minute(fromDate(d))).toBe(30);
+		expect(second(fromDate(d))).toBe(45);
+		expect(year(dn)).toBe(2024);
+		expect(month(dn)).toBe(5);
+		expect(day(dn)).toBe(20);
+		expect(hour(dn)).toBe(14);
+		expect(minute(dn)).toBe(30);
+		expect(second(dn)).toBe(45);
+		expect(year(fromTuple([2024, 5, 20, 14, 30, 45]))).toBe(2024);
+		expect(month(fromTuple([2024, 5, 20, 14, 30, 45]))).toBe(5);
+		expect(day(fromTuple([2024, 5, 20, 14, 30, 45]))).toBe(20);
+		expect(hour(fromTuple([2024, 5, 20, 14, 30, 45]))).toBe(14);
+		expect(minute(fromTuple([2024, 5, 20, 14, 30, 45]))).toBe(30);
+		expect(second(fromTuple([2024, 5, 20, 14, 30, 45]))).toBe(45);
+		expect(toTuple(now())).toHaveLength(6);
+	});
 
 	test("lists month, day, and week ranges as canonical DateNum values", () => {
-		const yearMonths = months(fromTuple([2024, 5, 20]))
-		expect(yearMonths).toHaveLength(12)
-		expect(toTuple(yearMonths[0]).slice(0, 3)).toEqual([2024, 1, 1])
-		expect(toTuple(yearMonths[4]).slice(0, 3)).toEqual([2024, 5, 1])
-		expect(toTuple(yearMonths[11]).slice(0, 3)).toEqual([2024, 12, 1])
+		const yearMonths = months(fromTuple([2024, 5, 20]));
+		expect(yearMonths).toHaveLength(12);
+		expect(toTuple(yearMonths[0]).slice(0, 3)).toEqual([2024, 1, 1]);
+		expect(toTuple(yearMonths[4]).slice(0, 3)).toEqual([2024, 5, 1]);
+		expect(toTuple(yearMonths[11]).slice(0, 3)).toEqual([2024, 12, 1]);
 
-		const monthDays = days(fromTuple([2024, 2, 20]))
-		expect(monthDays).toHaveLength(29)
-		expect(toTuple(monthDays[0]).slice(0, 3)).toEqual([2024, 2, 1])
-		expect(toTuple(monthDays[28]).slice(0, 3)).toEqual([2024, 2, 29])
+		const monthDays = days(fromTuple([2024, 2, 20]));
+		expect(monthDays).toHaveLength(29);
+		expect(toTuple(monthDays[0]).slice(0, 3)).toEqual([2024, 2, 1]);
+		expect(toTuple(monthDays[28]).slice(0, 3)).toEqual([2024, 2, 29]);
 
-		expect(toTuple(week(fromTuple([2024, 1, 1]))).slice(0, 3)).toEqual([2024, 1, 1])
-		expect(toTuple(week(fromTuple([2024, 1, 8]))).slice(0, 3)).toEqual([2024, 1, 8])
-		expect(toTuple(week(fromTuple([2024, 1, 10]))).slice(0, 3)).toEqual([2024, 1, 8])
-		expect(toTuple(week(fromTuple([2024, 1, 7]), 6)).slice(0, 3)).toEqual([2024, 1, 7])
-		expect(toTuple(week(fromTuple([2024, 1, 8]), 6)).slice(0, 3)).toEqual([2024, 1, 7])
+		expect(toTuple(week(fromTuple([2024, 1, 1]))).slice(0, 3)).toEqual([
+			2024, 1, 1,
+		]);
+		expect(toTuple(week(fromTuple([2024, 1, 8]))).slice(0, 3)).toEqual([
+			2024, 1, 8,
+		]);
+		expect(toTuple(week(fromTuple([2024, 1, 10]))).slice(0, 3)).toEqual([
+			2024, 1, 8,
+		]);
+		expect(toTuple(week(fromTuple([2024, 1, 7]), 6)).slice(0, 3)).toEqual([
+			2024, 1, 7,
+		]);
+		expect(toTuple(week(fromTuple([2024, 1, 8]), 6)).slice(0, 3)).toEqual([
+			2024, 1, 7,
+		]);
 
-		const monthWeeks = weeks(fromTuple([2024, 1, 20]))
+		const monthWeeks = weeks(fromTuple([2024, 1, 20]));
 		expect(monthWeeks.map((_) => toTuple(_).slice(0, 3))).toEqual([
 			[2024, 1, 1],
 			[2024, 1, 8],
 			[2024, 1, 15],
 			[2024, 1, 22],
 			[2024, 1, 29],
-		])
-		expect(monthWeeks.at(-1)).toEqual(week(fromTuple([2024, 1, 31])))
+		]);
+		expect(monthWeeks.at(-1)).toEqual(week(fromTuple([2024, 1, 31])));
 
-		const septemberWeeks = weeks(fromTuple([2024, 9, 20]))
-		expect(septemberWeeks[0]).toEqual(week(fromTuple([2024, 9, 1])))
-		expect(septemberWeeks.at(-1)).toEqual(week(fromTuple([2024, 9, 30])))
-		expect(weeks(fromTuple([2024, 1, 20]), 6).map((_) => toTuple(_).slice(0, 3))).toEqual([
+		const septemberWeeks = weeks(fromTuple([2024, 9, 20]));
+		expect(septemberWeeks[0]).toEqual(week(fromTuple([2024, 9, 1])));
+		expect(septemberWeeks.at(-1)).toEqual(week(fromTuple([2024, 9, 30])));
+		expect(
+			weeks(fromTuple([2024, 1, 20]), 6).map((_) => toTuple(_).slice(0, 3)),
+		).toEqual([
 			[2023, 12, 31],
 			[2024, 1, 7],
 			[2024, 1, 14],
 			[2024, 1, 21],
 			[2024, 1, 28],
-		])
-	})
+		]);
+	});
 
 	test("normalizes and iterates generic calendar periods", () => {
-		expect(toTuple(start(fromTuple([2024, 5, 20]), PERIODS.day)).slice(0, 3)).toEqual([2024, 5, 20])
-		expect(start(fromTuple([2024, 5, 20]), PERIODS.week)).toBe(week(fromTuple([2024, 5, 20])))
-		expect(toTuple(start(fromTuple([2024, 5, 20]), PERIODS.month)).slice(0, 3)).toEqual([2024, 5, 1])
-		expect(toTuple(start(fromTuple([2024, 5, 20]), PERIODS.quarter)).slice(0, 3)).toEqual([2024, 4, 1])
-		expect(toTuple(start(fromTuple([2024, 5, 20]), PERIODS.year)).slice(0, 3)).toEqual([2024, 1, 1])
+		expect(
+			toTuple(start(fromTuple([2024, 5, 20]), PERIODS.day)).slice(0, 3),
+		).toEqual([2024, 5, 20]);
+		expect(start(fromTuple([2024, 5, 20]), PERIODS.week)).toBe(
+			week(fromTuple([2024, 5, 20])),
+		);
+		expect(
+			toTuple(start(fromTuple([2024, 5, 20]), PERIODS.month)).slice(0, 3),
+		).toEqual([2024, 5, 1]);
+		expect(
+			toTuple(start(fromTuple([2024, 5, 20]), PERIODS.quarter)).slice(0, 3),
+		).toEqual([2024, 4, 1]);
+		expect(
+			toTuple(start(fromTuple([2024, 5, 20]), PERIODS.year)).slice(0, 3),
+		).toEqual([2024, 1, 1]);
 
-		expect(toTuple(add(fromTuple([2024, 1, 31]), PERIODS.month)).slice(0, 3)).toEqual([2024, 2, 29])
-		expect(toTuple(add(fromTuple([2024, 1, 31]), PERIODS.quarter)).slice(0, 3)).toEqual([2024, 4, 30])
-		expect(toTuple(add(fromTuple([2024, 2, 29]), PERIODS.year)).slice(0, 3)).toEqual([2025, 2, 28])
+		expect(
+			toTuple(add(fromTuple([2024, 1, 31]), PERIODS.month)).slice(0, 3),
+		).toEqual([2024, 2, 29]);
+		expect(
+			toTuple(add(fromTuple([2024, 1, 31]), PERIODS.quarter)).slice(0, 3),
+		).toEqual([2024, 4, 30]);
+		expect(
+			toTuple(add(fromTuple([2024, 2, 29]), PERIODS.year)).slice(0, 3),
+		).toEqual([2025, 2, 28]);
 
 		const monthPeriods = Array.from(
-			periods(fromTuple([2024, 1, 15]), fromTuple([2024, 6, 20]), PERIODS.month),
-		)
+			periods(
+				fromTuple([2024, 1, 15]),
+				fromTuple([2024, 6, 20]),
+				PERIODS.month,
+			),
+		);
 		expect(monthPeriods.map((_) => toTuple(_).slice(0, 3))).toEqual([
 			[2024, 1, 1],
 			[2024, 2, 1],
@@ -309,107 +343,204 @@ describe("utils.dates conversion helpers", () => {
 			[2024, 4, 1],
 			[2024, 5, 1],
 			[2024, 6, 1],
-		])
+		]);
 
 		expect(
-			Array.from(periods(fromTuple([2024, 1, 15]), fromTuple([2024, 8, 2]), PERIODS.quarter)).map((_) =>
-				toTuple(_).slice(0, 3),
-			),
+			Array.from(
+				periods(
+					fromTuple([2024, 1, 15]),
+					fromTuple([2024, 8, 2]),
+					PERIODS.quarter,
+				),
+			).map((_) => toTuple(_).slice(0, 3)),
 		).toEqual([
 			[2024, 1, 1],
 			[2024, 4, 1],
 			[2024, 7, 1],
-		])
+		]);
 
 		expect(
-			Array.from(periods(fromTuple([2024, 1, 1]), fromTuple([2024, 1, 3]), PERIODS.day)).map((_) =>
-				toTuple(_).slice(0, 3),
-			),
+			Array.from(
+				periods(fromTuple([2024, 1, 1]), fromTuple([2024, 1, 3]), PERIODS.day),
+			).map((_) => toTuple(_).slice(0, 3)),
 		).toEqual([
 			[2024, 1, 1],
 			[2024, 1, 2],
 			[2024, 1, 3],
-		])
+		]);
 
 		expect(
-			Array.from(periods(fromTuple([2024, 1, 10]), fromTuple([2024, 1, 20]), PERIODS.week, { offset: 6 })).map(
-				(_) => toTuple(_).slice(0, 3),
-			),
+			Array.from(
+				periods(
+					fromTuple([2024, 1, 10]),
+					fromTuple([2024, 1, 20]),
+					PERIODS.week,
+					{ offset: 6 },
+				),
+			).map((_) => toTuple(_).slice(0, 3)),
 		).toEqual([
 			[2024, 1, 7],
 			[2024, 1, 14],
-		])
-	})
-})
+		]);
+	});
+});
 
 describe("utils.dates diff helpers", () => {
 	test("calculates exact calendar differences", () => {
-		expect(diffcal(fromTuple([2023, 1, 1]), fromTuple([2023, 1, 10]))).toEqual([0, 0, 9, 0, 0, 0])
-		expect(diffcal(fromTuple([2023, 1, 1]), fromTuple([2023, 2, 1]))).toEqual([0, 1, 0, 0, 0, 0])
-		expect(diffcal(fromTuple([2024, 2, 28]), fromTuple([2024, 3, 1]))).toEqual([0, 0, 2, 0, 0, 0])
-		expect(diffcal(fromTuple([2023, 2, 28]), fromTuple([2023, 3, 1]))).toEqual([0, 0, 1, 0, 0, 0])
-		expect(diffcal(fromTuple([2023, 2, 1]), fromTuple([2023, 1, 1]))).toEqual([0, -1, 0, 0, 0, 0])
-		expect(diffcal(fromTuple([2023, 1, 1, 10, 0, 0]), fromTuple([2023, 1, 1, 12, 30, 15]))).toEqual([
-			0,
-			0,
-			0,
-			2,
-			30,
-			15,
-		])
-		expect(diffcal(fromTuple([2023, 1, 20]), fromTuple([2023, 2, 1]))).toEqual([0, 0, 12, 0, 0, 0])
-	})
+		expect(diffcal(fromTuple([2023, 1, 1]), fromTuple([2023, 1, 10]))).toEqual([
+			0, 0, 9, 0, 0, 0,
+		]);
+		expect(diffcal(fromTuple([2023, 1, 1]), fromTuple([2023, 2, 1]))).toEqual([
+			0, 1, 0, 0, 0, 0,
+		]);
+		expect(diffcal(fromTuple([2024, 2, 28]), fromTuple([2024, 3, 1]))).toEqual([
+			0, 0, 2, 0, 0, 0,
+		]);
+		expect(diffcal(fromTuple([2023, 2, 28]), fromTuple([2023, 3, 1]))).toEqual([
+			0, 0, 1, 0, 0, 0,
+		]);
+		expect(diffcal(fromTuple([2023, 2, 1]), fromTuple([2023, 1, 1]))).toEqual([
+			0, -1, 0, 0, 0, 0,
+		]);
+		expect(
+			diffcal(
+				fromTuple([2023, 1, 1, 10, 0, 0]),
+				fromTuple([2023, 1, 1, 12, 30, 15]),
+			),
+		).toEqual([0, 0, 0, 2, 30, 15]);
+		expect(diffcal(fromTuple([2023, 1, 20]), fromTuple([2023, 2, 1]))).toEqual([
+			0, 0, 12, 0, 0, 0,
+		]);
+	});
 
 	test("calculates approximate linear distances", () => {
 		const totalMs =
-			by.year.step + by.month.step + by.day.step + by.hour.step + by.minute.step + by.second.step
-		expect(dist(totalMs)).toEqual([1, 1, 1, 1, 1, 1])
+			by.year.step +
+			by.month.step +
+			by.day.step +
+			by.hour.step +
+			by.minute.step +
+			by.second.step;
+		expect(dist(totalMs)).toEqual([1, 1, 1, 1, 1, 1]);
 
-		const d1 = fromTuple([2024, 1, 1])
-		const d2 = fromTuple([2025, 2, 2, 1, 1, 1])
-		const distance = d2 - d1
-		const components = dist(d1, d2)
+		const d1 = fromTuple([2024, 1, 1]);
+		const d2 = fromTuple([2025, 2, 2, 1, 1, 1]);
+		const distance = d2 - d1;
+		const components = dist(d1, d2);
 		const reconstructed =
 			components[0] * by.year.step +
 			components[1] * by.month.step +
 			components[2] * by.day.step +
 			components[3] * by.hour.step +
 			components[4] * by.minute.step +
-			components[5] * by.second.step
-		expect(Math.abs(reconstructed - distance)).toBeLessThan(1000)
-		expect(dist(1000, 0)[5]).toBeLessThan(0)
-	})
+			components[5] * by.second.step;
+		expect(Math.abs(reconstructed - distance)).toBeLessThan(1000);
+		expect(dist(1000, 0)[5]).toBeLessThan(0);
+	});
 
 	test("returns timezone offsets in minute-step increments", () => {
-		expect(timezone() % by.minute.step).toBe(0)
-	})
-})
+		expect(timezone() % by.minute.step).toBe(0);
+	});
+});
 
 describe("utils.dates synthetic validation", () => {
 	test("round-trips all dates from year 0 to 3000", () => {
-		let failures = 0
-		const errors = []
-		const maxErrors = 10
+		let failures = 0;
+		const errors = [];
+		const maxErrors = 10;
 
 		for (let y = 0; y <= 3000; y++) {
 			for (let m = 1; m <= 12; m++) {
-				const dmax = monthdays(y, m)
+				const dmax = monthdays(y, m);
 				for (let d = 1; d <= dmax; d++) {
-					const dn = fromTuple([y, m, d])
-					const [ry, rm, rd] = toTuple(dn)
+					const dn = fromTuple([y, m, d]);
+					const [ry, rm, rd] = toTuple(dn);
 					if (ry !== y || rm !== m || rd !== d) {
-						failures++
+						failures++;
 						if (failures <= maxErrors) {
-							errors.push(`Mismatch: ${y}-${m}-${d} -> ${dn} -> ${ry}-${rm}-${rd}`)
+							errors.push(
+								`Mismatch: ${y}-${m}-${d} -> ${dn} -> ${ry}-${rm}-${rd}`,
+							);
 						}
 					}
 				}
 			}
 		}
 
-		expect(errors).toEqual([])
-		expect(failures).toBe(0)
-	})
-})
+		expect(errors).toEqual([]);
+		expect(failures).toBe(0);
+	});
+});
+
+describe("utils.dates calendar helpers", () => {
+	test("same compares civil periods and ignores finer grains", () => {
+		const morning = fromTuple([2026, 6, 11, 8, 0, 0]);
+		const evening = fromTuple([2026, 6, 11, 21, 45, 9]);
+		const nextDay = fromTuple([2026, 6, 12, 8, 0, 0]);
+		expect(same(morning, evening)).toBe(true);
+		expect(same(morning, nextDay)).toBe(false);
+		expect(same(morning, fromTuple([2026, 6, 30]), PERIODS.month)).toBe(true);
+		expect(same(morning, fromTuple([2026, 7, 1]), PERIODS.month)).toBe(false);
+		expect(same(morning, fromTuple([2026, 1, 1]), PERIODS.year)).toBe(true);
+		expect(same(morning, null)).toBe(false);
+	});
+
+	test("with patches civil parts and clamps the day", () => {
+		const value = fromTuple([2026, 1, 31, 13, 45, 9]);
+		expect(toTuple(withParts(value, { day: 15 }))).toEqual([
+			2026, 1, 15, 13, 45, 9,
+		]);
+		expect(toTuple(withParts(value, { month: 2 }))).toEqual([
+			2026, 2, 28, 13, 45, 9,
+		]);
+		expect(toTuple(withParts(value, { year: 2027, month: 2 }))).toEqual([
+			2027, 2, 28, 13, 45, 9,
+		]);
+		expect(withParts(value, { month: 13 })).toBe(value);
+		expect(withParts(value, { day: "x" })).toBe(value);
+		expect(withParts(value, null)).toBe(value);
+	});
+
+	test("week and weeks accept weekStart strings", () => {
+		const sunday = fromTuple([2024, 1, 7]);
+		expect(week(sunday, { weekStart: "sunday" })).toBe(week(sunday, 6));
+		expect(week(fromTuple([2024, 1, 8]), { weekStart: "monday" })).toBe(
+			week(fromTuple([2024, 1, 8]), 0),
+		);
+		expect(weeks(fromTuple([2024, 1, 20]), { weekStart: "sunday" })).toEqual(
+			weeks(fromTuple([2024, 1, 20]), 6),
+		);
+		expect(
+			start(fromTuple([2024, 1, 10]), PERIODS.week, { weekStart: "sunday" }),
+		).toBe(week(fromTuple([2024, 1, 10]), 6));
+	});
+
+	test("monthgrid returns a fixed 6-week padded month", () => {
+		const january = fromTuple([2024, 1, 20]);
+		const mondayGrid = monthgrid(january);
+		expect(mondayGrid).toHaveLength(42);
+		expect(toTuple(mondayGrid[0]).slice(0, 3)).toEqual([2024, 1, 1]);
+		expect(toTuple(mondayGrid[41]).slice(0, 3)).toEqual([2024, 2, 11]);
+
+		const sundayGrid = monthgrid(january, { weekStart: "sunday" });
+		expect(sundayGrid).toHaveLength(42);
+		expect(toTuple(sundayGrid[0]).slice(0, 3)).toEqual([2023, 12, 31]);
+		expect(toTuple(sundayGrid[1]).slice(0, 3)).toEqual([2024, 1, 1]);
+	});
+
+	test("format renders DateNum as civil text", () => {
+		const value = fromTuple([2026, 6, 11, 13, 45, 9]);
+		expect(format(value, "date")).toBe("2026-06-11");
+		expect(format(value, "time")).toBe("13:45");
+		expect(format(value, "times")).toBe("13:45:09");
+		expect(format(value, "datetime")).toBe("2026-06-11 13:45");
+		expect(format(value, "year")).toBe("2026");
+		expect(format(value, "month")).toBe("06");
+		expect(format(value, "day")).toBe("11");
+		expect(format(value, "monthname")).toBe("June");
+		expect(format(value, "dayname")).toBe("Thursday");
+		expect(format(value, "weekday")).toBe("Thu");
+	});
+});
 
 // EOF

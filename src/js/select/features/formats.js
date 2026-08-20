@@ -8,7 +8,7 @@
 // String case format helpers shared across modules.
 
 import { unwrap } from "../state/cells.js";
-import { hi as htmlHi } from "../utils/html.js";
+import { clsx, hi as htmlHi } from "../utils/html.js";
 import { bool, entries, idem, len, type } from "../utils/index.js";
 import {
 	toCamelCase,
@@ -55,6 +55,10 @@ const currencyFormatterDefault = new Intl.NumberFormat(undefined, {
 });
 const currencyFormatters = new Map();
 const LOCAL_TIME = Symbol("localtime");
+
+function cssClass(...args) {
+	return clsx(...args);
+}
 
 function active(value) {
 	return value ? "active" : "";
@@ -447,6 +451,7 @@ const FORMATS = {
 	asDate,
 	attr,
 	bool,
+	class: cssClass,
 	count,
 	currency,
 	date,
@@ -516,6 +521,7 @@ export {
 	attr,
 	bool,
 	count,
+	cssClass,
 	currency,
 	DEFAULTS,
 	date,

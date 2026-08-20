@@ -56,6 +56,33 @@ describe("ui global link handler", () => {
 		window.close?.()
 	})
 
+	test("treats empty on:click with out:href as a global link", async () => {
+		const window = new Window({ url: "http://localhost:8000/" })
+		setupGlobals(window)
+		const { ui, options } = await import("../src/js/select/ui/index.js")
+		document.body.innerHTML = `<div id="app"></div>`
+
+		const calls = []
+		options.link = (_self, _data, event) => {
+			calls.push(event.currentTarget.getAttribute("href"))
+			event.preventDefault()
+		}
+		const Component = ui(`<a out:href="href" on:click>Next</a>`)
+			.new()
+			.set({ href: "/dynamic" })
+			.mount("#app")
+		const anchor = document.querySelector("a")
+		const event = new MouseEvent("click", { bubbles: true, cancelable: true })
+		anchor.dispatchEvent(event)
+
+		expect(calls).toEqual(["/dynamic"])
+		expect(event.defaultPrevented).toBe(true)
+
+		Component.unmount()
+		options.link = undefined
+		window.close?.()
+	})
+
 	test("keeps explicit anchor handlers local", async () => {
 		const window = new Window({ url: "http://localhost:8000/" })
 		setupGlobals(window)
