@@ -7,7 +7,9 @@ Browser-backed reactive state for URL and `localStorage`.
 - `path`: reactive string bound to `location.pathname`
 - `query`: reactive record bound to `location.search`
 - `hash`: reactive record bound to `location.hash`
+- `go(path)`: `path.set(path, undefined, { mode: "push" })`
 - `local(key, dflt, normalizerOrSerializer?, opts?)`: `localStorage`-backed cell
+- `draft(key, defaults?)`: persisted draft cell with `hasDraft` / `clearDraft` / `resetDraft`
 - `internal(name, value)`: in-memory shared cell registry for cross-component state
 - `ref(value)`: resolves `@`, `#`, and `?` cell references, including `:` selections
 - `val(value)`: parses booleans and hashformat-like text, leaving reference strings unchanged
@@ -26,9 +28,11 @@ Browser-backed reactive state for URL and `localStorage`.
 ```javascript
 import browser from "@select/state/browser.js"
 
-const state = browser()
+const state = browser({ base: document.baseURI })
 
 state.path.set("/docs")
+state.go("/users/1")
+const note = state.draft("note", { text: "" })
 state.query.set({ page: 2, filter: "active" })
 state.hash.set({ section: "api" })
 
@@ -79,6 +83,12 @@ These can be passed anywhere the code accepts a serializer object.
 - `path` uses browser path encoding
 - `query` and `hash` use the Select hashformat syntax by default
 - `local` defaults to JSON
+
+## Base path
+
+`browser({ base })` is opt-in. `base` may be `true` (use `<base href>` when
+present), a URL, or a pathname. `path` then stores the app-relative path;
+`format` / history writes prefix the base. Without `base`, behavior is unchanged.
 
 ## Query and Hash Format
 

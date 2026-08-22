@@ -21,6 +21,7 @@ import {
 	registerComponent,
 	UITemplate,
 } from "./components.js";
+import { captureLinks, interceptLink } from "./links.js";
 import {
 	HTML,
 	hashText,
@@ -823,6 +824,22 @@ function resolve(name) {
 	return componentRegistry(name);
 }
 
+// Function: resolveTemplate
+// Resolves `value` as a renderer. Non-strings are returned as-is. Strings are
+// looked up in the lexical/local template scopes, then `ui.resolve`.
+function resolveTemplate(self, value) {
+	if (typeof value !== "string") return value;
+	const lexical = self?.template?.lexicalTemplates?.[value];
+	if (lexical) return lexical;
+	let current = self;
+	while (current) {
+		const local = current.template?.localTemplates?.get(value);
+		if (local) return local;
+		current = current.parent;
+	}
+	return resolve(value);
+}
+
 function defineComponent(name, ...value) {
 	if (name && typeof name === "object" && !Array.isArray(name)) {
 		return componentRegistry(name, ...value);
@@ -841,6 +858,8 @@ function defineComponent(name, ...value) {
 	return definition;
 }
 
+options.link = interceptLink;
+
 Object.assign(ui, {
 	formats: FORMATS,
 	components: COMPONENTS,
@@ -849,6 +868,9 @@ Object.assign(ui, {
 	component: defineComponent,
 	register,
 	resolve,
+	resolveTemplate,
+	interceptLink,
+	captureLinks,
 	load,
 });
 

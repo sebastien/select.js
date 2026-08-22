@@ -15,9 +15,33 @@
 // ----------------------------------------------------------------------------
 
 // Function: itemkey
-// Resolves a stable key from common item fields (`id`, `key`, `name`).
+// Resolves a stable key from common item fields (`id`, `key`, `value`, `name`).
 function itemkey(item) {
-	return item?.id ?? item?.key ?? item?.name ?? item;
+	return item?.id ?? item?.key ?? item?.value ?? item?.name ?? item;
+}
+
+// Function: selectedValues
+// Normalizes a single-or-multi selection `value` into an array. `null` and
+// `undefined` become `[]`. Arrays are returned as-is. Any other value is
+// wrapped as `[value]`. Unlike `list()`, objects are not flattened.
+function selectedValues(value) {
+	if (Array.isArray(value)) return value;
+	return value == null ? [] : [value];
+}
+
+// Function: normalize
+// Returns a list item with stable `key` and `label` fields. Objects keep their
+// own fields. Key order is `id`, `key`, `value`, `name`, then the item itself.
+function normalize(item) {
+	if (item && typeof item === "object") {
+		const key = itemkey(item);
+		return {
+			...item,
+			key,
+			label: item.label ?? item.name ?? item.value ?? String(key ?? ""),
+		};
+	}
+	return { key: item, label: String(item ?? "") };
 }
 
 // Function: items
@@ -161,9 +185,12 @@ const sel = {
 	index,
 	itemkey,
 	items,
+	normalize,
 	parse,
 	next,
 	remove,
+	selected: selectedValues,
+	selectedValues,
 	toggle,
 	wrapindex,
 };
@@ -176,8 +203,10 @@ export {
 	itemkey,
 	items,
 	next,
+	normalize,
 	remove,
 	sel,
+	selectedValues,
 	toggle,
 	parse,
 	wrapindex,

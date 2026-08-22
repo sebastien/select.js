@@ -35,6 +35,7 @@ import {
 	UITemplateSlot,
 } from "./components.js";
 import { ui } from "./factory.js";
+import { captureLinks, interceptLink } from "./links.js";
 import { virtual, windowOf } from "./virtual.js";
 import {
 	Adopted,
@@ -73,6 +74,8 @@ export {
 	UITemplateSlot,
 	UIWebComponent,
 	ui,
+	interceptLink,
+	captureLinks,
 	virtual,
 	windowOf,
 	webcomponent,

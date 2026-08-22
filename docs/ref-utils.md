@@ -44,7 +44,7 @@ Compatibility barrel for the split utility modules.
 
 Exports:
 
-- `itemkey`, `items`, `index`, `find`, `has`, `add`, `remove`, `toggle`, `next`, `wrapindex`
+- `itemkey`, `items`, `normalize`, `selectedValues`, `collection`, `index`, `find`, `has`, `add`, `remove`, `toggle`, `next`, `wrapindex`
 - `asText`, `clsx`, `iclsx`, `hi`, `microtask`
 - `cmp`, `eq`
 - `asTrue`, `def`, `idem`, `extractor`, `predicate`, `memo`, `pipe`, `swallow`
@@ -90,11 +90,27 @@ ohash(new Date(0)) === ohash(new Date(0)) // true
 
 #### `itemkey(item)`
 
-Returns `item.id ?? item.key ?? item.name ?? item`.
+Returns `item.id ?? item.key ?? item.value ?? item.name ?? item`.
 
 #### `items(values)`
 
 Normalizes values into `{ label, value }` entries when needed.
+
+#### `normalize(item)`
+
+Returns a list item with stable `key` and `label`. Key order is `id`, `key`,
+`value`, `name`, then the item itself.
+
+#### `selectedValues(value)`
+
+Normalizes a single-or-multi selection into an array. `null`/`undefined` become
+`[]`. Arrays pass through. Other values are wrapped. Objects are not flattened.
+
+#### `collection(value)`
+
+Returns the item array from `value`. Arrays pass through. Objects with a
+`values` array or `values()` method unwrap to that list. Everything else is
+`[]`. Unlike `list()`, a plain record is not treated as a collection.
 
 #### `index(items, item, key = itemkey)`
 

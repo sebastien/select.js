@@ -8,7 +8,7 @@ separate `select/utils/search.js` module.
 
 ### Re-exported groups
 
-- `select/utils/selection.js`: `itemkey`, `items`, `index`, `find`, `has`, `add`, `remove`, `toggle`, `next`, `wrapindex`, `sel`
+- `select/utils/selection.js`: `itemkey`, `items`, `normalize`, `selectedValues`, `index`, `find`, `has`, `add`, `remove`, `toggle`, `next`, `wrapindex`, `sel`
 - `select/utils/html.js`: `asText`, `clsx`, `iclsx`, `hi`, `microtask`
 - `select/utils/compare.js`: `cmp`, `eq`
 - `select/utils/func.js`: `asTrue`, `def`, `idem`, `extractor`, `predicate`, `memo`, `pipe`, `swallow`
@@ -21,8 +21,11 @@ separate `select/utils/search.js` module.
 
 ### Selection helpers
 
-- `itemkey(item)`: Returns `item.id ?? item.key ?? item.name ?? item`.
+- `itemkey(item)`: Returns `item.id ?? item.key ?? item.value ?? item.name ?? item`.
 - `items(values)`: Normalizes non-object entries into `{ label, value }` objects.
+- `normalize(item)`: Returns `{ ...item, key, label }` using `id ?? key ?? value ?? name`.
+- `selectedValues(value)`: Normalizes a single-or-multi selection into an array. Objects are wrapped, not flattened.
+- `collection(value)`: Returns an item array from an array or a `{values}` / `values()` bag. Plain records become `[]`.
 - `index(items, item, key?)`: Finds the matching index, or `-1`.
 - `find(items, item, key?)`: Alias for `index`.
 - `has(items, item, key?)`: True when `item` exists in `items`.

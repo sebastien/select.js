@@ -29,16 +29,36 @@ import {
 	path as pathify,
 	sanitize,
 } from "../utils/index.js";
-import { Cell, cell } from "./cells.js";
+import { Cell, cell, effect, unwrap } from "./cells.js";
 import { routed } from "./routing.js";
 
 const log = logger("select.browser");
 const OPTIONS_SINGLETON = "OPTIONS";
 const OPTION_SOURCES = new Map();
 
+function pathnameOf(value, win) {
+	if (!value) return "";
+	const doc = win?.document || globalThis.document;
+	const raw =
+		value === true
+			? doc?.querySelector?.("base[href]")?.href || undefined
+			: value;
+	if (!raw) return "";
+	try {
+		const href =
+			win?.location?.href ||
+			globalThis.location?.href ||
+			"http://localhost/";
+		return new URL(raw, href).pathname.replace(/\/+$/, "");
+	} catch {
+		return String(raw).replace(/\/+$/, "");
+	}
+}
+
 class PathFormat {
-	constructor(warn) {
+	constructor(warn, base = "") {
 		this.warn = warn;
+		this.base = base || "";
 	}
 
 	static SanitizeText(value, warn) {
@@ -46,8 +66,19 @@ class PathFormat {
 		return text ? (text.startsWith("/") ? text : `/${text}`) : "/";
 	}
 
-	parse(value) {
+	relative(value) {
 		const text = PathFormat.SanitizeText(value, this.warn);
+		if (
+			this.base &&
+			(text === this.base || text.startsWith(`${this.base}/`))
+		) {
+			return text.slice(this.base.length) || "/";
+		}
+		return text || "/";
+	}
+
+	parse(value) {
+		const text = this.relative(value);
 		const segments = text.split("/");
 		for (let i = 0; i < segments.length; i++) {
 			try {
@@ -74,13 +105,15 @@ class PathFormat {
 		const segments = text.split("/");
 		for (let i = 0; i < segments.length; i++)
 			segments[i] = encodeURIComponent(segments[i]);
-		return segments.join("/") || "/";
+		const encoded = segments.join("/") || "/";
+		if (!this.base) return encoded;
+		return encoded === "/" ? `${this.base}/` : `${this.base}${encoded}`;
 	}
 
 	read(win, fallback = "/") {
 		return win?.location
 			? this.parse(win.location.pathname)
-			: PathFormat.SanitizeText(fallback, this.warn);
+			: this.parse(fallback);
 	}
 }
 
@@ -240,7 +273,7 @@ class LocationValueCell extends Cell {
 
 class LocationState {
 	constructor(options = {}) {
-		this.win = LocationState.GetWindow();
+		this.win = LocationState.GetWindow(options.window);
 		this.hasWindow = !!this.win?.location;
 		this.hasHistory = !!(
 			this.hasWindow &&
@@ -271,7 +304,10 @@ class LocationState {
 			typeof options.hash.format === "function"
 				? options.hash
 				: hash;
-		this.pathFormat = new PathFormat(this.warn);
+		this.pathFormat = new PathFormat(
+			this.warn,
+			pathnameOf(options.base, this.win),
+		);
 		this.queryFormat = new QueryFormat(querySerializer, this.warn);
 		this.hashFormat = new HashFormat(hashSerializer, this.warn);
 
@@ -309,7 +345,8 @@ class LocationState {
 		this.bind();
 	}
 
-	static GetWindow() {
+	static GetWindow(windowValue = undefined) {
+		if (windowValue) return windowValue;
 		return typeof globalThis !== "undefined" && globalThis.window
 			? globalThis.window
 			: undefined;
@@ -572,7 +609,15 @@ class Browser {
 		this.location = new LocationState(options);
 		this.win = this.location.win;
 		this.hasWindow = this.location.hasWindow;
-		this.hasStorage = !!(this.hasWindow && this.win.localStorage);
+		this.storage = undefined;
+		if (this.hasWindow) {
+			try {
+				this.storage = this.win.localStorage;
+			} catch {
+				this.storage = undefined;
+			}
+		}
+		this.hasStorage = !!this.storage;
 		this.localSerializer =
 			options.local &&
 			typeof options.local.parse === "function" &&
@@ -603,6 +648,8 @@ class Browser {
 		this.setOptionSource(optionSource, optionPreset);
 
 		this.local = this.local.bind(this);
+		this.draft = this.draft.bind(this);
+		this.go = this.go.bind(this);
 		this.internal = this.internal.bind(this);
 		this.ref = this.ref.bind(this);
 		this.val = this.val.bind(this);
@@ -650,13 +697,115 @@ class Browser {
 
 	writeLocal(key, value, serializer) {
 		if (!this.hasStorage) return;
-		if (value === undefined) {
-			this.win.localStorage.removeItem(key);
-			return;
+		try {
+			if (value === undefined) {
+				this.storage.removeItem(key);
+				return;
+			}
+			const formatted = serializer.format(value);
+			if (formatted === undefined) this.storage.removeItem(key);
+			else this.storage.setItem(key, formatted);
+		} catch {
+			this.hasStorage = false;
 		}
-		const formatted = serializer.format(value);
-		if (formatted === undefined) this.win.localStorage.removeItem(key);
-		else this.win.localStorage.setItem(key, formatted);
+	}
+
+	// Method: go
+	// Pushes `path` onto history via `path.set(..., { mode: "push" })`.
+	go(path) {
+		this.path.set(path, undefined, { mode: "push" });
+		return this;
+	}
+
+	// Method: draft
+	// Returns a cell persisted under `key` (string or reactive) after the first
+	// real edit. Exposes `hasDraft`, `clearDraft()`, and `resetDraft(value)`.
+	// Falls back to memory when `localStorage` is unavailable.
+	draft(key, defaults = {}) {
+		const memory = this._drafts || (this._drafts = new Map());
+		const keyValue = () => {
+			const raw = key?.isReactive ? unwrap(key) : key;
+			return String(raw ?? "");
+		};
+		const storage = () => {
+			try {
+				return this.win?.localStorage;
+			} catch {
+				return undefined;
+			}
+		};
+		const read = (storageKey) => {
+			try {
+				const raw = storage()?.getItem(storageKey);
+				if (raw != null) return { stored: true, value: JSON.parse(raw) };
+			} catch {
+				// Fall back to the in-memory draft when browser storage is unavailable.
+			}
+			if (memory.has(storageKey)) {
+				return { stored: true, value: memory.get(storageKey) };
+			}
+			return { stored: false, value: defaults };
+		};
+		const write = (storageKey, value) => {
+			memory.set(storageKey, value);
+			try {
+				storage()?.setItem(storageKey, JSON.stringify(value));
+			} catch {
+				// The in-memory copy still protects the draft for the current session.
+			}
+		};
+		const remove = (storageKey) => {
+			memory.delete(storageKey);
+			try {
+				storage()?.removeItem(storageKey);
+			} catch {
+				// Ignore unavailable browser storage.
+			}
+		};
+		let currentKey = keyValue();
+		const initial = read(currentKey);
+		const target = cell(initial.value);
+		target.hasDraft = initial.stored;
+		let initialized = false;
+		const persist = (value) => {
+			if (initialized) target.hasDraft = true;
+			initialized = true;
+			if (target.hasDraft && currentKey) write(currentKey, unwrap(value));
+		};
+		const adopt = (storageKey) => {
+			currentKey = storageKey;
+			const loaded = read(currentKey);
+			initialized = false;
+			target.hasDraft = loaded.stored;
+			target.set(loaded.value);
+		};
+		target.clearDraft = () => {
+			if (currentKey) remove(currentKey);
+			target.hasDraft = false;
+			// The next change is a new first edit and must be persisted.
+			initialized = true;
+		};
+		target.resetDraft = (value) => {
+			if (currentKey) remove(currentKey);
+			target.hasDraft = false;
+			initialized = false;
+			target.set(value);
+			// `set` runs the effect synchronously; arm the next change for storage.
+			initialized = true;
+		};
+		if (key?.isReactive) {
+			effect([key, target], ([nextKey, value]) => {
+				const next = String(nextKey ?? "");
+				if (next !== currentKey) {
+					adopt(next);
+					return;
+				}
+				persist(value);
+			});
+		} else {
+			effect([target], ([value]) => persist(value));
+		}
+		return target;
 	}
 
 	local(key, dflt, normalizer = undefined, opts = {}) {
@@ -685,9 +834,17 @@ class Browser {
 			typeof serializerOptions.format === "function"
 				? serializerOptions
 				: this.localSerializer;
+		let hasStoredValue = false;
 		const loaded = this.hasStorage
 			? (() => {
-					const raw = this.win.localStorage.getItem(key);
+					let raw;
+					try {
+						raw = this.storage.getItem(key);
+						hasStoredValue = raw !== null;
+					} catch {
+						this.hasStorage = false;
+						return dflt;
+					}
 					return raw === null
 						? dflt
 						: this.location.safeParse(
@@ -707,7 +864,7 @@ class Browser {
 		this.locals.set(key, { cell, defaultValue: normalizedDefault, serializer });
 		if (
 			this.hasStorage &&
-			((this.win.localStorage.getItem(key) === null &&
+			((!hasStoredValue &&
 				normalizedDefault !== undefined) ||
 				!eq(loaded, cell.value))
 		) {
@@ -1189,8 +1346,17 @@ class Browser {
 // Returns the shared `Browser` singleton, creating it with `options` when
 // needed.
 function browser(options = {}) {
-	const win = typeof globalThis !== "undefined" ? globalThis.window : undefined;
-	if (!browser.SINGLETON || browser.SINGLETON.win !== win) {
+	const win =
+		options.window ||
+		(typeof globalThis !== "undefined" ? globalThis.window : undefined);
+	const base = options.base === undefined
+		? browser.SINGLETON?.location?.pathFormat?.base
+		: pathnameOf(options.base, win);
+	if (
+		!browser.SINGLETON ||
+		browser.SINGLETON.win !== win ||
+		browser.SINGLETON.location?.pathFormat?.base !== base
+	) {
 		browser.SINGLETON = new Browser(options);
 	}
 	return browser.SINGLETON;

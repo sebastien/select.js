@@ -115,6 +115,25 @@ function list(value) {
 	}
 }
 
+// Function: collection
+// Returns the item array from `value` without flattening records. Arrays are
+// returned as-is. Objects with a `values` array, or a `values()` method that
+// yields items, unwrap to that list. Everything else becomes `[]`.
+//
+// Unlike `list()`, a plain `{id, name}` object is not treated as a collection.
+function collection(value) {
+	if (Array.isArray(value)) return value;
+	if (typeof value?.values === "function") {
+		const items = value.values();
+		if (Array.isArray(items)) return items;
+		if (items && typeof items[Symbol.iterator] === "function") {
+			return Array.from(items);
+		}
+		return [];
+	}
+	return Array.isArray(value?.values) ? value.values : [];
+}
+
 // Function: str
 // Coerces `value` into a string representation.
 function str(value) {
@@ -549,6 +568,7 @@ export {
 	atom,
 	bool,
 	clone,
+	collection,
 	composite,
 	def,
 	dict,

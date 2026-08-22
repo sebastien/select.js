@@ -6,6 +6,7 @@ import {
 	expand,
 	freeze,
 	isReactive,
+	collection,
 	list,
 	set,
 	str,
@@ -67,5 +68,14 @@ describe("utils.values", () => {
 		expect(set("abc")).toEqual(new Set(["abc"]))
 		expect(set(["a", "b", "a"])).toEqual(new Set(["a", "b"]))
 		expect(set(new Map([["a", 1], ["b", 1]]))).toEqual(new Set([1]))
+	})
+
+	test("collection unwraps arrays and values bags without flattening records", () => {
+		expect(collection(null)).toEqual([])
+		expect(collection([1, 2])).toEqual([1, 2])
+		expect(collection({ values: ["a", "b"] })).toEqual(["a", "b"])
+		expect(collection({ values: () => ["c"] })).toEqual(["c"])
+		expect(collection({ id: 1, name: "Ada" })).toEqual([])
+		expect(collection(new Set(["x", "y"]))).toEqual(["x", "y"])
 	})
 })

@@ -26,15 +26,15 @@
 	<script type="module">
 		import { ui } from "@./ui/index.js"
 
-		const Badge = ui.component("Badge").does({
+		const FeatureTemplateBadge = ui.component("FeatureTemplateBadge").does({
 			label: (_self, data) => data.label,
 			description: (_self, data) => data.description,
 		})
 
 		await ui.load("./feature-template-load.fragment.tpl")
 
-		const Card = Badge.using("BadgeCard")
-		const Pill = Badge.using("BadgePill")
+		const Card = FeatureTemplateBadge.using("BadgeCard")
+		const Pill = FeatureTemplateBadge.using("BadgePill")
 
 		const card = Card.new()
 		card.render({ label: "Card View", description: "Resolved from document template" })

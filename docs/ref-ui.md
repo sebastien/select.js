@@ -306,6 +306,9 @@ Returns a component function with these methods:
 - `apply(data)`: Create an applied template for composition (same result as calling the component as a function).
 - `ui.register(name, component)`: Register a component in the global registry.
 - `ui.resolve(name)`: Resolve a component from the global registry.
+- `ui.resolveTemplate(self, value)`: Resolve a renderer; strings look up local templates then `ui.resolve`.
+- `ui.interceptLink(self, data, event)`: Default same-origin SPA click interceptor.
+- `ui.captureLinks(root?)`: Listen for clicks on `root` (default `document`) and forward them to `interceptLink`.
 - `ui.load(url, scope?)`: Preload external template fragments and cache parsed templates.
 - `ui.component(name)`: Create a named logic-only definition to bind later with `.using(...)`.
 - `ui.formats`: Global formatter/processor registry for `out` and `when` pipelines.
@@ -314,7 +317,7 @@ Returns a component function with these methods:
 - `ui.resolveFormat(name)`: Resolve a formatter from `ui.formats`.
 - `ui.options`: Global UI options.
   - `ui.options.componentRootClass` (default `true`): Adds the component name as a class on each component root element when available, with the component class first in `class`.
-  - `ui.options.link` (default `undefined`): Global callback for empty `on:click` bindings on anchors with an `href` attribute. It receives `(self, data, event)`.
+  - `ui.options.link` (default `ui.interceptLink`): Global callback for empty `on:click` bindings on anchors with an `href` attribute. It receives `(self, data, event)`.
 
 Example:
 
@@ -480,7 +483,9 @@ to `ui.options.link` instead of a component behavior handler:
 <a href="/projects" on:click>Projects</a>
 ```
 
-Configure the callback once at application startup:
+The default is `ui.interceptLink`, which prevents same-origin left-clicks and
+calls `browser().go` with a path relative to any configured `base`. Override
+it to change policy:
 
 ```javascript
 import ui from "./ui"
@@ -500,7 +505,8 @@ The callback is resolved when the event occurs, so assigning a new function
 updates already-mounted links. The callback owns navigation policy and must
 call `event.preventDefault()` when handling the link client-side. If
 `ui.options.link` is not a function, the browser's normal link behavior is
-left unchanged.
+left unchanged. `ui.captureLinks()` installs a document-level listener for
+anchors that have no `on:click` binding.
 
 Explicit handlers continue to use normal behavior resolution:
 

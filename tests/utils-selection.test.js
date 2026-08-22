@@ -19,4 +19,24 @@ describe("utils.selection default export", () => {
 		expect(selection.toggle(items, { id: 2 })).toEqual([{ id: 1 }])
 		expect(selection.next(items, 1, 1)).toBe(0)
 	})
+
+	test("normalizes items and selected values", () => {
+		expect(selection.normalize("Ada")).toEqual({ key: "Ada", label: "Ada" })
+		expect(selection.normalize({ id: "m1", name: "Ada" })).toEqual({
+			id: "m1",
+			name: "Ada",
+			key: "m1",
+			label: "Ada",
+		})
+		expect(selection.normalize({ value: "x" })).toEqual({
+			value: "x",
+			key: "x",
+			label: "x",
+		})
+		expect(selection.selectedValues(null)).toEqual([])
+		expect(selection.selectedValues("a")).toEqual(["a"])
+		expect(selection.selectedValues(["a", "b"])).toEqual(["a", "b"])
+		expect(selection.selectedValues({ id: 1 })).toEqual([{ id: 1 }])
+		expect(selection.selected).toBe(selection.selectedValues)
+	})
 })

@@ -9,10 +9,12 @@
 
 Returns:
 
-- `path`: cell for `location.pathname`
+- `path`: cell for `location.pathname` (app-relative when `options.base` is set)
 - `query`: cell for `location.search`
 - `hash`: cell for `location.hash`
+- `go(path)`: push `path` onto history
 - `local(key, dflt, normalizerOrSerializer?, opts?)`: `localStorage` cell factory
+- `draft(key, defaults?)`: draft cell that persists after the first edit; `hasDraft`, `clearDraft()`, `resetDraft(value)`
 - `internal(name, value)`: in-memory shared cell factory
 - `ref(value)`: internal-reference and `:` selection resolver
 - `val(value)`: plain value parser for booleans and hashformat-like text

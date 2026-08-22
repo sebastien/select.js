@@ -26,6 +26,9 @@ Binding note:
 - `UIWebComponent`: Base class used by registered Select UI custom elements.
 - `ui.register(name, component)`: Component registration.
 - `ui.resolve(name)`: Component lookup.
+- `ui.resolveTemplate(self, name)`: Local template, then `ui.resolve`.
+- `ui.interceptLink(self, data, event)`: Default same-origin SPA click interceptor.
+- `ui.captureLinks(root?)`: Document-level listener that calls `interceptLink`.
 - `ui.load(url, scope?)`: Loads and parses external template fragments once, then caches them for template binding.
 - `ui.component(name)`: Declares a logic-only component definition that can later be bound with `.using(templateRef)`.
 - `ui.formats`: Global formatter/processor registry used by `out` and `when` pipelines.
@@ -155,19 +158,11 @@ Counter.new().set({ count: 1 }).mount("#app")
 </script>
 ```
 
-For application-wide client-side navigation, assign `ui.options.link`:
-
-```javascript
-ui.options.link = (self, data, event) => {
-	 event.preventDefault()
-	 const href = event.currentTarget.getAttribute("href")
-	 if (!href) return
-	 // Update application routing state here.
-}
-```
-
-An empty `on:click` on an anchor with `href` uses this callback. Explicit
-handlers such as `on:click="track"` continue to resolve normally.
+Empty `on:click` on an anchor with `href` uses `ui.options.link`, which defaults
+to `ui.interceptLink` (same-origin SPA navigation via `browser().go`). Call
+`ui.captureLinks()` to also intercept clicks that have no `on:click` binding.
+Override `ui.options.link` to change policy. Explicit handlers such as
+`on:click="track"` continue to resolve normally.
 
 ### Web Components
 
