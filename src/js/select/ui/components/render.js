@@ -7,25 +7,27 @@
 // Data set/update and render pipeline for UIInstance.
 
 import { asText, eq } from "../../utils/index.js"
-import { log, TemplateParser } from "../templates.js"
+import { isThenable } from "../../utils/values.js"
 import {
 	applyNamedProcessors,
-	createTrackingProxy,
+	evaluateWhenComparison,
 	finalizeRenderProcessorValue,
 	formatBindingSource,
-	hasTrackedNonReactiveObjectDeps,
-	isThenable,
 	resolveBindingValue,
 	resolveExpandedSourceValue,
 	resolveRenderableValue,
 	resolveSourceValue,
 	resolveTemplateTokens,
+} from "../eval.js"
+import { log, setNodeText } from "../templates.js"
+import { isReactiveData, renderViewData } from "./reactive.js"
+import {
+	createTrackingProxy,
+	hasTrackedNonReactiveObjectDeps,
 	runWithUIInstance,
 	scheduleRenderTask,
-	setNodeText,
 	snapshotReactiveDependencyRevisions,
 } from "./runtime.js"
-import { isReactiveData, renderViewData } from "./reactive.js"
 
 // Function: attachRender
 // Installs set/update/render methods on `UIInstance`.
@@ -606,11 +608,7 @@ function attachRender(UIInstance) {
 								next = resolveRenderableValue(next);
 							}
 							return mode === "comparison"
-								? TemplateParser.EvaluateWhenComparison(
-										next,
-										operator,
-										comparisonValue,
-									)
+								? evaluateWhenComparison(next, operator, comparisonValue)
 								: next;
 						};
 						let v;

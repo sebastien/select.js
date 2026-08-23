@@ -36,6 +36,7 @@ import {
 } from "./components.js";
 import { ui } from "./factory.js";
 import { captureLinks, interceptLink } from "./links.js";
+import { mask } from "./mask.js";
 import { virtual, windowOf } from "./virtual.js";
 import {
 	Adopted,
@@ -52,13 +53,16 @@ export {
 	Adopted,
 	AppliedUITemplate,
 	COMPONENTS,
+	captureLinks,
 	component,
 	Disconnect,
 	Dynamic,
 	FORMATS,
 	format,
+	interceptLink,
 	lazy,
 	len,
+	mask,
 	options,
 	remap,
 	type,
@@ -74,11 +78,9 @@ export {
 	UITemplateSlot,
 	UIWebComponent,
 	ui,
-	interceptLink,
-	captureLinks,
 	virtual,
-	windowOf,
 	webcomponent,
+	windowOf,
 };
 
 export default ui;

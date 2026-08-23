@@ -35,6 +35,11 @@ Binding note:
 - `ui.format(name, formatter)`: Registers a formatter in `ui.formats`.
 - `ui.unformat(name)`: Removes a formatter from `ui.formats`.
 - `ui.resolveFormat(name)`: Looks up a formatter in `ui.formats`.
+- `mask(pattern, normalizers?, options?)`: Compiles a named-slot input mask. The
+  returned object provides `parse`, `format`, `apply`, `handler(name)`, and
+  `attach(input)`. Set `options.placeholder` to render incomplete slots and
+  `options.pad` to left-pad a slot when its following literal is entered.
+  Patterns support `{name}`, `{name:type}`, and `{name:regexp}` slots.
 - `ui.options`: Global UI options.
   - `componentRootClass` (default `true`): Adds the component name as a class on each component root element (`class="ComponentName ..."`, with the component class first).
   - `link` (default `undefined`): Callback for `<a href="..." on:click>` bindings. It receives `(self, data, event)` and may call `event.preventDefault()` for client-side navigation.

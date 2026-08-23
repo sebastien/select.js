@@ -1,9 +1,10 @@
 # Select Utils/Interaction/Routing Reference Guide
 
 Utility helpers are split across `select/utils`, `select/utils/*.js`,
-`select/features/interaction/index.js`, and `select/state/routing.js`. `select/utils` is the
-compatibility barrel that re-exports the split utility modules. Search helpers
-live in `select/utils/search.js` as a direct import.
+`select/features/interaction/index.js`, `select/utils/pattern.js`, and
+`select/state/routing.js`. `select/utils` is the compatibility barrel that
+re-exports the split utility modules. Search helpers live in
+`select/utils/search.js` as a direct import.
 
 ## Quick Start
 
@@ -259,6 +260,28 @@ Auto-resizes a textarea by setting `height = auto` first, then expanding to
 - `Keyboard.IsControl(event)`: true when the key is non-character/control input
 - `Keyboard.HasModifier(event)`: true when Alt or Ctrl is pressed
 
+### Pattern
+
+Character-level `{name}` / `{name:type}` parsing in `select/utils/pattern.js`.
+Routing and input masks share this tokenizer.
+
+#### `parseSlot(text, offset?)`
+
+Parses a `{name}` or `{name:type}` slot. Regexp types may contain colons and
+quantifier braces.
+
+#### `parsePattern(text)`
+
+Tokenizes a mask-like pattern into literal strings and `PatternSlot` values.
+Unlike `route()`, slots may appear next to literals.
+
+#### `PatternSlot`
+
+Named slot with a matcher `pattern`, parameter `name`, and positional `index`.
+`raw` is the original `{...}` text; `type` is the optional type/regexp body.
+
+Routing re-exports this class as `RoutePatternSlot`.
+
 ### Routing
 
 #### `splitPath(value)`
@@ -279,11 +302,13 @@ Supported slot forms:
 
 #### `RoutePattern`
 
-Wrapper around a regular expression used by dynamic path segments.
+Alias of `Pattern` from `select/utils/pattern.js`. Wrapper around a regular
+expression used by dynamic path segments.
 
 #### `RoutePatternSlot`
 
-Route segment wrapper storing the pattern, parameter name, and position.
+Alias of `PatternSlot`. Route segment wrapper storing the pattern, parameter
+name, and position.
 
 #### `RouteHandler`
 

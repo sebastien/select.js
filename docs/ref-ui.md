@@ -210,6 +210,27 @@ The component keeps a bounded pool of item instances and passes each item a
 `virtualIndex`. It publishes `Visible` with `{ index, end }` when the visible
 window changes. Use `scrollTo` with a logical index to position the viewport.
 
+### Input Masks
+
+`mask(pattern, normalizers?, options?)` compiles named slots for input parsing
+and live formatting. Slots may be mixed with literals. `options.placeholder`
+renders incomplete slots and keeps the cursor at the next missing character;
+`options.pad` left-pads a slot when its following literal is entered:
+
+```javascript
+const date = mask("{year:\\d{4}}/{month:\\d\\d?}/{day:\\d\\d?}", {
+  year: Number,
+  month: Number,
+  day: Number,
+}, { placeholder: "_", pad: "0" })
+
+date.parse("2026/08/23")
+date.format({ year: 2026, month: 8, day: 23 })
+```
+
+Use `date.handler("value")` as the behavior for an `inout="value"` input,
+or use `date.attach(input)` for an imperative input listener.
+
 ### Nested Templates
 
 Templates can be nested to create complex structures. You can define a child

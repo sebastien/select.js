@@ -2,66 +2,34 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-05-07
-// Updated: 2026-06-03
+// Updated: 2026-08-31
 
 // Module: select/state/routing
 // URL-like route tokenization and dispatch.
 
-// Class: RoutePattern
-// Regular-expression route matcher used by dynamic path segments.
-class RoutePattern {
-	constructor(regexp, extractor = undefined) {
-		this.regexp = regexp;
-		this.extractor = extractor;
-	}
-}
-
-function pattern(regexp, extractor = undefined) {
-	return new RoutePattern(regexp, extractor);
-}
-
-function escapeRegexp(value) {
-	return value.replace(/[\\^$+?.()|[\]{}]/g, "\\$&");
-}
+import {
+	escapeRegexp,
+	PATTERNS,
+	PatternSlot,
+	parseSlot,
+	pattern,
+} from "../utils/pattern.js";
 
 function wildcardPattern(text) {
 	return new RegExp(`^${escapeRegexp(text).replace(/\*/g, ".*")}$`);
 }
 
-const ROUTE_PATTERNS = {
-	chunk: pattern(/^[^/]+$/),
-	number: pattern(/^[0-9]+$/),
-	alpha: pattern(/^[A-Za-z]+$/),
-	string: pattern(/^[A-Za-z0-9_-]+$/),
-};
-
-// Class: RoutePatternSlot
-// Route segment wrapper that stores the `pattern`, parameter `name`, and
-// positional `index` within the route.
-class RoutePatternSlot {
-	constructor(pattern, name, index, capture = true) {
-		this.pattern = pattern;
-		this.name = name;
-		this.index = index;
-		this.capture = capture;
-	}
-
-	toJSON() {
-		return { name: this.name, matches: this.pattern.regexp.source };
-	}
-}
-
 // Class: RouteWildcard
 // Single-segment wildcard (`*`) route segment.
-class RouteWildcard extends RoutePatternSlot {
+class RouteWildcard extends PatternSlot {
 	constructor(index) {
-		super(ROUTE_PATTERNS.chunk, "*", index, false);
+		super(PATTERNS.chunk, "*", index, false);
 	}
 }
 
 // Class: RouteDescendant
 // Multi-segment wildcard (`**`) route segment that matches the rest of a path.
-class RouteDescendant extends RoutePatternSlot {
+class RouteDescendant extends PatternSlot {
 	constructor(index) {
 		super(pattern(/.+/), "**", index, false);
 	}
@@ -92,7 +60,7 @@ function splitPath(value) {
 
 // Function: route
 // Parses `text` into a route description. Braced segments become
-// `RoutePatternSlot` entries and literal segments stay as strings.
+// `PatternSlot` entries and literal segments stay as strings.
 function route(text) {
 	if (Array.isArray(text)) {
 		return text;
@@ -111,19 +79,12 @@ function route(text) {
 					`Route item '${item}' does not end with a brace: ${text}`,
 				);
 			}
-			const parts = item.slice(1, -1).split(":", 2);
-			const name = parts[0] || "";
-			const type = parts[1];
-			const matched =
-				type && ROUTE_PATTERNS[type]
-					? ROUTE_PATTERNS[type]
-					: type
-						? new RoutePattern(new RegExp(type))
-						: ROUTE_PATTERNS.chunk;
-			res.push(new RoutePatternSlot(matched, name, res.length, true));
+			const slot = parseSlot(item);
+			slot.index = res.length;
+			res.push(slot);
 		} else if (item.includes("*")) {
 			res.push(
-				new RoutePatternSlot(
+				new PatternSlot(
 					pattern(wildcardPattern(item)),
 					item,
 					res.length,
@@ -180,7 +141,7 @@ function routePriority(route) {
 			priority = priority > 1 ? 1 : priority;
 			continue;
 		}
-		if (item instanceof RoutePatternSlot) {
+		if (item instanceof PatternSlot) {
 			priority = priority > 2 ? 2 : priority;
 		}
 	}
@@ -202,7 +163,7 @@ class Router {
 		const chunk = rte[offset];
 		if (offset === rte.length) {
 			const captured = rte.reduce((r, v, i) => {
-				if (v instanceof RoutePatternSlot && v.capture) {
+				if (v instanceof PatternSlot && v.capture) {
 					r = r || {};
 					r[v.name] = i;
 				}
@@ -221,7 +182,7 @@ class Router {
 				throw new Error(`Route descendant must be terminal: ${rte}`);
 			}
 			const captured = rte.reduce((r, v, i) => {
-				if (v instanceof RoutePatternSlot && v.capture) {
+				if (v instanceof PatternSlot && v.capture) {
 					r = r || {};
 					r[v.name] = i;
 				}
@@ -240,7 +201,7 @@ class Router {
 				this.static.set(chunk, new Router());
 			}
 			this.static.get(chunk)?.on(rte, handler, priority, offset + 1);
-		} else if (chunk instanceof RoutePatternSlot) {
+		} else if (chunk instanceof PatternSlot) {
 			const key = chunk.pattern;
 			if (!this.dynamic.has(key)) {
 				this.dynamic.set(key, new Router());
@@ -265,7 +226,7 @@ class Router {
 				: [];
 		} else if (typeof chunk === "string") {
 			this.static.get(chunk)?.off(rte, handler, offset + 1);
-		} else if (chunk instanceof RoutePatternSlot) {
+		} else if (chunk instanceof PatternSlot) {
 			const key = chunk.pattern;
 			let sub = this.dynamic.get(key);
 			if (!sub) {
@@ -379,10 +340,12 @@ function routed(routes = undefined) {
 }
 
 export {
+	Pattern as RoutePattern,
+	PatternSlot as RoutePatternSlot,
+} from "../utils/pattern.js";
+export {
 	RouteDescendant,
 	RouteHandler,
-	RoutePattern,
-	RoutePatternSlot,
 	Router,
 	RouteWildcard,
 	route,

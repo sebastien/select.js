@@ -7,11 +7,11 @@
 // Module: select/ui/components/template
 // Reusable UI template class and template mapping helpers.
 
-import { TemplateParser } from "../templates.js";
+import { remap as remapCollection } from "../../utils/transform.js";
+import { TemplateParser } from "../bindings.js";
 import { UIInstance } from "./instance.js";
 import { AppliedUITemplate } from "./model.js";
 import { UITemplateSlot } from "./slots.js";
-import { remap as remapCollection } from "../../utils/transform.js";
 
 // Creates a data bag that is safe for a rendered instance to retain. This
 // deliberately copies only the outer container: nested in-place mutations

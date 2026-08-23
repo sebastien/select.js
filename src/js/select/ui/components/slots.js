@@ -8,15 +8,12 @@
 // Template slot descriptors and mounted slot renderers.
 
 import { asText, eq } from "../../utils/index.js";
-import { isInputNode, log, TemplateParser } from "../templates.js";
+import { TemplateParser } from "../bindings.js";
+import { createWhenPredicate } from "../eval.js";
+import { isInputNode, log, setNodeText } from "../templates.js";
 
 import { AppliedUITemplate } from "./model.js";
-import {
-	createWhenPredicate,
-	resolveTemplatePath,
-	SLOT_DEFAULT_KEY,
-	setNodeText,
-} from "./runtime.js";
+import { resolveTemplatePath, SLOT_DEFAULT_KEY } from "./runtime.js";
 
 let UIInstanceClass = null;
 

@@ -7,15 +7,17 @@
 // DOM event binding and runtime pub/sub for UIInstance.
 
 import { isThenable } from "../../utils/values.js"
+import {
+	applyNamedProcessors,
+	formatBindingSource,
+	resolveBindingValue,
+} from "../eval.js"
 import { log } from "../templates.js"
 import { UIEvent } from "./model.js"
 import { options } from "./registry.js"
 import {
-	applyNamedProcessors,
-	formatBindingSource,
 	getInputBindingProperty,
 	getInputEventValue,
-	resolveBindingValue,
 	SKIP_INPUT_UPDATE,
 } from "./runtime.js"
 

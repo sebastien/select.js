@@ -19,6 +19,7 @@ export * from "./html.js";
 export * from "./iter.js";
 export * from "./logger.js";
 export * from "./math.js";
+export * from "./pattern.js";
 export * from "./sanitize.js";
 export * from "./shape.js";
 export * from "./storage.js";
