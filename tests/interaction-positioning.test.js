@@ -82,6 +82,19 @@ describe("interaction positioning", () => {
 		).toEqual({ x: 15, y: 20, width: 40, height: 20 })
 	})
 
+	test("offsets an anchored panel away from its target", () => {
+		expect(
+			anchored(
+				{ width: 40, height: 20 },
+				"s",
+				{ x: 20, y: 40, width: 30, height: 10 },
+				"n",
+				{ x: 0, y: 0, width: 100, height: 100 },
+				{ offset: [0, 12] },
+			),
+		).toEqual({ x: 15, y: 8, width: 40, height: 20 })
+	})
+
 	test("flips a panel when the preferred side overflows", () => {
 		expect(
 			anchored(
@@ -92,6 +105,19 @@ describe("interaction positioning", () => {
 				{ x: 0, y: 0, width: 100, height: 100 },
 			),
 		).toEqual({ x: 0, y: 30, width: 40, height: 50 })
+	})
+
+	test("reverses an anchor offset when placement flips", () => {
+		expect(
+			anchored(
+				{ width: 40, height: 30 },
+				"s",
+				{ x: 20, y: 10, width: 20, height: 10 },
+				"n",
+				{ x: 0, y: 0, width: 100, height: 100 },
+				{ offset: [0, 12] },
+			),
+		).toEqual({ x: 10, y: 32, width: 40, height: 30 })
 	})
 
 	test("fits when both sides overflow", () => {

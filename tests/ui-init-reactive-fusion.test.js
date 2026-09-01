@@ -217,6 +217,25 @@ describe("ui init reactive fusion", () => {
 		window.close()
 	})
 
+	test("unwraps selected cells returned by input behaviors", async () => {
+		const window = new Window({ url: "http://localhost:8000/selected" })
+		setupGlobals(window)
+		const { cell } = await import("../src/js/select/state/cells.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
+		const Component = ui(`<input inout:value="name">`)
+			.init(() => {
+				const source = cell({ name: "Block name" })
+				return { name: source.select("name") }
+			})
+			.does({
+				name: (_self, data) => data.name,
+			})
+
+		Component.new().mount(document.body)
+
+		expect(document.querySelector("input")?.value).toBe("Block name")
+	})
+
 	test("rerenders every behavior that depends on a resolved root derived value", async () => {
 		const window = new Window({ url: "http://localhost:8000/derived-render" })
 		setupGlobals(window)

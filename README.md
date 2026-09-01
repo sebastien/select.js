@@ -25,14 +25,11 @@ modules for projects that prefer a single import surface. Focused domains are
 also available through `select/core`, `select/state`, `select/ui`,
 `select/features`, and `select/utils`.
 
-While `select/features/query.js` is fast, the `select/ui` library is not the fastest,
-but it is light enough for embedded UIs, plugins, and small tools. In the JSON
-inspector benchmark, it is competitive with SolidJS (`npm run bench:inspector`).
-
-In that sense, Select is designed to fill the niche for little tools that
-can be composed and embedded. If you want to do a larger scale application,
-have a look at [ui.js](https://github.com/sebastien/ui) which offers
-high-performance and advanced features for complete web applications.
+While `select/features/query.js` is fast, the `select/ui` library is not the
+fastest, but it is light enough for embedded UIs, plugins, and small tools. In
+the JSON inspector benchmark, it is competitive with SolidJS (`npm run
+bench:inspector`).In that sense, Select is designed to fill the niche for
+little tools that can be composed and embedded.
 
 You can learn more about each component:
 

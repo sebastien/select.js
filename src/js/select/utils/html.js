@@ -9,6 +9,7 @@
 
 import { iresplit, re } from "./text.js";
 import dom from "./dom.js";
+import { unwrap } from "../state/cells.js";
 
 // ----------------------------------------------------------------------------
 //
@@ -24,6 +25,7 @@ const microtask =
 // Function: asText
 // Converts `value` to displayable text, expanding reactive values.
 function asText(value) {
+	value = unwrap(value);
 	return value === null || value === undefined
 		? ""
 		: typeof value === "number"

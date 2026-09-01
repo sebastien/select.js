@@ -851,6 +851,8 @@ class UIEventSlot {
 // - `_extractedSlots`: Object? - cached named slot content
 // - `_hasNamedSlotContent`: boolean? - cache for slot detection
 // - `predicatePlaceholder`: Comment? - placeholder for conditional slots
+// - `_whenParent`: Node? - original parent for conditional slots
+// - `_whenNext`: Node? - original next sibling for conditional slots
 // - `template`: UITemplateSlot - slot definition
 class UISlot {
 	constructor(node, template, parent) {
@@ -860,6 +862,12 @@ class UISlot {
 		this.predicateVisible = true;
 		this.replaceNodeMerge = null;
 		this._replaceRef = null;
+		this._whenParent = null;
+		this._whenNext = null;
+		if (template.predicate && !this.replaceNode && node?.parentNode) {
+			this._whenParent = node.parentNode;
+			this._whenNext = node.nextSibling;
+		}
 		if (this.replaceNode && this.node?.nodeType === Node.ELEMENT_NODE) {
 			const attrs = [];
 			for (const attr of this.node.attributes) {
@@ -1941,7 +1949,7 @@ class UISlot {
 		return this;
 	}
 
-	// Hides the slot (replaces node with placeholder).
+	// Hides the slot (replaces node with placeholder at the original parent).
 	hide() {
 		if (!this.predicatePlaceholder) {
 			return this;
@@ -1949,7 +1957,24 @@ class UISlot {
 		if (this.template.tailPath === null && this.parent?.nodes) {
 			this.parent.nodes[this.template.rootIndex] = this.predicatePlaceholder;
 		}
-		if (this.node.parentNode) {
+		const home = this._whenParent;
+		const nodeParent = this.node.parentNode;
+		if (nodeParent && home && nodeParent !== home) {
+			nodeParent.removeChild(this.node);
+		}
+		if (this.predicatePlaceholder.parentNode) {
+			return this;
+		}
+		if (home && this.node.parentNode === home) {
+			home.replaceChild(this.predicatePlaceholder, this.node);
+		} else if (home) {
+			const ref = this._whenNext;
+			if (ref?.parentNode === home) {
+				home.insertBefore(this.predicatePlaceholder, ref);
+			} else {
+				home.appendChild(this.predicatePlaceholder);
+			}
+		} else if (this.node.parentNode) {
 			this.node.parentNode.replaceChild(this.predicatePlaceholder, this.node);
 		}
 		return this;

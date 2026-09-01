@@ -198,6 +198,9 @@ function mask(pattern, normalizers = {}, options = {}) {
 				if (!prefixMatches(info.source, candidate, info.max)) break
 				captured = candidate
 				position++
+				if (inputCursor !== undefined && position <= inputCursor) {
+					outputCursor = output.length + captured.length
+				}
 			}
 			if (captured) {
 				captures[token.name] = captured

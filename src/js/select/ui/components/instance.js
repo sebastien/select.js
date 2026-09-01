@@ -62,6 +62,23 @@ function unregisterUIInstance(instance) {
 	return instance
 }
 
+function detachWhenNode(node, roots) {
+	const parent = node?.parentNode;
+	if (!parent) {
+		return;
+	}
+	for (let i = 0; i < roots.length; i++) {
+		const root = roots[i];
+		if (node === root) {
+			return;
+		}
+		if (typeof root.contains === "function" && root.contains(node)) {
+			return;
+		}
+	}
+	parent.removeChild(node);
+}
+
 // Class: UIInstance
 // A mounted instance of a UITemplate. Manages data binding, event handling,
 // lifecycle, and rendering.
@@ -574,10 +591,22 @@ class UIInstance {
 
 	// Unmounts from DOM and disposes resources. Nodes already detached
 	// (e.g. `when` placeholders swapped roots) are skipped via parentNode?.
+	// Conditional slots that were moved outside the instance tree (teleported
+	// nodes or drifted placeholders) are detached here too.
 	unmount() {
 		this.dispose();
-		for (const node of this.nodes) {
-			node.parentNode?.removeChild(node);
+		const roots = this.nodes;
+		if (this.when) {
+			for (const k in this.when) {
+				const slots = this.when[k];
+				for (let i = 0; i < slots.length; i++) {
+					detachWhenNode(slots[i].predicatePlaceholder, roots);
+					detachWhenNode(slots[i].node, roots);
+				}
+			}
+		}
+		for (let i = 0; i < roots.length; i++) {
+			roots[i].parentNode?.removeChild(roots[i]);
 		}
 		return this;
 	}

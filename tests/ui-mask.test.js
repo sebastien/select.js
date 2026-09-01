@@ -130,6 +130,18 @@ describe("mask", () => {
 	})
 
 	test("preserves the caret inside a complete value", () => {
+		expect(completedDate.apply("2026-08-31", 1)).toMatchObject({
+			text: "2026-08-31",
+			cursor: 1,
+		})
+		expect(completedDate.apply("2026-08-31", 6)).toMatchObject({
+			text: "2026-08-31",
+			cursor: 6,
+		})
+		expect(completedDate.apply("2026-08-31", 9)).toMatchObject({
+			text: "2026-08-31",
+			cursor: 9,
+		})
 		expect(completedDate.apply("2026-08-31", 5)).toMatchObject({
 			text: "2026-08-31",
 			cursor: 5,
@@ -141,6 +153,17 @@ describe("mask", () => {
 		expect(completedDate.apply("2026-08-31", 7)).toMatchObject({
 			text: "2026-08-31",
 			cursor: 7,
+		})
+	})
+
+	test("keeps the caret after inserted digits inside a slot", () => {
+		expect(completedDate.apply("22026-08-31", 1)).toMatchObject({
+			text: "2202-08-31",
+			cursor: 1,
+		})
+		expect(completedDate.apply("20202-08-31", 2)).toMatchObject({
+			text: "2020-08-31",
+			cursor: 2,
 		})
 	})
 })

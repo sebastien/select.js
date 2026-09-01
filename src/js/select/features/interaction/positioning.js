@@ -118,7 +118,7 @@ function overflows(box, bounds, padding = 0) {
 // overflow, then applies `fit`.
 function anchored(source, sourcePosition, target, targetPosition, bounds = viewport(), options = {}) {
 	const padding = options.padding ?? 0
-	let box = place(source, sourcePosition, target, targetPosition)
+	let box = placeOffset(source, sourcePosition, target, targetPosition, options.offset)
 	if (options.flip !== false) {
 		const sides = overflows(box, bounds, padding)
 		let from = sourcePosition
@@ -132,11 +132,38 @@ function anchored(source, sourcePosition, target, targetPosition, bounds = viewp
 			to = flip(to, "y")
 		}
 		if (from !== sourcePosition || to !== targetPosition) {
-			const flipped = place(source, from, target, to)
+			const flipped = placeOffset(source, from, target, to, options.offset)
 			if (amount(overflows(flipped, bounds, padding)) < amount(sides)) box = flipped
 		}
 	}
 	return fit(box, bounds, options)
+}
+
+// Function: placeOffset
+// Places a source and adds an anchor-relative distance that reverses on flip.
+function placeOffset(source, sourcePosition, target, targetPosition, offset) {
+	const box = place(source, sourcePosition, target, targetPosition)
+	const [x, y] = offsetPoint(offset)
+	const [sx, sy] = point(sourcePosition)
+	const [tx, ty] = point(targetPosition)
+	return {
+		...box,
+		x: box.x + Math.sign(tx - sx) * x,
+		y: box.y + Math.sign(ty - sy) * y,
+	}
+}
+
+function offsetPoint(offset) {
+	if (offset == null) return [0, 0]
+	if (typeof offset === "number" && Number.isFinite(offset) && offset >= 0)
+		return [offset, offset]
+	if (
+		Array.isArray(offset) &&
+		offset.length === 2 &&
+		offset.every(value => typeof value === "number" && Number.isFinite(value) && value >= 0)
+	)
+		return offset
+	throw new Error("Panel offset requires a non-negative number or [x, y] distances")
 }
 
 // Function: viewport

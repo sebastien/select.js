@@ -74,14 +74,18 @@ function popup(panel, trigger, options = {}) {
 	function update() {
 		if (closed || !settings.place) return session
 		const triggerBox = boxOf(trigger.getBoundingClientRect())
-		const panelBox = naturalBox(panel)
+		if (settings.width === "trigger") {
+			panel.style.boxSizing = "border-box"
+			panel.style.width = `${triggerBox.width}px`
+		}
+		const panelBox = naturalBox(panel, settings.width === "trigger")
 		const bounds = viewport(win)
 		const next = anchored(panelBox, sourcePos, triggerBox, targetPos, bounds, {
 			overflow: settings.overflow,
 			padding: settings.padding,
 			flip: settings.flip,
 		})
-		applyBox(panel, next, panelBox)
+		applyBox(panel, next, panelBox, settings.width === "trigger")
 		session.box = next
 		return session
 	}
@@ -150,12 +154,18 @@ function configure(options) {
 		place: options.place !== false,
 		outside: options.outside === true,
 		focus: options.focus ?? false,
+		width: options.width ?? "auto",
 		onClose: options.onClose,
 	}
 }
 
 function anchors(at) {
-	if (typeof at === "string" || isPoint(at)) return [opposite(at), at]
+	if (typeof at === "string") {
+		const pair = at.trim().split(/\s+/)
+		if (pair.length === 2) return pair
+		return [opposite(at), at]
+	}
+	if (isPoint(at)) return [opposite(at), at]
 	if (Array.isArray(at) && at.length === 2) return at
 	throw new Error("Popup `at` requires a position or [source, target] pair")
 }
@@ -252,25 +262,25 @@ function boxOf(rect) {
 	}
 }
 
-function naturalBox(node) {
+function naturalBox(node, fixedWidth = false) {
 	const width = node.style.width
 	const height = node.style.height
-	if (width) node.style.width = ""
+	if (width && !fixedWidth) node.style.width = ""
 	if (height) node.style.height = ""
 	const box = boxOf(node.getBoundingClientRect())
-	if (width) node.style.width = width
+	if (width && !fixedWidth) node.style.width = width
 	if (height) node.style.height = height
 	return box
 }
 
-function applyBox(node, box, natural) {
+function applyBox(node, box, natural, fixedWidth = false) {
 	node.style.position = "fixed"
 	node.style.left = `${box.x}px`
 	node.style.top = `${box.y}px`
 	node.style.right = "auto"
 	node.style.bottom = "auto"
 	node.style.margin = "0"
-	node.style.width = box.width < natural.width ? `${box.width}px` : ""
+	node.style.width = fixedWidth || box.width < natural.width ? `${box.width}px` : ""
 	node.style.height = box.height < natural.height ? `${box.height}px` : ""
 }
 
@@ -286,6 +296,7 @@ function snapshot(node) {
 		width: style.width,
 		height: style.height,
 		zIndex: style.zIndex,
+		boxSizing: style.boxSizing,
 	}
 }
 
@@ -300,6 +311,7 @@ function restoreStyles(node, previous) {
 	style.width = previous.width
 	style.height = previous.height
 	style.zIndex = previous.zIndex
+	style.boxSizing = previous.boxSizing
 }
 
 function onKey(event) {
