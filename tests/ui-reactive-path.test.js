@@ -101,34 +101,279 @@ describe("ui reactive path updates", () => {
 		}
 	})
 
-	test("a mapped row's scalar field does not refresh its unrelated items list", async () => {
+	for (const wrapped of [false, true]) {
+		test(`a mapped row's scalar field does not refresh its unrelated items list (wrapped=${wrapped})`, async () => {
+			const window = new Window()
+			setupGlobals(window)
+			const { cell } = await import("../src/js/select/state/cells.js")
+			const { ui, remap } = await import("../src/js/select/ui/index.js")
+			const Row = ui(`<li><span out="name"></span><ul out="items"></ul></li>`).does({
+				name: (_self, data) => (wrapped ? data.value : data).name,
+				items: (_self, data) => (wrapped ? data.value : data).items,
+			})
+			const List = ui(`<ul out="items"></ul>`).does({
+				items: (_self, { value }) => remap(value.value, (entry) => Row(wrapped ? { value: entry } : entry)),
+			})
+			const state = cell([{ name: "before", items: ["child"] }])
+			const root = document.createElement("div")
+			document.body.append(root)
+			const instance = List.new().set({ value: state }).mount(root)
+			const child = root.querySelector("li ul").firstChild
+			try {
+				state.set("after", [0, "name"])
+				await new Promise((resolve) => setTimeout(resolve, 0))
+				expect(root.querySelector("span").textContent).toBe("after")
+				expect(root.querySelector("li ul").textContent).toBe("child")
+				expect(root.querySelector("li ul").firstChild).toBe(child)
+				state.set("updated child", [0, "items", 0])
+				await new Promise((resolve) => setTimeout(resolve, 0))
+				expect(root.querySelector("span").textContent).toBe("after")
+				expect(root.querySelector("li ul").textContent).toBe("updated child")
+			} finally {
+				instance.unmount()
+				root.remove()
+				window.close()
+			}
+		})
+	}
+
+	for (const [host, projection] of [
+		["value", "value"],
+		["items", "value"],
+		["data", "value"],
+		["value", "body"],
+	]) {
+		test(`nested collection paths preserve provenance through ${projection} into ${host}`, async () => {
+			const window = new Window()
+			setupGlobals(window)
+			const { cell } = await import("../src/js/select/state/cells.js")
+			const { ui, remap } = await import("../src/js/select/ui/index.js")
+			let mappings = 0
+			const Leaf = ui(`<li out="name"></li>`)
+			const Nested = ui(`<ul out="items"></ul>`).does({
+				items: (_self, data) => {
+					mappings++
+					return remap(data[host], (entry) => Leaf({ name: entry.name }))
+				},
+			})
+			const Row = ui(`<section out="${projection}"></section>`).does({
+				[projection]: (_self, { value }) => Nested({ [host]: value }),
+			})
+			const List = ui(`<div out="items"></div>`).does({
+				items: (_self, { value }) => remap(value.value, (entry) => Row({ value: entry })),
+			})
+			const state = cell([[{ name: "before" }], [{ name: "sibling" }]])
+			const root = document.createElement("div")
+			document.body.append(root)
+			const instance = List.new().set({ value: state }).mount(root)
+			const first = root.querySelector("li")
+			try {
+				for (const name of ["after", "again"]) {
+					state.set(name, [0, 0, "name"])
+					await new Promise((resolve) => setTimeout(resolve, 0))
+					expect(root.textContent).toBe(`${name}sibling`)
+					expect(root.querySelector("li")).toBe(first)
+					expect(mappings).toBe(2)
+				}
+			} finally {
+				instance.unmount()
+				root.remove()
+				window.close()
+			}
+		})
+	}
+
+	for (const projection of ["value", "body"]) {
+		test(`unsafe ${projection} projection refreshes without routing into an unrelated list`, async () => {
+			const window = new Window()
+			setupGlobals(window)
+			const { cell } = await import("../src/js/select/state/cells.js")
+			const { ui, remap } = await import("../src/js/select/ui/index.js")
+			const Leaf = ui(`<li out="name"></li>`)
+			const Nested = ui(`<article><span out="label"></span><ul out="items"></ul></article>`).does({
+				items: (_self, { items }) => remap(items, (entry) => Leaf(entry)),
+			})
+			const unrelated = [{ name: "unrelated" }]
+			const Row = ui(`<section out="${projection}"></section>`).does({
+				[projection]: (_self, { value }) => Nested({ label: value[0].name, items: unrelated }),
+			})
+			const List = ui(`<div out="items"></div>`).does({
+				items: (_self, { value }) => remap(value.value, (entry) => Row({ value: entry })),
+			})
+			const state = cell([[{ name: "before" }]])
+			const root = document.createElement("div")
+			document.body.append(root)
+			const instance = List.new().set({ value: state }).mount(root)
+			const leaf = root.querySelector("li")
+			try {
+				for (const name of ["after", "again"]) {
+					state.set(name, [0, 0, "name"])
+					await new Promise((resolve) => setTimeout(resolve, 0))
+					expect(root.querySelector("span").textContent).toBe(name)
+					expect(root.querySelector("li").textContent).toBe("unrelated")
+					expect(root.querySelector("li")).toBe(leaf)
+				}
+			} finally {
+				instance.unmount()
+				root.remove()
+				window.close()
+			}
+		})
+	}
+
+	for (const nested of [false, true]) {
+		for (const output of ["label", "value"]) {
+			test(`collection transforms survive repeated deep writes (nested=${nested}, output=${output})`, async () => {
+				const window = new Window()
+				setupGlobals(window)
+				const { cell } = await import("../src/js/select/state/cells.js")
+				const { ui, remap } = await import("../src/js/select/ui/index.js")
+				let mappings = 0
+				const Row = ui(`<li out="${output}"></li>`).does({
+					[output]: (_self, { value }) => value.detail.name,
+				})
+				const List = ui(`<ul out="items"></ul>`).does({
+					items: (_self, { value }) => {
+						mappings++
+						return remap(nested ? value : value.value, (entry) =>
+							Row({ value: { detail: { name: entry.detail.name.toUpperCase() } } }),
+						)
+					},
+				})
+				const Projection = ui(`<section out="body"></section>`).does({
+					body: (_self, { value }) => List({ value }),
+				})
+				const Outer = ui(`<div out="items"></div>`).does({
+					items: (_self, { value }) => remap(value.value, (entry) => Projection({ value: entry })),
+				})
+				const entries = [{ detail: { name: "before" } }]
+				const state = cell(nested ? [entries] : entries)
+				const root = document.createElement("div")
+				document.body.append(root)
+				const instance = (nested ? Outer : List).new().set({ value: state }).mount(root)
+				const leaf = root.querySelector("li")
+				try {
+					expect(root.textContent).toBe("BEFORE")
+					for (const [i, name] of ["after", "again"].entries()) {
+						state.set(name, nested ? [0, 0, "detail", "name"] : [0, "detail", "name"])
+						await new Promise((resolve) => setTimeout(resolve, 0))
+						expect(root.textContent).toBe(name.toUpperCase())
+						expect(mappings).toBe(i + 2)
+						expect(root.querySelector("li")).toBe(leaf)
+					}
+				} finally {
+					instance.unmount()
+					root.remove()
+					window.close()
+				}
+			})
+		}
+	}
+
+	for (const route of ["mirror", "raw fallback", "transformed fallback"]) {
+		test(`path ${route} preserves unrelated init fusion`, async () => {
+			const window = new Window()
+			setupGlobals(window)
+			const { cell } = await import("../src/js/select/state/cells.js")
+			const { ui, remap } = await import("../src/js/select/ui/index.js")
+			const upstream = cell("upstream")
+			let row
+			let mappings = 0
+			const Row = ui(`<li><span out="label"></span><b out="channel"></b></li>`)
+				.init(() => ({ channel: cell("initial") }))
+				.does({
+					label: (self, { value }) => {
+						row = self
+						return route === "mirror" ? value?.name : value?.detail.name
+					},
+					channel: (_self, { channel }) => channel.value,
+				})
+			const List = ui(`<ul out="items"></ul>`).does({
+				items: (_self, { value }) => {
+					mappings++
+					return remap(value.value, (entry) => Row({
+						value: route === "transformed fallback"
+							? { detail: { name: entry.detail.name.toUpperCase() } }
+							: entry,
+						channel: upstream,
+					}))
+				},
+			})
+			const state = cell([route === "mirror" ? { name: "before" } : { detail: { name: "before" } }])
+			const root = document.createElement("div")
+			document.body.append(root)
+			const instance = List.new().set({ value: state }).mount(root)
+			const mountedRow = row
+			const internal = row.data.channel
+			const fusion = row._getReactiveTopLevelFusion("channel")
+			const subscriptions = upstream.subs.length
+			const leaf = root.querySelector("li")
+			try {
+				expect(subscriptions).toBeGreaterThan(0)
+				for (const [i, name] of ["after", "again"].entries()) {
+					if (route === "raw fallback") {
+						// Publish an identity-preserving change to exercise the proven raw fallback.
+						state.value[0].detail.name = name
+						state.pub(name, [0, "detail", "name"])
+					} else {
+						state.set(name, route === "mirror" ? [0, "name"] : [0, "detail", "name"])
+					}
+					await new Promise((resolve) => setTimeout(resolve, 0))
+					expect(root.querySelector("span").textContent).toBe(route === "transformed fallback" ? name.toUpperCase() : name)
+					expect(row).toBe(mountedRow)
+					expect(root.querySelector("li")).toBe(leaf)
+					expect(mappings).toBe(route === "transformed fallback" ? i + 2 : 1)
+					expect(row.data.channel).toBe(internal)
+					expect(row._getReactiveTopLevelFusion("channel")).toBe(fusion)
+					expect(upstream.subs.length).toBe(subscriptions)
+					upstream.set(`incoming ${name}`)
+					await new Promise((resolve) => setTimeout(resolve, 0))
+					expect(internal.value).toBe(`incoming ${name}`)
+					expect(root.querySelector("b").textContent).toBe(`incoming ${name}`)
+					internal.set(`outgoing ${name}`)
+					await new Promise((resolve) => setTimeout(resolve, 0))
+					expect(upstream.value).toBe(`outgoing ${name}`)
+					expect(root.querySelector("b").textContent).toBe(`outgoing ${name}`)
+				}
+			} finally {
+				instance.unmount()
+				root.remove()
+				window.close()
+			}
+			expect(upstream.subs.length).toBe(0)
+		})
+	}
+
+	test("removal with later edits renders the same tree as a fresh inspector", async () => {
 		const window = new Window()
 		setupGlobals(window)
-		const { cell } = await import("../src/js/select/state/cells.js")
-		const { ui, remap } = await import("../src/js/select/ui/index.js")
-		const Row = ui(`<li><span out="name"></span><ul out="items"></ul></li>`).does({
-			items: (_self, { items }) => items,
-		})
-		const List = ui(`<ul out="items"></ul>`).does({
-			items: (_self, { value }) => remap(value.value, (entry) => Row(entry)),
-		})
-		const state = cell([{ name: "before", items: ["child"] }])
+		const { createApp } = await import("../benchmarks/inspector/frameworks/selectui.js")
+		const { createSnapshot } = await import("../benchmarks/inspector/common.js")
 		const root = document.createElement("div")
 		document.body.append(root)
-		const instance = List.new().set({ value: state }).mount(root)
-		const child = root.querySelector("li ul").firstChild
+		const initial = {
+			logs: [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d", count: 0, items: [1, 2] }],
+		}
+		const app = await createApp(root, structuredClone(initial))
+		const next = structuredClone(initial)
+		next.logs.splice(1, 1)
+		next.logs[2].count = 1
+		next.logs[2].items.reverse()
 		try {
-			state.set("after", [0, "name"])
-			await new Promise((resolve) => setTimeout(resolve, 0))
-			expect(root.querySelector("span").textContent).toBe("after")
-			expect(root.querySelector("li ul").textContent).toBe("child")
-			expect(root.querySelector("li ul").firstChild).toBe(child)
-			state.set("updated child", [0, "items", 0])
-			await new Promise((resolve) => setTimeout(resolve, 0))
-			expect(root.querySelector("span").textContent).toBe("after")
-			expect(root.querySelector("li ul").textContent).toBe("updated child")
+			for (const count of [1, 2]) {
+				next.logs[2].count = count
+				app.update(structuredClone(next))
+				await new Promise((resolve) => setTimeout(resolve, 0))
+				const reference = document.createElement("div")
+				const fresh = await createApp(reference, structuredClone(next))
+				try {
+					expect(createSnapshot(root)).toEqual(createSnapshot(reference))
+				} finally {
+					fresh.dispose()
+				}
+			}
 		} finally {
-			instance.unmount()
+			app.dispose()
 			root.remove()
 			window.close()
 		}

@@ -15,7 +15,6 @@ const FRAMEWORK_LABELS = {
 };
 const RUNS = 5;
 const originalFetch = globalThis.fetch;
-let baseline;
 
 function setupGlobals(window) {
 	const g = global;
@@ -87,6 +86,63 @@ function heapMB() {
 	return usage.heapUsed / 1024 / 1024;
 }
 
+async function cleanup(window, root) {
+	try {
+		globalThis._benchmarkApp?.dispose?.();
+	} finally {
+		globalThis._benchmarkApp = null;
+		try {
+			root.remove();
+		} finally {
+			await window.happyDOM.close();
+			gc();
+		}
+	}
+}
+
+async function verifyFrameworks() {
+	const { createBenchmarkRunner } = await import("./runner.js");
+	let baseline;
+	let result;
+	try {
+		for (const name of FRAMEWORKS) {
+			const window = createBenchWindow();
+			setupGlobals(window);
+			const root = window.document.createElement("div");
+			window.document.body.appendChild(root);
+			try {
+				const { createApp } = await import(`./frameworks/${name}.js`);
+				const runner = createBenchmarkRunner({
+					framework: name,
+					root,
+					createApp: async (...args) =>
+						(globalThis._benchmarkApp = await createApp(...args)),
+				});
+				result = await runner.run({ captureSnapshots: true });
+				if (name === "preact") baseline = result;
+				const verification = compareSnapshots(baseline, result);
+				console.log(
+					JSON.stringify({
+						framework: name,
+						checkpoints: result.snapshots.length,
+						...verification,
+					}),
+				);
+				if (!verification.ok) {
+					throw new Error(`Inspector verification failed: ${name}`);
+				}
+			} finally {
+				result = null;
+				await cleanup(window, root);
+			}
+		}
+	} finally {
+		// Do not carry snapshots out of this async frame into heap measurements.
+		baseline = null;
+		result = null;
+	}
+}
+
 async function runFramework(name) {
 	const { createBenchmarkRunner } = await import("./runner.js");
 
@@ -95,8 +151,7 @@ async function runFramework(name) {
 	let heapBeforeAll = 0;
 	let nodeCount = 0;
 
-	// Verify separately so snapshot allocations do not enter measured runs.
-	for (let i = -1; i < RUNS; i++) {
+	for (let i = 0; i < RUNS; i++) {
 		const window = createBenchWindow();
 		setupGlobals(window);
 		const root = window.document.createElement("div");
@@ -111,34 +166,18 @@ async function runFramework(name) {
 			const runner = createBenchmarkRunner({
 				framework: name,
 				root,
-				createApp,
+				createApp: async (...args) =>
+					(globalThis._benchmarkApp = await createApp(...args)),
 			});
 
-			const result = await runner.run({ captureSnapshots: i === -1 });
-			if (i === -1) {
-				if (name === "preact") baseline = result;
-				const verification = compareSnapshots(baseline, result);
-				console.log(
-					JSON.stringify({
-						framework: name,
-						checkpoints: result.snapshots.length,
-						...verification,
-					}),
-				);
-				if (!verification.ok) throw new Error("Inspector verification failed");
-				continue;
-			}
+			const result = await runner.run({ captureSnapshots: false });
 			results.push(result);
 
 			const heapAfter = heapMB();
 			if (heapAfter > heapPeak) heapPeak = heapAfter;
 			nodeCount = result.initial.nodeCount;
 		} finally {
-			globalThis._benchmarkApp?.dispose?.();
-			globalThis._benchmarkApp = null;
-			root.remove();
-			await window.happyDOM.close();
-			gc();
+			await cleanup(window, root);
 		}
 	}
 
@@ -186,6 +225,9 @@ async function main() {
 			"Run with node --conditions=browser or bun run bench:inspector:happy",
 		);
 	}
+	// Finish every adapter's verification/import warmup before measuring any heap.
+	await verifyFrameworks();
+	gc();
 	const summary = [];
 	for (const fw of FRAMEWORKS) {
 		console.log(`Running ${fw}...`);

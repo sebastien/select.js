@@ -116,8 +116,9 @@ Notes:
 - Reconcile bypasses `schedule` so diffs apply in the current turn.
 - Same-length arrays reconcile **by index** (nested field edits stay path writes).
 - Array **append** (length growth): a pure single-append (length +1 with matching endpoints) keeps previous element refs and writes only the new tail. Otherwise patches the prefix by index then writes new tail indices.
-- Array **shrink** is surgical for a single remove (including tail pop): rebuilds the array from kept previous element refs when the prefix matches and the first shifted element deep-equals (avoids O(n) full-array eq). Tail-only multi-pop on modest lists (≤ 64) keeps prefix refs. Ambiguous shrinks replace the array node once. **Type** changes still replace that node in one `set`.
+- Array **shrink** is surgical for a single remove (including tail pop): rebuilds the array from kept previous element refs only when the prefix and the entire shifted suffix match. Reference-identical entries compare cheaply; cloned entries require deep comparison. A removal combined with a retained-entry edit falls back to replacing the array node once, preserving every incoming change. Tail-only multi-pop on modest lists (≤ 64) keeps prefix refs. Ambiguous shrinks and **type** changes also replace that node in one `set`.
 - Object keys missing from `next` are **deleted** (not left as `undefined`).
+- Dictionary key order is not reconciled. Surviving keys retain their existing enumeration order when a dictionary is merged; replacing a whole node can adopt a new order. A target-only key reorder does not trigger updates. Use an explicitly ordered array of keyed entries when display order matters.
 - Deep-equal clones (all leaves `Object.is`) are a no-op.
 - Options are reserved for future keyed-array moves (`key`); v1 ignores them.
 - See `plans/009-cells-first-ui.md` and `plans/010-correct-solid-parity.md` for the cells-first UI roadmap.

@@ -2,6 +2,17 @@ import { describe, expect, test } from "bun:test"
 import { cell, reconcile, selected } from "../src/js/select/state/cells.js"
 
 describe("cell.reconcile", () => {
+	test("dictionary merges retain key order while updating values", () => {
+		const state = cell({ a: 1, b: 2 })
+		const revision = state.revision
+		state.reconcile({ b: 2, a: 1 })
+		expect(Object.keys(state.value)).toEqual(["a", "b"])
+		expect(state.revision).toBe(revision)
+		state.reconcile({ b: 3, a: 4 })
+		expect(Object.keys(state.value)).toEqual(["a", "b"])
+		expect(state.value).toEqual({ a: 4, b: 3 })
+	})
+
 	test("no-op when value is referentially equal", () => {
 		const tree = { a: 1 }
 		const state = cell(tree)
@@ -76,6 +87,46 @@ describe("cell.reconcile", () => {
 		expect(paths).toContain("logs.0.type")
 		expect(paths.some((p) => p.startsWith("logs.1"))).toBe(false)
 	})
+
+	test("single removal preserves edits later in the retained suffix", () => {
+		const state = cell({
+			rows: [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d", count: 0 }],
+		})
+		const next = { rows: [{ id: "a" }, { id: "c" }, { id: "d", count: 1 }] }
+		state.reconcile(next)
+		expect(state.value).toEqual(next)
+	})
+
+	for (const [name, removeAt, last] of [
+		["head removal and field edit", 0, { id: "d", count: 1, items: [1, 2] }],
+		["middle removal and property deletion", 1, { id: "d", items: [1, 2] }],
+		["middle removal and type change", 1, "changed"],
+		["middle removal and nested array reorder", 1, { id: "d", count: 0, items: [2, 1] }],
+	]) {
+		test(`${name} reaches root and selected subscribers without intermediate writes`, () => {
+			for (const nested of [false, true]) {
+				const initial = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d", count: 0, items: [1, 2] }]
+				const original = structuredClone(initial)
+				const state = cell(nested ? { rows: initial } : initial)
+				const target = nested ? state.select("rows") : state
+				const next = structuredClone(initial)
+				next.splice(removeAt, 1)
+				next[next.length - 1] = last
+				const observed = []
+				const handler = () => observed.push(structuredClone(target.value))
+				target.sub(handler)
+				try {
+					target.reconcile(next)
+					expect(target.value).toEqual(next)
+					expect(observed).toEqual([next])
+					expect(initial).toEqual(original)
+				} finally {
+					target.unsub(handler)
+					if (nested) target.release()
+				}
+			}
+		})
+	}
 
 	test("array middle remove keeps remaining element identity", () => {
 		const a = { id: 1 }

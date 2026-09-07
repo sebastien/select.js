@@ -138,6 +138,7 @@ Notes:
 
 - `set(store)` when `store.isReactive` makes `instance.data` the cell and auto-subscribes it.
 - `update(plainTree)` while bound to a store calls `data.reconcile(plainTree)` (or `set` if no reconcile). Passing another cell rebinds the root store.
+- Store reconciliation does not adopt dictionary-only key reordering. For ordered UI collections, pass an array with stable item keys instead of relying on incoming object property order.
 - Behaviors see the **unwrapped** tree (`store.value`) during render; use `self.data` when you need the cell itself.
 - Nested widgets may still use bag shape `{ value: subtree }`; only the app root needs `set(store)`.
 - `cell.store(initial)` (named export `cellStore`) matches `cell.derived`. Not the KV `store()` in `utils/storage.js`.

@@ -900,7 +900,11 @@ function attachReactive(UIInstance) {
 				: treeAtSlot != null
 					? treeAtSlot[head]
 					: undefined;
-			const previousEntryValue = child.data?.value;
+			const previousData = child.data;
+			const previousEntryValue = previousData?.value;
+			const idx = pathIndex(head);
+			const wrap = Number.isInteger(idx) ? slot._listItems?.[idx] : undefined;
+			const previousWrapData = wrap?.data;
 			const rest = path.slice(1);
 			// Keep row bag `.value` aligned with the store entry. Nested leaf path
 			// updates may replace the entry object without rewriting the parent
@@ -914,10 +918,6 @@ function attachReactive(UIInstance) {
 				!Object.is(child.data.value, entryValue)
 			) {
 				child.data = { ...child.data, value: entryValue };
-				const idx = pathIndex(head);
-				const wrap = Number.isInteger(idx)
-					? slot._listItems?.[idx]
-					: undefined;
 				if (
 					wrap instanceof AppliedUITemplate &&
 					wrap.data &&
@@ -1016,28 +1016,35 @@ function attachReactive(UIInstance) {
 							nested,
 							rest,
 							entryValue,
-							nested.data?.value !== undefined &&
-								(nested.data.value === previousEntryValue ||
-									nested.data.value === entryValue),
+							previousEntryValue,
+							true,
 						)
 					) {
 						return true;
 					}
 				}
-				// Nested inspector missing/replaced (e.g. type change): refresh value.
-				const prev = child.data;
-				if (prev && typeof prev === "object" && !Array.isArray(prev)) {
-					child.update({ ...prev, value: entryValue });
-				} else {
-					child.update({ value: entryValue });
-				}
+			} else if (this._applyReactivePathToInstance(child, rest, entryValue, previousEntryValue)) {
 				return true;
 			}
-			return this._applyReactivePathToInstance(child, rest, entryValue);
+			// The row's value was synchronized above; equality cannot detect this miss.
+			if (child.data && Object.hasOwn(child.data, "value")) {
+				// An unproven row may be transformed by its owning collection behavior.
+				if (!Object.is(previousEntryValue, entryValue)) {
+					// Undo speculative synchronization so remapped raw rows also detect changes.
+					child.data = previousData;
+					if (wrap instanceof AppliedUITemplate) {
+						wrap.data = previousWrapData;
+					}
+					return this._refreshCollectionSlot(slot);
+				}
+				child.render(child.data);
+				return true;
+			}
+			return false;
 		},
 
 		
-		_applyReactivePathToInstance(instance, path, treeValue, collection = false) {
+		_applyReactivePathToInstance(instance, path, treeValue, previousTreeValue, collection = false) {
 			if (!(instance instanceof UIInstance) || instance._isDisposed) {
 				return false;
 			}
@@ -1068,16 +1075,17 @@ function attachReactive(UIInstance) {
 			}
 			const head = path[0];
 			const prev = instance.data;
-			// Only a value projection proven by the caller addresses this collection.
+			// Only a host holding the current or previous source addresses this collection.
 			// An ordinary row may also have an unrelated out.items child list.
 			const itemsSlots = instance.out?.items;
+			const hostKey = collection && itemsSlots?.length ? this._collectionHostKey(prev, "items") : null;
 			if (
-				collection && itemsSlots?.length &&
-				this._collectionHostKey(prev, "items") === "value"
+				hostKey && prev[hostKey] !== null && typeof prev[hostKey] === "object" &&
+				(prev[hostKey] === treeValue || prev[hostKey] === previousTreeValue)
 			) {
 				// Keep the source identity current for subsequent path notifications.
-				if (prev.value !== treeValue) {
-					instance.data = { ...prev, value: treeValue };
+				if (prev[hostKey] !== treeValue) {
+					instance.data = { ...prev, [hostKey]: treeValue };
 				}
 				for (let i = 0; i < itemsSlots.length; i++) {
 					if (this._applyReactivePathToSlot(itemsSlots[i], path, treeValue)) {
@@ -1111,7 +1119,7 @@ function attachReactive(UIInstance) {
 				Object.hasOwn(prev.value, head)
 			) {
 				const leaf = pathLeafValue(treeValue, head);
-				instance.update({
+				instance.render({
 					...prev,
 					value: { ...prev.value, [head]: leaf },
 				});
@@ -1136,7 +1144,7 @@ function attachReactive(UIInstance) {
 						const nested = firstMappedUIInstance(slots[i], UIInstance);
 						if (
 							nested &&
-							this._applyReactivePathToInstance(nested, path, treeValue)
+							this._applyReactivePathToInstance(nested, path, treeValue, previousTreeValue, true)
 						) {
 							return true;
 						}

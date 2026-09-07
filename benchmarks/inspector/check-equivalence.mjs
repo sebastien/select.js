@@ -121,6 +121,70 @@ try {
 				root.remove();
 			}
 		}
+		// Store adapters retain dictionary order; verify values and array positions
+		// against an explicit expected tree, without weakening the main comparator.
+		{
+			const root = document.createElement("div");
+			const app = await createApp(root, {
+				logs: [
+					{ a: 1, b: 2 },
+					{ b: 3, a: 4 },
+				],
+			});
+			const { createApp: createReference } = await import(
+				"./frameworks/preact.js"
+			);
+			try {
+				for (const [next, retainedOrder] of [
+					[
+						{
+							logs: [
+								{ b: 2, a: 1 },
+								{ a: 4, b: 3 },
+							],
+						},
+						{
+							logs: [
+								{ a: 1, b: 2 },
+								{ b: 3, a: 4 },
+							],
+						},
+					],
+					[
+						{
+							logs: [
+								{ b: 3, a: 4 },
+								{ a: 1, b: 2 },
+							],
+						},
+						{
+							logs: [
+								{ a: 4, b: 3 },
+								{ b: 2, a: 1 },
+							],
+						},
+					],
+				]) {
+					app.update(next);
+					await settle();
+					const reference = document.createElement("div");
+					const expected = await createReference(
+						reference,
+						name === "preact" ? next : retainedOrder,
+					);
+					try {
+						assert.deepEqual(createSnapshot(root), createSnapshot(reference));
+					} finally {
+						expected.dispose();
+					}
+				}
+			} finally {
+				app.dispose();
+			}
+			console.log(
+				`${name}: dictionary-order policy, values, and array positions verified`,
+			);
+		}
 		if (name === "solidjs") {
 			assert.equal(
 				(await import("./frameworks/solidjs-browser.js")).createApp,

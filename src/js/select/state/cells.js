@@ -222,10 +222,8 @@ function applyReconcile(cell, basePath, target, previous) {
 			return;
 		}
 		// Shrink: identity-preserving single remove (incl. tail). Find removeAt
-		// by prefix scan; sanity-check only the first shifted element (not full
-		// O(n) array eq — that dominated 1000-log splices). Compose kept previous
-		// refs so UI Object.is-short-circuits. Combined remove+mutate in one
-		// reconcile falls back when the shifted-element check fails.
+		// by prefix scan and validate the entire shifted suffix before reusing
+		// previous refs. Otherwise a later edit could be silently discarded.
 		// Never index-prefix-reconcile a middle remove (pairs wrong rows).
 		if (nextLen === prevLen - 1) {
 			let removeAt = nextLen;
@@ -235,7 +233,14 @@ function applyReconcile(cell, basePath, target, previous) {
 					break;
 				}
 			}
-			if (removeAt >= nextLen || eq(target[removeAt], previous[removeAt + 1])) {
+			let suffixMatches = true;
+			for (let i = removeAt; i < nextLen; i++) {
+				if (!eq(target[i], previous[i + 1])) {
+					suffixMatches = false;
+					break;
+				}
+			}
+			if (suffixMatches) {
 				const next = new Array(nextLen);
 				for (let i = 0; i < removeAt; i++) {
 					next[i] = previous[i];
