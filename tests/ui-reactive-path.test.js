@@ -31,6 +31,76 @@ function setupGlobals(window) {
 }
 
 describe("ui reactive path updates", () => {
+	test("raw entry detection preserves live identity and sample fallback semantics", async () => {
+		const { attachReactive } = await import("../src/js/select/ui/components/reactive.js")
+		const { AppliedUITemplate } = await import("../src/js/select/ui/components/model.js")
+		class Instance {}
+		attachReactive(Instance)
+		const instance = new Instance()
+		const raw = { id: "a", value: "A" }
+		for (const [label, tree, live, sample, expected] of [
+			["inspector", [raw], [raw], raw, true],
+			["moved live entry with stale wrapper", [{}, raw], [{}, raw], {}, true],
+			["first live entry moved", [{}, raw], [raw], {}, true],
+			["transformed", [raw], [raw.value], raw.value, false],
+			["equal but not identical", [raw], [{ ...raw }], { ...raw }, false],
+			["sample fallback after live miss", [raw], [{}], raw, true],
+			["sample fallback without live rows", [raw], [], raw, true],
+			["empty tree", [], [undefined], undefined, false],
+			["no live rows must not invent undefined", [undefined], [], raw, false],
+			["undefined sample", [undefined], [], undefined, true],
+			["live NaN fallback", [raw, NaN], [NaN], raw.value, true],
+			["sample NaN fallback", [NaN], [], NaN, true],
+			["negative zero is not positive", [0], [-0], -0, false],
+			["positive zero is not negative", [-0], [0], 0, false],
+			["live negative zero fallback", [raw, -0], [-0], raw.value, true],
+			["live positive zero fallback", [raw, 0], [0], raw.value, true],
+			["sample negative zero", [-0], [], -0, true],
+			["sample positive zero", [0], [], 0, true],
+			["sample opposite negative zero", [0], [], -0, false],
+			["sample opposite positive zero", [-0], [], 0, false],
+			["both zero signs", [0, -0], [], -0, true],
+		]) {
+			const slot = {
+				_listItems: [new AppliedUITemplate(null, { value: sample })],
+				_listLength: live.length,
+				mapping: new Map(live.map((value, i) => [i, { data: { value } }])),
+			}
+			expect(instance._collectionRowUsesRawEntry(slot, tree), label).toBe(expected)
+		}
+		for (const sample of [undefined, { data: { value: raw } }, new AppliedUITemplate(null, {}), new AppliedUITemplate(null, null)]) {
+			expect(instance._collectionRowUsesRawEntry({ _listItems: [sample], _listLength: 1 }, [raw])).toBe(false)
+		}
+	})
+
+	test("raw entry detection uses linear indexed reads on transformed misses and one on common matches", async () => {
+		const { attachReactive } = await import("../src/js/select/ui/components/reactive.js")
+		const { AppliedUITemplate } = await import("../src/js/select/ui/components/model.js")
+		class Instance {}
+		attachReactive(Instance)
+		const instance = new Instance()
+		for (const size of [1000, 10000]) {
+			const tree = Array.from({ length: size }, (_, id) => ({ id, value: String(id) }))
+			let reads = 0
+			const indexed = new Proxy(tree, {
+				get(target, key, receiver) {
+					if (typeof key === "string" && /^\d+$/.test(key)) reads++
+					return Reflect.get(target, key, receiver)
+				},
+			})
+			const slot = {
+				_listItems: tree.map((entry) => new AppliedUITemplate(null, { id: entry.id, value: entry.value })),
+				_listLength: size,
+			}
+			expect(instance._collectionRowUsesRawEntry(slot, indexed)).toBe(false)
+			expect(reads).toBeLessThanOrEqual(size + 1)
+			slot.mapping = new Map([[0, { data: { value: tree[0] } }]])
+			reads = 0
+			expect(instance._collectionRowUsesRawEntry(slot, indexed)).toBe(true)
+			expect(reads).toBe(1)
+		}
+	})
+
 	test("a mapped row's scalar field does not refresh its unrelated items list", async () => {
 		const window = new Window()
 		setupGlobals(window)

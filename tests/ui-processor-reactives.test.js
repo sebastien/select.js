@@ -64,6 +64,92 @@ afterEach(() => {
 });
 
 describe("ui processor reactive handling", () => {
+	test("unchanged prop patches do not enumerate the mounted data bag", async () => {
+		const window = new Window();
+		setupGlobals(window);
+		const { ui } = await import("../src/js/select/ui/index.js");
+		let renders = 0;
+		const Row = ui(`<span out="text"></span>`).does({
+			text: (_self, { value, label }) => {
+				renders++;
+				return `${label}:${value.name}`;
+			},
+		});
+		const value = { name: "A" };
+		const instance = Row.new().set({ value, label: "first" });
+		let scans = 0;
+		instance.data = new Proxy(instance.data, {
+			ownKeys(target) {
+				scans++;
+				return Reflect.ownKeys(target);
+			},
+		});
+		try {
+			instance.update({ value, label: "first" });
+			instance.update({ label: "first" });
+			expect(scans).toBe(0);
+			expect(renders).toBe(1);
+			instance.update({ value: { name: "A" }, label: "first" });
+			expect(renders).toBe(1);
+			instance.update({ label: "second" });
+			expect(instance.nodes[0].textContent).toBe("second:A");
+			expect(instance.data.value).toBe(value);
+			instance.update(instance.data, true);
+			expect(renders).toBe(3);
+			for (const create of [() => [1], () => new Map([["a", 1]]), () => new Set([1])]) {
+				const previous = Object.assign(create(), { label: "old" });
+				instance.data = previous;
+				instance.update(Object.assign(create(), { label: "new" }));
+				expect(instance.data).toBe(previous);
+				expect(instance.data.label).toBe("old");
+			}
+		} finally {
+			instance.unmount();
+			window.close();
+		}
+	});
+
+	test("append refreshes length-dependent props through retained initializer cells", async () => {
+		const window = new Window();
+		setupGlobals(window);
+		const { cell } = await import("../src/js/select/state/cells.js");
+		const { ui, remap } = await import("../src/js/select/ui/index.js");
+		const Row = ui(`<li out="label"></li>`).init(() => ({ label: cell("") }));
+		const List = ui(`<ul out="items"></ul>`).does({
+			items: (_self, { value }) => {
+				const entries = value?.isReactive ? value.value : value;
+				return remap(entries, (entry, index) =>
+					Row({
+						value: entry.name,
+						label: `${entry.name}/${entries.length}`,
+						$key: index,
+					}),
+				);
+			},
+		});
+		const state = cell([{ name: "A" }, { name: "B" }]);
+		const root = document.createElement("div");
+		document.body.append(root);
+		const instance = List.new().set({ value: state }).mount(root);
+		const row = instance.out.items[0].mapping.get(0);
+		const label = row.data.label;
+		const node = root.querySelector("li");
+		try {
+			state.set({ name: "C" }, [2]);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(row.data.label).toBe(label);
+			expect(label.value).toBe("A/3");
+			expect(root.querySelector("li")).toBe(node);
+			expect(
+				Array.from(root.querySelectorAll("li"), (li) => li.textContent),
+			).toEqual(["A/3", "B/3", "C/3"]);
+		} finally {
+			instance.unmount();
+			root.remove();
+			window.close();
+		}
+	});
+
 	test("passes root reactive values through component processors unchanged", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);

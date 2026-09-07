@@ -722,17 +722,37 @@ function attachReactive(UIInstance) {
 			}
 			// Match any current element by identity against live or wrapper entry refs.
 			const n = Math.min(slot._listLength || 0, treeAtSlot.length);
-			for (let i = 0; i < n; i++) {
-				const entry = UIInstance._listEntryValueAt(slot, i);
-				for (let j = 0; j < treeAtSlot.length; j++) {
-					if (Object.is(entry, treeAtSlot[j])) {
-						return true;
+			if (
+				n > 0 &&
+				Object.is(UIInstance._listEntryValueAt(slot, 0), treeAtSlot[0])
+			) {
+				return true;
+			}
+			const entries = new Set();
+			let positiveZero = false;
+			let negativeZero = false;
+			// Set matches Object.is except for signed zero; track those separately.
+			for (let i = 0; i < treeAtSlot.length; i++) {
+				const entry = treeAtSlot[i];
+				if (entry === 0) {
+					if (Object.is(entry, -0)) {
+						negativeZero = true;
+					} else {
+						positiveZero = true;
 					}
+				} else {
+					entries.add(entry);
 				}
 			}
-			// Fallback: wrapper sample only (first paint / no mapping yet).
-			for (let i = 0; i < treeAtSlot.length; i++) {
-				if (Object.is(data.value, treeAtSlot[i])) {
+			for (let i = 0; i <= n; i++) {
+				// Fallback: wrapper sample only (first paint / no mapping yet).
+				const entry =
+					i < n ? UIInstance._listEntryValueAt(slot, i) : data.value;
+				if (
+					entry === 0
+						? Object.is(entry, -0) ? negativeZero : positiveZero
+						: entries.has(entry)
+				) {
 					return true;
 				}
 			}
