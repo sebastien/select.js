@@ -54,7 +54,7 @@
 		"test:int:update": "UPDATE_FIXTURES=1 bun test tests/int-examples.test.ts",
 		"test:package": "node scripts/test-package.mjs",
 		"bench:inspector": "node scripts/bench-inspector.mjs",
-		"bench:inspector:happy": "node benchmarks/inspector/run-compare.mjs",
+		"bench:inspector:happy": "node --conditions=browser benchmarks/inspector/run-compare.mjs",
 		"bench:inspector:chrome": "node benchmarks/inspector/run-node.cjs",
 		"prepack": "make dist && bun run test:dist && bun run test:package"
 	},

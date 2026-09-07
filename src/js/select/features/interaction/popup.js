@@ -84,6 +84,8 @@ function popup(panel, trigger, options = {}) {
 			overflow: settings.overflow,
 			padding: settings.padding,
 			flip: settings.flip,
+			offset: settings.offset,
+			anchor: settings.anchor,
 		})
 		applyBox(panel, next, panelBox, settings.width === "trigger")
 		session.box = next
@@ -155,6 +157,8 @@ function configure(options) {
 		outside: options.outside === true,
 		focus: options.focus ?? false,
 		width: options.width ?? "auto",
+		offset: options.offset,
+		anchor: options.anchor,
 		onClose: options.onClose,
 	}
 }

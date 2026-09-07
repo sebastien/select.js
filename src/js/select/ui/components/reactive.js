@@ -880,6 +880,7 @@ function attachReactive(UIInstance) {
 				: treeAtSlot != null
 					? treeAtSlot[head]
 					: undefined;
+			const previousEntryValue = child.data?.value;
 			const rest = path.slice(1);
 			// Keep row bag `.value` aligned with the store entry. Nested leaf path
 			// updates may replace the entry object without rewriting the parent
@@ -991,7 +992,14 @@ function attachReactive(UIInstance) {
 					const nested = firstMappedUIInstance(valueSlots[i], UIInstance);
 					if (
 						nested &&
-						this._applyReactivePathToInstance(nested, rest, entryValue)
+						this._applyReactivePathToInstance(
+							nested,
+							rest,
+							entryValue,
+							nested.data?.value !== undefined &&
+								(nested.data.value === previousEntryValue ||
+									nested.data.value === entryValue),
+						)
 					) {
 						return true;
 					}
@@ -1009,7 +1017,7 @@ function attachReactive(UIInstance) {
 		},
 
 		
-		_applyReactivePathToInstance(instance, path, treeValue) {
+		_applyReactivePathToInstance(instance, path, treeValue, collection = false) {
 			if (!(instance instanceof UIInstance) || instance._isDisposed) {
 				return false;
 			}
@@ -1040,6 +1048,23 @@ function attachReactive(UIInstance) {
 			}
 			const head = path[0];
 			const prev = instance.data;
+			// Only a value projection proven by the caller addresses this collection.
+			// An ordinary row may also have an unrelated out.items child list.
+			const itemsSlots = instance.out?.items;
+			if (
+				collection && itemsSlots?.length &&
+				this._collectionHostKey(prev, "items") === "value"
+			) {
+				// Keep the source identity current for subsequent path notifications.
+				if (prev.value !== treeValue) {
+					instance.data = { ...prev, value: treeValue };
+				}
+				for (let i = 0; i < itemsSlots.length; i++) {
+					if (this._applyReactivePathToSlot(itemsSlots[i], path, treeValue)) {
+						return true;
+					}
+				}
+			}
 			// Direct field on the row bag (e.g. path ["value"] with { id, value, $key }).
 			if (
 				path.length === 1 &&
@@ -1079,14 +1104,6 @@ function attachReactive(UIInstance) {
 			) {
 				patchInstanceData(instance, head, pathLeafValue(treeValue, head));
 				return true;
-			}
-			const itemsSlots = instance.out?.items;
-			if (itemsSlots?.length) {
-				for (let i = 0; i < itemsSlots.length; i++) {
-					if (this._applyReactivePathToSlot(itemsSlots[i], path, treeValue)) {
-						return true;
-					}
-				}
 			}
 			// Nested component out slots (skip plain scalar presentation slots).
 			if (instance.out) {

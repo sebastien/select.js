@@ -142,7 +142,8 @@ function resolveDataPath(data, path, self = undefined, itemKey = undefined) {
 	let value = path[0] === "#" ? resolveCurrentKey(self, data, itemKey) : data;
 	let i = path[0] === "." || path[0] === "#" ? 1 : 0;
 	for (; i < path.length; i++) {
-		value = resolveRenderableValue(value);
+		// Traverse without copying unrelated subtrees; only expand the final value.
+		value = unwrap(value);
 		if (value === undefined || value === null) return undefined;
 		value = value[path[i]];
 	}

@@ -1,9 +1,43 @@
 import { describe, expect, test } from "bun:test";
+import { cell } from "../src/js/select/state/cells.js";
 import { TemplateParser } from "../src/js/select/ui/bindings.js";
 import {
 	evaluateWhen,
 	evaluateWhenComparison,
+	resolveDataPath,
 } from "../src/js/select/ui/eval.js";
+
+test("binding paths expand only the selected leaf", () => {
+	let unrelatedReads = 0;
+	const unrelated = {
+		get value() {
+			unrelatedReads++;
+			return "unused";
+		},
+	};
+	const leaf = { label: cell("ready"), list: [cell(1)] };
+	const data = {
+		unrelated,
+		form: cell({ unrelated, result: cell(leaf) }),
+	};
+	expect(resolveDataPath(data, ["form", "result"])).toEqual({
+		label: "ready",
+		list: [1],
+	});
+	expect(resolveDataPath(cell(data), [".", "form", "result", "label"])).toBe(
+		"ready",
+	);
+	expect(resolveDataPath(data, ["form", "missing", "label"])).toBeUndefined();
+	expect(resolveDataPath({ form: null }, ["form", "label"])).toBeUndefined();
+	const pending = Promise.resolve(leaf);
+	pending.label = "not resolved";
+	expect(resolveDataPath({ form: pending }, ["form", "label"])).toBeUndefined();
+	expect(resolveDataPath(data, ["#"], { key: "row" })).toBe("row");
+	expect(resolveDataPath(data, ["#"], { key: "row" }, 0)).toBe(0);
+	expect(resolveDataPath(data, [])).toBe(data);
+	expect(leaf.label.isReactive).toBe(true);
+	expect(unrelatedReads).toBe(0);
+});
 
 describe("TemplateParser", () => {
 	test("ParsePipedBinding", () => {

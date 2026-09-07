@@ -31,6 +31,86 @@ function setupGlobals(window) {
 }
 
 describe("ui reactive path updates", () => {
+	test("a mapped row's scalar field does not refresh its unrelated items list", async () => {
+		const window = new Window()
+		setupGlobals(window)
+		const { cell } = await import("../src/js/select/state/cells.js")
+		const { ui, remap } = await import("../src/js/select/ui/index.js")
+		const Row = ui(`<li><span out="name"></span><ul out="items"></ul></li>`).does({
+			items: (_self, { items }) => items,
+		})
+		const List = ui(`<ul out="items"></ul>`).does({
+			items: (_self, { value }) => remap(value.value, (entry) => Row(entry)),
+		})
+		const state = cell([{ name: "before", items: ["child"] }])
+		const root = document.createElement("div")
+		document.body.append(root)
+		const instance = List.new().set({ value: state }).mount(root)
+		const child = root.querySelector("li ul").firstChild
+		try {
+			state.set("after", [0, "name"])
+			await new Promise((resolve) => setTimeout(resolve, 0))
+			expect(root.querySelector("span").textContent).toBe("after")
+			expect(root.querySelector("li ul").textContent).toBe("child")
+			expect(root.querySelector("li ul").firstChild).toBe(child)
+			state.set("updated child", [0, "items", 0])
+			await new Promise((resolve) => setTimeout(resolve, 0))
+			expect(root.querySelector("span").textContent).toBe("after")
+			expect(root.querySelector("li ul").textContent).toBe("updated child")
+		} finally {
+			instance.unmount()
+			root.remove()
+			window.close()
+		}
+	})
+
+	test("nested inspector reconciliation keeps leaf, swap, type, and deletion output current", async () => {
+		const window = new Window()
+		setupGlobals(window)
+		const { createApp } = await import("../benchmarks/inspector/frameworks/selectui.js")
+		const root = document.createElement("div")
+		document.body.append(root)
+		let data = {
+			logs: [
+				{ type: "log", context: { origin: "AuthService.login", trace: 640851 } },
+				{ type: "warning", context: { origin: "AnalyticsTracker.trackEvent", trace: 929929 } },
+			],
+		}
+		const app = await createApp(root, structuredClone(data))
+		const firstRow = root.querySelector("li li")
+		try {
+			for (const mutate of [
+				(next) => { next.logs.reverse() },
+				(next) => { next.logs[0].context.trace = 123 },
+				(next) => { next.logs[0].context.trace = { nested: true } },
+				(next) => { next.logs[0].context.trace = "scalar" },
+				(next) => { next.logs[0].context.value = { key: "collection field" } },
+				(next) => { next.logs[0].context.value.key = "updated field" },
+				(next) => { delete next.logs[0].context.value },
+				(next) => { next.logs[1].context.benchmark = "added" },
+				(next) => { delete next.logs[1].context.benchmark },
+			]) {
+				data = structuredClone(data)
+				mutate(data)
+				app.update(structuredClone(data))
+				await new Promise((resolve) => setTimeout(resolve, 0))
+				const reference = document.createElement("div")
+				const fresh = await createApp(reference, structuredClone(data))
+				try {
+					expect(root.textContent).toBe(reference.textContent)
+					expect(root.querySelectorAll("li").length).toBe(reference.querySelectorAll("li").length)
+					expect(root.querySelector("li li")).toBe(firstRow)
+				} finally {
+					fresh.dispose()
+				}
+			}
+		} finally {
+			app.dispose()
+			root.remove()
+			window.close()
+		}
+	})
+
 	test("nested cell path write updates only the leaf without remapping siblings", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" })
 		setupGlobals(window)

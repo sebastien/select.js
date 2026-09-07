@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Window } from "happy-dom";
+import { compareSnapshots } from "./verification.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -13,10 +14,11 @@ const FRAMEWORK_LABELS = {
 	selectui: "ui",
 };
 const RUNS = 5;
+const originalFetch = globalThis.fetch;
+let baseline;
 
 function setupGlobals(window) {
 	const g = global;
-	const originalFetch = typeof g.fetch === "function" ? g.fetch.bind(g) : null;
 	g.window = window;
 	g.document = window.document;
 	g.Node = window.Node;
@@ -85,30 +87,16 @@ function heapMB() {
 	return usage.heapUsed / 1024 / 1024;
 }
 
-function _countNodes(node) {
-	let count = 1; // count the node itself
-	if (node.childNodes) {
-		for (const child of node.childNodes) {
-			count += _countNodes(child);
-		}
-	}
-	return count;
-}
-
 async function runFramework(name) {
 	const { createBenchmarkRunner } = await import("./runner.js");
-	const importPath =
-		name === "solidjs"
-			? "./frameworks/solidjs.bundle.js"
-			: `./frameworks/${name}.js`;
-	const { createApp } = await import(importPath);
 
 	const results = [];
 	let heapPeak = 0;
 	let heapBeforeAll = 0;
 	let nodeCount = 0;
 
-	for (let i = 0; i < RUNS; i++) {
+	// Verify separately so snapshot allocations do not enter measured runs.
+	for (let i = -1; i < RUNS; i++) {
 		const window = createBenchWindow();
 		setupGlobals(window);
 		const root = window.document.createElement("div");
@@ -118,25 +106,40 @@ async function runFramework(name) {
 		const heapBefore = heapMB();
 		if (i === 0) heapBeforeAll = heapBefore;
 
-		const runner = createBenchmarkRunner({
-			framework: name,
-			root,
-			createApp,
-		});
+		try {
+			const { createApp } = await import(`./frameworks/${name}.js`);
+			const runner = createBenchmarkRunner({
+				framework: name,
+				root,
+				createApp,
+			});
 
-		const result = await runner.run();
-		results.push(result);
+			const result = await runner.run({ captureSnapshots: i === -1 });
+			if (i === -1) {
+				if (name === "preact") baseline = result;
+				const verification = compareSnapshots(baseline, result);
+				console.log(
+					JSON.stringify({
+						framework: name,
+						checkpoints: result.snapshots.length,
+						...verification,
+					}),
+				);
+				if (!verification.ok) throw new Error("Inspector verification failed");
+				continue;
+			}
+			results.push(result);
 
-		const heapAfter = heapMB();
-		if (heapAfter > heapPeak) heapPeak = heapAfter;
-		nodeCount = result.initial.nodeCount;
-
-		// Clean up
-		globalThis._benchmarkApp?.dispose?.();
-		globalThis._benchmarkApp = null;
-		root.remove();
-		window.close?.();
-		gc();
+			const heapAfter = heapMB();
+			if (heapAfter > heapPeak) heapPeak = heapAfter;
+			nodeCount = result.initial.nodeCount;
+		} finally {
+			globalThis._benchmarkApp?.dispose?.();
+			globalThis._benchmarkApp = null;
+			root.remove();
+			await window.happyDOM.close();
+			gc();
+		}
 	}
 
 	const get = (obj, path) =>
@@ -178,6 +181,11 @@ async function runFramework(name) {
 }
 
 async function main() {
+	if (!process.execArgv.includes("--conditions=browser")) {
+		throw new Error(
+			"Run with node --conditions=browser or bun run bench:inspector:happy",
+		);
+	}
 	const summary = [];
 	for (const fw of FRAMEWORKS) {
 		console.log(`Running ${fw}...`);
@@ -216,7 +224,7 @@ async function main() {
 		}
 	}
 
-	process.exit(0);
+	process.exit(summary.some((result) => result.error) ? 1 : 0);
 }
 
 main().catch((err) => {

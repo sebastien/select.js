@@ -2,6 +2,7 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { compareSnapshots } from "../benchmarks/inspector/verification.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
@@ -29,46 +30,6 @@ const round = (value) => Number(value.toFixed(2));
 const roundNullable = (value) =>
 	Number.isFinite(value) ? Number(value.toFixed(2)) : null;
 const bytesToMb = (value) => value / (1024 * 1024);
-
-const compareSnapshots = (baseline, candidate) => {
-	const baselineByLabel = new Map(
-		(baseline.snapshots || []).map((snapshot) => [snapshot.label, snapshot]),
-	);
-	const candidateByLabel = new Map(
-		(candidate.snapshots || []).map((snapshot) => [snapshot.label, snapshot]),
-	);
-	const labels = [...baselineByLabel.keys()];
-	const mismatches = [];
-	for (const label of labels) {
-		const expected = baselineByLabel.get(label);
-		const actual = candidateByLabel.get(label);
-		if (!actual) {
-			mismatches.push({ label, reason: "missing checkpoint" });
-			continue;
-		}
-		if (
-			expected.structureHash !== actual.structureHash ||
-			expected.textHash !== actual.textHash
-		) {
-			mismatches.push({
-				label,
-				reason: "hash mismatch",
-				expected: {
-					structureHash: expected.structureHash,
-					textHash: expected.textHash,
-				},
-				actual: {
-					structureHash: actual.structureHash,
-					textHash: actual.textHash,
-				},
-			});
-		}
-	}
-	return {
-		ok: mismatches.length === 0,
-		mismatches,
-	};
-};
 
 const parseArgs = (argv) => {
 	const options = {
@@ -481,6 +442,9 @@ const main = async () => {
 		console.log(formatSummaryTable(summaries));
 		console.log("\nVerification:");
 		console.log(JSON.stringify(summaryVerification, null, 2));
+		if (verificationSummary.some((result) => !result.ok)) {
+			process.exitCode = 1;
+		}
 		console.log("\nDelta vs previous inspector snapshot:");
 		console.log(formatDeltaTable(comparison));
 		console.log("\nRaw summary:");
