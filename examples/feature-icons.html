@@ -109,8 +109,8 @@
 </head>
 
 <body>
-		<h1>Icons: direct Iconify collections</h1>
-		<p class="muted">This example demonstrates live icon updates powered by <code>ui(...)</code> and <code>cell(...)</code>, using direct CDN/Iconify sources only.</p>
+		<h1>Icons: jsDelivr collections</h1>
+		<p class="muted">This example demonstrates live icon updates powered by <code>ui(...)</code> and <code>cell(...)</code>, using jsDelivr sources only.</p>
 
 	<div id="ui"></div>
 
@@ -160,14 +160,6 @@
 					<div class="muted">No explicit <code>sources</code> passed. Collections are fetched from CDN.</div>
 				</article>
 
-					<article class="preview">
-						<h3>Explicit source <code>&lt;ui-icon-cdn&gt;</code></h3>
-						<div class="icon-row">
-							<ui-icon-cdn out:icon="qualified" out:size="size"></ui-icon-cdn>
-							<span out="qualified"></span>
-						</div>
-						<div class="muted">Uses <code>install("ui-icon-cdn", { source: "https://api.iconify.design" })</code>.</div>
-					</article>
 			</section>
 
 			<section class="panel">
@@ -188,7 +180,6 @@
 		import ui from "@./ui/index.js"
 
 			install("ui-icon")
-			install("ui-icon-cdn", { source: "https://api.iconify.design" })
 
 		const App = ui("#App").init(() => {
 			const source = cell("lucide")

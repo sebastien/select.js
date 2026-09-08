@@ -102,15 +102,13 @@ const IconContainer = Object.entries({
 );
 
 const IconDefaults = {
-	url: `https://api.iconify.design/${ICON_SOURCE}/${ICON_NAME}.svg`,
+	format: "iconify",
+	url: `https://cdn.jsdelivr.net/npm/@iconify-json/${ICON_SOURCE}/icons.json`,
 	name: "file-question-mark",
 	source: "lucide",
 	size: [24, 24],
 	style: {
-		stroke: "var(--color-icon,var(--text-color),currentColor)",
-		"stroke-width": "1.5px",
-		"vector-effect": "non-scaling-stroke",
-		fill: "none",
+		color: "var(--color-icon,currentColor)",
 	},
 };
 
@@ -120,23 +118,13 @@ const IconSources = {
 	devicons: {
 		size: [32, 32],
 	},
-	"eva-outline": {
-		style: {
-			stroke: "transparent",
-			fill: IconDefaults.style.stroke,
-		},
-	},
-	"eva-fill": {
-		style: { stroke: "transparent", fill: IconDefaults.style.stroke },
-	},
-	lucide: {
-		style: { stroke: "transparent", fill: IconDefaults.style.stroke },
-	},
 };
 
 // Constant: Cache
 // Promise and symbol cache keyed by resolved icon URL.
 const Cache = new Map();
+// Promise cache keyed by collection URL, scoped to each icon symbol cache.
+const CollectionCaches = new WeakMap();
 
 // Function: parseIconName
 // Splits `name` into `[iconName, iconSource]`, preserving `source` as the
@@ -150,6 +138,74 @@ function parseIconName(name, source) {
 		(i > 0 ? name.substring(i + 1) : name) || IconDefaults.name,
 		(i > 0 ? name.substring(0, i) : source) || source || IconDefaults.source,
 	];
+}
+
+// Function: sourceOptions
+// Resolves named source overrides while preserving generic collection defaults.
+function sourceOptions(source) {
+	return source && typeof source === "object"
+		? source
+		: Object.assign({}, IconDefaults, IconSources[source]);
+}
+
+// Function: iconifyIcon
+// Resolves `name`, including any Iconify alias transformations.
+function iconifyIcon(data, name, seen = new Set()) {
+	if (seen.has(name)) {
+		return;
+	}
+	seen.add(name);
+	const defaults = {
+		left: data.left || 0,
+		top: data.top || 0,
+		width: data.width || 16,
+		height: data.height || 16,
+		rotate: data.rotate || 0,
+		hFlip: data.hFlip || false,
+		vFlip: data.vFlip || false,
+	};
+	const icon = data.icons?.[name];
+	if (icon) {
+		return Object.assign(defaults, icon);
+	}
+	const alias = data.aliases?.[name];
+	if (!alias?.parent) {
+		return;
+	}
+	const parent = iconifyIcon(data, alias.parent, seen);
+	if (!parent) {
+		return;
+	}
+	return Object.assign({}, parent, alias, {
+		body: parent.body,
+		hFlip: Boolean(parent.hFlip) !== Boolean(alias.hFlip),
+		vFlip: Boolean(parent.vFlip) !== Boolean(alias.vFlip),
+		rotate: ((parent.rotate || 0) + (alias.rotate || 0)) % 4,
+	});
+}
+
+// Function: iconifySvg
+// Wraps resolved Iconify JSON icon data in SVG markup for sanitization.
+function iconifySvg(data, name) {
+	const icon = iconifyIcon(data, name);
+	if (!icon?.body) {
+		throw new Error(
+			`Could not find icon "${name}" in Iconify collection "${data.prefix}"`,
+		);
+	}
+	const left = icon.left || 0;
+	const top = icon.top || 0;
+	const width = icon.width || 16;
+	const height = icon.height || 16;
+	const rotate = (icon.rotate || 0) % 4;
+	const cx = left + width / 2;
+	const cy = top + height / 2;
+	const viewBox =
+		rotate % 2
+			? `${cx - height / 2} ${cy - width / 2} ${height} ${width}`
+			: `${left} ${top} ${width} ${height}`;
+	const transform = `translate(${cx} ${cy}) rotate(${rotate * 90}) scale(${icon.hFlip ? -1 : 1} ${icon.vFlip ? -1 : 1}) translate(${-cx} ${-cy})`;
+	return `<svg viewBox="${viewBox}"><g transform="${transform}">${icon.body}</g></svg>`;
 }
 
 function isLocalSvgReference(value) {
@@ -181,7 +237,10 @@ function isSafeSvgAttribute(name, value) {
 		return isLocalSvgReference(value);
 	}
 	if (
-		(key === "fill" || key === "stroke" || key === "clip-path" || key === "mask") &&
+		(key === "fill" ||
+			key === "stroke" ||
+			key === "clip-path" ||
+			key === "mask") &&
 		`${value || ""}`.includes("url(")
 	) {
 		return isLocalSvgReference(value);
@@ -223,7 +282,10 @@ function sanitizeSvgMarkup(text, name) {
 	if (i < 0) {
 		throw new Error(`Could not find <svg> in icon "${name}", got: ${text}`);
 	}
-	const doc = new DOMParser().parseFromString(text.substring(i), "image/svg+xml");
+	const doc = new DOMParser().parseFromString(
+		text.substring(i),
+		"image/svg+xml",
+	);
 	const svg = doc.documentElement;
 	if (svg?.tagName.toLowerCase() !== "svg") {
 		throw new Error(`Could not parse <svg> in icon "${name}"`);
@@ -241,10 +303,12 @@ function load(
 	cache = Cache,
 ) {
 	[name, source] = parseIconName(name, source);
-	const url = (source?.url || IconSources[source]?.url || IconDefaults.url)
+	const options = sourceOptions(source);
+	const url = (options.url || IconDefaults.url)
 		.replace(ICON_NAME, name)
 		.replace(ICON_SOURCE, source);
-	const entry = cache.get(url);
+	const cacheKey = options.format === "iconify" ? `${url}#${name}` : url;
+	const entry = cache.get(cacheKey);
 	if (entry?.status === "pending") {
 		return entry.promise;
 	} else if (entry?.status === "success") {
@@ -255,32 +319,52 @@ function load(
 	) {
 		return Promise.resolve();
 	} else {
-		const symbol = document.createElementNS("http://www.w3.org/2000/svg", "symbol");
+		const symbol = document.createElementNS(
+			"http://www.w3.org/2000/svg",
+			"symbol",
+		);
 		symbol.id = `icon-${name}-${source}`;
 		container.appendChild(symbol);
 		const attempts = (entry?.attempts || 0) + 1;
-		const res = fetch(url)
-			.then((_) => _.text())
+		let collections = CollectionCaches.get(cache);
+		if (!collections) {
+			collections = new Map();
+			CollectionCaches.set(cache, collections);
+		}
+		const collection = collections.get(url);
+		const request =
+			options.format === "iconify" && collection
+				? collection
+				: fetch(url).then((response) => {
+						if (response.ok === false) {
+							throw new Error(
+								`Icon request failed with status ${response.status}`,
+							);
+						}
+						return options.format === "iconify"
+							? response.json()
+							: response.text();
+					});
+		if (options.format === "iconify" && !collection) {
+			collections.set(url, request);
+			request.catch(() => collections.delete(url));
+		}
+		const res = request
+			.then((data) =>
+				options.format === "iconify" ? iconifySvg(data, name) : data,
+			)
 			.then((text) => {
 				const icon = sanitizeSvgMarkup(text, name);
 				if (icon) {
 					symbol.replaceChildren(icon);
 				}
-				// TODO: Typically the main SVG node has `width`, `height` and
-				// `viewBox`, which we should use to get the ideal size.
-				if (icon?.attributes) {
-					["stroke-width", "fill", "stroke"].forEach((_) => {
-						if (icon.hasAttribute(_)) {
-							icon.setAttribute(_, "");
-						}
-					});
-				} else {
+				if (!icon?.attributes) {
 					log.error("icons.load: icon should have content, details", {
 						name,
 						text,
 					});
 				}
-				for (const [k, v] of Object.entries(source.style ?? {})) {
+				for (const [k, v] of Object.entries(source?.style ?? {})) {
 					if (icon && isSafeSvgAttribute(k, `${v}`)) {
 						icon.setAttribute(k, `${v}`);
 					}
@@ -288,11 +372,11 @@ function load(
 				if (!container.parentElement) {
 					document.body.appendChild(container);
 				}
-				cache.set(url, { status: "success", attempts, value: symbol });
+				cache.set(cacheKey, { status: "success", attempts, value: symbol });
 				return symbol;
 			})
 			.catch((reason) => {
-				cache.set(url, {
+				cache.set(cacheKey, {
 					status: "failure",
 					attempts,
 					retryAt: Date.now() + (ICON_RETRY_DELAYS[attempts - 1] || 0),
@@ -306,7 +390,7 @@ function load(
 					symbol,
 				});
 			});
-		cache.set(url, { status: "pending", attempts, promise: res });
+		cache.set(cacheKey, { status: "pending", attempts, promise: res });
 		return res;
 	}
 }
@@ -317,7 +401,13 @@ function load(
 function icon(
 	name = IconDefaults.name,
 	source = IconDefaults.source,
-	{ size = "1em", className = "icon", container = IconContainer, mode = undefined, style = {} },
+	{
+		size = "1em",
+		className = "icon",
+		container = IconContainer,
+		mode = undefined,
+		style = {},
+	},
 ) {
 	style = Object.assign({}, IconDefaults.style, source?.style, style);
 	const node = Object.entries({ width: size, height: size }).reduce(

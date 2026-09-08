@@ -1,7 +1,7 @@
 # Select Icons (`select.icons.js`)
 
-`select.icons.js` provides a small icon loader built on top of SVG symbols and CDN sources
-(by default [Iconify.design](https://icon-sets.iconify.design)).
+`select.icons.js` provides a small icon loader built on top of SVG symbols and the
+CORS-enabled [jsDelivr](https://www.jsdelivr.com/) package CDN.
 
 It supports:
 
@@ -11,15 +11,16 @@ It supports:
 
 ## Default source catalog
 
-If no source catalog is provided, `select.icons.js` fetches available icon families from:
+Each Iconify prefix loads its standardized collection package from:
 
-- `https://api.iconify.design/collections`
+- `https://cdn.jsdelivr.net/npm/@iconify-json/<prefix>/icons.json`
 
-Each collection is mapped to a source URL template:
+Collection data is cached in memory after its first load. jsDelivr supplies wildcard CORS
+and edge caching, so icon requests do not use the shared Iconify API.
 
-- `https://api.iconify.design/<prefix>/__ICON_NAME__.svg`
-
-This gives access to all Iconify/Icônes families through a CDN endpoint.
+The generic loader supports Iconify aliases, flips, rotation, and collection dimensions.
+If a collection package is unavailable on jsDelivr, the icon fails without contacting
+the Iconify API.
 
 Remote SVG markup is parsed through a conservative allowlist before insertion.
 Basic icon geometry is preserved, but richer SVG features may be stripped.

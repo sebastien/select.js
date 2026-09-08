@@ -158,7 +158,12 @@ function createFetch(examplePath: string) {
 	}
 	return (input: RequestInfo | URL) => {
 		const url = String(input)
-		if (url.startsWith("https://api.iconify.design/")) {
+		if (
+			url.startsWith("https://api.iconify.design/") ||
+			url.startsWith("https://cdn.jsdelivr.net/npm/lucide-static/")
+			|| url.startsWith("https://cdn.jsdelivr.net/npm/@mdi/svg/")
+			|| url.startsWith("https://cdn.jsdelivr.net/npm/@tabler/icons/")
+		) {
 			const body = `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path d=\"M3 12h18\"/></svg>`
 			return Promise.resolve({
 				ok: true,
@@ -166,6 +171,24 @@ function createFetch(examplePath: string) {
 				headers: new Headers({ "content-type": "image/svg+xml" }),
 				text: async () => body,
 				json: async () => ({}),
+			})
+		}
+		if (url.startsWith("https://cdn.jsdelivr.net/npm/@iconify-json/")) {
+			return Promise.resolve({
+				ok: true,
+				status: 200,
+				headers: new Headers({ "content-type": "application/json" }),
+				json: async () => ({
+					prefix: "test",
+					icons: {
+						account: { body: '<path d="M3 12h18"/>' },
+						alien: { body: '<path d="M3 12h18"/>' },
+						"file-question-mark": { body: '<path d="M3 12h18"/>' },
+						home: { body: '<path d="M3 12h18"/>' },
+						schedule: { body: '<path d="M3 12h18"/>' },
+						sparkles: { body: '<path d="M3 12h18"/>' },
+					},
+				}),
 			})
 		}
 		let filePath

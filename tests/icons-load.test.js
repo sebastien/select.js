@@ -49,6 +49,10 @@ function makeContainer() {
 	return document.createElementNS("http://www.w3.org/2000/svg", "svg")
 }
 
+function svgSource(name) {
+	return { url: `https://icons.test/${name}.svg` }
+}
+
 function response(text) {
 	return Promise.resolve({ text: () => Promise.resolve(text) })
 }
@@ -91,6 +95,81 @@ describe("icons.load", () => {
 		expect(customElements.get(firstName)).not.toBe(customElements.get(secondName))
 	})
 
+	test("loads every family from its Iconify collection on jsDelivr", async () => {
+		globalThis.fetch = (url) => {
+			fetchCalls.push([url])
+			return Promise.resolve({
+				json: () => Promise.resolve({ prefix: "test", icons: { icon: { body: "<path/>" } } }),
+			})
+		}
+		const cache = new Map()
+		const container = makeContainer()
+
+		await load("icon", "lucide", container, cache)
+		await load("icon", "mdi", container, cache)
+		await load("icon", "tabler", container, cache)
+
+		expect(fetchCalls.map(([url]) => url)).toEqual([
+			"https://cdn.jsdelivr.net/npm/@iconify-json/lucide/icons.json",
+			"https://cdn.jsdelivr.net/npm/@iconify-json/mdi/icons.json",
+			"https://cdn.jsdelivr.net/npm/@iconify-json/tabler/icons.json",
+		])
+	})
+
+	test("loads standardized Iconify collections from jsDelivr", async () => {
+		globalThis.fetch = (url) => {
+			fetchCalls.push([url])
+			return Promise.resolve({
+				json: () =>
+					Promise.resolve({
+						prefix: "carbon",
+						width: 20,
+						height: 10,
+						icons: { home: { body: '<path d="M0 0h20v10z"/>' } },
+						aliases: { mirrored: { parent: "home", hFlip: true } },
+					}),
+			})
+		}
+		const cache = new Map()
+		const container = makeContainer()
+
+		const symbol = await load("mirrored", "carbon", container, cache)
+		const home = await load("home", "carbon", container, cache)
+
+		expect(fetchCalls[0][0]).toBe(
+			"https://cdn.jsdelivr.net/npm/@iconify-json/carbon/icons.json",
+		)
+		expect(fetchCalls).toHaveLength(1)
+		expect(home).not.toBe(symbol)
+		expect(symbol?.firstElementChild?.getAttribute("viewBox")).toBe("0 0 20 10")
+		expect(symbol?.querySelector("g")?.getAttribute("transform")).toContain("scale(-1 1)")
+	})
+
+	test("preserves Iconify paint attributes", async () => {
+		globalThis.fetch = () =>
+			Promise.resolve({
+				json: () =>
+					Promise.resolve({
+						prefix: "test",
+						icons: {
+							outline: {
+								body: '<path fill="none" stroke="currentColor" stroke-width="2" d="M0 0h1"/>',
+							},
+							filled: { body: '<path fill="currentColor" d="M0 0h1v1z"/>' },
+						},
+					}),
+			})
+		const cache = new Map()
+		const container = makeContainer()
+
+		const outline = await load("outline", "test", container, cache)
+		const filled = await load("filled", "test", container, cache)
+
+		expect(outline?.querySelector("path")?.getAttribute("stroke-width")).toBe("2")
+		expect(outline?.querySelector("path")?.getAttribute("fill")).toBe("none")
+		expect(filled?.querySelector("path")?.getAttribute("fill")).toBe("currentColor")
+	})
+
 	test("retries after backoff for a transient load failure", async () => {
 		let attempts = 0
 		globalThis.fetch = (url) => {
@@ -103,19 +182,19 @@ describe("icons.load", () => {
 		const cache = new Map()
 		const container = makeContainer()
 
-		const first = await load("alert-circle", "lucide", container, cache)
+		const first = await load("alert-circle", svgSource("retry"), container, cache)
 		expect(first).toBeUndefined()
 		expect(cache.size).toBe(1)
 		expect(container.children.length).toBe(0)
 
-		const second = await load("alert-circle", "lucide", container, cache)
+		const second = await load("alert-circle", svgSource("retry"), container, cache)
 		expect(second).toBeUndefined()
 		expect(fetchCalls).toHaveLength(1)
 
 		now = 250
-		const third = await load("alert-circle", "lucide", container, cache)
+		const third = await load("alert-circle", svgSource("retry"), container, cache)
 		expect(fetchCalls).toHaveLength(2)
-		expect(third?.id).toBe("icon-alert-circle-lucide")
+		expect(third?.id).toContain("icon-alert-circle")
 		expect(cache.size).toBe(1)
 		expect(container.children.length).toBe(1)
 	})
@@ -128,23 +207,23 @@ describe("icons.load", () => {
 		const cache = new Map()
 		const container = makeContainer()
 
-		await load("missing", "lucide", container, cache)
+		await load("missing", svgSource("missing"), container, cache)
 		expect(fetchCalls).toHaveLength(1)
 
 		now = 250
-		await load("missing", "lucide", container, cache)
+		await load("missing", svgSource("missing"), container, cache)
 		expect(fetchCalls).toHaveLength(2)
 
 		now = 750
-		await load("missing", "lucide", container, cache)
+		await load("missing", svgSource("missing"), container, cache)
 		expect(fetchCalls).toHaveLength(3)
 
 		now = 1750
-		await load("missing", "lucide", container, cache)
+		await load("missing", svgSource("missing"), container, cache)
 		expect(fetchCalls).toHaveLength(4)
 
 		now = 10000
-		const result = await load("missing", "lucide", container, cache)
+		const result = await load("missing", svgSource("missing"), container, cache)
 		expect(result).toBeUndefined()
 		expect(fetchCalls).toHaveLength(4)
 		expect(cache.size).toBe(1)
@@ -155,8 +234,8 @@ describe("icons.load", () => {
 		const cache = new Map()
 		const container = makeContainer()
 
-		const first = await load("check", "lucide", container, cache)
-		const second = await load("check", "lucide", container, cache)
+		const first = await load("check", svgSource("cache"), container, cache)
+		const second = await load("check", svgSource("cache"), container, cache)
 
 		expect(fetchCalls).toHaveLength(1)
 		expect(first).toBe(second)
@@ -170,7 +249,7 @@ describe("icons.load", () => {
 		const cache = new Map()
 		const container = makeContainer()
 
-		const symbol = await load("square", "lucide", container, cache)
+		const symbol = await load("square", svgSource("shapes"), container, cache)
 		const icon = symbol?.firstElementChild
 
 		expect(icon?.tagName.toLowerCase()).toBe("svg")
@@ -184,7 +263,7 @@ describe("icons.load", () => {
 		const cache = new Map()
 		const container = makeContainer()
 
-		const symbol = await load("square", "lucide", container, cache)
+		const symbol = await load("square", svgSource("active"), container, cache)
 		const icon = symbol?.firstElementChild
 
 		expect(icon?.querySelector("script")).toBeNull()
@@ -197,7 +276,7 @@ describe("icons.load", () => {
 		const cache = new Map()
 		const container = makeContainer()
 
-		const symbol = await load("square", "lucide", container, cache)
+		const symbol = await load("square", svgSource("events"), container, cache)
 		const icon = symbol?.firstElementChild
 		const path = icon?.querySelector("path")
 
@@ -213,7 +292,7 @@ describe("icons.load", () => {
 		const cache = new Map()
 		const container = makeContainer()
 
-		const symbol = await load("square", "lucide", container, cache)
+		const symbol = await load("square", svgSource("urls"), container, cache)
 		const path = symbol?.querySelector("path")
 
 		expect(path?.getAttribute("fill")).toBe("url(#g)")
