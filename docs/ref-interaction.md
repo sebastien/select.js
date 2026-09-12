@@ -312,6 +312,24 @@ is past the final item. Returns `true` when the DOM position changes and
 `positioning` is a pure geometry module. It does not write styles or listen to
 the DOM.
 
+### `affinity(box, bounds?)` / `reanchor(box, bounds, captured?)`
+
+`affinity` picks the nearest of the nine cardinal loci (`nw`…`se`) to the center
+of `box` inside `bounds` (default `viewport()`), and returns `{ locus, dx, dy }`
+where `dx`/`dy` is the offset of the matching point from that locus.
+
+`reanchor` places `box` so that captured offset is preserved against new
+`bounds`. Same bounds is an identity. Parent-anchored panels should keep using
+`anchored` instead.
+
+```javascript
+const captured = affinity(panelRect, oldViewport)
+const next = reanchor(panelRect, newViewport, captured)
+```
+
+`Snappable.resize(bounds)` applies this to unattached roots and translates
+sticky children with them. The first call with no prior bounds only stores them.
+
 ### `place(source, sourcePosition, target, targetPosition)`
 
 Returns a `{ x, y, width, height }` box that aligns `sourcePosition` on `source`

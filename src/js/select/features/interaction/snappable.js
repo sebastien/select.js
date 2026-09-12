@@ -7,6 +7,8 @@
 // Maintains rectangles in a coordinate space and resolves alignment snapping and
 // sticky border adhesion without requiring DOM layout or rendering.
 
+import { affinity, reanchor } from "./positioning.js";
+
 const LEFT = 0;
 const TOP = 1;
 const RIGHT = 2;
@@ -24,6 +26,7 @@ class Snappable {
 		this.hysteresis = options.hysteresis ?? 4;
 		this.minOverlap = options.minOverlap ?? 16;
 		this.cellSize = options.cellSize ?? 256;
+		this.bounds = options.bounds ? boxOf(options.bounds) : undefined;
 		this.count = 0;
 		this.capacity = 16;
 		this.ids = new Map();
@@ -135,36 +138,36 @@ class Snappable {
 		return result;
 	}
 
+	// Function: resize
+	// Reanchors unattached roots so their viewport affinity is preserved inside
+	// `bounds`, then keeps each group on-screen. Attached children follow their
+	// parent. The first call with no prior bounds only stores them.
+	resize(bounds) {
+		const previous = this.bounds;
+		this.bounds = boxOf(bounds);
+		if (!previous) return [];
+		const result = [];
+		for (let slot = 0; slot < this.count; slot++) {
+			if (!this.active[slot] || this.parents[slot] >= 0) continue;
+			const slots = this._subtree(slot);
+			const box = this._union(slots);
+			const next = reanchor(box, this.bounds, affinity(box, previous));
+			const x = clamp(next.x, this.bounds.x, this.bounds.x + this.bounds.width - next.width);
+			const y = clamp(next.y, this.bounds.y, this.bounds.y + this.bounds.height - next.height);
+			const boxes = this._shift(slots, x - box.x, y - box.y);
+			for (let i = 0; i < boxes.length; i++) result.push(boxes[i]);
+		}
+		return result;
+	}
+
 	// Function: constrain
 	// Translates `id` and its sticky-attached component to fit within `bounds`.
 	constrain(id, bounds) {
 		const slots = this._component(this._slot(id));
-		let left = Infinity;
-		let top = Infinity;
-		let right = -Infinity;
-		let bottom = -Infinity;
-		for (const slot of slots) {
-			left = Math.min(left, this.x[slot]);
-			top = Math.min(top, this.y[slot]);
-			right = Math.max(right, this.x[slot] + this.width[slot]);
-			bottom = Math.max(bottom, this.y[slot] + this.height[slot]);
-		}
-		const width = right - left;
-		const height = bottom - top;
-		const x = Math.min(Math.max(bounds.x, left), Math.max(bounds.x, bounds.x + bounds.width - width));
-		const y = Math.min(Math.max(bounds.y, top), Math.max(bounds.y, bounds.y + bounds.height - height));
-		const dx = x - left;
-		const dy = y - top;
-		const boxes = new Array(slots.length);
-		for (let i = 0; i < slots.length; i++) {
-			const slot = slots[i];
-			this._unindex(slot);
-			this.x[slot] += dx;
-			this.y[slot] += dy;
-			this._index(slot);
-			boxes[i] = this._box(slot);
-		}
-		return boxes;
+		const box = this._union(slots);
+		const x = clamp(box.x, bounds.x, bounds.x + bounds.width - box.width);
+		const y = clamp(box.y, bounds.y, bounds.y + bounds.height - box.height);
+		return this._shift(slots, x - box.x, y - box.y);
 	}
 
 	// Function: attachments
@@ -410,6 +413,34 @@ class Snappable {
 			width: this.width[slot],
 			height: this.height[slot],
 		};
+	}
+
+	_union(slots) {
+		let left = Infinity;
+		let top = Infinity;
+		let right = -Infinity;
+		let bottom = -Infinity;
+		for (let i = 0; i < slots.length; i++) {
+			const slot = slots[i];
+			left = Math.min(left, this.x[slot]);
+			top = Math.min(top, this.y[slot]);
+			right = Math.max(right, this.x[slot] + this.width[slot]);
+			bottom = Math.max(bottom, this.y[slot] + this.height[slot]);
+		}
+		return { x: left, y: top, width: right - left, height: bottom - top };
+	}
+
+	_shift(slots, dx, dy) {
+		const boxes = new Array(slots.length);
+		for (let i = 0; i < slots.length; i++) {
+			const slot = slots[i];
+			this._unindex(slot);
+			this.x[slot] += dx;
+			this.y[slot] += dy;
+			this._index(slot);
+			boxes[i] = this._box(slot);
+		}
+		return boxes;
 	}
 
 	_grow(size) {
@@ -733,6 +764,14 @@ function grow(values, size) {
 	const result = new values.constructor(size);
 	result.set(values);
 	return result;
+}
+
+function boxOf(box) {
+	return { x: box.x, y: box.y, width: box.width, height: box.height };
+}
+
+function clamp(value, min, max) {
+	return Math.min(Math.max(value, min), Math.max(min, max));
 }
 
 export { BOTTOM, LEFT, RIGHT, SnapDrag, Snappable, TOP };

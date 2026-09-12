@@ -296,6 +296,39 @@ describe("snappable", () => {
 		expect(space.component("middle").sort()).toEqual(["child", "middle"]);
 	});
 
+	test("reanchors floating roots and skips attached children", () => {
+		const bounds = { x: 0, y: 0, width: 1000, height: 800 };
+		const space = new Snappable({ bounds });
+		space.add("nw", { x: 20, y: 20, width: 80, height: 60 });
+		space.add(
+			"parent",
+			{ x: 900, y: 720, width: 80, height: 60 },
+			{ sticky: { left: "panel" } },
+		);
+		space.add(
+			"child",
+			{ x: 820, y: 720, width: 80, height: 60 },
+			{ sticky: { right: "panel" } },
+		);
+		space.attach("child", "right", "parent");
+
+		space.resize({ x: 0, y: 0, width: 1200, height: 900 });
+
+		expect(space.get("nw")).toMatchObject({ x: 20, y: 20 });
+		expect(space.get("child")).toMatchObject({ x: 1020, y: 820 });
+		expect(space.get("parent")).toMatchObject({ x: 1100, y: 820 });
+	});
+
+	test("stores the first resize bounds without moving", () => {
+		const space = new Snappable();
+		space.add("panel", { x: 780, y: 680, width: 200, height: 100 });
+		expect(space.resize({ x: 0, y: 0, width: 1000, height: 800 })).toEqual([]);
+		expect(space.get("panel")).toMatchObject({ x: 780, y: 680 });
+		expect(space.resize({ x: 0, y: 0, width: 1200, height: 900 })).toEqual([
+			expect.objectContaining({ id: "panel", x: 980, y: 780 }),
+		]);
+	});
+
 	test("uses an explicit leader ahead of geometric order", () => {
 		const space = new Snappable();
 		space.add(

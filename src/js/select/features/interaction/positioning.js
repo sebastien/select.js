@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-08-13
-// Updated: 2026-08-15
+// Updated: 2026-09-12
 
 // Module: select/features/interaction/positioning
 // Provides pure helpers for anchoring and fitting rectangular panels.
@@ -46,6 +46,43 @@ function place(source, sourcePosition, target, targetPosition) {
 		y: target.y + target.height * ty - source.height * sy,
 		width: source.width,
 		height: source.height,
+	}
+}
+
+// Function: affinity
+// Returns the nearest locus of `box` in `bounds` and the offset of the matching
+// point from that locus. Loci are the nine cardinals in `POSITIONS`.
+function affinity(box, bounds = viewport()) {
+	const cx = box.x + box.width * 0.5
+	const cy = box.y + box.height * 0.5
+	let locus = "c"
+	let best = Infinity
+	for (const name in POSITIONS) {
+		const [lx, ly] = POSITIONS[name]
+		const dx = cx - (bounds.x + bounds.width * lx)
+		const dy = cy - (bounds.y + bounds.height * ly)
+		const d = dx * dx + dy * dy
+		if (d < best) {
+			best = d
+			locus = name
+		}
+	}
+	const [lx, ly] = POSITIONS[locus]
+	return {
+		locus,
+		dx: box.x + box.width * lx - (bounds.x + bounds.width * lx),
+		dy: box.y + box.height * ly - (bounds.y + bounds.height * ly),
+	}
+}
+
+// Function: reanchor
+// Places `box` so its captured affinity offset is preserved against `bounds`.
+function reanchor(box, bounds, captured = affinity(box, bounds)) {
+	const placed = place(box, captured.locus, bounds, captured.locus)
+	return {
+		...placed,
+		x: placed.x + captured.dx,
+		y: placed.y + captured.dy,
 	}
 }
 
@@ -193,9 +230,9 @@ function clamp(value, min, max) {
 	return Math.min(Math.max(value, min), Math.max(min, max))
 }
 
-const positioning = { anchored, fit, flip, opposite, overflows, place, point, viewport }
+const positioning = { affinity, anchored, fit, flip, opposite, overflows, place, point, reanchor, viewport }
 
-export { POSITIONS, anchored, fit, flip, opposite, overflows, place, point, positioning, viewport }
+export { POSITIONS, affinity, anchored, fit, flip, opposite, overflows, place, point, positioning, reanchor, viewport }
 export default positioning
 
 // EOF

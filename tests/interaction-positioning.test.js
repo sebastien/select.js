@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { anchored, fit, flip, opposite, overflows, place, point, viewport } from "../src/js/select/features/interaction/positioning.js"
+import { affinity, anchored, fit, flip, opposite, overflows, place, point, reanchor, viewport } from "../src/js/select/features/interaction/positioning.js"
 
 describe("interaction positioning", () => {
 	test("places source and target corners together", () => {
@@ -143,6 +143,39 @@ describe("interaction positioning", () => {
 				{ flip: false, overflow: "move" },
 			),
 		).toEqual({ x: 0, y: 50, width: 40, height: 50 })
+	})
+
+	test("picks the nearest viewport locus", () => {
+		const bounds = { x: 0, y: 0, width: 1000, height: 800 }
+		expect(affinity({ x: 10, y: 10, width: 20, height: 20 }, bounds).locus).toBe("nw")
+		expect(affinity({ x: 780, y: 680, width: 200, height: 100 }, bounds)).toEqual({
+			locus: "se",
+			dx: -20,
+			dy: -20,
+		})
+		expect(affinity({ x: 400, y: 350, width: 200, height: 100 }, bounds)).toEqual({
+			locus: "c",
+			dx: 0,
+			dy: 0,
+		})
+	})
+
+	test("keeps a lower-right gap when bounds grow", () => {
+		const box = { x: 780, y: 680, width: 200, height: 100 }
+		const next = reanchor(box, { x: 0, y: 0, width: 1200, height: 900 }, affinity(box, { x: 0, y: 0, width: 1000, height: 800 }))
+		expect(next).toEqual({ x: 980, y: 780, width: 200, height: 100 })
+	})
+
+	test("keeps a centered panel centered", () => {
+		const box = { x: 400, y: 350, width: 200, height: 100 }
+		const bounds = { x: 0, y: 0, width: 1000, height: 800 }
+		expect(reanchor(box, { x: 0, y: 0, width: 1200, height: 900 }, affinity(box, bounds))).toEqual({
+			x: 500,
+			y: 400,
+			width: 200,
+			height: 100,
+		})
+		expect(reanchor(box, bounds, affinity(box, bounds))).toEqual(box)
 	})
 
 	test("reads visual viewport offsets", () => {
