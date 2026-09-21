@@ -8,7 +8,10 @@ PROJECT:=select
 PORT?=8001
 SDK_MODULES:=std js mise
 DIST_MODE:=
-PROJECT_VERSION:=0.10.0
+PROJECT_VERSION:=1.0.0
+PROJECT_VERSION_TASK:=$(PATH_RUN_TASK)/project-version-$(PROJECT_VERSION).task
+PREP_ALL+=$(PROJECT_VERSION_TASK)
+CLEAN_ALL+=$(PROJECT_VERSION_TASK)
 
 # Keep SDK prep side effects disabled for this project.
 # PREP_ALL:=

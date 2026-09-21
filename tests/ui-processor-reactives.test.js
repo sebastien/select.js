@@ -1099,4 +1099,105 @@ describe("ui processor reactive handling", () => {
 		document.body.innerHTML = "";
 		window.close?.();
 	});
+
+	test("same-length label edit does not reorder list rows", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui, remap } = await import("../src/js/select/ui/index.js");
+
+		const Row = ui(
+			`<li out:data-id="id"><span class="k" out="label"></span></li>`,
+		).does({
+			label: (_self, { label, key, value }) => label ?? value ?? key,
+		});
+		const src = [
+			{ id: "a", label: "A" },
+			{ id: "b", label: "B" },
+			{ id: "c", label: "C" },
+			{ id: "d", label: "D" },
+			{ id: "e", label: "E" },
+		];
+		const variants = [
+			[
+				"unkeyed",
+				`<ul out="items"></ul>`,
+				(items) => remap(items, (entry) => Row({ id: entry.id, label: entry.label })),
+			],
+			[
+				"value-bag",
+				`<ul out="items"></ul>`,
+				(items) =>
+					remap(items, (entry, i) =>
+						Row({ id: entry.id, key: `#${i}`, value: entry.label }),
+					),
+			],
+			[
+				"index-key",
+				`<ul out="items"></ul>`,
+				(items) =>
+					remap(items, (entry, i) =>
+						Row({ id: entry.id, label: entry.label, $key: i }),
+					),
+			],
+			[
+				"map-processor",
+				`<ul out="items"></ul>`,
+				(items) => Row.map(items, (entry) => ({ id: entry.id, label: entry.label })),
+			],
+			[
+				"replace-index",
+				`<ul><li class="pad">X</li><li out-replace="items"></li><li class="pad">Y</li></ul>`,
+				(items) =>
+					remap(items, (entry, i) =>
+						Row({ id: entry.id, label: entry.label, $key: i }),
+					),
+			],
+		];
+
+		for (const [name, template, renderItems] of variants) {
+			document.body.innerHTML = `<div id="app"></div>`;
+			const List = ui(template).does({
+				items: (_self, { items }) => renderItems(items),
+			});
+			const instance = List.new().set({ items: src }).mount("#app");
+			const before = Array.from(document.querySelectorAll("#app li[data-id]"));
+			expect(before.map((li) => li.textContent), name).toEqual([
+				"A",
+				"B",
+				"C",
+				"D",
+				"E",
+			]);
+
+			instance.update({
+				items: src.map((entry, i) =>
+					i === 1 ? { ...entry, label: "B2" } : entry,
+				),
+			});
+
+			const after = Array.from(document.querySelectorAll("#app li[data-id]"));
+			expect(after.map((li) => li.textContent), name).toEqual([
+				"A",
+				"B2",
+				"C",
+				"D",
+				"E",
+			]);
+			expect(after.map((li) => li.dataset.id), name).toEqual([
+				"a",
+				"b",
+				"c",
+				"d",
+				"e",
+			]);
+			for (let i = 0; i < before.length; i++) {
+				expect(after[i], `${name}[${i}]`).toBe(before[i]);
+			}
+
+			instance.unmount();
+			document.body.innerHTML = "";
+		}
+
+		window.close?.();
+	});
 });

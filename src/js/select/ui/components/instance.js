@@ -62,6 +62,26 @@ function unregisterUIInstance(instance) {
 	return instance
 }
 
+// Function: seedInitializerState
+// Merges plain-object construction `data` under the `state` returned by
+// `init()`, so keys the initializer does not own survive the first render
+// while derived state keeps precedence on collisions. Non-plain data (cells,
+// arrays, reactive stores) passes through untouched.
+function seedInitializerState(data, state) {
+	if (
+		data === null ||
+		data === undefined ||
+		typeof data !== "object" ||
+		Object.getPrototypeOf(data) !== Object.prototype ||
+		state === null ||
+		state === undefined ||
+		typeof state !== "object"
+	) {
+		return state
+	}
+	return { ...data, ...state }
+}
+
 function detachWhenNode(node, roots) {
 	const parent = node?.parentNode;
 	if (!parent) {
@@ -378,7 +398,7 @@ class UIInstance {
 				this.initial = state;
 				this._syncOwnedReactiveRefs(state);
 			}
-			this.set(state);
+			this.set(seedInitializerState(this.options.data, state));
 		}
 		if (template.defaultData) {
 			this.set(template.defaultData);

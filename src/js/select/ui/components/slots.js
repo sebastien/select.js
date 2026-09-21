@@ -1191,39 +1191,6 @@ class UISlot {
 		return eq(current, previous);
 	}
 
-	_findReusableInstanceFor(item, skipKeys) {
-		if (!(item instanceof AppliedUITemplate)) {
-			return null;
-		}
-		for (const [key, v] of this.mapping.entries()) {
-			if (skipKeys?.has(key)) {
-				continue;
-			}
-			if (!isUIInstance(v) || v.template !== item.template) {
-				continue;
-			}
-			const a = item.data;
-			const b = v.data;
-			if (
-				a &&
-				b &&
-				typeof a === "object" &&
-				typeof b === "object" &&
-				!Array.isArray(a) &&
-				!Array.isArray(b) &&
-				"value" in a &&
-				"value" in b
-			) {
-				if (eq(a.value, b.value)) {
-					return { key, instance: v };
-				}
-			} else if (eq(a, b)) {
-				return { key, instance: v };
-			}
-		}
-		return null;
-	}
-
 	// True when list keys are positional 0..n-1 (index mode or $key: index).
 	_isIndexShapedList() {
 		if (!this._listKeyMode || this._listKeyMode === "index") {
@@ -1375,7 +1342,8 @@ class UISlot {
 		if (
 			item instanceof AppliedUITemplate &&
 			isUIInstance(existing) &&
-			item.template === existing.template
+			item.template === existing.template &&
+			!this._isMappedValueDetached(existing)
 		) {
 			// NOTE: It's important to call update as otherwise changes
 			// may not progagate.
@@ -1386,37 +1354,15 @@ class UISlot {
 		this._renderMapped(k, item, null);
 	}
 
-	// Same-length list where only one or two index payloads changed (nested
-	// field patches, or a swap of two rows).
+	// Same-length positional list: update in place, never remount or reorder.
 	_tryRenderIndexSingleChange(data, previousLength) {
-		const prev = this._listItems;
-		if (!prev || data.length !== previousLength || previousLength === 0) {
+		if (!this._listItems || data.length !== previousLength || previousLength === 0) {
 			return false;
-		}
-		let changedA = -1;
-		let changedB = -1;
-		for (let i = 0; i < data.length; i++) {
-			if (this._itemPayloadEq(data[i], prev[i])) {
-				continue;
-			}
-			if (changedA < 0) {
-				changedA = i;
-			} else if (changedB < 0) {
-				changedB = i;
-			} else {
-				return false;
-			}
 		}
 		const nextKeys = this._listKeys || new Array(data.length);
 		for (let i = 0; i < data.length; i++) {
 			nextKeys[i] = i;
-		}
-		for (let i = 0; i < data.length; i++) {
-			if (i === changedA || i === changedB) {
-				this._renderMapped(i, data[i], null);
-			} else {
-				this._syncMappedWrapper(i, data[i]);
-			}
+			this._syncMappedWrapper(i, data[i]);
 		}
 		this._listKeys = nextKeys;
 		this._listLength = data.length;
@@ -1767,34 +1713,28 @@ class UISlot {
 		if (isList) {
 			const previousLength = this._listLength || 0;
 			const explicitKeys = this._hasExplicitCollectionKeys(data);
-			if (this._listKeyMode !== (explicitKeys ? "stable" : "index")) {
+			let indexShaped = true;
+			if (explicitKeys) {
+				for (let i = 0; i < data.length; i++) {
+					if (this._resolveCollectionItemKey(data[i], i) !== i) {
+						indexShaped = false;
+						break;
+					}
+				}
+			}
+			const nextMode = explicitKeys && !indexShaped ? "stable" : "index";
+			if (this._listKeyMode !== nextMode) {
 				this._clearMapped();
 				previous = null;
 			}
-			this._listKeyMode = explicitKeys ? "stable" : "index";
-			if (explicitKeys) {
+			this._listKeyMode = nextMode;
+			if (nextMode === "stable") {
 				const nextKeys = new Array(data.length);
 				for (let i = 0; i < data.length; i++) {
 					nextKeys[i] = this._resolveCollectionItemKey(data[i], i);
 				}
 				const previousKeys = this._listKeys;
 				if (this._tryRenderStableAppendOrTail(data, nextKeys, previousKeys)) {
-					return;
-				}
-				// Index-shaped stable keys (0..n) can use positional shift opts.
-				let indexShaped = nextKeys.length > 0;
-				for (let i = 0; i < nextKeys.length; i++) {
-					if (nextKeys[i] !== i) {
-						indexShaped = false;
-						break;
-					}
-				}
-				if (
-					indexShaped &&
-					previousKeys &&
-					previousLength > 0 &&
-					this._tryRenderIndexShift(data, previousLength)
-				) {
 					return;
 				}
 				this._listKeys = nextKeys;

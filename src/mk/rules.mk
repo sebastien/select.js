@@ -36,9 +36,46 @@ bench:
 bench-stats:
 	@node scripts/bench-stats.mjs
 
-.PHONY: release
-release: $(PATH_RUN)/task/project-release-$(PROJECT_VERSION).task
+.PHONY: update-version
+update-version: $(PROJECT_VERSION_TASK)
 	@
+
+.PHONY: release
+release: $(PROJECT_VERSION_TASK)
+	@set -eu; \
+	description=$$(jj log --no-graph -r @ -T 'description.first_line()'); \
+	if [ -z "$$description" ]; then \
+		echo "[RELEASE] current JJ revision has no description"; \
+		exit 1; \
+	fi; \
+	$(MAKE) check; \
+	$(MAKE) test; \
+	$(MAKE) dist; \
+	package_version=$$(node -p "require('./package.json').version"); \
+	test "$$package_version" = "$(PROJECT_VERSION)"; \
+	version="$(PROJECT_VERSION)"; \
+	release_revision="@"; \
+	if jj tag list | awk -F: -v tag="v$$version" '$$1 == tag { found=1 } END { exit !found }'; then \
+		IFS=. read -r major minor patch <<< "$$version"; \
+		minor=$$((minor + 1)); \
+		version="$$major.$$minor.$$patch"; \
+		while jj tag list | awk -F: -v tag="v$$version" '$$1 == tag { found=1 } END { exit !found }'; do \
+			minor=$$((minor + 1)); \
+		version="$$major.$$minor.$$patch"; \
+		done; \
+		node -e 'const fs=require("fs"), v=process.argv[1]; const packageData=JSON.parse(fs.readFileSync("package.json")); packageData.version=v; fs.writeFileSync("package.json", JSON.stringify(packageData, null, "\t")+"\n"); const config=fs.readFileSync("src/mk/config.mk", "utf8").replace(/^PROJECT_VERSION:=.*$$/m, "PROJECT_VERSION:="+v); fs.writeFileSync("src/mk/config.mk", config)' "$$version"; \
+		$(MAKE) PROJECT_VERSION="$$version" dist; \
+		jj commit src/mk/config.mk package.json src/js/select/features/query.js README.md -m "[Release] $(PROJECT): version $$version"; \
+		release_revision="@-"; \
+	fi; \
+	jj tag set "v$$version" --revision="$$release_revision"; \
+	ssh agent@stage "mkdir -p /mnt/www/sebastienpierre.me/dist/select/$$version"; \
+	scp dist/selectjs.js dist/selectjs.min.js "agent@stage:/mnt/www/sebastienpierre.me/dist/select/$$version/"
+
+$(PATH_RUN_TASK)/project-version-%.task: src/mk/config.mk package.json src/js/select/features/query.js README.md
+	@mkdir -p "$(dir $@)"
+	@VERSION="$*" node --input-type=module -e 'import fs from "node:fs"; const version=process.env.VERSION; const packageData=JSON.parse(fs.readFileSync("package.json")); packageData.version=version; fs.writeFileSync("package.json", JSON.stringify(packageData, null, "\t")+"\n"); const replacements=[["src/js/select/features/query.js", /VERSION: "[^"]+"/, `VERSION: "$${version}"`],["README.md", /select\.js@v[0-9]+\.[0-9]+\.[0-9]+/, `select.js@v$${version}`]]; for (const [path, pattern, value] of replacements) { const source=fs.readFileSync(path, "utf8"); fs.writeFileSync(path, source.replace(pattern, value)) }'
+	@touch "$@"
 
 
 .PHONY: _dist-files select-dist ci
@@ -46,7 +83,7 @@ release: $(PATH_RUN)/task/project-release-$(PROJECT_VERSION).task
 _dist-files: $(DIST_FILES)
 
 .PHONY: dist
-dist: select-dist
+dist: $(PREP_ALL) select-dist
 
 select-dist:
 	@set -eu; \
@@ -135,13 +172,5 @@ $(DIST_ROOT)/selectjs.min.js: src/js/select/index.js $(SOURCES_JS)
 	$(call shell_try,$(call js_minify,$$tmp,$@),Unable to minify JavaScript bundle: $<); \
 	rm -f "$$tmp"
 	echo "[DIST] $$(du -hs $@)"
-
-
-$(PATH_RUN)/task/project-release-$(PROJECT_VERSION).task:
-	@if git tag -a "v$(PROJECT_VERSION)" -m "[Release] $(PROJECT): version $(PROJECT_VERSION)"; then
-		mkdir -p $(dir $@); true
-		git push origin "v$(PROJECT_VERSION)"
-		touch "$@"
-	fi
 
 # EOF

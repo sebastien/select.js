@@ -87,7 +87,7 @@ $("#app").addClass("ready")
 <script type="importmap">
 {
   "imports": {
-    "@select/": "https://cdn.jsdelivr.net/gh/sebastien/select.js@v0.9.0/src/js/select/"
+    "@select/": "https://cdn.jsdelivr.net/gh/sebastien/select.js@v1.0.0/src/js/select/"
   }
 }
 </script>
