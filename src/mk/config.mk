@@ -10,11 +10,11 @@ SDK_MODULES:=std js mise
 DIST_MODE:=
 PROJECT_VERSION:=1.0.0
 PROJECT_VERSION_TASK:=$(PATH_RUN_TASK)/project-version-$(PROJECT_VERSION).task
-PREP_ALL+=$(PROJECT_VERSION_TASK)
-CLEAN_ALL+=$(PROJECT_VERSION_TASK)
 
-# Keep SDK prep side effects disabled for this project.
-# PREP_ALL:=
+# Version sync runs only where it matters (`dist`, `release`, `update-version`),
+# not on every phase, so `make check`/`test` never rewrite tracked files.
+RELEASE_HOST?=agent@stage
+RELEASE_PATH?=/mnt/www/sebastienpierre.me/dist/select
 
 SOURCES_JS:=$(shell find src/js/select -name "*.js")
 DIST_ROOT?=dist

@@ -63,10 +63,10 @@ function unregisterUIInstance(instance) {
 }
 
 // Function: seedInitializerState
-// Merges plain-object construction `data` under the `state` returned by
-// `init()`, so keys the initializer does not own survive the first render
-// while derived state keeps precedence on collisions. Non-plain data (cells,
-// arrays, reactive stores) passes through untouched.
+// Merges plain-object construction `data` under the plain-object `state`
+// returned by `init()`, so keys the initializer does not own survive the first
+// render while derived state keeps precedence on collisions. Non-plain data
+// (cells, arrays, reactive stores) and non-plain state pass through untouched.
 function seedInitializerState(data, state) {
 	if (
 		data === null ||
@@ -75,7 +75,8 @@ function seedInitializerState(data, state) {
 		Object.getPrototypeOf(data) !== Object.prototype ||
 		state === null ||
 		state === undefined ||
-		typeof state !== "object"
+		typeof state !== "object" ||
+		Object.getPrototypeOf(state) !== Object.prototype
 	) {
 		return state
 	}
@@ -398,7 +399,7 @@ class UIInstance {
 				this.initial = state;
 				this._syncOwnedReactiveRefs(state);
 			}
-			this.set(seedInitializerState(this.options.data, state));
+			this.set(seedInitializerState(this.data, state));
 		}
 		if (template.defaultData) {
 			this.set(template.defaultData);

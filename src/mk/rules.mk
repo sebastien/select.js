@@ -37,7 +37,7 @@ bench-stats:
 	@node scripts/bench-stats.mjs
 
 .PHONY: update-version
-update-version: $(PROJECT_VERSION_TASK)
+update-version: $(PROJECT_VERSION_TASK) ## Syncs tracked version strings with PROJECT_VERSION
 	@
 
 .PHONY: release
@@ -55,22 +55,23 @@ release: $(PROJECT_VERSION_TASK)
 	test "$$package_version" = "$(PROJECT_VERSION)"; \
 	version="$(PROJECT_VERSION)"; \
 	release_revision="@"; \
-	if jj tag list | awk -F: -v tag="v$$version" '$$1 == tag { found=1 } END { exit !found }'; then \
+	if jj tag list -T 'name ++ "\n"' | grep -qxF "v$$version"; then \
 		IFS=. read -r major minor patch <<< "$$version"; \
 		minor=$$((minor + 1)); \
 		version="$$major.$$minor.$$patch"; \
-		while jj tag list | awk -F: -v tag="v$$version" '$$1 == tag { found=1 } END { exit !found }'; do \
+		while jj tag list -T 'name ++ "\n"' | grep -qxF "v$$version"; do \
 			minor=$$((minor + 1)); \
 		version="$$major.$$minor.$$patch"; \
 		done; \
-		node -e 'const fs=require("fs"), v=process.argv[1]; const packageData=JSON.parse(fs.readFileSync("package.json")); packageData.version=v; fs.writeFileSync("package.json", JSON.stringify(packageData, null, "\t")+"\n"); const config=fs.readFileSync("src/mk/config.mk", "utf8").replace(/^PROJECT_VERSION:=.*$$/m, "PROJECT_VERSION:="+v); fs.writeFileSync("src/mk/config.mk", config)' "$$version"; \
+		node -e 'const fs=require("fs"), v=process.argv[1]; const config=fs.readFileSync("src/mk/config.mk", "utf8").replace(/^PROJECT_VERSION:=.*$$/m, "PROJECT_VERSION:="+v); fs.writeFileSync("src/mk/config.mk", config)' "$$version"; \
 		$(MAKE) PROJECT_VERSION="$$version" dist; \
 		jj commit src/mk/config.mk package.json src/js/select/features/query.js README.md -m "[Release] $(PROJECT): version $$version"; \
 		release_revision="@-"; \
 	fi; \
 	jj tag set "v$$version" --revision="$$release_revision"; \
-	ssh agent@stage "mkdir -p /mnt/www/sebastienpierre.me/dist/select/$$version"; \
-	scp dist/selectjs.js dist/selectjs.min.js "agent@stage:/mnt/www/sebastienpierre.me/dist/select/$$version/"
+	git push origin "v$$version"; \
+	ssh $(RELEASE_HOST) "mkdir -p $(RELEASE_PATH)/$$version"; \
+	scp dist/selectjs.js dist/selectjs.min.js "$(RELEASE_HOST):$(RELEASE_PATH)/$$version/"
 
 $(PATH_RUN_TASK)/project-version-%.task: src/mk/config.mk package.json src/js/select/features/query.js README.md
 	@mkdir -p "$(dir $@)"
@@ -83,9 +84,9 @@ $(PATH_RUN_TASK)/project-version-%.task: src/mk/config.mk package.json src/js/se
 _dist-files: $(DIST_FILES)
 
 .PHONY: dist
-dist: $(PREP_ALL) select-dist
+dist: select-dist
 
-select-dist:
+select-dist: $(PROJECT_VERSION_TASK)
 	@set -eu; \
 	stage=$$(mktemp -d ".dist.stage.XXXXXX"); \
 	backup="$$stage.previous"; \

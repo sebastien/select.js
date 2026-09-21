@@ -1143,22 +1143,6 @@ class UISlot {
 		return false;
 	}
 
-	_isSameCollectionItem(current, previous) {
-		if (Object.is(current, previous)) {
-			return true;
-		}
-		if (
-			current instanceof AppliedUITemplate &&
-			previous instanceof AppliedUITemplate
-		) {
-			return (
-				current.template === previous.template &&
-				eq(current.data, previous.data)
-			);
-		}
-		return eq(current, previous);
-	}
-
 	// Payload equality for shift detection: ignore index-derived presentation
 	// fields (key/path/$key/label) when both sides carry a `value` field.
 	_itemPayloadEq(current, previous) {
@@ -1354,8 +1338,9 @@ class UISlot {
 		this._renderMapped(k, item, null);
 	}
 
-	// Same-length positional list: update in place, never remount or reorder.
-	_tryRenderIndexSingleChange(data, previousLength) {
+	// Same-length positional list: sync every row in place. Never remounts or
+	// reorders, so DOM node identity survives value-only updates.
+	_syncIndexInPlace(data, previousLength) {
 		if (!this._listItems || data.length !== previousLength || previousLength === 0) {
 			return false;
 		}
@@ -1377,7 +1362,7 @@ class UISlot {
 			return false;
 		}
 		if (data.length === previousLength) {
-			return this._tryRenderIndexSingleChange(data, previousLength);
+			return this._syncIndexInPlace(data, previousLength);
 		}
 		if (data.length === previousLength - 1) {
 			let removeAt = data.length;
@@ -1539,6 +1524,9 @@ class UISlot {
 			if (existing.data !== item.data) {
 				existing.update(item.data);
 			}
+			// Wrapper identity is stable (apply() cache), so the requested row may
+			// still need to move when sibling order changed.
+			this._reorderMappedIfNeeded(k, existing, previous);
 			return this._lastMappedNode(existing) || previous;
 		}
 		if (existing === undefined) {
@@ -1636,23 +1624,30 @@ class UISlot {
 					setNodeText(r, asText(item));
 				}
 			}
-			const mapped = this.mapping.get(k);
-			const first = this._firstMappedNode(mapped);
-			const last = this._lastMappedNode(mapped);
-			const next = this._nextMountNode(k, previous);
-			if (
-				this._listKeyMode === "stable" &&
-				first &&
-				last &&
-				(previous ? previous.nextSibling !== first : last.nextSibling !== next)
-			) {
-				this._mountInstance(
-					isUIInstance(mapped) ? mapped : { nodes: [mapped] },
-					next,
-				);
-			}
+			this._reorderMappedIfNeeded(k, this.mapping.get(k), previous);
 		}
 		return this._lastMappedNode(this.mapping.get(k)) || previous;
+	}
+
+	// In stable (keyed) mode, moves a mapped row back to its slot position when
+	// the surrounding rows changed order. No-op for positional lists, which are
+	// reconciled in place.
+	_reorderMappedIfNeeded(k, mapped, previous) {
+		if (this._listKeyMode !== "stable" || !mapped) {
+			return;
+		}
+		const first = this._firstMappedNode(mapped);
+		const last = this._lastMappedNode(mapped);
+		if (!first || !last) {
+			return;
+		}
+		const next = this._nextMountNode(k, previous);
+		if (previous ? previous.nextSibling !== first : last.nextSibling !== next) {
+			this._mountInstance(
+				isUIInstance(mapped) ? mapped : { nodes: [mapped] },
+				next,
+			);
+		}
 	}
 
 	// Renders `data` into this slot. Handles lists, dicts, templates, and scalars.
@@ -1712,18 +1707,30 @@ class UISlot {
 
 		if (isList) {
 			const previousLength = this._listLength || 0;
-			const explicitKeys = this._hasExplicitCollectionKeys(data);
+			// One pass resolves both facts: whether any item declares `$key`,
+			// and whether every key is positional (0..n-1).
+			let explicitKeys = false;
 			let indexShaped = true;
-			if (explicitKeys) {
-				for (let i = 0; i < data.length; i++) {
-					if (this._resolveCollectionItemKey(data[i], i) !== i) {
-						indexShaped = false;
-						break;
-					}
+			for (let i = 0; i < data.length; i++) {
+				if (!explicitKeys && this._hasExplicitCollectionItemKey(data[i], i)) {
+					explicitKeys = true;
+				}
+				if (indexShaped && this._resolveCollectionItemKey(data[i], i) !== i) {
+					indexShaped = false;
+				}
+				if (explicitKeys && !indexShaped) {
+					break;
 				}
 			}
 			const nextMode = explicitKeys && !indexShaped ? "stable" : "index";
-			if (this._listKeyMode !== nextMode) {
+			// Index-shaped explicit keys are real `$key`s held in positional
+			// slots, so once they diverge we can reconcile by key instead of
+			// clearing and remounting every row.
+			const reconcilesIntoStable =
+				nextMode === "stable" &&
+				this._listKeyMode === "index" &&
+				this._hasExplicitCollectionKeys(this._listItems || []);
+			if (this._listKeyMode !== nextMode && !reconcilesIntoStable) {
 				this._clearMapped();
 				previous = null;
 			}

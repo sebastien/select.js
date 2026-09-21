@@ -1200,4 +1200,46 @@ describe("ui processor reactive handling", () => {
 
 		window.close?.();
 	});
+
+	test("numeric-id keyed list reconciles reorder without remount", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui, remap } = await import("../src/js/select/ui/index.js");
+
+		const Row = ui(
+			`<li out:data-id="id"><span class="k" out="label"></span></li>`,
+		).does({
+			label: (_self, { label }) => label,
+		});
+		const src = [
+			{ id: 0, label: "A" },
+			{ id: 1, label: "B" },
+			{ id: 2, label: "C" },
+		];
+		const List = ui(`<ul out="items"></ul>`).does({
+			items: (_self, { items }) =>
+				remap(items, (entry) =>
+					Row({ id: entry.id, label: entry.label, $key: entry.id }),
+				),
+		});
+		document.body.innerHTML = `<div id="app"></div>`;
+		const instance = List.new().set({ items: src }).mount("#app");
+		const before = Array.from(document.querySelectorAll("#app li[data-id]"));
+		expect(before.map((li) => li.dataset.id)).toEqual(["0", "1", "2"]);
+
+		// Ascending numeric ids are index-shaped; reordering them makes the keys
+		// diverge and must reconcile by key rather than clear + remount.
+		instance.update({ items: [src[2], src[1], src[0]] });
+
+		const after = Array.from(document.querySelectorAll("#app li[data-id]"));
+		expect(after.map((li) => li.dataset.id)).toEqual(["2", "1", "0"]);
+		expect(after.map((li) => li.textContent)).toEqual(["C", "B", "A"]);
+		expect(after[0]).toBe(before[2]);
+		expect(after[1]).toBe(before[1]);
+		expect(after[2]).toBe(before[0]);
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
 });
