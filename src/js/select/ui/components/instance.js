@@ -8,58 +8,55 @@
 // Mounted UI template instances, lifecycle, and public API. Reactive path,
 // render pipeline, and event binding live in sibling modules.
 
-import { log } from "../templates.js"
+import { log } from "../templates.js";
 
-import { attachEvents } from "./events.js"
-import { attachReactive } from "./reactive.js"
-import { attachRender } from "./render.js"
-import { options } from "./registry.js"
-import {
-	resolveTemplatePath,
-	UI_PARENT_ATTRIBUTE,
-} from "./runtime.js"
-import { setUIInstanceClass, UIContentSlot, UITemplateSlot } from "./slots.js"
+import { attachEvents } from "./events.js";
+import { attachReactive } from "./reactive.js";
+import { options } from "./registry.js";
+import { attachRender } from "./render.js";
+import { resolveTemplatePath, UI_PARENT_ATTRIBUTE } from "./runtime.js";
+import { setUIInstanceClass, UIContentSlot, UITemplateSlot } from "./slots.js";
 
-const UI_INSTANCES = new Map()
-let uiInstanceId = 0
+const UI_INSTANCES = new Map();
+let uiInstanceId = 0;
 
 function createUIInstanceId() {
-	uiInstanceId += 1
-	return `ui-${uiInstanceId}`
+	uiInstanceId += 1;
+	return `ui-${uiInstanceId}`;
 }
 
 function getUIInstance(id) {
 	if (typeof id !== "string") {
-		return undefined
+		return undefined;
 	}
-	const key = id.trim()
-	return key ? UI_INSTANCES.get(key) : undefined
+	const key = id.trim();
+	return key ? UI_INSTANCES.get(key) : undefined;
 }
 
 function registerUIInstance(instance) {
 	if (!instance?.id) {
-		return instance
+		return instance;
 	}
-	const current = UI_INSTANCES.get(instance.id)
+	const current = UI_INSTANCES.get(instance.id);
 	if (current && current !== instance) {
 		log.warn("UIInstance: duplicate instance id, overriding registry entry", {
 			id: instance.id,
 			current,
 			incoming: instance,
-		})
+		});
 	}
-	UI_INSTANCES.set(instance.id, instance)
-	return instance
+	UI_INSTANCES.set(instance.id, instance);
+	return instance;
 }
 
 function unregisterUIInstance(instance) {
 	if (!instance?.id) {
-		return instance
+		return instance;
 	}
 	if (UI_INSTANCES.get(instance.id) === instance) {
-		UI_INSTANCES.delete(instance.id)
+		UI_INSTANCES.delete(instance.id);
 	}
-	return instance
+	return instance;
 }
 
 // Function: seedInitializerState
@@ -78,9 +75,9 @@ function seedInitializerState(data, state) {
 		typeof state !== "object" ||
 		Object.getPrototypeOf(state) !== Object.prototype
 	) {
-		return state
+		return state;
 	}
-	return { ...data, ...state }
+	return { ...data, ...state };
 }
 
 function detachWhenNode(node, roots) {
@@ -332,10 +329,8 @@ class UIInstance {
 						for (const outSlot of this.out[outKey]) {
 							if (predicateSlot.node.contains(outSlot.node)) {
 								outSlot.predicateSlot = predicateSlot;
-								if (outSlot.replaceNode) {
-									predicateSlot.replacementSlots ??= new Set();
-									predicateSlot.replacementSlots.add(outSlot);
-								}
+								predicateSlot.dependentOutSlots ??= new Set();
+								predicateSlot.dependentOutSlots.add(outSlot);
 							}
 						}
 					}
@@ -633,12 +628,12 @@ class UIInstance {
 	}
 }
 
-attachReactive(UIInstance)
-attachRender(UIInstance)
-attachEvents(UIInstance)
+attachReactive(UIInstance);
+attachRender(UIInstance);
+attachEvents(UIInstance);
 
-setUIInstanceClass(UIInstance)
+setUIInstanceClass(UIInstance);
 
-export { getUIInstance, UIInstance }
+export { getUIInstance, UIInstance };
 
 // EOF

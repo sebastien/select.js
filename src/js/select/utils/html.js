@@ -7,9 +7,9 @@
 // Module: select/utils/html
 // HTML-oriented helpers for class-name normalization and text coercion.
 
-import { iresplit, re } from "./text.js";
-import dom from "./dom.js";
 import { unwrap } from "../state/cells.js";
+import dom from "./dom.js";
+import { iresplit, re } from "./text.js";
 
 // ----------------------------------------------------------------------------
 //
@@ -180,6 +180,7 @@ const NodeFactory = {
 // attributes (`_` is an alias for `class`). Remaining arguments are appended
 // as children.
 const html = new Proxy(Object.create(null), NodeFactory);
-export { asText, clsx, hi, iclsx, microtask, html };
+
+export { asText, clsx, hi, html, iclsx, microtask };
 
 // EOF

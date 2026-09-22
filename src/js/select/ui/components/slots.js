@@ -124,9 +124,7 @@ class UITemplateSlot {
 	static Path(node, parent, path) {
 		const res = [];
 		while (node !== parent) {
-			res.push(
-				Array.prototype.indexOf.call(node.parentNode.childNodes, node),
-			);
+			res.push(Array.prototype.indexOf.call(node.parentNode.childNodes, node));
 			node = node.parentNode;
 		}
 		res.reverse();
@@ -434,10 +432,7 @@ class UITemplateSlot {
 			for (const attr of node.attributes) {
 				if (attr.name.startsWith(prefix)) {
 					const eventType = attr.name.slice(prefix.length);
-					const parsed = TemplateParser.ParseEventEffect(
-						attr.value,
-						eventType,
-					);
+					const parsed = TemplateParser.ParseEventEffect(attr.value, eventType);
 					const isGlobalLink =
 						eventType === "click" &&
 						node.nodeName === "A" &&
@@ -663,8 +658,10 @@ class UIAttributeSlot {
 			if (typeof value === "object") {
 				for (const [cls, enabled] of Object.entries(value)) {
 					if (enabled && cls && typeof cls === "string") {
-						const trimmed = cls.trim();
-						if (trimmed) classes.push(trimmed);
+						const parts = cls.trim().split(/\s+/);
+						for (const part of parts) {
+							if (part) classes.push(part);
+						}
 					}
 				}
 			}
@@ -1341,7 +1338,11 @@ class UISlot {
 	// Same-length positional list: sync every row in place. Never remounts or
 	// reorders, so DOM node identity survives value-only updates.
 	_syncIndexInPlace(data, previousLength) {
-		if (!this._listItems || data.length !== previousLength || previousLength === 0) {
+		if (
+			!this._listItems ||
+			data.length !== previousLength ||
+			previousLength === 0
+		) {
 			return false;
 		}
 		const nextKeys = this._listKeys || new Array(data.length);

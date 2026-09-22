@@ -59,6 +59,10 @@ const EXAMPLE_INTERACTIONS: Record<string, (window: Window) => Promise<void> | v
 		const first = window.document.querySelector(".block-item")
 		first?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }))
 	},
+	"app-icons": async (window) => {
+		const tile = window.document.querySelector(".tile")
+		tile?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }))
+	},
 }
 
 function listExamples() {
@@ -169,7 +173,11 @@ function createFetch(examplePath: string) {
 			url.startsWith("https://cdn.jsdelivr.net/npm/@mdi/svg@") ||
 			url.startsWith("https://cdn.jsdelivr.net/npm/@mdi/svg/") ||
 			url.startsWith("https://cdn.jsdelivr.net/npm/@tabler/icons@") ||
-			url.startsWith("https://cdn.jsdelivr.net/npm/@tabler/icons/")
+			url.startsWith("https://cdn.jsdelivr.net/npm/@tabler/icons/") ||
+			url.startsWith("https://cdn.jsdelivr.net/npm/@material-symbols/") ||
+			url.startsWith("https://cdn.jsdelivr.net/npm/@material-design-icons/") ||
+			url.startsWith("https://cdn.jsdelivr.net/npm/@siemens/ix-icons") ||
+			url.startsWith("https://cdn.jsdelivr.net/gh/")
 		) {
 			const body = `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path d=\"M3 12h18\"/></svg>`
 			return Promise.resolve({

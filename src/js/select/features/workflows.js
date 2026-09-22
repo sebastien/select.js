@@ -279,7 +279,8 @@ class WorkflowRuntime {
 	// Function: Default
 	// Returns the shared default runtime, creating it on first use.
 	static Default() {
-		if (!WorkflowRuntime.SINGLETON) WorkflowRuntime.SINGLETON = new WorkflowRuntime();
+		if (!WorkflowRuntime.SINGLETON)
+			WorkflowRuntime.SINGLETON = new WorkflowRuntime();
 		return WorkflowRuntime.SINGLETON;
 	}
 

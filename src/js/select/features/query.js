@@ -110,7 +110,8 @@ function query(selector, scope, limit) {
 		if (selector_child) {
 			const result = [];
 			for (let j = 0; j < matching.length; j++) {
-				const remaining = limit !== undefined ? limit - result.length : undefined;
+				const remaining =
+					limit !== undefined ? limit - result.length : undefined;
 				result.push(...query(selector_child, matching[j], remaining));
 				if (limit !== undefined && result.length >= limit) break;
 			}
@@ -1422,7 +1423,7 @@ function select(selector, scope) {
 // Assign module metadata and utilities to select function
 Object.assign(select, {
 	Selection: Selection,
-	VERSION: "1.0.1",
+	VERSION: "1.0.2",
 	NAME: "select",
 	STATUS: "LOADED",
 	isNode: Selection.IsNode,

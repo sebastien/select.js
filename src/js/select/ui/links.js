@@ -29,12 +29,10 @@ function interceptLink(_self, _data, event) {
 	) {
 		return;
 	}
-	const target = click.target?.nodeType === 1
-		? click.target
-		: click.target?.parentElement;
+	const target =
+		click.target?.nodeType === 1 ? click.target : click.target?.parentElement;
 	const anchor =
-		click.currentTarget?.closest?.("a[href]") ??
-		target?.closest?.("a[href]");
+		click.currentTarget?.closest?.("a[href]") ?? target?.closest?.("a[href]");
 	if (
 		!anchor ||
 		(anchor.target && anchor.target !== "_self") ||
@@ -58,7 +56,8 @@ function interceptLink(_self, _data, event) {
 	if (
 		(url.protocol !== "http:" && url.protocol !== "https:") ||
 		url.origin !== origin
-	) return;
+	)
+		return;
 	click.preventDefault();
 	const state = browser({ window: doc?.defaultView });
 	const path = state.location?.pathFormat
@@ -81,9 +80,8 @@ function captureLinks(root = globalThis.document) {
 		return () => {};
 	}
 	const handler = (event) => {
-		const target = event.target?.nodeType === 1
-			? event.target
-			: event.target?.parentElement;
+		const target =
+			event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
 		const anchor = target?.closest?.("a[href]");
 		if (anchor?.hasAttribute("on:click") || anchor?.hasAttribute("on-click")) {
 			return;

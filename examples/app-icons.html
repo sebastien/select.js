@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select Icons — Explorer</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/select/" } }
+	</script>
+	<style>
+		:root {
+			--border: #d9dde6;
+			--panel: #fff;
+			--page: #f6f8fc;
+			--accent: #2e6df6;
+			--missing: #d64545;
+			--ok: #2f9e44;
+			--na: #9aa3b5;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		html,
+		body {
+			height: 100%;
+		}
+
+		body {
+			margin: 0;
+			height: 100vh;
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+			font-family: ui-sans-serif, system-ui, sans-serif;
+			background: var(--page);
+			color: #1b2130;
+		}
+
+		.masthead {
+			flex: 0 0 auto;
+			padding: 16px 20px 0;
+		}
+
+		.masthead h1 {
+			margin: 0 0 4px;
+			font-size: 1.35rem;
+		}
+
+		#ui {
+			flex: 1 1 auto;
+			min-height: 0;
+			padding: 12px 20px 20px;
+		}
+
+		.app {
+			height: 100%;
+			min-height: 0;
+			display: flex;
+			flex-direction: column;
+			gap: 12px;
+		}
+
+		.panel {
+			border: 1px solid var(--border);
+			border-radius: 10px;
+			background: var(--panel);
+		}
+
+		.controls {
+			flex: 0 0 auto;
+			display: flex;
+			flex-wrap: wrap;
+			gap: 12px;
+			align-items: end;
+			padding: 14px;
+		}
+
+		.controls label {
+			display: grid;
+			gap: 4px;
+			font-size: 0.88rem;
+		}
+
+		.controls .check {
+			display: flex;
+			gap: 6px;
+			align-items: center;
+			padding-bottom: 8px;
+		}
+
+		.controls .grow {
+			flex: 1 1 200px;
+		}
+
+		select,
+		input[type="text"],
+		input:not([type]) {
+			padding: 7px 9px;
+			border: 1px solid #c9cfdd;
+			border-radius: 6px;
+			background: #fff;
+		}
+
+		button {
+			padding: 8px 12px;
+			border: 1px solid #c7d7ff;
+			border-radius: 6px;
+			background: #eef3ff;
+			cursor: pointer;
+		}
+
+		button:hover {
+			background: #e4ecff;
+		}
+
+		.status {
+			font-size: 0.88rem;
+			color: #55607a;
+			padding-bottom: 8px;
+			white-space: nowrap;
+		}
+
+		.content {
+			flex: 1 1 auto;
+			min-height: 0;
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) 340px;
+			gap: 12px;
+		}
+
+		.results {
+			display: flex;
+			flex-direction: column;
+			min-height: 0;
+			padding: 12px;
+		}
+
+		.scroll {
+			flex: 1 1 auto;
+			min-height: 0;
+			overflow: auto;
+		}
+
+		.results-footer {
+			flex: 0 0 auto;
+			padding-top: 10px;
+			border-top: 1px solid #eef1f7;
+			margin-top: 8px;
+		}
+
+		.grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+			gap: 8px;
+			align-content: start;
+		}
+
+		.tile {
+			display: grid;
+			justify-items: center;
+			gap: 4px;
+			padding: 10px 6px;
+			border: 1px solid #e5e8f1;
+			border-radius: 8px;
+			background: #fff;
+			color: inherit;
+		}
+
+		.tile code {
+			font-size: 0.72rem;
+			word-break: break-all;
+			text-align: center;
+		}
+
+		.tile-icon {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: 28px;
+			height: 28px;
+		}
+
+		.icon.missing {
+			color: var(--missing);
+			outline: 1px dashed var(--missing);
+			outline-offset: 2px;
+		}
+
+		.icon.loading {
+			opacity: 0.3;
+		}
+
+		.detail {
+			min-height: 0;
+			overflow: auto;
+			padding: 14px;
+			display: grid;
+			gap: 10px;
+			align-content: start;
+		}
+
+		.detail h3 {
+			margin: 0;
+		}
+
+		.source {
+			display: grid;
+			grid-template-columns: 34px minmax(0, 1fr) auto;
+			gap: 10px;
+			align-items: center;
+			border-top: 1px solid #eef1f7;
+			padding-top: 8px;
+		}
+
+		.source.unavailable {
+			opacity: 0.55;
+		}
+
+		.source .meta {
+			display: grid;
+			gap: 2px;
+			min-width: 0;
+		}
+
+		.source .url {
+			font-size: 0.72rem;
+			color: #7a8398;
+			overflow-wrap: anywhere;
+		}
+
+		.badge {
+			font-size: 0.72rem;
+			padding: 2px 7px;
+			border-radius: 999px;
+			background: #eef1f7;
+			color: #55607a;
+			white-space: nowrap;
+		}
+
+		.badge.ok {
+			background: #e6f6ec;
+			color: var(--ok);
+		}
+
+		.badge.missing {
+			background: #fdecec;
+			color: var(--missing);
+		}
+
+		.badge.na {
+			background: #f1f2f5;
+			color: var(--na);
+		}
+
+		.muted {
+			margin: 0;
+			font-size: 0.82rem;
+			color: #55607a;
+		}
+
+		@media (max-width: 880px) {
+			body {
+				height: auto;
+				overflow: auto;
+			}
+
+			.app {
+				height: auto;
+			}
+
+			.content {
+				grid-template-columns: minmax(0, 1fr);
+			}
+
+			.scroll,
+			.detail {
+				overflow: visible;
+			}
+		}
+	</style>
+</head>
+
+<body>
+	<header class="masthead">
+		<h1>Icons explorer</h1>
+		<p class="muted">A curated, resilient catalog compared across every pinned preset — no Iconify download. Use Iconify to discover an icon, then check how each preset spells it. A red tile is a preset that cannot serve the name; <code>n/a</code> means the preset has no equivalent icon. The render preset and selected icon live in the URL hash, so views are deep-linkable.</p>
+	</header>
+
+	<div id="ui"></div>
+
+	<template id="App">
+		<div class="app">
+			<section class="panel controls">
+				<label>
+					Category
+					<select out:value="category" on:change="setCategory">
+						<option value="all">All</option>
+						<option value="navigation">Navigation</option>
+						<option value="actions">Actions</option>
+						<option value="status">Status</option>
+						<option value="objects">Objects</option>
+						<option value="people">People</option>
+						<option value="tools">Tools</option>
+					</select>
+				</label>
+				<label class="grow">
+					Search
+					<input inout="query" placeholder="Filter icons…" />
+				</label>
+				<label>
+					Render with
+					<select out:value="preset" on:change="setPreset">
+						<option value="lucide">Lucide</option>
+						<option value="iconoir">Iconoir</option>
+						<option value="eva">Eva</option>
+						<option value="tabler">Tabler</option>
+						<option value="mdi">Material Design Icons</option>
+						<option value="material-symbols">Material Symbols</option>
+						<option value="material-symbols-rounded">Material Symbols Rounded</option>
+						<option value="material-symbols-sharp">Material Symbols Sharp</option>
+						<option value="material-symbols-light">Material Symbols Light</option>
+						<option value="material-icons">Material Icons</option>
+						<option value="radix-icons">Radix Icons</option>
+						<option value="ix">Siemens iX</option>
+					</select>
+				</label>
+				<label class="check">
+					<input type="checkbox" on:change="toggleMissing" />
+					Only missing
+				</label>
+				<button type="button" on:click="probe">Check visible</button>
+				<span class="status" out="status"></span>
+			</section>
+			<main class="content">
+				<section class="panel results">
+					<div class="scroll">
+						<div class="grid" out="results"></div>
+					</div>
+					<footer class="results-footer">
+						<button type="button" on:click="more">Show more</button>
+					</footer>
+				</section>
+				<aside class="panel detail" out="detail"></aside>
+			</main>
+		</div>
+	</template>
+
+	<script type="module">
+		import { catalogNames, IconCatalog, IconPresets, isIconAvailable, resolveIconName } from "@./features/icons.catalog.js"
+		import { icon, load, resolve } from "@./features/icons.js"
+		import browser from "@./state/browser.js"
+		import { cell } from "@./state/cells.js"
+		import ui from "@./ui/index.js"
+
+		const PAGE = 60
+		const PRESETS = Object.keys(IconPresets)
+		const ALL_NAMES = catalogNames()
+
+		// Shared browser state: the render preset and selected icon live in the
+		// URL hash, so a view can be deep-linked and restored.
+		const state = browser()
+
+		function namesFor(category) {
+			if (!category || category === "all") {
+				return ALL_NAMES
+			}
+			return IconCatalog[category] || ALL_NAMES
+		}
+
+		function filterNames(names, query, onlyMissing, missing) {
+			const search = `${query || ""}`.trim().toLowerCase()
+			const filtered = []
+			for (const name of names) {
+				if (search && name.indexOf(search) < 0) {
+					continue
+				}
+				if (onlyMissing && !missing.has(name)) {
+					continue
+				}
+				filtered.push(name)
+			}
+			return filtered
+		}
+
+		function buildTile(name, preset, onSelect) {
+			const resolved = resolveIconName(name, preset)
+			const tile = document.createElement("button")
+			tile.type = "button"
+			tile.className = "tile"
+			tile.dataset.name = name
+			tile.title = `${preset}:${resolved}`
+			const holder = document.createElement("div")
+			holder.className = "tile-icon"
+			const node = icon(resolved, preset, { mode: "inline", size: "22px" })
+			node.classList.add("loading")
+			holder.appendChild(node)
+			const label = document.createElement("code")
+			label.textContent = name
+			tile.append(holder, label)
+			tile.addEventListener("click", () => onSelect(name))
+			return tile
+		}
+
+		function buildSourceRow(name, preset) {
+			const row = document.createElement("div")
+			row.className = "source"
+			const holder = document.createElement("div")
+			holder.className = "tile-icon"
+			const meta = document.createElement("div")
+			meta.className = "meta"
+			const title = document.createElement("strong")
+			title.textContent = IconPresets[preset]
+			const file = document.createElement("code")
+			const url = document.createElement("span")
+			url.className = "url"
+			const badge = document.createElement("span")
+			badge.className = "badge"
+			meta.append(title, file, url)
+			row.append(holder, meta, badge)
+
+			if (!isIconAvailable(name, preset)) {
+				row.classList.add("unavailable")
+				file.textContent = "n/a"
+				url.textContent = "no equivalent in this preset"
+				badge.textContent = "n/a"
+				badge.classList.add("na")
+				return row
+			}
+
+			const resolved = resolveIconName(name, preset)
+			const node = icon(resolved, preset, { mode: "inline", size: "24px" })
+			node.classList.add("loading")
+			holder.appendChild(node)
+			const info = resolve(resolved, preset)
+			file.textContent = resolved
+			url.textContent = info?.url || "unresolved"
+			badge.textContent = "…"
+			load(resolved, preset).then((symbol) => {
+				if (symbol) {
+					badge.textContent = "ok"
+					badge.classList.add("ok")
+					return
+				}
+				badge.textContent = "missing"
+				badge.classList.add("missing")
+				if (info?.url) {
+					fetch(info.url, { method: "HEAD" })
+						.then((response) => {
+							badge.textContent = `missing · ${response.status}`
+						})
+						.catch(() => {})
+				}
+			})
+			return row
+		}
+
+		function buildDetail(name) {
+			const nodes = []
+			const heading = document.createElement("h3")
+			heading.textContent = name
+			const hint = document.createElement("p")
+			hint.className = "muted"
+			hint.textContent = "Same concept across every preset"
+			nodes.push(heading, hint)
+			for (const preset of PRESETS) {
+				nodes.push(buildSourceRow(name, preset))
+			}
+			return nodes
+		}
+
+		const App = ui("#App")
+			.init(() => {
+				const preset = state.hash.select(["preset"], "lucide")
+				if (!IconPresets[preset.value]) {
+					preset.set("lucide")
+				}
+				const selected = state.hash.select(["icon"])
+				const category = cell("all")
+				const query = cell("")
+				const onlyMissing = cell(false)
+				const missing = cell(new Set())
+				const limit = cell(PAGE)
+				return {
+					preset,
+					selected,
+					category,
+					query,
+					onlyMissing,
+					missing,
+					limit,
+				}
+			})
+			.does({
+				preset: (_self, { preset }) => preset.value,
+				category: (_self, { category }) => category.value,
+				query: (_self, { query }, event) =>
+					event ? query.set(event.target.value) : query.value,
+				status: (_self, { category, query, onlyMissing, missing }) => {
+					const filtered = filterNames(
+						namesFor(category.value),
+						query.value,
+						onlyMissing.value,
+						missing.value,
+					)
+					return `${filtered.length} of ${namesFor(category.value).length} icons`
+				},
+				results: (
+					_self,
+					{ preset, category, query, onlyMissing, missing, limit, selected },
+				) => {
+					const filtered = filterNames(
+						namesFor(category.value),
+						query.value,
+						onlyMissing.value,
+						missing.value,
+					)
+					const visible = filtered.slice(0, limit.value)
+					const nodes = []
+					if (!visible.length) {
+						const empty = document.createElement("p")
+						empty.className = "muted"
+						empty.textContent = "No icons match."
+						nodes.push(empty)
+						return nodes
+					}
+					for (const name of visible) {
+						nodes.push(
+							buildTile(name, preset.value, (value) => selected.set(value)),
+						)
+					}
+					return nodes
+				},
+				detail: (_self, { selected }) => {
+					if (!selected.value) {
+						const hint = document.createElement("p")
+						hint.className = "muted"
+						hint.textContent = "Click an icon to compare it across presets."
+						return [hint]
+					}
+					return buildDetail(selected.value)
+				},
+				setPreset: (_self, { preset }, event) => preset.set(event.target.value),
+				setCategory: (_self, { category }, event) =>
+					category.set(event.target.value),
+				toggleMissing: (_self, { onlyMissing }, event) =>
+					onlyMissing.set(event.target.checked),
+				probe: async (_self, { preset, category, query, onlyMissing, missing, limit }) => {
+					const visible = filterNames(
+						namesFor(category.value),
+						query.value,
+						onlyMissing.value,
+						missing.value,
+					).slice(0, limit.value)
+					const next = new Set()
+					for (const name of visible) {
+						const symbol = await load(resolveIconName(name, preset.value), preset.value)
+						if (!symbol) {
+							next.add(name)
+						}
+					}
+					missing.set(next)
+				},
+				more: (_self, { limit }) => limit.set(limit.value + PAGE),
+			})
+
+		App.new().mount("#ui")
+	</script>
+</body>
+
+</html>

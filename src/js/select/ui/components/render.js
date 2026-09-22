@@ -6,8 +6,8 @@
 // Module: select/ui/components/render
 // Data set/update and render pipeline for UIInstance.
 
-import { asText, eq } from "../../utils/index.js"
-import { isThenable } from "../../utils/values.js"
+import { asText, eq } from "../../utils/index.js";
+import { isThenable } from "../../utils/values.js";
 import {
 	applyNamedProcessors,
 	evaluateWhenComparison,
@@ -18,16 +18,16 @@ import {
 	resolveRenderableValue,
 	resolveSourceValue,
 	resolveTemplateTokens,
-} from "../eval.js"
-import { log, setNodeText } from "../templates.js"
-import { isReactiveData, renderViewData } from "./reactive.js"
+} from "../eval.js";
+import { log, setNodeText } from "../templates.js";
+import { isReactiveData, renderViewData } from "./reactive.js";
 import {
 	createTrackingProxy,
 	hasTrackedNonReactiveObjectDeps,
 	runWithUIInstance,
 	scheduleRenderTask,
 	snapshotReactiveDependencyRevisions,
-} from "./runtime.js"
+} from "./runtime.js";
 
 // Function: attachRender
 // Installs set/update/render methods on `UIInstance`.
@@ -77,7 +77,9 @@ function attachRender(UIInstance) {
 				typeof data === "object" &&
 				Object.getPrototypeOf(data) === Object.prototype
 			) {
-				this.render(UIInstance._mergeReactiveTopLevel(this, this.initial, data));
+				this.render(
+					UIInstance._mergeReactiveTopLevel(this, this.initial, data),
+				);
 			} else {
 				this.render(data);
 			}
@@ -200,12 +202,7 @@ function attachRender(UIInstance) {
 			if (!slots?.length) return false;
 			for (let i = 0; i < slots.length; i++) {
 				const slot = slots[i];
-				if (
-					slot.replaceNode && slot.predicateSlot
-						? !slot.predicateVisible
-						: slot.predicateSlot?.node.parentNode === null
-				)
-					continue;
+				if (slot.predicateSlot && !slot.predicateVisible) continue;
 				slot.render(val);
 			}
 			return true;
@@ -324,18 +321,20 @@ function attachRender(UIInstance) {
 			// Granular skips use behavior deps tracked on the render view (unwrapped
 			// store tree or plain bag). Works for bag cells and root-store path misses
 			// that schedule a top-level tree key.
-			const isGranular =
-				changedKeys !== null &&
-				changedKeys.size > 0;
+			const isGranular = changedKeys !== null && changedKeys.size > 0;
 			if (this.when) {
 				for (const k in this.when) {
 					for (const slot of this.when[k]) {
 						const visible = slot.template.predicate(this, renderData);
-						if (slot.replacementSlots) {
-							for (const replacementSlot of slot.replacementSlots) {
-								replacementSlot.setPredicateVisible(visible);
+						let hasReplacementSlot = false;
+						if (slot.dependentOutSlots) {
+							for (const outSlot of slot.dependentOutSlots) {
+								outSlot.setPredicateVisible(visible);
+								if (outSlot.replaceNode) hasReplacementSlot = true;
 							}
-						} else if (visible) {
+						}
+						if (hasReplacementSlot) continue;
+						if (visible) {
 							slot.show();
 						} else {
 							slot.hide();
@@ -379,12 +378,7 @@ function attachRender(UIInstance) {
 						const preserveReactiveValue = set === this.inout;
 						const renderSlots = (value, raw = undefined) => {
 							for (const slot of slots) {
-								if (
-									slot.replaceNode && slot.predicateSlot
-										? !slot.predicateVisible
-										: slot.predicateSlot?.node.parentNode === null
-								)
-									continue;
+								if (slot.predicateSlot && !slot.predicateVisible) continue;
 								slot.render(
 									preserveReactiveValue && slot._shouldUsePropertyValue?.(raw)
 										? raw
@@ -404,7 +398,9 @@ function attachRender(UIInstance) {
 							renderSlots(resolvedTemplate);
 							continue;
 						}
-						const binding = withProcessors ? slots?.[0]?.template?.binding : null;
+						const binding = withProcessors
+							? slots?.[0]?.template?.binding
+							: null;
 						const sourceKey = formatBindingSource(binding) || k;
 						const processors = binding?.processors || null;
 						const hasBehavior = behavior?.[sourceKey];
@@ -581,7 +577,9 @@ function attachRender(UIInstance) {
 						const operator = slots?.[0]?.template.operator;
 						const comparisonValue = slots?.[0]?.template.value;
 						const sourceKey =
-							formatBindingSource(binding) || slots?.[0]?.template.slotName || k;
+							formatBindingSource(binding) ||
+							slots?.[0]?.template.slotName ||
+							k;
 						const processors = binding?.processors;
 						const hasBehavior = behavior?.[sourceKey];
 						const finalizeOutAttrValue = (value) => {
@@ -643,8 +641,8 @@ function attachRender(UIInstance) {
 						v = preserveReactiveValue
 							? raw
 							: binding
-							? resolveBindingValue(renderData, binding, false, this)
-							: resolveSourceValue(renderData, sourceKey, this);
+								? resolveBindingValue(renderData, binding, false, this)
+								: resolveSourceValue(renderData, sourceKey, this);
 						if (!preserveReactiveValue) v = finalizeOutAttrValue(v);
 						for (const slot of slots) {
 							slot.render(v);
@@ -663,10 +661,10 @@ function attachRender(UIInstance) {
 			this.data = data;
 			this._hasRendered = true;
 			return this;
-		}
-	})
+		},
+	});
 }
 
-export { attachRender }
+export { attachRender };
 
 // EOF

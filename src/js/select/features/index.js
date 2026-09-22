@@ -7,6 +7,7 @@
 // Public entry point for optional feature modules.
 
 export * from "./formats.js";
+export * from "./icons.catalog.js";
 export * from "./icons.js";
 export * from "./interaction/index.js";
 export * from "./interaction/snappable.js";

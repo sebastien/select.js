@@ -36,6 +36,7 @@ const parseArgs = (argv) => {
 		runs: 5,
 		headed: false,
 		save: true,
+		json: false,
 	};
 	for (let i = 0; i < argv.length; i++) {
 		const arg = argv[i];
@@ -47,6 +48,8 @@ const parseArgs = (argv) => {
 			options.save = true;
 		} else if (arg === "--no-save") {
 			options.save = false;
+		} else if (arg === "--json") {
+			options.json = true;
 		}
 	}
 	return options;
@@ -436,19 +439,23 @@ const main = async () => {
 			comparison,
 		};
 
-		console.log(
-			`Inspector benchmark across ${summaries[0]?.logs || 0} logs, ${options.runs} run(s) per framework.\n`,
-		);
-		console.log(formatSummaryTable(summaries));
-		console.log("\nVerification:");
-		console.log(JSON.stringify(summaryVerification, null, 2));
+		if (options.json) {
+			console.log(JSON.stringify(report));
+		} else {
+			console.log(
+				`Inspector benchmark across ${summaries[0]?.logs || 0} logs, ${options.runs} run(s) per framework.\n`,
+			);
+			console.log(formatSummaryTable(summaries));
+			console.log("\nVerification:");
+			console.log(JSON.stringify(summaryVerification, null, 2));
+			console.log("\nDelta vs previous inspector snapshot:");
+			console.log(formatDeltaTable(comparison));
+			console.log("\nRaw summary:");
+			console.log(JSON.stringify(summaries, null, 2));
+		}
 		if (verificationSummary.some((result) => !result.ok)) {
 			process.exitCode = 1;
 		}
-		console.log("\nDelta vs previous inspector snapshot:");
-		console.log(formatDeltaTable(comparison));
-		console.log("\nRaw summary:");
-		console.log(JSON.stringify(summaries, null, 2));
 
 		if (options.save) {
 			await mkdir(INSPECTOR_RESULTS_DIR, { recursive: true });
@@ -458,9 +465,11 @@ const main = async () => {
 				`${INSPECTOR_RESULTS_PREFIX}-${stamp}.json`,
 			);
 			await writeJson(outputPath, report);
-			console.log(
-				`\nSaved inspector snapshot to ${path.relative(repoRoot, outputPath)}`,
-			);
+			if (!options.json) {
+				console.log(
+					`\nSaved inspector snapshot to ${path.relative(repoRoot, outputPath)}`,
+				);
+			}
 		}
 	} finally {
 		await browser.close();

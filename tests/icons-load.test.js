@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-18
-// Updated: 2026-06-18
+// Updated: 2026-09-23
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test"
 import { Window } from "happy-dom"
@@ -10,6 +10,7 @@ import { Window } from "happy-dom"
 let window
 let load
 let install
+let resolve
 let fetchCalls
 let fetchStub
 let originalFetch
@@ -63,7 +64,7 @@ describe("icons.load", () => {
 		setupGlobals(window)
 		originalFetch = globalThis.fetch
 		originalDateNow = Date.now
-		;({ load, install } = await import("../src/js/select/features/icons.js"))
+		;({ load, install, resolve } = await import("../src/js/select/features/icons.js"))
 	})
 
 	afterAll(() => {
@@ -105,10 +106,10 @@ describe("icons.load", () => {
 		await load("home", "tabler", container, cache)
 
 		expect(fetchCalls.map(([url]) => url)).toEqual([
-			"https://cdn.jsdelivr.net/npm/lucide-static@1.47.0/icons/home.svg",
+			"https://cdn.jsdelivr.net/npm/lucide-static@1.48.0/icons/home.svg",
 			"https://cdn.jsdelivr.net/npm/iconoir@7.12.1/icons/regular/home.svg",
 			"https://cdn.jsdelivr.net/npm/eva-icons@1.1.3/outline/svg/home-outline.svg",
-			"https://cdn.jsdelivr.net/npm/@tabler/icons@3.47.0/icons/outline/home.svg",
+			"https://cdn.jsdelivr.net/npm/@tabler/icons@3.48.0/icons/outline/home.svg",
 		])
 	})
 
@@ -116,7 +117,7 @@ describe("icons.load", () => {
 		const cache = new Map()
 		const container = makeContainer()
 
-		const symbol = await load("home", "material-symbols", container, cache)
+		const symbol = await load("home", "not-a-real-source", container, cache)
 
 		expect(symbol).toBeUndefined()
 		expect(fetchCalls).toHaveLength(0)
@@ -342,12 +343,135 @@ describe("icons.load", () => {
 		expect(fetchCalls.map(([url]) => url)).toEqual([
 			"https://cdn.jsdelivr.net/npm/iconoir@7.12.1/icons/solid/bookmark.svg",
 			"https://cdn.jsdelivr.net/npm/eva-icons@1.1.3/fill/svg/home.svg",
-			"https://cdn.jsdelivr.net/npm/@tabler/icons@3.47.0/icons/filled/home.svg",
+			"https://cdn.jsdelivr.net/npm/@tabler/icons@3.48.0/icons/filled/home.svg",
 			"https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg/account.svg",
 		])
 		expect(
 			container.querySelector("#icon-account-mdi")?.firstElementChild?.getAttribute("fill"),
 		).toBe("var(--color-icon,currentColor)")
+	})
+
+	test("loads material and radix families as individual SVGs", async () => {
+		const cache = new Map()
+		const container = makeContainer()
+
+		// Iconify convention: the bare name is the filled style; `-outline` is
+		// hollow. `add-home-fill` is the same as `add-home` (redundant suffix).
+		await load("add-home", "material-symbols", container, cache)
+		await load("add-home-fill", "material-symbols", container, cache)
+		await load("add-home-outline", "material-symbols", container, cache)
+		await load("home-outline-rounded", "material-symbols-rounded", container, cache)
+		await load("add-home", "material-icons", container, cache)
+		await load("add-home", "material-icons-two-tone", container, cache)
+		await load("align-left", "radix-icons", container, cache)
+
+		expect(fetchCalls.map(([url]) => url)).toEqual([
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/outlined/add_home-fill.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/outlined/add_home-fill.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/outlined/add_home.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/rounded/home.svg",
+			"https://cdn.jsdelivr.net/npm/@material-design-icons/svg@0.14.15/filled/add_home.svg",
+			"https://cdn.jsdelivr.net/npm/@material-design-icons/svg@0.14.15/two-tone/add_home.svg",
+			"https://cdn.jsdelivr.net/gh/radix-ui/icons@d166d5ab1669b26d8854f50f8304296d54a7a410/packages/radix-icons/icons/align-left.svg",
+		])
+		expect(
+			container.querySelector("#icon-add-home-material-symbols")?.firstElementChild?.getAttribute("fill"),
+		).toBe("var(--color-icon,currentColor)")
+		expect(
+			container.querySelector("#icon-add-home-material-icons")?.firstElementChild?.getAttribute("stroke"),
+		).toBe("none")
+		// Radix paths already use `currentColor`, so no fill override is applied.
+		const radix = container.querySelector("#icon-align-left-radix-icons")
+		expect(radix?.firstElementChild?.hasAttribute("fill")).toBe(false)
+	})
+
+	test("maps Iconify-style Material Symbols style suffixes to folders", async () => {
+		const cache = new Map()
+		const container = makeContainer()
+
+		await load("expand-rounded", "material-symbols", container, cache)
+		await load("expand-outline-rounded", "material-symbols", container, cache)
+		await load(
+			"arrow-selector-tool-rounded",
+			"material-symbols-light",
+			container,
+			cache,
+		)
+		await load(
+			"arrow-selector-tool",
+			"material-symbols-light-rounded",
+			container,
+			cache,
+		)
+		await load(
+			"arrow-selector-tool-outline-rounded",
+			"material-symbols-light-rounded",
+			container,
+			cache,
+		)
+		// A name that merely contains `outline` is not an outline marker.
+		await load("check-box-outline-blank", "material-symbols", container, cache)
+
+		expect(fetchCalls.map(([url]) => url)).toEqual([
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/rounded/expand-fill.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/rounded/expand.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.5/rounded/arrow_selector_tool-fill.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.5/rounded/arrow_selector_tool-fill.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.5/rounded/arrow_selector_tool.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/outlined/check_box_outline_blank-fill.svg",
+		])
+	})
+
+	test("loads Siemens iX icons as individual SVGs", async () => {
+		const cache = new Map()
+		const container = makeContainer()
+
+		const symbol = await load("drag-gripper", "ix", container, cache)
+
+		expect(fetchCalls.map(([url]) => url)).toEqual([
+			"https://cdn.jsdelivr.net/npm/@siemens/ix-icons@3.5.0/svg/drag-gripper.svg",
+		])
+		expect(symbol?.firstElementChild?.getAttribute("fill")).toBe(
+			"var(--color-icon,currentColor)",
+		)
+	})
+
+	test("resolve reports the target url without fetching", () => {
+		expect(
+			resolve("arrow-selector-tool-rounded", "material-symbols-light"),
+		).toMatchObject({
+			name: "arrow-selector-tool-rounded",
+			fileName: "rounded/arrow_selector_tool-fill",
+			url: "https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.5/rounded/arrow_selector_tool-fill.svg",
+		})
+		expect(
+			resolve("arrow-selector-tool-outline-rounded", "material-symbols-light"),
+		).toMatchObject({
+			name: "arrow-selector-tool-outline-rounded",
+			fileName: "rounded/arrow_selector_tool",
+			url: "https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.5/rounded/arrow_selector_tool.svg",
+		})
+		expect(resolve("home", "not-a-real-source")).toBeUndefined()
+		expect(fetchCalls).toHaveLength(0)
+	})
+
+	test("maps Iconify-style Tabler and Iconoir style suffixes to folders", async () => {
+		const cache = new Map()
+		const container = makeContainer()
+
+		await load("adjustments", "tabler", container, cache)
+		await load("adjustments-filled", "tabler", container, cache)
+		await load("adjustments", "tabler-filled", container, cache)
+		await load("adobe-after-effects", "iconoir", container, cache)
+		await load("adobe-after-effects-solid", "iconoir", container, cache)
+
+		expect(fetchCalls.map(([url]) => url)).toEqual([
+			"https://cdn.jsdelivr.net/npm/@tabler/icons@3.48.0/icons/outline/adjustments.svg",
+			"https://cdn.jsdelivr.net/npm/@tabler/icons@3.48.0/icons/filled/adjustments.svg",
+			"https://cdn.jsdelivr.net/npm/@tabler/icons@3.48.0/icons/filled/adjustments.svg",
+			"https://cdn.jsdelivr.net/npm/iconoir@7.12.1/icons/regular/adobe-after-effects.svg",
+			"https://cdn.jsdelivr.net/npm/iconoir@7.12.1/icons/solid/adobe-after-effects.svg",
+		])
 	})
 })
 

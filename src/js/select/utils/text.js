@@ -215,74 +215,77 @@ function sprintf(...args) {
 			if (m) {
 				o.push("%");
 			} else {
-				m = /^\x25(?:(\d+)\$)?(\+)?(0|'[^$])?(-)?(\d+)?(?:\.(\d+))?([bcdefosuxX])/.exec(f);
+				m =
+					/^\x25(?:(\d+)\$)?(\+)?(0|'[^$])?(-)?(\d+)?(?:\.(\d+))?([bcdefosuxX])/.exec(
+						f,
+					);
 				if (!m) {
 					console.error(
 						"std.core.sprintf: reached state that shouldn't have been reached.",
 					);
 					return;
 				}
-			a = args[m[1] || i++];
-			if (a === null || a === undefined) {
-				console.error(
-					"std.core.sprintf: too few arguments, expected ",
-					args.length,
-					"got",
-					i - 1,
-					"in",
-					args[0],
-				);
-				return;
-			}
-			if (/[^s]/.test(m[7]) && typeof a !== "number") {
-				console.error(
-					"std.core.sprintf: expected number at",
-					i - 1,
-					"got",
-					a,
-					"in",
-					args[0],
-				);
-				return;
-			}
-			switch (m[7]) {
-				case "b":
-					a = a.toString(2);
-					break;
-				case "c":
-					a = String.fromCharCode(a);
-					break;
-				case "d":
-					a = parseInt(a, 10);
-					break;
-				case "e":
-					a = m[6] ? a.toExponential(m[6]) : a.toExponential();
-					break;
-				case "f":
-					a = m[6] ? parseFloat(a).toFixed(m[6]) : parseFloat(a);
-					break;
-				case "o":
-					a = a.toString(8);
-					break;
-				case "s":
-					a = `${a}`;
-					if (a && m[6]) a = a.substring(0, m[6]);
-					break;
-				case "u":
-					a = Math.abs(a);
-					break;
-				case "x":
-					a = a.toString(16);
-					break;
-				case "X":
-					a = a.toString(16).toUpperCase();
-					break;
-			}
-			a = /[def]/.test(m[7]) && m[2] && a > 0 ? `+${a}` : a;
-			c = m[3] ? (m[3] === "0" ? "0" : m[3].charAt(1)) : " ";
-			x = m[5] - `${a}`.length;
-			p = m[5] ? strRepeat(c, x) : "";
-			o.push(m[4] ? a + p : p + a);
+				a = args[m[1] || i++];
+				if (a === null || a === undefined) {
+					console.error(
+						"std.core.sprintf: too few arguments, expected ",
+						args.length,
+						"got",
+						i - 1,
+						"in",
+						args[0],
+					);
+					return;
+				}
+				if (/[^s]/.test(m[7]) && typeof a !== "number") {
+					console.error(
+						"std.core.sprintf: expected number at",
+						i - 1,
+						"got",
+						a,
+						"in",
+						args[0],
+					);
+					return;
+				}
+				switch (m[7]) {
+					case "b":
+						a = a.toString(2);
+						break;
+					case "c":
+						a = String.fromCharCode(a);
+						break;
+					case "d":
+						a = parseInt(a, 10);
+						break;
+					case "e":
+						a = m[6] ? a.toExponential(m[6]) : a.toExponential();
+						break;
+					case "f":
+						a = m[6] ? parseFloat(a).toFixed(m[6]) : parseFloat(a);
+						break;
+					case "o":
+						a = a.toString(8);
+						break;
+					case "s":
+						a = `${a}`;
+						if (a && m[6]) a = a.substring(0, m[6]);
+						break;
+					case "u":
+						a = Math.abs(a);
+						break;
+					case "x":
+						a = a.toString(16);
+						break;
+					case "X":
+						a = a.toString(16).toUpperCase();
+						break;
+				}
+				a = /[def]/.test(m[7]) && m[2] && a > 0 ? `+${a}` : a;
+				c = m[3] ? (m[3] === "0" ? "0" : m[3].charAt(1)) : " ";
+				x = m[5] - `${a}`.length;
+				p = m[5] ? strRepeat(c, x) : "";
+				o.push(m[4] ? a + p : p + a);
 			}
 		}
 		f = f.substring(m[0].length);
@@ -635,8 +638,8 @@ export {
 	toPascalCase,
 	toSnakeCase,
 	uid,
-	words,
 	unshortword,
+	words,
 };
 
 // EOF

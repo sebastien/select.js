@@ -384,7 +384,7 @@ function swapped(target, node) {
 	return () => (restoreTarget(), restoreNode());
 }
 
-export { isInputNode, fit, swap, attached, swapped };
+export { attached, fit, isInputNode, swap, swapped };
 export default {
 	isNode,
 	isContainer,

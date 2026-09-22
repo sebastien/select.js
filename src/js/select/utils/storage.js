@@ -138,7 +138,10 @@ class IndexedDBStore {
 			return Promise.resolve(undefined);
 		}
 		return new Promise((resolve, reject) => {
-			const request = version === undefined ? idb.open(this.dbName) : idb.open(this.dbName, version);
+			const request =
+				version === undefined
+					? idb.open(this.dbName)
+					: idb.open(this.dbName, version);
 			request.onupgradeneeded = () => {
 				const db = request.result;
 				if (!db.objectStoreNames.contains(this.storeName)) {
@@ -221,7 +224,8 @@ class IndexedDBStore {
 		await this.ready;
 		const objectStore = this._tx("readwrite");
 		if (!objectStore) {
-			if (this.health.status !== "error") this.fail("write", new Error("IndexedDB is unavailable"));
+			if (this.health.status !== "error")
+				this.fail("write", new Error("IndexedDB is unavailable"));
 			return entry;
 		}
 		try {

@@ -204,11 +204,11 @@ export {
 	items,
 	next,
 	normalize,
+	parse,
 	remove,
 	sel,
 	selectedValues,
 	toggle,
-	parse,
 	wrapindex,
 };
 

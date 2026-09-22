@@ -6,20 +6,20 @@
 // Module: select/ui/components/events
 // DOM event binding and runtime pub/sub for UIInstance.
 
-import { isThenable } from "../../utils/values.js"
+import { isThenable } from "../../utils/values.js";
 import {
 	applyNamedProcessors,
 	formatBindingSource,
 	resolveBindingValue,
-} from "../eval.js"
-import { log } from "../templates.js"
-import { UIEvent } from "./model.js"
-import { options } from "./registry.js"
+} from "../eval.js";
+import { log } from "../templates.js";
+import { UIEvent } from "./model.js";
+import { options } from "./registry.js";
 import {
 	getInputBindingProperty,
 	getInputEventValue,
 	SKIP_INPUT_UPDATE,
-} from "./runtime.js"
+} from "./runtime.js";
 
 // Event handlers may return a plain data bag to patch instance state. Other
 // objects, including UIEvent and UIInstance values, are control-flow results.
@@ -28,7 +28,7 @@ function isEventStatePatch(value) {
 		value !== null &&
 		typeof value === "object" &&
 		Object.getPrototypeOf(value) === Object.prototype
-	)
+	);
 }
 
 function applyEventResult(instance, result) {
@@ -36,13 +36,13 @@ function applyEventResult(instance, result) {
 		result.then(
 			(value) => {
 				if (!instance._isDisposed && isEventStatePatch(value)) {
-					instance.update(value)
+					instance.update(value);
 				}
 			},
 			() => undefined,
-		)
+		);
 	} else if (isEventStatePatch(result)) {
-		instance.update(result)
+		instance.update(result);
 	}
 }
 
@@ -71,7 +71,6 @@ function attachEvents(UIInstance) {
 			}
 		},
 
-		
 		// Binds event slot with explicit event type.
 		_resolveEventBehaviorTarget(name) {
 			let current = this;
@@ -85,7 +84,6 @@ function attachEvents(UIInstance) {
 			return null;
 		},
 
-		
 		_applyEventGuards(target, event) {
 			if (target.stopPropagation) {
 				event.stopPropagation();
@@ -95,13 +93,11 @@ function attachEvents(UIInstance) {
 			}
 		},
 
-		
 		_addDomListener(node, type, handler) {
 			node.addEventListener(type, handler);
 			this._domListeners.push({ node, type, handler });
 		},
 
-		
 		_bindEvent(name, target) {
 			let listener;
 			if (target.mode === "link") {
@@ -154,14 +150,17 @@ function attachEvents(UIInstance) {
 					event.origin = this;
 					event.originData = this.data || {};
 					const handler = targetInstance.template.behavior?.[name];
-					const result = handler(targetInstance, targetInstance.data || {}, event);
+					const result = handler(
+						targetInstance,
+						targetInstance.data || {},
+						event,
+					);
 					applyEventResult(targetInstance, result);
 				};
 			}
 			this._addDomListener(target.node, target.eventType, listener);
 		},
 
-		
 		// Binds input slot with inferred event type.
 		_bindInput(name, target, handler = this.template.behavior?.[name]) {
 			let event;
@@ -218,7 +217,6 @@ function attachEvents(UIInstance) {
 			this._addDomListener(target.node, event, listener);
 		},
 
-		
 		// ============================================================================
 		pub(event, data, self = true, domEvent = undefined) {
 			const res = new UIEvent(event, data, this, domEvent);
@@ -229,7 +227,6 @@ function attachEvents(UIInstance) {
 			return res;
 		},
 
-		
 		// Subscribes runtime handler to event.
 		on(event, handler) {
 			if (this._runtimeSubs === undefined) {
@@ -243,7 +240,6 @@ function attachEvents(UIInstance) {
 			return this;
 		},
 
-		
 		// Unsubscribes runtime handler from event.
 		off(event, handler) {
 			if (!this._runtimeSubs) return this;
@@ -260,7 +256,6 @@ function attachEvents(UIInstance) {
 			return this;
 		},
 
-		
 		// Handles published event. Checks runtime subs, then template subs.
 		// Stops propagation if handler returns `false`, stops bubbling on `null`.
 		onPub(event, self = true) {
@@ -273,9 +268,9 @@ function attachEvents(UIInstance) {
 			if (self && this._runtimeSubs) {
 				const rl = this._runtimeSubs.get(event.name);
 				if (rl) {
-				for (const h of rl) {
-					const c = h(this, data, event);
-					applyEventResult(this, c);
+					for (const h of rl) {
+						const c = h(this, data, event);
+						applyEventResult(this, c);
 						if (c === false) {
 							return event;
 						} else if (c === null) {
@@ -287,9 +282,9 @@ function attachEvents(UIInstance) {
 			if (self && propagate && this.template.subs) {
 				const hl = this.template.subs.get(event.name);
 				if (hl) {
-				for (const h of hl) {
-					const c = h(this, data, event);
-					applyEventResult(this, c);
+					for (const h of hl) {
+						const c = h(this, data, event);
+						applyEventResult(this, c);
 						if (c === false) {
 							return event;
 						} else if (c === null) {
@@ -310,7 +305,7 @@ function attachEvents(UIInstance) {
 			}
 			return event;
 		},
-	})
+	});
 }
 
 function bridgeProjectedEvent(_instance, event, domEvent) {
@@ -329,8 +324,16 @@ function bridgeProjectedEvent(_instance, event, domEvent) {
 		if (!node.shadowRoot) continue;
 		for (const candidate of node.shadowRoot.querySelectorAll("slot")) {
 			const assignedNodes = candidate.assignedNodes?.({ flatten: true }) || [];
-			if (assignedNodes.some((assignedNode) => assignedNode === target || assignedNode.contains?.(target))) {
-				assigned = assignedNodes.find((assignedNode) => assignedNode === target || assignedNode.contains?.(target));
+			if (
+				assignedNodes.some(
+					(assignedNode) =>
+						assignedNode === target || assignedNode.contains?.(target),
+				)
+			) {
+				assigned = assignedNodes.find(
+					(assignedNode) =>
+						assignedNode === target || assignedNode.contains?.(target),
+				);
 				slot = candidate;
 				host = node;
 				break;
@@ -348,6 +351,6 @@ function bridgeProjectedEvent(_instance, event, domEvent) {
 	return true;
 }
 
-export { applyEventResult, attachEvents, isEventStatePatch }
+export { applyEventResult, attachEvents, isEventStatePatch };
 
 // EOF

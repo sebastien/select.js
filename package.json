@@ -1,6 +1,6 @@
 {
 	"name": "select",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"description": "A small jQuery-like library for DOM+SVG manipulation",
 	"type": "module",
 	"main": "./src/js/select/index.js",

@@ -152,8 +152,16 @@ class Snappable {
 			const slots = this._subtree(slot);
 			const box = this._union(slots);
 			const next = reanchor(box, this.bounds, affinity(box, previous));
-			const x = clamp(next.x, this.bounds.x, this.bounds.x + this.bounds.width - next.width);
-			const y = clamp(next.y, this.bounds.y, this.bounds.y + this.bounds.height - next.height);
+			const x = clamp(
+				next.x,
+				this.bounds.x,
+				this.bounds.x + this.bounds.width - next.width,
+			);
+			const y = clamp(
+				next.y,
+				this.bounds.y,
+				this.bounds.y + this.bounds.height - next.height,
+			);
 			const boxes = this._shift(slots, x - box.x, y - box.y);
 			for (let i = 0; i < boxes.length; i++) result.push(boxes[i]);
 		}

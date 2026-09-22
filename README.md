@@ -28,8 +28,10 @@ also available through `select/core`, `select/state`, `select/ui`,
 While `select/features/query.js` is fast, the `select/ui` library is not the
 fastest, but it is light enough for embedded UIs, plugins, and small tools. In
 the JSON inspector benchmark, it is competitive with SolidJS (`npm run
-bench:inspector`).In that sense, Select is designed to fill the niche for
-little tools that can be composed and embedded.
+bench:inspector`). Per-release performance relative to SolidJS and test
+coverage are recorded with `git-kv` (`make metrics-report`). In that sense,
+Select is designed to fill the niche for little tools that can be composed and
+embedded.
 
 You can learn more about each component:
 
@@ -87,7 +89,7 @@ $("#app").addClass("ready")
 <script type="importmap">
 {
   "imports": {
-    "@select/": "https://cdn.jsdelivr.net/gh/sebastien/select.js@v1.0.1/src/js/select/"
+    "@select/": "https://cdn.jsdelivr.net/gh/sebastien/select.js@v1.0.2/src/js/select/"
   }
 }
 </script>
@@ -132,6 +134,7 @@ import ui from "@select/ui"
 
 - [`examples/feature-webcomponent.html`](examples/feature-webcomponent.html): custom elements with `webcomponent(...)`, including parent event rebinding through implicit or explicit `ui-parent`.
 - [`examples/feature-icons.html`](examples/feature-icons.html): icon usage with pinned per-icon SVG presets.
+- [`examples/app-icons.html`](examples/app-icons.html): curated, resilient icon catalog compared across every pinned preset (no Iconify download), deep-linkable via the URL hash.
 - [`examples/feature-routing.html`](examples/feature-routing.html): browser-backed route state and route dispatch.
 - [`examples/feature-template-load.html`](examples/feature-template-load.html): preload external templates with `ui.load(...)` and bind one behavior to multiple presentations with `.using(...)`.
 - [`examples/feature-popup.html`](examples/feature-popup.html): portaled popups with viewport flip, underlay click, and Escape to close.

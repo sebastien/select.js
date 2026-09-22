@@ -11,10 +11,10 @@ import { unwrap } from "../state/cells.js";
 import { clsx, hi as htmlHi } from "../utils/html.js";
 import { bool, entries, idem, len, type } from "../utils/index.js";
 import {
+	words as splitWords,
 	toCamelCase,
 	toKebabCase,
 	toSnakeCase,
-	words as splitWords,
 } from "../utils/text.js";
 
 const NA = "―";
@@ -551,9 +551,9 @@ export {
 	percent,
 	selected,
 	swallow,
-	timestamp,
 	text,
 	time,
+	timestamp,
 	timetuple,
 	toCamelCase,
 	toKebabCase,

@@ -21,6 +21,10 @@ make ci
 # Start HTTP server on port 8001
 make run
 
+# Record (current release) / print release metrics via git-kv
+make metrics
+make metrics-report
+
 # Remove build artifacts
 make clean
 ```
@@ -251,6 +255,23 @@ Biome config is in `biome.jsonc`.
 - Manual testing via HTML files in `examples/` and `src/html/`
 - Run `make run` to start server and test in browser
 - Open `examples/todo.html`, `examples/ui-javascript.html`, etc.
+
+## Release Metrics
+
+Per-release performance and coverage numbers are stored with `git-kv` as git
+notes under `refs/notes/kv`, attached to the tagged commit. `make release`
+records them automatically (between tagging and pushing) unless
+`RELEASE_METRICS=0`.
+
+- `make metrics` runs the inspector benchmark (`METRICS_BENCH_RUNS` runs) and
+  `bun test --coverage`, then stores bare numeric values:
+  `metrics.benchmark.{init,apply,heap}`, `metrics.benchmark.solid.{init,apply,heap}`,
+  `metrics.benchmark.overall` (weighted % vs SolidJS, lower is faster), and
+  `metrics.coverage.test`.
+- `make metrics-report` prints the recorded metrics across all `v*` tags.
+- Notes are pushed with `git kv push`; set `METRICS_PUSH=0` to keep them local.
+  To read them elsewhere, run `git kv pull` or
+  `git fetch origin refs/notes/kv:refs/notes/kv`.
 
 ## Important
 - DO NOT use version control, let the user manage commits

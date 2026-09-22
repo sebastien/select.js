@@ -6,15 +6,15 @@
 // Module: select/ui/components/reactive
 // Reactive data subscriptions, path updates, and init fusion for UIInstance.
 
-import { AppliedUITemplate } from "./model.js"
+import { AppliedUITemplate } from "./model.js";
 import {
 	runWithUIInstance,
 	SLOT_DEFAULT_KEY,
 	snapshotReactiveDependencyRevisions,
-} from "./runtime.js"
+} from "./runtime.js";
 
 // Sentinel data-key meaning `this.data` itself is the reactive store (not a bag).
-const ROOT_STORE_KEY = "$"
+const ROOT_STORE_KEY = "$";
 
 // Optional list-path counters for measured collapse work (P4).
 // Enable with `globalThis.SELECT_UI_LIST_STATS = true` then read
@@ -28,39 +28,39 @@ const LIST_STAT_KEYS = [
 	"trustedAppend",
 	"trustedRemove",
 	"fullSlotRender",
-]
+];
 
 function listStatsEnabled() {
-	return globalThis.SELECT_UI_LIST_STATS === true
+	return globalThis.SELECT_UI_LIST_STATS === true;
 }
 
 function listStat(key) {
 	if (!listStatsEnabled()) {
-		return
+		return;
 	}
-	let counts = globalThis.SELECT_UI_LIST_STATS_COUNTS
+	let counts = globalThis.SELECT_UI_LIST_STATS_COUNTS;
 	if (!counts) {
-		counts = Object.create(null)
+		counts = Object.create(null);
 		for (let i = 0; i < LIST_STAT_KEYS.length; i++) {
-			counts[LIST_STAT_KEYS[i]] = 0
+			counts[LIST_STAT_KEYS[i]] = 0;
 		}
-		globalThis.SELECT_UI_LIST_STATS_COUNTS = counts
+		globalThis.SELECT_UI_LIST_STATS_COUNTS = counts;
 	}
-	counts[key] = (counts[key] || 0) + 1
+	counts[key] = (counts[key] || 0) + 1;
 }
 
 // Parses a collection index from a path segment (number or numeric string).
 function pathIndex(segment) {
 	if (typeof segment === "number" && Number.isInteger(segment)) {
-		return segment
+		return segment;
 	}
 	if (typeof segment === "string") {
-		const n = Number(segment)
+		const n = Number(segment);
 		if (Number.isInteger(n) && String(n) === segment) {
-			return n
+			return n;
 		}
 	}
-	return NaN
+	return NaN;
 }
 
 // Leaf value for a path key: prefer `treeValue[key]` when treeValue is the
@@ -73,94 +73,94 @@ function pathLeafValue(treeValue, key) {
 		!Array.isArray(treeValue) &&
 		Object.hasOwn(treeValue, key)
 	) {
-		return treeValue[key]
+		return treeValue[key];
 	}
-	return treeValue
+	return treeValue;
 }
 
 // Patches a plain instance data bag without dropping meta keys.
 function patchInstanceData(instance, key, leaf) {
-	const prev = instance.data
+	const prev = instance.data;
 	if (prev && typeof prev === "object" && !Array.isArray(prev)) {
-		instance.update({ ...prev, [key]: leaf })
+		instance.update({ ...prev, [key]: leaf });
 	} else {
-		instance.update({ [key]: leaf })
+		instance.update({ [key]: leaf });
 	}
 }
 
 function isReactiveData(value) {
-	return value?.isReactive === true
+	return value?.isReactive === true;
 }
 
 // View model passed to behaviors/bindings: unwrap root store cells to plain tree.
 function renderViewData(data) {
 	if (isReactiveData(data)) {
-		const value = data.value
-		return value === undefined || value === null ? {} : value
+		const value = data.value;
+		return value === undefined || value === null ? {} : value;
 	}
-	return data ?? {}
+	return data ?? {};
 }
 
 function normalizeCellNotifyPath(path) {
 	if (path === undefined || path === null) {
-		return null
+		return null;
 	}
 	// Cells use an object sentinel for a root write; it is not a path segment.
 	if (!Array.isArray(path) && typeof path === "object") {
-		return null
+		return null;
 	}
-	const segments = Array.isArray(path) ? path : [path]
+	const segments = Array.isArray(path) ? path : [path];
 	if (!segments.length) {
-		return null
+		return null;
 	}
 	// pathify("a.b") yields ["a.b"]; split dotted segments for walkers.
 	if (segments.length === 1 && typeof segments[0] === "string") {
-		const raw = segments[0]
+		const raw = segments[0];
 		if (raw.includes(".")) {
 			return raw.split(".").map((part) => {
 				if (part === "") {
-					return part
+					return part;
 				}
-				const n = Number(part)
-				return Number.isInteger(n) && String(n) === part ? n : part
-			})
+				const n = Number(part);
+				return Number.isInteger(n) && String(n) === part ? n : part;
+			});
 		}
 	}
-	return segments
+	return segments;
 }
 
 function firstMappedUIInstance(slot, UIInstance) {
 	if (!slot?.mapping) {
-		return null
+		return null;
 	}
-	const direct = slot.mapping.get(SLOT_DEFAULT_KEY)
+	const direct = slot.mapping.get(SLOT_DEFAULT_KEY);
 	if (direct instanceof UIInstance) {
-		return direct
+		return direct;
 	}
 	for (const value of slot.mapping.values()) {
 		if (value instanceof UIInstance) {
-			return value
+			return value;
 		}
 	}
-	return null
+	return null;
 }
 
 function cloneNestedWrite(current, path, value) {
 	if (!path?.length) {
-		return value
+		return value;
 	}
-	const key = path[0]
-	const nextCurrent = current?.[key]
-	const nextValue = cloneNestedWrite(nextCurrent, path.slice(1), value)
+	const key = path[0];
+	const nextCurrent = current?.[key];
+	const nextValue = cloneNestedWrite(nextCurrent, path.slice(1), value);
 	const base = Array.isArray(current)
 		? current.slice()
 		: current && typeof current === "object"
 			? { ...current }
 			: typeof key === "number"
 				? []
-				: {}
-	base[key] = nextValue
-	return base
+				: {};
+	base[key] = nextValue;
+	return base;
 }
 
 // Function: attachReactive
@@ -178,14 +178,12 @@ function attachReactive(UIInstance) {
 			}
 		},
 
-		
 		_isReadOnlyDerivation(value) {
 			return (
 				value?.isDerivation === true && typeof value._updater !== "function"
 			);
 		},
 
-		
 		_writeDataPath(self, targetPath, value) {
 			if (!targetPath?.length || targetPath[0] === "#") {
 				return;
@@ -212,14 +210,12 @@ function attachReactive(UIInstance) {
 			self.update({ [rootKey]: cloneNestedWrite(target, tailPath, value) });
 		},
 
-		
 		_releaseReactiveRef(cell) {
 			if (cell?.isReactive && typeof cell.release === "function") {
 				cell.release();
 			}
 		},
 
-		
 		_acquireReactiveRef(cell) {
 			if (cell?.isReactive && typeof cell.acquire === "function") {
 				cell.acquire();
@@ -324,10 +320,7 @@ function attachReactive(UIInstance) {
 				}
 				for (let i = removeAt; i < nextLen; i++) {
 					if (
-						!Object.is(
-							nextArray[i],
-							UIInstance._listEntryValueAt(slot, i + 1),
-						)
+						!Object.is(nextArray[i], UIInstance._listEntryValueAt(slot, i + 1))
 					) {
 						return undefined;
 					}
@@ -335,8 +328,8 @@ function attachReactive(UIInstance) {
 				return { op: "remove", at: removeAt };
 			}
 			return undefined;
-		}
-	})
+		},
+	});
 
 	Object.assign(UIInstance.prototype, {
 		_collectReactiveDataRefs(data) {
@@ -362,7 +355,6 @@ function attachReactive(UIInstance) {
 			return refs;
 		},
 
-		
 		_acquireReactiveRef(cell) {
 			if (!cell?.isReactive || typeof cell.acquire !== "function") {
 				return;
@@ -374,7 +366,6 @@ function attachReactive(UIInstance) {
 			}
 		},
 
-		
 		_releaseReactiveRef(cell) {
 			if (!cell?.isReactive || typeof cell.release !== "function") {
 				return;
@@ -385,7 +376,6 @@ function attachReactive(UIInstance) {
 			}
 		},
 
-		
 		_syncOwnedReactiveRefs(data) {
 			const refs = this._collectReactiveDataRefs(data);
 			if (!refs) {
@@ -399,7 +389,6 @@ function attachReactive(UIInstance) {
 			}
 		},
 
-		
 		_releaseOwnedReactiveRefs() {
 			if (!this._ownedReactiveRefs) {
 				return;
@@ -453,20 +442,20 @@ function attachReactive(UIInstance) {
 						) {
 							return;
 						}
-					// Path miss: prefer a granular re-render when we know which
-					// top-level tree key changed. Root store replaces (no path) and
-					// index-only paths still need a full render.
-					if (!normalized) {
-						this._scheduleRender(null);
-					} else if (meta.keys?.has(ROOT_STORE_KEY)) {
-						if (typeof normalized[0] === "string") {
-							this._scheduleRender(new Set([normalized[0]]));
-						} else {
+						// Path miss: prefer a granular re-render when we know which
+						// top-level tree key changed. Root store replaces (no path) and
+						// index-only paths still need a full render.
+						if (!normalized) {
 							this._scheduleRender(null);
+						} else if (meta.keys?.has(ROOT_STORE_KEY)) {
+							if (typeof normalized[0] === "string") {
+								this._scheduleRender(new Set([normalized[0]]));
+							} else {
+								this._scheduleRender(null);
+							}
+						} else {
+							this._scheduleRender(meta.keys);
 						}
-					} else {
-						this._scheduleRender(meta.keys);
-					}
 					};
 					meta.handler = handler;
 					cell.sub(handler);
@@ -476,7 +465,6 @@ function attachReactive(UIInstance) {
 			}
 		},
 
-		
 		// Walks mounted list/dict slots along `path` (relative to `cell.value`) and
 		// updates only the affected child instance. Returns false to fall back to
 		// a normal scheduled render.
@@ -508,7 +496,6 @@ function attachReactive(UIInstance) {
 			return false;
 		},
 
-		
 		_slotKeysForDataKeys(dataKeys) {
 			const slotKeys = [];
 			const seen = new Set();
@@ -562,7 +549,6 @@ function attachReactive(UIInstance) {
 			return slotKeys;
 		},
 
-		
 		_findOutSlotKey(instance, slot) {
 			if (!instance?.out) {
 				return null;
@@ -581,7 +567,6 @@ function attachReactive(UIInstance) {
 			return null;
 		},
 
-		
 		// Re-runs the collection behavior and renders into `slot` so list fast-paths
 		// can append/remove without a full ancestor render. Used when a path segment
 		// is missing from the mapping (new index/key) or a key was deleted.
@@ -707,7 +692,6 @@ function attachReactive(UIInstance) {
 			return null;
 		},
 
-		
 		// True when row bags hold the raw collection element in `.value` (inspector
 		// pattern). False when a processor reshapes entries (e.g. `{ id, value }`).
 		// Uses live mapped instance data when available (wrappers can be stale).
@@ -750,7 +734,9 @@ function attachReactive(UIInstance) {
 					i < n ? UIInstance._listEntryValueAt(slot, i) : data.value;
 				if (
 					entry === 0
-						? Object.is(entry, -0) ? negativeZero : positiveZero
+						? Object.is(entry, -0)
+							? negativeZero
+							: positiveZero
 						: entries.has(entry)
 				) {
 					return true;
@@ -759,7 +745,6 @@ function attachReactive(UIInstance) {
 			return false;
 		},
 
-		
 		// Append one row without re-running the collection behavior over all items.
 		// Only for raw-entry row shapes; reshaping processors fall back to behavior.
 		_renderCollectionAppendLocal(slot, treeAtSlot) {
@@ -812,7 +797,6 @@ function attachReactive(UIInstance) {
 			return slot._renderTrustedAppend(next);
 		},
 
-		
 		// Remove one row without re-running the collection behavior over all items.
 		// Safe when wrappers already hold the kept element refs (identity shrink).
 		_renderCollectionRemoveLocal(slot, treeAtSlot, removeAt) {
@@ -839,7 +823,11 @@ function attachReactive(UIInstance) {
 				if (!Object.is(liveVal, treeAtSlot[j])) {
 					return false;
 				}
-				if (item instanceof AppliedUITemplate && item.data && typeof item.data === "object") {
+				if (
+					item instanceof AppliedUITemplate &&
+					item.data &&
+					typeof item.data === "object"
+				) {
 					const data = item.data;
 					const shifted = { ...data, value: liveVal };
 					if ("key" in data || "$key" in data) {
@@ -1023,7 +1011,14 @@ function attachReactive(UIInstance) {
 						return true;
 					}
 				}
-			} else if (this._applyReactivePathToInstance(child, rest, entryValue, previousEntryValue)) {
+			} else if (
+				this._applyReactivePathToInstance(
+					child,
+					rest,
+					entryValue,
+					previousEntryValue,
+				)
+			) {
 				return true;
 			}
 			// The row's value was synchronized above; equality cannot detect this miss.
@@ -1043,8 +1038,13 @@ function attachReactive(UIInstance) {
 			return false;
 		},
 
-		
-		_applyReactivePathToInstance(instance, path, treeValue, previousTreeValue, collection = false) {
+		_applyReactivePathToInstance(
+			instance,
+			path,
+			treeValue,
+			previousTreeValue,
+			collection = false,
+		) {
 			if (!(instance instanceof UIInstance) || instance._isDisposed) {
 				return false;
 			}
@@ -1063,7 +1063,11 @@ function attachReactive(UIInstance) {
 						instance.update({ ...prev, [keys[0]]: treeValue });
 					} else if ("value" in prev) {
 						instance.update({ ...prev, value: treeValue });
-					} else if (keys.length > 0 && typeof treeValue === "object" && treeValue) {
+					} else if (
+						keys.length > 0 &&
+						typeof treeValue === "object" &&
+						treeValue
+					) {
 						instance.update({ ...prev, ...treeValue });
 					} else {
 						instance.update(treeValue);
@@ -1078,9 +1082,14 @@ function attachReactive(UIInstance) {
 			// Only a host holding the current or previous source addresses this collection.
 			// An ordinary row may also have an unrelated out.items child list.
 			const itemsSlots = instance.out?.items;
-			const hostKey = collection && itemsSlots?.length ? this._collectionHostKey(prev, "items") : null;
+			const hostKey =
+				collection && itemsSlots?.length
+					? this._collectionHostKey(prev, "items")
+					: null;
 			if (
-				hostKey && prev[hostKey] !== null && typeof prev[hostKey] === "object" &&
+				hostKey &&
+				prev[hostKey] !== null &&
+				typeof prev[hostKey] === "object" &&
 				(prev[hostKey] === treeValue || prev[hostKey] === previousTreeValue)
 			) {
 				// Keep the source identity current for subsequent path notifications.
@@ -1144,7 +1153,13 @@ function attachReactive(UIInstance) {
 						const nested = firstMappedUIInstance(slots[i], UIInstance);
 						if (
 							nested &&
-							this._applyReactivePathToInstance(nested, path, treeValue, previousTreeValue, true)
+							this._applyReactivePathToInstance(
+								nested,
+								path,
+								treeValue,
+								previousTreeValue,
+								true,
+							)
 						) {
 							return true;
 						}
@@ -1154,7 +1169,6 @@ function attachReactive(UIInstance) {
 			return false;
 		},
 
-		
 		_clearReactiveDataSubs() {
 			if (!this._reactiveDataSubs) {
 				return;
@@ -1169,12 +1183,10 @@ function attachReactive(UIInstance) {
 			}
 		},
 
-		
 		_getReactiveTopLevelFusion(key) {
 			return this._reactiveTopLevelFusions?.get(key);
 		},
 
-		
 		_clearReactiveTopLevelFusion(key) {
 			if (!this._reactiveTopLevelFusions?.has(key)) {
 				return;
@@ -1190,7 +1202,6 @@ function attachReactive(UIInstance) {
 			}
 		},
 
-		
 		_clearReactiveTopLevelFusions() {
 			if (!this._reactiveTopLevelFusions) {
 				return;
@@ -1200,7 +1211,6 @@ function attachReactive(UIInstance) {
 			}
 		},
 
-		
 		_fuseReactiveTopLevel(key, internal, upstream) {
 			if (!internal?.isReactive || !upstream?.isReactive) {
 				return internal;
@@ -1253,11 +1263,12 @@ function attachReactive(UIInstance) {
 			};
 			internal.sub(fusion.internalHandler);
 			upstream.sub(fusion.upstreamHandler);
-			this._reactiveTopLevelFusions = this._reactiveTopLevelFusions ?? new Map();
+			this._reactiveTopLevelFusions =
+				this._reactiveTopLevelFusions ?? new Map();
 			this._reactiveTopLevelFusions.set(key, fusion);
 			return internal;
-		}
-	})
+		},
+	});
 }
 
 export {
@@ -1265,8 +1276,8 @@ export {
 	cloneNestedWrite,
 	isReactiveData,
 	normalizeCellNotifyPath,
-	renderViewData,
 	ROOT_STORE_KEY,
-}
+	renderViewData,
+};
 
 // EOF

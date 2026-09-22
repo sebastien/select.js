@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-04-23
-// Updated: 2026-09-22
+// Updated: 2026-09-23
 
 // Module: select/features/icons
 // SVG icon registry and loader utilities. Built-in presets fetch one SVG per
@@ -124,9 +124,68 @@ const FillStyle = {
 // Named filename transforms referenced by preset `transform` strings.
 const SourceTransforms = {
 	kebabcase: (name) => `${name}`.replaceAll("_", "-").replaceAll(" ", "-"),
+	snakecase: (name) => `${name}`.replaceAll("-", "_").replaceAll(" ", "_"),
+	snakecaseFill: (name) => {
+		const text = `${name}`;
+		const suffix = text.endsWith("-fill") ? "-fill" : "";
+		const base = suffix ? text.slice(0, -suffix.length) : text;
+		return base.replaceAll("-", "_").replaceAll(" ", "_") + suffix;
+	},
+	// Maps an Iconify-style Material Symbols name to a `folder/file` path.
+	// Iconify's convention is that the bare name is the *filled* style; an
+	// `-outline` token (before an optional `-rounded`/`-sharp` style token)
+	// selects the outlined file. So `home` -> `outlined/home-fill` and
+	// `home-outline-rounded` -> `rounded/home`. A redundant `-fill` is accepted
+	// as filled. `options.variant` sets the default folder so style-specific
+	// presets can omit the suffix.
+	symbolsStyle: (name, options) => {
+		const text = `${name}`;
+		let base = text;
+		if (base.endsWith("-fill")) base = base.slice(0, -"-fill".length);
+		let folder = options?.variant || "outlined";
+		// A trailing `-rounded`/`-sharp` picks the folder, but `-outline` may sit
+		// before it (`home-outline-rounded`). Only a trailing token counts, so a
+		// name that merely contains `outline` (check-box-outline-blank) survives.
+		let outline = false;
+		if (base.endsWith("-outline")) {
+			outline = true;
+			base = base.slice(0, -"-outline".length);
+		}
+		for (const [suffix, dir] of [
+			["-rounded", "rounded"],
+			["-sharp", "sharp"],
+		]) {
+			if (base.endsWith(suffix)) {
+				folder = dir;
+				base = base.slice(0, -suffix.length);
+				if (base.endsWith("-outline")) {
+					outline = true;
+					base = base.slice(0, -"-outline".length);
+				}
+				break;
+			}
+		}
+		const suffix = outline ? "" : "-fill";
+		return `${folder}/${base.replaceAll("-", "_").replaceAll(" ", "_")}${suffix}`;
+	},
 	suffixOutline: (name) =>
 		name.endsWith("-outline") ? name : `${name}-outline`,
 	stripFill: (name) => (name.endsWith("-fill") ? name.slice(0, -5) : name),
+	// Iconify's Tabler collection encodes the filled style as a `-filled`
+	// suffix while the package stores it in a `filled/` folder.
+	tablerStyle: (name, options) => {
+		const text = `${name}`;
+		const filled = text.endsWith("-filled");
+		const base = filled ? text.slice(0, -"-filled".length) : text;
+		return `${filled ? "filled" : options?.variant || "outline"}/${base}`;
+	},
+	// Same idea for Iconoir's `-solid` suffix and `solid/` folder.
+	iconoirStyle: (name, options) => {
+		const text = `${name}`;
+		const solid = text.endsWith("-solid");
+		const base = solid ? text.slice(0, -"-solid".length) : text;
+		return `${solid ? "solid" : options?.variant || "regular"}/${base}`;
+	},
 };
 
 // Constant: IconSources
@@ -134,11 +193,12 @@ const SourceTransforms = {
 // SVG forever. Unknown names do not fall back to a collection download.
 const IconSources = {
 	lucide: {
-		url: `https://cdn.jsdelivr.net/npm/lucide-static@1.47.0/icons/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/lucide-static@1.48.0/icons/${ICON_NAME}.svg`,
 		size: [24, 24],
 	},
 	iconoir: {
-		url: `https://cdn.jsdelivr.net/npm/iconoir@7.12.1/icons/regular/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/iconoir@7.12.1/icons/${ICON_NAME}.svg`,
+		transform: "iconoirStyle",
 		size: [24, 24],
 	},
 	"eva-outline": {
@@ -149,11 +209,14 @@ const IconSources = {
 	},
 	eva: "eva-outline",
 	tabler: {
-		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.47.0/icons/outline/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.48.0/icons/${ICON_NAME}.svg`,
+		transform: "tablerStyle",
 		size: [24, 24],
 	},
 	"iconoir-solid": {
-		url: `https://cdn.jsdelivr.net/npm/iconoir@7.12.1/icons/solid/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/iconoir@7.12.1/icons/${ICON_NAME}.svg`,
+		transform: "iconoirStyle",
+		variant: "solid",
 		size: [24, 24],
 	},
 	"eva-fill": {
@@ -163,12 +226,96 @@ const IconSources = {
 		style: FillStyle,
 	},
 	"tabler-filled": {
-		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.47.0/icons/filled/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.48.0/icons/${ICON_NAME}.svg`,
+		transform: "tablerStyle",
+		variant: "filled",
 		size: [24, 24],
 	},
 	mdi: {
 		url: `https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg/${ICON_NAME}.svg`,
 		size: [24, 24],
+		style: FillStyle,
+	},
+	"material-symbols": {
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/${ICON_NAME}.svg`,
+		transform: "symbolsStyle",
+		size: [48, 48],
+		style: FillStyle,
+	},
+	"material-symbols-outlined": "material-symbols",
+	"material-symbols-rounded": {
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/${ICON_NAME}.svg`,
+		transform: "symbolsStyle",
+		variant: "rounded",
+		size: [48, 48],
+		style: FillStyle,
+	},
+	"material-symbols-sharp": {
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/${ICON_NAME}.svg`,
+		transform: "symbolsStyle",
+		variant: "sharp",
+		size: [48, 48],
+		style: FillStyle,
+	},
+	"material-symbols-light": {
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.5/${ICON_NAME}.svg`,
+		transform: "symbolsStyle",
+		size: [48, 48],
+		style: FillStyle,
+	},
+	"material-symbols-light-outlined": "material-symbols-light",
+	"material-symbols-light-rounded": {
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.5/${ICON_NAME}.svg`,
+		transform: "symbolsStyle",
+		variant: "rounded",
+		size: [48, 48],
+		style: FillStyle,
+	},
+	"material-symbols-light-sharp": {
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.5/${ICON_NAME}.svg`,
+		transform: "symbolsStyle",
+		variant: "sharp",
+		size: [48, 48],
+		style: FillStyle,
+	},
+	"material-icons": {
+		url: `https://cdn.jsdelivr.net/npm/@material-design-icons/svg@0.14.15/filled/${ICON_NAME}.svg`,
+		transform: "snakecase",
+		size: [24, 24],
+		style: FillStyle,
+	},
+	"material-icons-filled": "material-icons",
+	"material-icons-outlined": {
+		url: `https://cdn.jsdelivr.net/npm/@material-design-icons/svg@0.14.15/outlined/${ICON_NAME}.svg`,
+		transform: "snakecase",
+		size: [24, 24],
+		style: FillStyle,
+	},
+	"material-icons-round": {
+		url: `https://cdn.jsdelivr.net/npm/@material-design-icons/svg@0.14.15/round/${ICON_NAME}.svg`,
+		transform: "snakecase",
+		size: [24, 24],
+		style: FillStyle,
+	},
+	"material-icons-sharp": {
+		url: `https://cdn.jsdelivr.net/npm/@material-design-icons/svg@0.14.15/sharp/${ICON_NAME}.svg`,
+		transform: "snakecase",
+		size: [24, 24],
+		style: FillStyle,
+	},
+	"material-icons-two-tone": {
+		url: `https://cdn.jsdelivr.net/npm/@material-design-icons/svg@0.14.15/two-tone/${ICON_NAME}.svg`,
+		transform: "snakecase",
+		size: [24, 24],
+		style: FillStyle,
+	},
+	"radix-icons": {
+		url: `https://cdn.jsdelivr.net/gh/radix-ui/icons@d166d5ab1669b26d8854f50f8304296d54a7a410/packages/radix-icons/icons/${ICON_NAME}.svg`,
+		size: [15, 15],
+	},
+	ix: {
+		url: `https://cdn.jsdelivr.net/npm/@siemens/ix-icons@3.5.0/svg/${ICON_NAME}.svg`,
+		size: [512, 512],
 		style: FillStyle,
 	},
 };
@@ -228,7 +375,7 @@ function resolveFileName(name, options) {
 	}
 	const fn =
 		typeof transform === "function" ? transform : SourceTransforms[transform];
-	return fn ? fn(name) : name;
+	return fn ? fn(name, options) : name;
 }
 
 // Function: paintStyle
@@ -404,6 +551,33 @@ function sanitizeSvgMarkup(text, name) {
 	return sanitizeSvgNode(svg);
 }
 
+// Function: resolve
+// Resolves `name`/`source` to the icon location without fetching it. Returns
+// `undefined` when the source is unknown or the name has no transform result.
+// Useful for diagnostics and tooling.
+function resolve(name = IconDefaults.name, source = IconDefaults.source) {
+	const [iconName, iconSource] = parseIconName(name, source);
+	const options = sourceOptions(iconSource);
+	if (!options?.url) {
+		return;
+	}
+	const fileName = resolveFileName(iconName, options);
+	if (!fileName) {
+		return;
+	}
+	const url = options.url
+		.replace(ICON_NAME, fileName)
+		.replace(ICON_SOURCE, typeof iconSource === "string" ? iconSource : "");
+	return {
+		name: iconName,
+		source: iconSource,
+		options,
+		fileName,
+		format: options.format || "svg",
+		url,
+	};
+}
+
 // Function: load
 // Loads the SVG symbol for `name` from `source`, appends it to `container`,
 // and returns a promise for the created `<symbol>`.
@@ -413,21 +587,13 @@ function load(
 	container = IconContainer,
 	cache = Cache,
 ) {
-	[name, source] = parseIconName(name, source);
-	const options = sourceOptions(source);
-	if (!options?.url) {
+	const resolved = resolve(name, source);
+	if (!resolved) {
 		log.warn("icons.load: unknown icon source, details", { name, source });
 		return Promise.resolve();
 	}
-	const format = options.format || "svg";
-	const fileName = resolveFileName(name, options);
-	if (!fileName) {
-		log.warn("icons.load: icon is not in source, details", { name, source });
-		return Promise.resolve();
-	}
-	const url = options.url
-		.replace(ICON_NAME, fileName)
-		.replace(ICON_SOURCE, typeof source === "string" ? source : "");
+	[name, source] = [resolved.name, resolved.source];
+	const { options, format, url } = resolved;
 	const id = `icon-${name}-${sourceKey(source)}`;
 	const cacheKey = format === "iconify" ? `${url}#${name}` : `${url}#${id}`;
 	const entry = cache.get(cacheKey);
@@ -699,11 +865,21 @@ function install(name = "ui-icon", options = {}) {
 	}
 }
 
-export { Cache, IconContainer, IconSources, icon, install, load, register };
+export {
+	Cache,
+	IconContainer,
+	IconSources,
+	icon,
+	install,
+	load,
+	register,
+	resolve,
+};
 export default Object.assign(icon, {
 	load,
 	install,
 	register,
+	resolve,
 	container: IconContainer,
 	sources: IconSources,
 });

@@ -8,13 +8,21 @@ PROJECT:=select
 PORT?=8001
 SDK_MODULES:=std js mise
 DIST_MODE:=
-PROJECT_VERSION:=1.0.1
+PROJECT_VERSION:=1.0.2
 PROJECT_VERSION_TASK:=$(PATH_RUN_TASK)/project-version-$(PROJECT_VERSION).task
 
 # Version sync runs only where it matters (`dist`, `release`, `update-version`),
 # not on every phase, so `make check`/`test` never rewrite tracked files.
 RELEASE_HOST?=agent@stage
 RELEASE_PATH?=/mnt/www/sebastienpierre.me/dist/select
+
+# Release metrics (`metrics` rule in src/mk/rules.mk): record performance vs
+# SolidJS and test coverage with git-kv on the tagged commit. Set
+# `RELEASE_METRICS=0` to skip during `release`, and `METRICS_PUSH=0` to keep the
+# recorded notes local instead of pushing them to the origin.
+RELEASE_METRICS?=1
+METRICS_BENCH_RUNS?=5
+METRICS_PUSH?=1
 
 SOURCES_JS:=$(shell find src/js/select -name "*.js")
 DIST_ROOT?=dist

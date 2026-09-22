@@ -11,7 +11,11 @@ all: build
 .PHONY: run-http
 run-http:
 	@$(call rule_pre_cmd)
-	$(CMD) python3 -m http.server $(PORT)
+	if [ -d "deps/extra" ]; then
+		PORT=$(PORT) PYTHONPATH=$(realpath deps/extra/src/py) $(CMD) python3 -m extra
+	else
+		$(CMD) python3 -m http.server $(PORT)
+	fi
 	$(call rule_post_cmd)
 
 .PHONY: check-biome
@@ -86,6 +90,120 @@ update-icons:
 	ICON_PIN_FILES="$(ICON_PIN_FILES)" $(CMD) node --input-type=module -e "$$ICONS_SCRIPT"
 	$(call rule_post_cmd)
 
+# Node program shared by `metrics` and `metrics-report`. In `record` mode it
+# reads the inspector benchmark report and the Bun lcov file, then stores the
+# performance vs SolidJS and the test coverage on the given commit with git-kv
+# (`refs/notes/kv`). In `report` mode it prints a table of the metrics recorded
+# for every `v*` tag. Kept inline so no separate script is needed.
+define METRICS_SCRIPT
+import fs from "node:fs";
+import { execFileSync } from "node:child_process";
+const round = (value) => Math.round(value * 100) / 100;
+const gitKv = (args) => execFileSync("git", ["kv", ...args], { encoding: "utf8" });
+if ((process.env.METRICS_MODE || "record") === "report") {
+	const parseVersion = (tag) => tag.replace(/^v/, "").split(".").map((part) => Number(part));
+	const tags = execFileSync("git", ["tag", "-l", "v*"], { encoding: "utf8" }).split("\n").filter(Boolean);
+	tags.sort((a, b) => {
+		const left = parseVersion(a);
+		const right = parseVersion(b);
+		for (let i = 0; i < 3; i++) {
+			const delta = (left[i] || 0) - (right[i] || 0);
+			if (delta !== 0) return delta;
+		}
+		return 0;
+	});
+	const rows = [];
+	for (const tag of tags) {
+		let data = {};
+		try {
+			data = JSON.parse(gitKv(["show", tag, "-tjson"]));
+		} catch {
+			data = {};
+		}
+		const overall = data["metrics.benchmark.overall"];
+		const coverage = data["metrics.coverage.test"];
+		if (overall === undefined && coverage === undefined) continue;
+		rows.push({
+			release: tag,
+			init: data["metrics.benchmark.init"] || "-",
+			apply: data["metrics.benchmark.apply"] || "-",
+			heap: data["metrics.benchmark.heap"] || "-",
+			overall: overall === undefined ? "-" : overall + "%",
+			coverage: coverage === undefined ? "-" : coverage + "%",
+		});
+	}
+	if (!rows.length) {
+		console.log("No metrics recorded yet; run make metrics once a release is tagged.");
+	} else {
+		const headers = ["release", "init(ms)", "apply(ms)", "heap(MB)", "overall(%)", "coverage(%)"];
+		const keys = ["release", "init", "apply", "heap", "overall", "coverage"];
+		const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => String(row[keys[index]]).length)));
+		const format = (values) => values.map((value, index) => String(value).padEnd(widths[index])).join("  ");
+		console.log(format(headers));
+		console.log(format(widths.map((width) => "-".repeat(width))));
+		for (const row of rows) console.log(format(keys.map((key) => row[key])));
+	}
+} else {
+	const commit = process.env.METRICS_COMMIT;
+	const report = JSON.parse(fs.readFileSync(process.env.METRICS_BENCH_JSON, "utf8"));
+	const findFramework = (label) => report.summary.find((entry) => entry.framework === label);
+	const select = findFramework("select.ui");
+	const solid = findFramework("solidjs");
+	if (!select || !solid) {
+		console.error("[METRICS] missing select.ui or solidjs benchmark summary");
+		process.exit(1);
+	}
+	const overall = round((0.5 * (select.patchTotalMs / solid.patchTotalMs) + 0.3 * (select.initialMs / solid.initialMs) + 0.2 * (select.heapPeakMB / solid.heapPeakMB)) * 100);
+	const lcov = fs.readFileSync(process.env.METRICS_LCOV, "utf8").split("\n");
+	let linesFound = 0;
+	let linesHit = 0;
+	let selected = false;
+	for (const line of lcov) {
+		if (line.startsWith("SF:")) selected = line.indexOf("src/js/select/") !== -1;
+		if (!selected) continue;
+		if (line.startsWith("LF:")) linesFound += Number(line.slice(3));
+		if (line.startsWith("LH:")) linesHit += Number(line.slice(3));
+	}
+	const coverage = linesFound ? round((linesHit / linesFound) * 100) : 0;
+	const entries = [
+		["metrics.benchmark.init", select.initialMs],
+		["metrics.benchmark.apply", select.patchTotalMs],
+		["metrics.benchmark.heap", select.heapPeakMB],
+		["metrics.benchmark.solid.init", solid.initialMs],
+		["metrics.benchmark.solid.apply", solid.patchTotalMs],
+		["metrics.benchmark.solid.heap", solid.heapPeakMB],
+		["metrics.benchmark.overall", overall],
+		["metrics.coverage.test", coverage],
+	];
+	for (const [key, value] of entries) {
+		if (!Number.isFinite(value)) continue;
+		gitKv(["set", key, String(value), commit]);
+		console.log("[METRICS] " + key + " = " + value);
+	}
+	if (process.env.METRICS_PUSH !== "0") gitKv(["push"]);
+	console.log("[METRICS] recorded on commit " + commit);
+}
+endef
+export METRICS_SCRIPT
+
+.PHONY: metrics
+metrics: ## Records performance vs SolidJS and coverage for the current release
+	@$(call rule_pre_cmd)
+	@set -eu; \
+	tmp=$$(mktemp -d); \
+	trap 'rm -rf "$$tmp"' EXIT; \
+	version="$(PROJECT_VERSION)"; \
+	commit=$$(git rev-parse --verify -q "v$$version^{commit}" || git rev-parse HEAD); \
+	echo "[METRICS] measuring $$version ($$commit)"; \
+	$(CMD) node scripts/bench-inspector.mjs --json --no-save --runs $(METRICS_BENCH_RUNS) > "$$tmp/bench.json"; \
+	$(CMD) bun test --coverage --coverage-reporter=lcov --coverage-dir="$$tmp/cov" > /dev/null; \
+	METRICS_MODE=record METRICS_VERSION="$$version" METRICS_COMMIT="$$commit" METRICS_BENCH_JSON="$$tmp/bench.json" METRICS_LCOV="$$tmp/cov/lcov.info" METRICS_PUSH="$(METRICS_PUSH)" $(CMD) node --input-type=module -e "$$METRICS_SCRIPT"
+	$(call rule_post_cmd)
+
+.PHONY: metrics-report
+metrics-report: ## Prints recorded performance and coverage metrics across releases
+	@METRICS_MODE=report $(CMD) node --input-type=module -e "$$METRICS_SCRIPT"
+
 .PHONY: release
 release: $(PROJECT_VERSION_TASK)
 	@set -eu; \
@@ -115,6 +233,7 @@ release: $(PROJECT_VERSION_TASK)
 		release_revision="@-"; \
 	fi; \
 	jj tag set "v$$version" --revision="$$release_revision"; \
+	if [ "$(RELEASE_METRICS)" != "0" ]; then $(MAKE) PROJECT_VERSION="$$version" metrics; fi; \
 	git push origin "v$$version"; \
 	ssh $(RELEASE_HOST) "mkdir -p $(RELEASE_PATH)/$$version"; \
 	scp dist/selectjs.js dist/selectjs.min.js "$(RELEASE_HOST):$(RELEASE_PATH)/$$version/"

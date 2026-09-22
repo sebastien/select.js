@@ -46,9 +46,7 @@ function pathnameOf(value, win) {
 	if (!raw) return "";
 	try {
 		const href =
-			win?.location?.href ||
-			globalThis.location?.href ||
-			"http://localhost/";
+			win?.location?.href || globalThis.location?.href || "http://localhost/";
 		return new URL(raw, href).pathname.replace(/\/+$/, "");
 	} catch {
 		return String(raw).replace(/\/+$/, "");
@@ -68,10 +66,7 @@ class PathFormat {
 
 	relative(value) {
 		const text = PathFormat.SanitizeText(value, this.warn);
-		if (
-			this.base &&
-			(text === this.base || text.startsWith(`${this.base}/`))
-		) {
+		if (this.base && (text === this.base || text.startsWith(`${this.base}/`))) {
 			return text.slice(this.base.length) || "/";
 		}
 		return text || "/";
@@ -255,7 +250,13 @@ class LocationValueCell extends Cell {
 	}
 
 	set(value, p = Nothing, options = false) {
-		const write = writeCellValue(this, value, p, options, this._valueNormalizer);
+		const write = writeCellValue(
+			this,
+			value,
+			p,
+			options,
+			this._valueNormalizer,
+		);
 		if (write && this.writer) {
 			this.writer(this.value, {
 				mode: historyMode(options, this.mode),
@@ -864,8 +865,7 @@ class Browser {
 		this.locals.set(key, { cell, defaultValue: normalizedDefault, serializer });
 		if (
 			this.hasStorage &&
-			((!hasStoredValue &&
-				normalizedDefault !== undefined) ||
+			((!hasStoredValue && normalizedDefault !== undefined) ||
 				!eq(loaded, cell.value))
 		) {
 			this.writeLocal(key, cell.value, serializer);
@@ -1349,9 +1349,10 @@ function browser(options = {}) {
 	const win =
 		options.window ||
 		(typeof globalThis !== "undefined" ? globalThis.window : undefined);
-	const base = options.base === undefined
-		? browser.SINGLETON?.location?.pathFormat?.base
-		: pathnameOf(options.base, win);
+	const base =
+		options.base === undefined
+			? browser.SINGLETON?.location?.pathFormat?.base
+			: pathnameOf(options.base, win);
 	if (
 		!browser.SINGLETON ||
 		browser.SINGLETON.win !== win ||

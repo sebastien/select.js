@@ -114,6 +114,12 @@
       	transition: transform 140ms ease, opacity 140ms ease, box-shadow 140ms ease;
       }
 
+	  .tree-node > .card {
+		width: 100%;
+		padding: 10px 12px;
+		gap: 4px;
+	  }
+
       		.items[data-axis="x"] .card {
       min-width: 128px;
       		}
@@ -225,12 +231,6 @@
 		display: grid;
 		gap: 6px;
       }
-
-	  .tree-node > .card {
-		width: 100%;
-		padding: 10px 12px;
-		gap: 4px;
-	  }
 
 	  .tree-node.is-dragging-source {
 		opacity: 0.32;
@@ -354,8 +354,8 @@
         </div>
       </template>
     <script type="module">
-      import { ui } from "@./ui/index.js"
       import { sort } from "@./features/interaction/index.js"
+      import { ui } from "@./ui/index.js"
 
       // ----------------------------------------------------------------------------
       // SORTABLE PRIMITIVES
