@@ -40,6 +40,52 @@ bench-stats:
 update-version: $(PROJECT_VERSION_TASK) ## Syncs tracked version strings with PROJECT_VERSION
 	@
 
+# Node program shared by `check-icons` and `update-icons`. Collects every pinned
+# jsDelivr icon package from ICON_PIN_FILES, resolves the latest npm version,
+# then reports drift (`ICONS_CHECK=1`) or rewrites the pins in place.
+define ICONS_SCRIPT
+import fs from "node:fs";
+const files=(process.env.ICON_PIN_FILES||"").split(" ").filter(Boolean);
+const check=process.env.ICONS_CHECK==="1";
+const re=/npm\/(@?[^@\s"]+)@(\d+\.\d+\.\d+)/g;
+const pins=new Map();
+for (const f of files) for (const m of fs.readFileSync(f,"utf8").matchAll(re)) pins.set(m[1],m[2]);
+const drift=[];
+for (const [pkg,cur] of pins) {
+	const res=await fetch("https://registry.npmjs.org/"+pkg.replaceAll("/","%2F")+"/latest");
+	if (!res.ok) { console.error("[ICONS] "+pkg+": registry status "+res.status); process.exitCode=1; continue }
+	const latest=(await res.json()).version;
+	if (latest!==cur) drift.push([pkg,cur,latest]);
+}
+if (check && drift.length) {
+	for (const [p,c,l] of drift) console.error("[ICONS] "+p+": "+c+" -> "+l);
+	console.error("[ICONS] "+drift.length+" icon package(s) out of date");
+	process.exit(1);
+}
+if (!check && drift.length) {
+	for (const f of files) {
+		let t=fs.readFileSync(f,"utf8");
+		for (const [p,c,l] of drift) t=t.replaceAll("npm/"+p+"@"+c,"npm/"+p+"@"+l);
+		fs.writeFileSync(f,t);
+	}
+}
+for (const [p,c,l] of drift) console.log("[ICONS] "+(check?"stale":"updated")+" "+p+": "+c+" -> "+l);
+if (!drift.length) console.log("[ICONS] all icon packages up to date");
+endef
+export ICONS_SCRIPT
+
+.PHONY: check-icons
+check-icons:
+	@$(call rule_pre_cmd)
+	ICON_PIN_FILES="$(ICON_PIN_FILES)" ICONS_CHECK=1 $(CMD) node --input-type=module -e "$$ICONS_SCRIPT"
+	$(call rule_post_cmd)
+
+.PHONY: update-icons
+update-icons:
+	@$(call rule_pre_cmd)
+	ICON_PIN_FILES="$(ICON_PIN_FILES)" $(CMD) node --input-type=module -e "$$ICONS_SCRIPT"
+	$(call rule_post_cmd)
+
 .PHONY: release
 release: $(PROJECT_VERSION_TASK)
 	@set -eu; \

@@ -112,7 +112,7 @@ import ui from "@select/ui"
 - `Dynamic(type, props?)`: dynamic component resolution by name/function.
 - `lazy(loader, placeholder?)`: lazy component loader.
 - `router()`, `routed()`, `route(pattern)`, `RoutePattern`: routing helpers from `select/state/routing.js`.
-- `icon(name, options?)`, `install(...)`, `load(...)`: icon registry helpers from `select/features/icons.js`.
+- `icon(name, source?, options?)`, `install(...)`, `load(...)`: icon registry helpers from `select/features/icons.js`.
 - `len`, `type`, `remap`: shared utility helpers from `select/ui`.
 - `clsx`, `shortword`, `sorted`, `unique`: shared helpers from `select/utils` and `select/utils/*.js`.
 - `bind`, `drag`, `draggable`, `sort`, `popup`, `autoresize`, `Keyboard`: interaction helpers from `select/features/interaction/index.js`. `draggable(event, options?)` uses `[data-draggable]` sources and `[data-drop-target]` targets, appending a clone by default; `data-drop-accept` and `accept(...)` control acceptance, while `preview(...)` and `drop(...)` customize the two effect stages. `sort(event, options?)` provides list placement and moves the original item by default. `popup(panel, trigger, options?)` portals a panel, keeps it in the viewport, and supports underlay click and Escape to close.
@@ -125,13 +125,13 @@ import ui from "@select/ui"
 - [`docs/cells.md`](docs/cells.md): `select/state/cells.js` usage and API guide.
 - [`docs/browser.md`](docs/browser.md): `select/state/browser.js` usage and API guide.
 - [`docs/utils.md`](docs/utils.md): `select/utils` and the helper submodules usage and API guide.
-- [`docs/icons.md`](docs/icons.md): `select/features/icons.js` CDN icon loading and catalog usage.
+- [`docs/icons.md`](docs/icons.md): `select/features/icons.js` pinned SVG presets and optional extra packs.
 - Routing helpers are covered by [`docs/utils.md`](docs/utils.md) and [`examples/feature-routing.html`](examples/feature-routing.html).
 
 ### Notable examples
 
 - [`examples/feature-webcomponent.html`](examples/feature-webcomponent.html): custom elements with `webcomponent(...)`, including parent event rebinding through implicit or explicit `ui-parent`.
-- [`examples/feature-icons.html`](examples/feature-icons.html): icon usage with default CDN collections and local JSON catalog.
+- [`examples/feature-icons.html`](examples/feature-icons.html): icon usage with pinned per-icon SVG presets.
 - [`examples/feature-routing.html`](examples/feature-routing.html): browser-backed route state and route dispatch.
 - [`examples/feature-template-load.html`](examples/feature-template-load.html): preload external templates with `ui.load(...)` and bind one behavior to multiple presentations with `.using(...)`.
 - [`examples/feature-popup.html`](examples/feature-popup.html): portaled popups with viewport flip, underlay click, and Escape to close.

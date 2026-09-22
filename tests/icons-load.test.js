@@ -95,28 +95,50 @@ describe("icons.load", () => {
 		expect(customElements.get(firstName)).not.toBe(customElements.get(secondName))
 	})
 
-	test("loads every family from its Iconify collection on jsDelivr", async () => {
-		globalThis.fetch = (url) => {
-			fetchCalls.push([url])
-			return Promise.resolve({
-				json: () => Promise.resolve({ prefix: "test", icons: { icon: { body: "<path/>" } } }),
-			})
-		}
+	test("loads built-in families as individual SVGs", async () => {
 		const cache = new Map()
 		const container = makeContainer()
 
-		await load("icon", "lucide", container, cache)
-		await load("icon", "mdi", container, cache)
-		await load("icon", "tabler", container, cache)
+		await load("home", "lucide", container, cache)
+		await load("home", "iconoir", container, cache)
+		await load("home", "eva", container, cache)
+		await load("home", "tabler", container, cache)
 
 		expect(fetchCalls.map(([url]) => url)).toEqual([
-			"https://cdn.jsdelivr.net/npm/@iconify-json/lucide/icons.json",
-			"https://cdn.jsdelivr.net/npm/@iconify-json/mdi/icons.json",
-			"https://cdn.jsdelivr.net/npm/@iconify-json/tabler/icons.json",
+			"https://cdn.jsdelivr.net/npm/lucide-static@1.47.0/icons/home.svg",
+			"https://cdn.jsdelivr.net/npm/iconoir@7.12.1/icons/regular/home.svg",
+			"https://cdn.jsdelivr.net/npm/eva-icons@1.1.3/outline/svg/home-outline.svg",
+			"https://cdn.jsdelivr.net/npm/@tabler/icons@3.47.0/icons/outline/home.svg",
 		])
 	})
 
-	test("loads standardized Iconify collections from jsDelivr", async () => {
+	test("does not fetch a collection for an unknown source", async () => {
+		const cache = new Map()
+		const container = makeContainer()
+
+		const symbol = await load("home", "material-symbols", container, cache)
+
+		expect(symbol).toBeUndefined()
+		expect(fetchCalls).toHaveLength(0)
+		expect(container.children.length).toBe(0)
+	})
+
+	test("applies eva fill style and outline filename", async () => {
+		const cache = new Map()
+		const container = makeContainer()
+
+		const symbol = await load("heart", "eva-outline", container, cache)
+
+		expect(fetchCalls[0][0]).toBe(
+			"https://cdn.jsdelivr.net/npm/eva-icons@1.1.3/outline/svg/heart-outline.svg",
+		)
+		expect(symbol?.firstElementChild?.getAttribute("fill")).toBe(
+			"var(--color-icon,currentColor)",
+		)
+		expect(symbol?.firstElementChild?.getAttribute("stroke")).toBe("none")
+	})
+
+	test("loads standardized Iconify collections from an explicit source", async () => {
 		globalThis.fetch = (url) => {
 			fetchCalls.push([url])
 			return Promise.resolve({
@@ -133,8 +155,12 @@ describe("icons.load", () => {
 		const cache = new Map()
 		const container = makeContainer()
 
-		const symbol = await load("mirrored", "carbon", container, cache)
-		const home = await load("home", "carbon", container, cache)
+		const source = {
+			format: "iconify",
+			url: "https://cdn.jsdelivr.net/npm/@iconify-json/carbon/icons.json",
+		}
+		const symbol = await load("mirrored", source, container, cache)
+		const home = await load("home", source, container, cache)
 
 		expect(fetchCalls[0][0]).toBe(
 			"https://cdn.jsdelivr.net/npm/@iconify-json/carbon/icons.json",
@@ -162,8 +188,12 @@ describe("icons.load", () => {
 		const cache = new Map()
 		const container = makeContainer()
 
-		const outline = await load("outline", "test", container, cache)
-		const filled = await load("filled", "test", container, cache)
+		const source = {
+			format: "iconify",
+			url: "https://icons.test/test.json",
+		}
+		const outline = await load("outline", source, container, cache)
+		const filled = await load("filled", source, container, cache)
 
 		expect(outline?.querySelector("path")?.getAttribute("stroke-width")).toBe("2")
 		expect(outline?.querySelector("path")?.getAttribute("fill")).toBe("none")
@@ -298,6 +328,26 @@ describe("icons.load", () => {
 		expect(path?.getAttribute("fill")).toBe("url(#g)")
 		expect(path?.getAttribute("href")).toBe("#g")
 		expect(path?.hasAttribute("xlink:href")).toBe(false)
+	})
+
+	test("loads filled variants as individual SVGs", async () => {
+		const cache = new Map()
+		const container = makeContainer()
+
+		await load("bookmark", "iconoir-solid", container, cache)
+		await load("home-fill", "eva-fill", container, cache)
+		await load("home", "tabler-filled", container, cache)
+		await load("account", "mdi", container, cache)
+
+		expect(fetchCalls.map(([url]) => url)).toEqual([
+			"https://cdn.jsdelivr.net/npm/iconoir@7.12.1/icons/solid/bookmark.svg",
+			"https://cdn.jsdelivr.net/npm/eva-icons@1.1.3/fill/svg/home.svg",
+			"https://cdn.jsdelivr.net/npm/@tabler/icons@3.47.0/icons/filled/home.svg",
+			"https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg/account.svg",
+		])
+		expect(
+			container.querySelector("#icon-account-mdi")?.firstElementChild?.getAttribute("fill"),
+		).toBe("var(--color-icon,currentColor)")
 	})
 })
 

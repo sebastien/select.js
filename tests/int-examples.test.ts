@@ -52,7 +52,7 @@ const EXAMPLE_INTERACTIONS: Record<string, (window: Window) => Promise<void> | v
 		input.dispatchEvent(new window.Event("input", { bubbles: true }))
 	},
 	"feature-icons": async (window) => {
-		const pick = Array.from(window.document.querySelectorAll("button")).find((_) => _.textContent?.trim() === "mdi:account")
+		const pick = Array.from(window.document.querySelectorAll("button")).find((_) => _.textContent?.trim() === "eva:heart")
 		pick?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }))
 	},
 	"app-unicode": async (window) => {
@@ -160,9 +160,16 @@ function createFetch(examplePath: string) {
 		const url = String(input)
 		if (
 			url.startsWith("https://api.iconify.design/") ||
-			url.startsWith("https://cdn.jsdelivr.net/npm/lucide-static/")
-			|| url.startsWith("https://cdn.jsdelivr.net/npm/@mdi/svg/")
-			|| url.startsWith("https://cdn.jsdelivr.net/npm/@tabler/icons/")
+			url.startsWith("https://cdn.jsdelivr.net/npm/lucide-static@") ||
+			url.startsWith("https://cdn.jsdelivr.net/npm/lucide-static/") ||
+			url.startsWith("https://cdn.jsdelivr.net/npm/iconoir@") ||
+			url.startsWith("https://cdn.jsdelivr.net/npm/iconoir/") ||
+			url.startsWith("https://cdn.jsdelivr.net/npm/eva-icons@") ||
+			url.startsWith("https://cdn.jsdelivr.net/npm/eva-icons/") ||
+			url.startsWith("https://cdn.jsdelivr.net/npm/@mdi/svg@") ||
+			url.startsWith("https://cdn.jsdelivr.net/npm/@mdi/svg/") ||
+			url.startsWith("https://cdn.jsdelivr.net/npm/@tabler/icons@") ||
+			url.startsWith("https://cdn.jsdelivr.net/npm/@tabler/icons/")
 		) {
 			const body = `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path d=\"M3 12h18\"/></svg>`
 			return Promise.resolve({

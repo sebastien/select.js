@@ -18,6 +18,10 @@ RELEASE_PATH?=/mnt/www/sebastienpierre.me/dist/select
 
 SOURCES_JS:=$(shell find src/js/select -name "*.js")
 DIST_ROOT?=dist
+# Files carrying pinned jsDelivr icon package versions, kept in sync by
+# `update-icons` and verified by `check-icons`.
+ICON_PIN_FILES:=src/js/select/features/icons.js tests/icons-load.test.js
+CHECK_ALL+=check-icons
 PATH_DIST_WWW:=$(DIST_ROOT)/www
 
 BUNDLE_JS=$(DIST_ROOT)/selectjs.js $(DIST_ROOT)/selectjs.min.js

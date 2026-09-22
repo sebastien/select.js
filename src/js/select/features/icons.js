@@ -2,10 +2,12 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-04-23
-// Updated: 2026-06-18
+// Updated: 2026-09-22
 
 // Module: select/features/icons
-// SVG icon registry and loader utilities.
+// SVG icon registry and loader utilities. Built-in presets fetch one SVG per
+// icon from pinned jsDelivr packages. An explicit source with `format: "iconify"`
+// can still read a collection JSON; that is never the default.
 // SEE: https://observablehq.com/@sebastien/icons
 import { logger } from "../utils/index.js";
 
@@ -102,8 +104,6 @@ const IconContainer = Object.entries({
 );
 
 const IconDefaults = {
-	format: "iconify",
-	url: `https://cdn.jsdelivr.net/npm/@iconify-json/${ICON_SOURCE}/icons.json`,
 	name: "file-question-mark",
 	source: "lucide",
 	size: [24, 24],
@@ -112,11 +112,64 @@ const IconDefaults = {
 	},
 };
 
+// Constant: FillStyle
+// Paint override for icon sets whose paths inherit black fill instead of
+// `currentColor`.
+const FillStyle = {
+	fill: "var(--color-icon,currentColor)",
+	stroke: "none",
+};
+
+// Constant: SourceTransforms
+// Named filename transforms referenced by preset `transform` strings.
+const SourceTransforms = {
+	kebabcase: (name) => `${name}`.replaceAll("_", "-").replaceAll(" ", "-"),
+	suffixOutline: (name) =>
+		name.endsWith("-outline") ? name : `${name}-outline`,
+	stripFill: (name) => (name.endsWith("-fill") ? name.slice(0, -5) : name),
+};
+
 // Constant: IconSources
-// Built-in source presets for common icon packs.
+// Built-in source presets. Each URL is pinned so the browser can cache the
+// SVG forever. Unknown names do not fall back to a collection download.
 const IconSources = {
-	devicons: {
-		size: [32, 32],
+	lucide: {
+		url: `https://cdn.jsdelivr.net/npm/lucide-static@1.47.0/icons/${ICON_NAME}.svg`,
+		size: [24, 24],
+	},
+	iconoir: {
+		url: `https://cdn.jsdelivr.net/npm/iconoir@7.12.1/icons/regular/${ICON_NAME}.svg`,
+		size: [24, 24],
+	},
+	"eva-outline": {
+		url: `https://cdn.jsdelivr.net/npm/eva-icons@1.1.3/outline/svg/${ICON_NAME}.svg`,
+		transform: "suffixOutline",
+		size: [24, 24],
+		style: FillStyle,
+	},
+	eva: "eva-outline",
+	tabler: {
+		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.47.0/icons/outline/${ICON_NAME}.svg`,
+		size: [24, 24],
+	},
+	"iconoir-solid": {
+		url: `https://cdn.jsdelivr.net/npm/iconoir@7.12.1/icons/solid/${ICON_NAME}.svg`,
+		size: [24, 24],
+	},
+	"eva-fill": {
+		url: `https://cdn.jsdelivr.net/npm/eva-icons@1.1.3/fill/svg/${ICON_NAME}.svg`,
+		transform: "stripFill",
+		size: [24, 24],
+		style: FillStyle,
+	},
+	"tabler-filled": {
+		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.47.0/icons/filled/${ICON_NAME}.svg`,
+		size: [24, 24],
+	},
+	mdi: {
+		url: `https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg/${ICON_NAME}.svg`,
+		size: [24, 24],
+		style: FillStyle,
 	},
 };
 
@@ -140,12 +193,70 @@ function parseIconName(name, source) {
 	];
 }
 
+// Function: sourceKey
+// Stable id fragment for a source string or a one-off source object.
+function sourceKey(source) {
+	return typeof source === "string" ? source : `${source ?? "custom"}`;
+}
+
 // Function: sourceOptions
-// Resolves named source overrides while preserving generic collection defaults.
-function sourceOptions(source) {
-	return source && typeof source === "object"
-		? source
-		: Object.assign({}, IconDefaults, IconSources[source]);
+// Resolves a source string to a preset, following string aliases. Object
+// sources are returned as-is. Unknown names return `undefined` so the loader
+// does not fetch a collection.
+function sourceOptions(source, seen = new Set()) {
+	if (source && typeof source === "object") {
+		return source;
+	}
+	if (typeof source !== "string" || !source || seen.has(source)) {
+		return;
+	}
+	seen.add(source);
+	const preset = IconSources[source];
+	if (!preset) {
+		return;
+	}
+	return typeof preset === "string" ? sourceOptions(preset, seen) : preset;
+}
+
+// Function: resolveFileName
+// Applies a preset filename transform. Iconify collections keep the requested
+// name so alias resolution can still find it.
+function resolveFileName(name, options) {
+	const transform = options?.transform;
+	if (!transform || options.format === "iconify") {
+		return name;
+	}
+	const fn =
+		typeof transform === "function" ? transform : SourceTransforms[transform];
+	return fn ? fn(name) : name;
+}
+
+// Function: paintStyle
+// Merges default, preset, and per-call paint. `color` themes `currentColor`
+// icons; fill presets override inherited black.
+function paintStyle(source, options, extra) {
+	return Object.assign(
+		{},
+		IconDefaults.style,
+		options?.style,
+		source && typeof source === "object" ? source.style : undefined,
+		extra,
+	);
+}
+
+// Function: register
+// Adds `sources` to the shared preset map.
+function register(sources) {
+	if (!sources || typeof sources !== "object") {
+		return IconSources;
+	}
+	for (const key of Object.keys(sources)) {
+		if (key === "__proto__" || key === "constructor" || key === "prototype") {
+			continue;
+		}
+		IconSources[key] = sources[key];
+	}
+	return IconSources;
 }
 
 // Function: iconifyIcon
@@ -304,10 +415,21 @@ function load(
 ) {
 	[name, source] = parseIconName(name, source);
 	const options = sourceOptions(source);
-	const url = (options.url || IconDefaults.url)
-		.replace(ICON_NAME, name)
-		.replace(ICON_SOURCE, source);
-	const cacheKey = options.format === "iconify" ? `${url}#${name}` : url;
+	if (!options?.url) {
+		log.warn("icons.load: unknown icon source, details", { name, source });
+		return Promise.resolve();
+	}
+	const format = options.format || "svg";
+	const fileName = resolveFileName(name, options);
+	if (!fileName) {
+		log.warn("icons.load: icon is not in source, details", { name, source });
+		return Promise.resolve();
+	}
+	const url = options.url
+		.replace(ICON_NAME, fileName)
+		.replace(ICON_SOURCE, typeof source === "string" ? source : "");
+	const id = `icon-${name}-${sourceKey(source)}`;
+	const cacheKey = format === "iconify" ? `${url}#${name}` : `${url}#${id}`;
 	const entry = cache.get(cacheKey);
 	if (entry?.status === "pending") {
 		return entry.promise;
@@ -323,7 +445,7 @@ function load(
 			"http://www.w3.org/2000/svg",
 			"symbol",
 		);
-		symbol.id = `icon-${name}-${source}`;
+		symbol.id = id;
 		container.appendChild(symbol);
 		const attempts = (entry?.attempts || 0) + 1;
 		let collections = CollectionCaches.get(cache);
@@ -333,7 +455,7 @@ function load(
 		}
 		const collection = collections.get(url);
 		const request =
-			options.format === "iconify" && collection
+			format === "iconify" && collection
 				? collection
 				: fetch(url).then((response) => {
 						if (response.ok === false) {
@@ -341,18 +463,14 @@ function load(
 								`Icon request failed with status ${response.status}`,
 							);
 						}
-						return options.format === "iconify"
-							? response.json()
-							: response.text();
+						return format === "iconify" ? response.json() : response.text();
 					});
-		if (options.format === "iconify" && !collection) {
+		if (format === "iconify" && !collection) {
 			collections.set(url, request);
 			request.catch(() => collections.delete(url));
 		}
 		const res = request
-			.then((data) =>
-				options.format === "iconify" ? iconifySvg(data, name) : data,
-			)
+			.then((data) => (format === "iconify" ? iconifySvg(data, name) : data))
 			.then((text) => {
 				const icon = sanitizeSvgMarkup(text, name);
 				if (icon) {
@@ -364,7 +482,7 @@ function load(
 						text,
 					});
 				}
-				for (const [k, v] of Object.entries(source?.style ?? {})) {
+				for (const [k, v] of Object.entries(paintStyle(source, options))) {
 					if (icon && isSafeSvgAttribute(k, `${v}`)) {
 						icon.setAttribute(k, `${v}`);
 					}
@@ -409,7 +527,8 @@ function icon(
 		style = {},
 	},
 ) {
-	style = Object.assign({}, IconDefaults.style, source?.style, style);
+	const [parsedName, parsedSource] = parseIconName(name, source);
+	style = paintStyle(parsedSource, sourceOptions(parsedSource), style);
 	const node = Object.entries({ width: size, height: size }).reduce(
 		(r, [k, v], i) => {
 			r.setAttribute(k, Array.isArray(v) ? v[i] : v);
@@ -481,7 +600,10 @@ function icon(
 				node.classList.add(_);
 			});
 			Object.assign(node.style, style);
-			use.setAttribute("href", `#icon-${name}-${source}`);
+			use.setAttribute(
+				"href",
+				`#icon-${parsedName}-${sourceKey(parsedSource)}`,
+			);
 			node.appendChild(use);
 			return node;
 		}
@@ -562,7 +684,11 @@ class IconElement extends HTMLElement {
 // Registers the icon custom element under `name` and applies `options` to the
 // shared icon defaults.
 function install(name = "ui-icon", options = {}) {
-	Object.assign(IconDefaults, options);
+	const { sources, ...rest } = options;
+	if (sources) {
+		register(sources);
+	}
+	Object.assign(IconDefaults, rest);
 	// Register the custom element
 	if (!customElements.get(name)) {
 		// The custom-elements registry does not allow the same constructor under
@@ -573,10 +699,11 @@ function install(name = "ui-icon", options = {}) {
 	}
 }
 
-export { Cache, IconContainer, IconSources, icon, install, load };
+export { Cache, IconContainer, IconSources, icon, install, load, register };
 export default Object.assign(icon, {
 	load,
 	install,
+	register,
 	container: IconContainer,
 	sources: IconSources,
 });

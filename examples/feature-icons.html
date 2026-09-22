@@ -3,7 +3,7 @@
 
 <head>
 	<meta charset="utf-8" />
-	<title>Select Icons — CDN + Catalog Sources</title>
+	<title>Select Icons — pinned presets</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<script type="importmap">
 		{"imports": {"@./": "../src/js/select/" } }
@@ -109,8 +109,8 @@
 </head>
 
 <body>
-		<h1>Icons: jsDelivr collections</h1>
-		<p class="muted">This example demonstrates live icon updates powered by <code>ui(...)</code> and <code>cell(...)</code>, using jsDelivr sources only.</p>
+		<h1>Icons: pinned presets</h1>
+		<p class="muted">This example demonstrates live icon updates powered by <code>ui(...)</code> and <code>cell(...)</code>. Each icon is one SVG from a pinned jsDelivr package.</p>
 
 	<div id="ui"></div>
 
@@ -123,9 +123,9 @@
 						Icon family (source)
 						<select out:value="source" on:change="setSource">
 							<option value="lucide">lucide</option>
+							<option value="iconoir">iconoir</option>
+							<option value="eva">eva</option>
 							<option value="tabler">tabler</option>
-							<option value="mdi">mdi</option>
-							<option value="material-symbols">material-symbols</option>
 						</select>
 					</label>
 					<label>
@@ -157,7 +157,7 @@
 						<ui-icon out:icon="qualified" out:size="size"></ui-icon>
 						<span out="qualified"></span>
 					</div>
-					<div class="muted">No explicit <code>sources</code> passed. Collections are fetched from CDN.</div>
+					<div class="muted">No explicit <code>sources</code> passed. Each icon is fetched as its own SVG.</div>
 				</article>
 
 			</section>
@@ -167,8 +167,8 @@
 				<div class="swatches">
 					<button type="button" on:click="pickSparkles">lucide:sparkles</button>
 					<button type="button" on:click="pickAlien">tabler:alien</button>
-					<button type="button" on:click="pickAccount">mdi:account</button>
-					<button type="button" on:click="pickSchedule">material-symbols:schedule</button>
+					<button type="button" on:click="pickHome">iconoir:home</button>
+					<button type="button" on:click="pickHeart">eva:heart</button>
 				</div>
 			</section>
 		</div>
@@ -215,13 +215,13 @@
 				source.set("tabler")
 				name.set("alien")
 			},
-			pickAccount: (_self, { source, name }) => {
-				source.set("mdi")
-				name.set("account")
+			pickHome: (_self, { source, name }) => {
+				source.set("iconoir")
+				name.set("home")
 			},
-			pickSchedule: (_self, { source, name }) => {
-				source.set("material-symbols")
-				name.set("schedule")
+			pickHeart: (_self, { source, name }) => {
+				source.set("eva")
+				name.set("heart")
 			},
 		})
 
