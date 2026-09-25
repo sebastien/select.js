@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Document Properties Render Benchmark</title>
+	<link rel="stylesheet" href="../../src/css/ui.css" type="text/css" media="all" />
+	<style>
+		body { padding: 1rem; }
+		#BenchmarkRoot { width: min(24rem, 100%); }
+		pre { white-space: pre-wrap; }
+	</style>
+</head>
+
+<body>
+	<h1 class="h4">Document Properties Render Benchmark</h1>
+	<p class="small dim">Measures a fresh mount of a representative selected-document properties panel, including one animation frame for DOM rendering.</p>
+	<div id="BenchmarkRoot"></div>
+	<pre id="Output">Loading…</pre>
+
+	<script type="module" src="./benchmark.js"></script>
+</body>
+
+</html>

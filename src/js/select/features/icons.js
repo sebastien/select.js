@@ -735,6 +735,9 @@ function icon(
 	switch (mode) {
 		// We support an inline mode, which is necessary for web components.
 		case "inline":
+			// A baseline-aligned SVG adds descent space to its line box. That makes
+			// the glyph sit high when its host is centered in a flex or grid row.
+			node.style.display = "block";
 			Object.assign(node.style, style);
 			classes.forEach((_) => {
 				node.classList.add(_);

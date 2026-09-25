@@ -96,6 +96,17 @@ describe("icons.load", () => {
 		expect(customElements.get(firstName)).not.toBe(customElements.get(secondName))
 	})
 
+	test("renders inline icon SVGs as blocks to avoid baseline spacing", async () => {
+		const name = "ui-icon-test-alignment"
+		install(name)
+		const element = document.createElement(name)
+		element.setAttribute("icon", "home")
+		document.body.appendChild(element)
+		await load("home", "lucide")
+
+		expect(element.shadowRoot.querySelector("svg").style.display).toBe("block")
+	})
+
 	test("loads built-in families as individual SVGs", async () => {
 		const cache = new Map()
 		const container = makeContainer()
