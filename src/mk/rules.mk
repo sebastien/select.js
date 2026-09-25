@@ -90,6 +90,24 @@ update-icons:
 	ICON_PIN_FILES="$(ICON_PIN_FILES)" $(CMD) node --input-type=module -e "$$ICONS_SCRIPT"
 	$(call rule_post_cmd)
 
+# Regenerates the HTML snapshots in tests/fixtures/examples used by
+# tests/int-examples.test.ts. Run it after any change to rendered output
+# (markup, attributes, styles) and review the fixture diff before committing:
+# the fixtures encode the expected rendering. Builds `dist` first so the src
+# and dist bundle passes record the same output. Use `EXAMPLE=<name>` to
+# regenerate a single example's fixtures.
+.PHONY: update-fixtures
+update-fixtures: dist ## Regenerates examples integration fixtures (EXAMPLE=<name> for one example)
+	@$(call rule_pre_cmd)
+	@if [ -n "$(EXAMPLE)" ]; then \
+		echo "[FIXTURES] updating fixtures for example: $(EXAMPLE)"; \
+		UPDATE_FIXTURES=1 $(CMD) bun test tests/int-examples.test.ts -t "$(EXAMPLE)"; \
+	else \
+		echo "[FIXTURES] updating all example fixtures"; \
+		UPDATE_FIXTURES=1 $(CMD) bun test tests/int-examples.test.ts; \
+	fi
+	$(call rule_post_cmd)
+
 # Node program shared by `metrics` and `metrics-report`. In `record` mode it
 # reads the inspector benchmark report and the Bun lcov file, then stores the
 # performance vs SolidJS and the test coverage on the given commit with git-kv

@@ -84,6 +84,31 @@ describe("ui detached mapped values", () => {
 		window.close?.();
 	});
 
+	test("remounts detached simple scalar content on a scalar update", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { ui } = await import("../src/js/select/ui/index.js");
+
+		document.body.innerHTML = `
+			<div id="app"></div>
+			<template id="DetachedSimpleScalarRepro">
+				<pre out="content"></pre>
+			</template>
+		`;
+
+		const Repro = ui("DetachedSimpleScalarRepro");
+		const instance = Repro.new().set({ content: "alpha" }).mount("#app");
+		const pre = document.querySelector("#app pre");
+		pre?.firstChild?.parentNode?.removeChild(pre.firstChild);
+
+		instance.update({ content: "beta" });
+		expect(pre?.textContent).toBe("beta");
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
 	test("replaces detached list items in place instead of appending", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);

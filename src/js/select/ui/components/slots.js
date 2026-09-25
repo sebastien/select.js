@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
-// Updated: 2026-06-13
+// Updated: 2026-09-26
 
 // Module: select/ui/components/slots
 // Template slot descriptors and mounted slot renderers.
@@ -843,7 +843,9 @@ class UIEventSlot {
 // - `parent`: UIInstance - owning component
 // - `node`: Node - the slot container node
 // - `isInput`: boolean - true if node is an input element
-// - `mapping`: Map - current rendered content by key
+// - `mapping`: Map? - current rendered content by key (created for collections)
+// - `_simple`: boolean - whether the slot is on its scalar rendering fast path
+// - `_simpleText`: Text? - scalar text node retained by the fast path
 // - `placeholder`: Array<Node>? - original child nodes for fallback
 // - `_extractedSlots`: Object? - cached named slot content
 // - `_hasNamedSlotContent`: boolean? - cache for slot detection
@@ -856,6 +858,13 @@ class UISlot {
 		this.parent = parent;
 		this.node = node;
 		this.replaceNode = template.replaceNode === true;
+		// Leaf output nodes overwhelmingly receive scalar text or form values.
+		// Defer list bookkeeping until a non-scalar value actually needs it.
+		this._simple =
+			!this.replaceNode &&
+			!template.predicate &&
+			(!node.childNodes || node.childNodes.length === 0);
+		this._simpleText = null;
 		this.predicateVisible = true;
 		this.replaceNodeMerge = null;
 		this._replaceRef = null;
@@ -913,7 +922,7 @@ class UISlot {
 			p.removeChild(this.node);
 		}
 		this.isInput = isInputNode(node);
-		this.mapping = new Map();
+		this.mapping = this._simple ? null : new Map();
 		this.placeholder =
 			node.childNodes && node.childNodes.length > 0
 				? [...node.childNodes]
@@ -1093,6 +1102,9 @@ class UISlot {
 	}
 
 	_clearMapped() {
+		if (!this.mapping) {
+			return;
+		}
 		for (const v of this.mapping.values()) {
 			this._removeMappedValue(v);
 		}
@@ -1653,6 +1665,24 @@ class UISlot {
 
 	// Renders `data` into this slot. Handles lists, dicts, templates, and scalars.
 	render(data) {
+		if (this._simple) {
+			if (data === null || data === undefined || typeof data !== "object") {
+				const text = asText(data);
+				if (this.isInput) {
+					setNodeText(this.node, text);
+				} else if (this._simpleText?.parentNode === this.node) {
+					setNodeText(this._simpleText, text);
+				} else {
+					this._simpleText = document.createTextNode(text);
+					this.node.appendChild(this._simpleText);
+				}
+				return;
+			}
+			this._simple = false;
+			this._simpleText?.parentNode?.removeChild(this._simpleText);
+			this._simpleText = null;
+			this.mapping = new Map();
+		}
 		const isList = Array.isArray(data);
 		const isDict =
 			!isList &&

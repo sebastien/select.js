@@ -19,7 +19,7 @@ select.js  (the library)
 ├── fastdom.js      → Batched DOM reads/writes scheduler (~160 lines)
 ├── workflows.js    → Generator-based workflow runner with caching/retries (~600 lines)
 ├── ui/             → Template engine + UI component runtime (~4800 lines across 7 files)
-├── interaction/    → Drag/drop, sort, keyboard, placement helpers (~1100 lines across 5 files)
+├── interaction/    → Drag/drop, sort, keyboard, sortable/positioning helpers (~2600 lines across 9 files)
 ├── utils/          → General-purpose utility library (~5000+ lines across 17 files)
 └── index.js        → Aggregation barrel (~48 lines)
 Dependency Hierarchy
@@ -122,7 +122,7 @@ workflows.js (602 lines): Generator-based async workflow runner. Features TTL ca
 icons.js (508 lines): SVG icon loader with security-focused sanitization. Supports multiple icon packs, inline and reference rendering modes, custom element integration.
 fastdom.js (164 lines): Batched DOM read/write scheduler following the FastDOM pattern to reduce layout thrashing.
 formats.js (560 lines): String formatters for dates, numbers, currency, durations with a pluggable registry (FORMATS object).
-interaction/ (~1100 lines): Drag-and-drop, sortable lists, keyboard helpers, and placement algorithms. All mouse-based.
+interaction/ (~2600 lines across 9 files): Drag-and-drop, sortable lists (sortable.js slot resolution), keyboard helpers, and anchoring geometry (positioning.js) with non-DOM rectangle snapping (snappable.js). All mouse-based.
 3. Patterns and Anti-patterns
 Strengths ✅
 1. Clean module boundaries: Each file has a clear purpose and well-defined exports. The ~17 utility submodules are granular and individually small-to-medium sized.

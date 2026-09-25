@@ -1,1 +1,2 @@
 tests/data/benchmark-*.json
+.memo/memory/all

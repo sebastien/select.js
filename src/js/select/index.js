@@ -23,7 +23,6 @@ export { debug, FORMATS, format } from "./features/formats.js";
 export * from "./features/icons.catalog.js";
 export * from "./features/icons.js";
 export * from "./features/interaction/index.js";
-export * from "./features/interaction/snappable.js";
 export * from "./state/browser.js";
 export * from "./state/cells.js";
 export { expand } from "./state/cells.js";

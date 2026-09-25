@@ -2,13 +2,14 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-08-31
+// Updated: 2026-09-26
 
 // Module: select/ui/eval
 // DOM-free binding evaluation: paths, processors, when, template tokens.
 
 import { FORMATS } from "../features/formats.js";
 import { unwrap } from "../state/cells.js";
-import { expand, isPascalCase } from "../utils/index.js";
+import { expand, isPascalCase, isReactive } from "../utils/index.js";
 import { logger } from "../utils/logger.js";
 import { TemplateParser } from "./bindings.js";
 
@@ -558,13 +559,171 @@ function evaluateWhenComparison(left, operator, right) {
 	}
 }
 
+function resolveBehaviorOrData(self, data, key) {
+	const behavior = self?.template?.behavior?.[key];
+	if (typeof behavior === "function") {
+		return behavior(self, data);
+	}
+	return resolveExpandedSourceValue(data, key, self);
+}
+
+// Function: evaluateParsedOut
+// Evaluates a parsed `out` attribute binding (from
+// `TemplateParser.ParseOutAttributeBinding`) against `self` and `data`.
+// Supports the `binding`, `comparison` and `template` modes.
+function evaluateParsedOut(self, data, parsed) {
+	if (!parsed) {
+		return undefined;
+	}
+	if (parsed.mode === "template") {
+		return resolveTemplateTokens(self, parsed.template?.tokens, data);
+	}
+	if (parsed.mode === "comparison") {
+		const left = applyNamedProcessors(
+			self,
+			data,
+			resolveBindingValue(data, parsed.binding, true, self),
+			parsed.binding?.processors,
+			parsed.binding?.sourceKey,
+		);
+		return evaluateWhenComparison(left, parsed.operator, parsed.value);
+	}
+	const binding = parsed.binding;
+	if (!binding) {
+		return undefined;
+	}
+	let value;
+	if (
+		binding.sourceKey &&
+		!binding.sourceMap &&
+		!`${binding.sourceKey}`.includes(".")
+	) {
+		value = resolveBehaviorOrData(self, data, binding.sourceKey);
+	} else {
+		value = resolveBindingValue(data, binding, true, self);
+		const key = binding.sourceKey;
+		if (
+			key &&
+			!binding.sourceMap &&
+			typeof self?.template?.behavior?.[key] === "function"
+		) {
+			value = self.template.behavior[key](self, data);
+		}
+	}
+	if (
+		(value === undefined || value === null) &&
+		binding.defaultValue !== undefined
+	) {
+		value = binding.defaultValue;
+	}
+	return finalizeRenderProcessorValue(
+		applyNamedProcessors(
+			self,
+			data,
+			value,
+			binding.processors,
+			binding.sourceKey,
+		),
+	);
+}
+
+function collectWhenLeaves(parsed, leaves) {
+	if (parsed?.clauses?.length) {
+		for (let i = 0; i < parsed.clauses.length; i++) {
+			collectWhenLeaves(parsed.clauses[i], leaves);
+		}
+		return;
+	}
+	if (parsed) {
+		leaves.push(parsed);
+	}
+}
+
+// Function: inferWhenKeys
+// Fills missing `when` clause keys using the first keyed `out` binding found
+// in `outs`, so that `<text when out="slot">` infers `when="slot"`.
+function inferWhenKeys(parsed, outs) {
+	const leaves = [];
+	collectWhenLeaves(parsed, leaves);
+	let inferred = null;
+	for (let i = 0; i < outs.length; i++) {
+		const binding = outs[i].parsed?.binding;
+		if (binding?.sourceKey && !binding.sourceMap?.length) {
+			inferred = binding.sourceKey;
+			break;
+		}
+	}
+	for (let i = 0; i < leaves.length; i++) {
+		if (!leaves[i].key) {
+			leaves[i].key = inferred;
+		}
+	}
+	return parsed;
+}
+
+// Function: writeDataPath
+// Writes `value` at `path` in `self.data`, assigning through reactive
+// intermediates (cells) found along the way instead of replacing them.
+function writeDataPath(self, path, value) {
+	if (!path?.length) {
+		return;
+	}
+	if (!self.data || typeof self.data !== "object") {
+		self.data = {};
+	}
+	if (path.length === 1) {
+		const current = self.data[path[0]];
+		if (isReactive(current)) {
+			current.set(value);
+			return;
+		}
+		self.data[path[0]] = value;
+		return;
+	}
+	let cursor = self.data;
+	for (let i = 0; i < path.length - 1; i++) {
+		const key = path[i];
+		const next = isReactive(cursor) ? cursor.value?.[key] : cursor[key];
+		if (next === undefined || next === null || typeof next !== "object") {
+			if (isReactive(cursor)) {
+				return;
+			}
+			cursor[key] = {};
+			cursor = cursor[key];
+			continue;
+		}
+		cursor = next;
+		if (isReactive(cursor) && i === path.length - 2) {
+			cursor.set(value, [path[path.length - 1]]);
+			return;
+		}
+		if (isReactive(cursor)) {
+			cursor = cursor.value;
+		}
+	}
+	const last = path[path.length - 1];
+	if (isReactive(cursor)) {
+		cursor.set(value, [last]);
+		return;
+	}
+	const leaf = cursor[last];
+	if (isReactive(leaf)) {
+		leaf.set(value);
+		return;
+	}
+	cursor[last] = value;
+}
+
 export {
 	applyNamedProcessors,
 	createWhenPredicate,
+	evaluateParsedOut,
 	evaluateWhen,
 	evaluateWhenComparison,
 	finalizeRenderProcessorValue,
 	formatBindingSource,
+	inferWhenKeys,
+	isReactive,
 	resolveBindingValue,
 	resolveDataPath,
 	resolveExpandedSourceValue,
@@ -572,6 +731,7 @@ export {
 	resolveRenderableValue,
 	resolveSourceValue,
 	resolveTemplateTokens,
+	writeDataPath,
 };
 
 // EOF

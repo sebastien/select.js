@@ -1,8 +1,8 @@
 # Select Interaction Reference
 
 `@select/features/interaction/index.js` provides small DOM interaction helpers for event binding,
-mouse dragging, keyboard handling, draggable drop targets, sortable lists,
-sortable placement, panel positioning, and popup sessions.
+mouse dragging, keyboard handling, draggable drop targets, sortable list
+slotting, panel positioning, and popup sessions.
 
 ## Importing
 
@@ -22,7 +22,7 @@ import {
 The default export is an object containing the same grouped helpers:
 `interaction.core`, `interaction.drag`, `interaction.draggable`,
 `interaction.keyboard`, `interaction.Keyboard`, `interaction.autoresize`,
-`interaction.placement`, `interaction.popup`, `interaction.positioning`,
+`interaction.sortable`, `interaction.popup`, `interaction.positioning`,
 and `interaction.sort`.
 
 ## Core Helpers
@@ -232,8 +232,8 @@ Default selectors and options:
 
 The draggable options `overlay`, `dragPreview`, `sourceClass`, `previewClass`,
 `effectPreviewClass`, `accept`, `dropPreview`, `preview`, `drop`, `onMove`, `onDrop`, and
-`onCancel` are also supported. `axis` selects the placement strategy: `y`
-uses linear vertical placement; any other value uses grid placement. The
+`onCancel` are also supported. `axis` selects the slot strategy: `y`
+uses linear vertical slotting; any other value uses grid slotting. The
 element's `data-axis` value overrides the default.
 
 ```html
@@ -282,26 +282,26 @@ sort(event, {
 })
 ```
 
-## Placement Helpers
+## Sortable Slot Helpers
 
-The default `placement` export provides the lower-level algorithms used by
+The default `sortable` export provides the lower-level algorithms used by
 `sort`.
 
-### `placement.measure(listNode, context)`
+### `sortable.measure(listNode, context)`
 
 Returns measured sortable items as `{ node, index, box }`. The source and
 placeholder are excluded from the result while measurements are taken.
 
-### `placement.linear(items, x, y)`
+### `sortable.linear(items, x, y)`
 
-Returns a placement `{ index, row, col }` based on vertical item centers.
+Returns a slot `{ index, row, col }` based on vertical item centers.
 
-### `placement.grid(items, x, y, context)`
+### `sortable.grid(items, x, y, context)`
 
-Groups measured items into rows and resolves a two-dimensional placement from
+Groups measured items into rows and resolves a two-dimensional slot from
 the pointer position and recent pointer motion.
 
-### `placement.apply(placeholder, listNode, index, context)`
+### `sortable.apply(placeholder, listNode, index, context)`
 
 Inserts `placeholder` before the item at `index`, or appends it when the index
 is past the final item. Returns `true` when the DOM position changes and

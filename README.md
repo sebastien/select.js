@@ -117,7 +117,7 @@ import ui from "@select/ui"
 - `icon(name, source?, options?)`, `install(...)`, `load(...)`: icon registry helpers from `select/features/icons.js`.
 - `len`, `type`, `remap`: shared utility helpers from `select/ui`.
 - `clsx`, `shortword`, `sorted`, `unique`: shared helpers from `select/utils` and `select/utils/*.js`.
-- `bind`, `drag`, `draggable`, `sort`, `popup`, `autoresize`, `Keyboard`: interaction helpers from `select/features/interaction/index.js`. `draggable(event, options?)` uses `[data-draggable]` sources and `[data-drop-target]` targets, appending a clone by default; `data-drop-accept` and `accept(...)` control acceptance, while `preview(...)` and `drop(...)` customize the two effect stages. `sort(event, options?)` provides list placement and moves the original item by default. `popup(panel, trigger, options?)` portals a panel, keeps it in the viewport, and supports underlay click and Escape to close.
+- `bind`, `drag`, `draggable`, `sort`, `popup`, `autoresize`, `Keyboard`: interaction helpers from `select/features/interaction/index.js`. `draggable(event, options?)` uses `[data-draggable]` sources and `[data-drop-target]` targets, appending a clone by default; `data-drop-accept` and `accept(...)` control acceptance, while `preview(...)` and `drop(...)` customize the two effect stages. `sort(event, options?)` provides sortable list slotting and moves the original item by default. `popup(panel, trigger, options?)` portals a panel, keeps it in the viewport, and supports underlay click and Escape to close.
 - `fastdom`: batched DOM read/write helper.
 
 ### Modules

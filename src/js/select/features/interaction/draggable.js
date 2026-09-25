@@ -2,6 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-07-11
+// Updated: 2026-09-26
 
 // Module: select/features/interaction/draggable
 // Mouse drag, drop, and sort interaction helpers. Draggable interactions use
@@ -9,7 +10,7 @@
 
 import { attributeTarget, target } from "./core.js";
 import drag from "./drag.js";
-import placement from "./placement.js";
+import sortable from "./sortable.js";
 
 // Function: draggabletarget
 // Walks up from `node` to find a draggable source, optionally matching `name`.
@@ -468,7 +469,7 @@ function updateSort(session, event) {
 		target,
 		listNode,
 		listId: listId(listNode, session.options),
-		...sortPlacement(listNode, event.clientX, event.clientY, session),
+		...sortSlot(listNode, event.clientX, event.clientY, session),
 		event,
 	};
 	if (!accepts(listNode, session.source, session.options, proposal, session)) {
@@ -485,7 +486,7 @@ function updateSort(session, event) {
 		session.proposal = undefined;
 		return;
 	}
-	placement.apply(
+	sortable.apply(
 		session.placeholder,
 		proposal.listNode,
 		proposal.index,
@@ -505,7 +506,7 @@ function finishSort(session, event) {
 		clearSortSession(session);
 		session.options.drop(current, state(session, event));
 	} else {
-		placement.apply(
+		sortable.apply(
 			session.sourceNode,
 			current.listNode,
 			current.index,
@@ -523,12 +524,12 @@ function clearSortSession(session) {
 	session.sourceNode.classList.remove(session.options.sourceHiddenClass);
 }
 
-function sortPlacement(listNode, x, y, session) {
-	const items = placement.measure(listNode, session);
+function sortSlot(listNode, x, y, session) {
+	const items = sortable.measure(listNode, session);
 	if (items.length === 0) return { index: 0, row: 0, col: 0 };
 	return axis(listNode, session.options) === "y"
-		? placement.linear(items, x, y, session)
-		: placement.grid(items, x, y, session);
+		? sortable.linear(items, x, y, session)
+		: sortable.grid(items, x, y, session);
 }
 
 function placeholderProposal(session, proposal) {

@@ -2,11 +2,12 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-16
-// Updated: 2026-06-16
+// Updated: 2026-09-26
 
-// Module: select/features/interaction/placement
-// Sortable placement helpers for measurement, slot resolution, and placeholder
-// application.
+// Module: select/features/interaction/sortable
+// Sortable list slot resolution: measures list items, resolves the drop slot
+// `{ index, row, col }` for a pointer position, and applies a placeholder or
+// source node at the resolved index. See `positioning` for panel anchoring.
 
 function match(node, selector) {
 	if (typeof selector === "function") {
@@ -166,7 +167,7 @@ function linear(items, _x, y) {
 function grid(items, x, y, context) {
 	const grouped = rows(items);
 	const centers = cols(grouped);
-	const current = row(grouped, y, context.pointer, context.placement);
+	const current = row(grouped, y, context.pointer, context.proposal);
 	return slot(current, x, centers);
 }
 
@@ -197,9 +198,9 @@ function apply(placeholder, listNode, index, context) {
 	return true;
 }
 
-const placement = { measure, linear, grid, apply };
+const sortable = { measure, linear, grid, apply };
 
-export { apply, grid, linear, measure, placement };
-export default placement;
+export { sortable };
+export default sortable;
 
 // EOF
