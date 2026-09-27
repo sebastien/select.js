@@ -2,15 +2,17 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
-// Updated: 2026-06-13
+// Updated: 2026-10-01
 
 // Module: select/ui/components/template
 // Reusable UI template class and template mapping helpers.
 
+import { unwrap } from "../../state/cells.js";
 import { remap as remapCollection } from "../../utils/transform.js";
 import { TemplateParser } from "../bindings.js";
 import { UIInstance } from "./instance.js";
 import { AppliedUITemplate } from "./model.js";
+import { isReactiveData } from "./reactive.js";
 import { UITemplateSlot } from "./slots.js";
 
 // Creates a data bag that is safe for a rendered instance to retain. This
@@ -184,6 +186,8 @@ class UITemplate {
 	// stored as `$key` in the produced data for efficient list reconciliation.
 	//
 	// Component.map(data, processor?, key?)
+	// - data: a collection, or a reactive cell/derived holding one; reactive
+	//   values are resolved to their current value before mapping.
 	// - processor: (value, indexOrKey) => dataForItem
 	// - key: string (e.g. "id" or ".id") or (value, indexOrKey) => keyValue
 	//
@@ -198,6 +202,11 @@ class UITemplate {
 	// contains a `$key` property, that value is used as the stable collection key
 	// for reuse even if no explicit `key` selector is passed.
 	map(data, processor, key) {
+		// Accept a reactive collection directly (cell/derived) and resolve it
+		// to its current value before mapping.
+		if (isReactiveData(data)) {
+			data = unwrap(data);
+		}
 		if (processor == null && key == null) {
 			return remapCollection(
 				data,

@@ -308,7 +308,24 @@ function attachEvents(UIInstance) {
 	});
 }
 
-function bridgeProjectedEvent(_instance, event, domEvent) {
+// Function: ownsProjectedNode
+// Whether `node` belongs to a subtree an instance rendered. Projected content
+// is authored by the publishing instance, so only that instance (or an
+// ancestor that rendered it) may reroute its event into the hosting web
+// component. An unrelated instance — for example a document-level overlay —
+// must keep handling its own events even when their target happens to sit in
+// another component's slot.
+function ownsProjectedNode(instance, node) {
+	const roots = instance?.nodes;
+	if (!roots || !node) return false;
+	for (let i = 0; i < roots.length; i++) {
+		const root = roots[i];
+		if (root === node || root?.contains?.(node)) return true;
+	}
+	return false;
+}
+
+function bridgeProjectedEvent(instance, event, domEvent) {
 	const target = domEvent?.target;
 	if (!target) return false;
 	let assigned = target.assignedSlot ? target : undefined;
@@ -341,6 +358,7 @@ function bridgeProjectedEvent(_instance, event, domEvent) {
 		}
 	}
 	if (!host || !assigned?.dispatchEvent) return false;
+	if (!ownsProjectedNode(instance, assigned)) return false;
 	assigned.dispatchEvent(
 		new CustomEvent("select:pub", {
 			bubbles: true,

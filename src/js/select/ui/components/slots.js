@@ -2,11 +2,12 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
-// Updated: 2026-09-26
+// Updated: 2026-10-01
 
 // Module: select/ui/components/slots
 // Template slot descriptors and mounted slot renderers.
 
+import { classTokens } from "../../utils/dom.js";
 import { asText, eq } from "../../utils/index.js";
 import { TemplateParser } from "../bindings.js";
 import { createWhenPredicate } from "../eval.js";
@@ -643,9 +644,8 @@ class UIAttributeSlot {
 			if (value == null) return;
 			if (typeof value === "boolean") return;
 			if (typeof value === "string") {
-				const parts = value.trim().split(/\s+/);
-				for (const part of parts) {
-					if (part) classes.push(part);
+				for (const part of classTokens(value)) {
+					classes.push(part);
 				}
 				return;
 			}
@@ -658,9 +658,8 @@ class UIAttributeSlot {
 			if (typeof value === "object") {
 				for (const [cls, enabled] of Object.entries(value)) {
 					if (enabled && cls && typeof cls === "string") {
-						const parts = cls.trim().split(/\s+/);
-						for (const part of parts) {
-							if (part) classes.push(part);
+						for (const part of classTokens(cls)) {
+							classes.push(part);
 						}
 					}
 				}

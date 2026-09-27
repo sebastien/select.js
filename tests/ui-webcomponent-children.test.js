@@ -281,6 +281,60 @@ describe("ui webcomponent projected children", () => {
 		window.close?.();
 	});
 
+	test("keeps an unrelated instance's event out of another component's slot", async () => {
+		const window = new Window({
+			url: "http://localhost:8000/webcomponent-unrelated",
+		});
+		setupGlobals(window);
+		const { ui, webcomponent } = await import("../src/js/select/ui/index.js");
+		const events = [];
+
+		const Host = ui(`<div class="host"><slot></slot></div>`).sub({
+			Probe: () => {
+				events.push("host");
+			},
+		});
+		const name = `x-unrelated-probe-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+		webcomponent(name, Host, {});
+
+		const Owner = ui(`
+			<section><${name}><button class="aim">Aim</button></${name}></section>
+		`).sub({
+			Probe: () => {
+				events.push("owner");
+			},
+		});
+		Owner.new().mount(document.body);
+		await flush();
+
+		const Observer = ui(`<div class="observer"></div>`).sub({
+			Probe: () => {
+				events.push("observer");
+			},
+		});
+		const observer = Observer.new().mount(document.body);
+		await flush();
+
+		// A document-level listener publishes on an instance unrelated to the
+		// slot, exactly like the UIA inspector overlay. Its own handlers must
+		// run; the projected target must not reroute the event to the host.
+		const button = document.querySelector("button.aim");
+		const publish = (domEvent) => {
+			observer.pub("Probe", { target: domEvent.target }, true, domEvent);
+		};
+		document.addEventListener("mousedown", publish, true);
+		button.dispatchEvent(
+			new MouseEvent("mousedown", { bubbles: true, composed: true }),
+		);
+		document.removeEventListener("mousedown", publish, true);
+		await flush();
+
+		expect(events).toEqual(["observer"]);
+
+		observer.unmount();
+		window.close?.();
+	});
+
 	test("syncs exposed reactive keys through wc:* events for inout bindings", async () => {
 		const window = new Window({ url: "http://localhost:8000/webcomponent" });
 		setupGlobals(window);
@@ -477,7 +531,9 @@ describe("ui webcomponent projected children", () => {
 		const { ui, webcomponent } = await import("../src/js/select/ui/index.js");
 		const hasAdoptedRule = (root, text) =>
 			Array.from(root.adoptedStyleSheets || []).some((sheet) =>
-				Array.from(sheet.cssRules || []).some((rule) => rule.cssText.includes(text)),
+				Array.from(sheet.cssRules || []).some((rule) =>
+					rule.cssText.includes(text),
+				),
 			);
 		const getShadowStyle = (root, text) =>
 			Array.from(root.querySelectorAll("style")).find((node) =>

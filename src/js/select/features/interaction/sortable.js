@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-16
-// Updated: 2026-09-26
+// Updated: 2026-10-01
 
 // Module: select/features/interaction/sortable
 // Sortable list slot resolution: measures list items, resolves the drop slot
@@ -30,10 +30,9 @@ function items(listNode, context) {
 }
 
 function measure(listNode, context) {
-	const display = context.placeholder.style?.display;
-	if (context.placeholder.style) {
-		context.placeholder.style.display = "none";
-	}
+	const style = context.placeholder?.style;
+	const display = style?.display;
+	if (style) style.display = "none";
 	const nodes = items(listNode, context);
 	const res = [];
 	for (let i = 0; i < nodes.length; i++) {
@@ -43,9 +42,7 @@ function measure(listNode, context) {
 			box: nodes[i].getBoundingClientRect(),
 		});
 	}
-	if (context.placeholder.style) {
-		context.placeholder.style.display = display;
-	}
+	if (style) style.display = display;
 	return res;
 }
 

@@ -708,6 +708,62 @@ describe("ui reactive path updates", () => {
 		window.close?.()
 	})
 
+	test("nested path write must not overwrite a mapped cell's scalar value with the collection entry", async () => {
+		// Reproduction of littleforecast column resize: a shared `columns` cell is
+		// part of each row's data; a path write `[i, "width"]` must re-run the
+		// row's Columns behavior (or leave the cell alone), not merge the column
+		// object into the body cell's scalar `value` presentation field.
+		const window = new Window({ url: "http://localhost:8000/repro" })
+		setupGlobals(window)
+		if (window.DOMParser) globalThis.DOMParser = window.DOMParser
+
+		const { cell } = await import("../src/js/select/state/cells.js")
+		const { ui, remap } = await import("../src/js/select/ui/index.js")
+
+		document.body.innerHTML = `<div id="app"></div>`
+
+		const TextCell = ui(`<span class="cell"><input type="text" inout="value" /></span>`)
+		const Row = ui(`<div class="row" out-replace="Columns"></div>`).does({
+			Columns: (_self, data) => {
+				const columns = data.columns?.isReactive ? data.columns.value : data.columns
+				let left = 0
+				return remap(columns, (c) => {
+					const d = { value: data.record[c.key], left }
+					left += c.width
+					return TextCell(d)
+				})
+			},
+		})
+		const Board = ui(`<div out="rows"></div>`).does({
+			rows: (_self, { variables, columns }) =>
+				remap(variables, (record, i) => Row({ record, columns, $key: i })),
+		})
+
+		const columns = cell([
+			{ name: "Variable", key: "name", type: "text", width: 100 },
+			{ name: "Unit", key: "unit", type: "unit", width: 75 },
+		])
+		const variables = [
+			{ name: "Users", unit: "#/m" },
+			{ name: "License", unit: "$/m" },
+		]
+		const instance = Board.new().set({ variables, columns }).mount("#app")
+		await new Promise((r) => setTimeout(r, 0))
+
+		const values = () =>
+			Array.from(document.querySelectorAll("#app input")).map((input) => input.value)
+		expect(values()).toEqual(["Users", "#/m", "License", "$/m"])
+
+		columns.set(180, [0, "width"])
+		await new Promise((r) => setTimeout(r, 0))
+
+		expect(values()).toEqual(["Users", "#/m", "License", "$/m"])
+
+		instance.unmount()
+		document.body.innerHTML = ""
+		window.close?.()
+	})
+
 	test("inspector-style dict path update changes leaf text", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" })
 		setupGlobals(window)

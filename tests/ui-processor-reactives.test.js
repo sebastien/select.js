@@ -96,7 +96,11 @@ describe("ui processor reactive handling", () => {
 			expect(instance.data.value).toBe(value);
 			instance.update(instance.data, true);
 			expect(renders).toBe(3);
-			for (const create of [() => [1], () => new Map([["a", 1]]), () => new Set([1])]) {
+			for (const create of [
+				() => [1],
+				() => new Map([["a", 1]]),
+				() => new Set([1]),
+			]) {
 				const previous = Object.assign(create(), { label: "old" });
 				instance.data = previous;
 				instance.update(Object.assign(create(), { label: "new" }));
@@ -164,7 +168,8 @@ describe("ui processor reactive handling", () => {
 		`;
 
 		const ProbeComponent = ui(`<span out="flag"></span>`).does({
-			flag: (_self, data) => (data.state?.isReactive === true ? "reactive" : "plain"),
+			flag: (_self, data) =>
+				data.state?.isReactive === true ? "reactive" : "plain",
 		});
 		registerFormat(format, "ProbeComponent", ProbeComponent);
 
@@ -194,7 +199,8 @@ describe("ui processor reactive handling", () => {
 		`;
 
 		const ProbeComponent = ui(`<span out="flag"></span>`).does({
-			flag: (_self, data) => (data.state?.isReactive === true ? "reactive" : "plain"),
+			flag: (_self, data) =>
+				data.state?.isReactive === true ? "reactive" : "plain",
 		});
 		registerFormat(format, "ProbeComponent", ProbeComponent);
 
@@ -257,7 +263,8 @@ describe("ui processor reactive handling", () => {
 		`;
 
 		const ProbeItem = ui(`<li out="flag"></li>`).does({
-			flag: (_self, data) => (data.state?.isReactive === true ? "reactive" : "plain"),
+			flag: (_self, data) =>
+				data.state?.isReactive === true ? "reactive" : "plain",
 		});
 		registerFormat(format, "ProbeItem", ProbeItem);
 
@@ -301,7 +308,9 @@ describe("ui processor reactive handling", () => {
 
 		const Action = ui("#Action").does({
 			summary: (_self, data) =>
-				Array.isArray(data) ? `collection:${data.length}` : `${data.label}:${data.index}`,
+				Array.isArray(data)
+					? `collection:${data.length}`
+					: `${data.label}:${data.index}`,
 		});
 		registerFormat(format, "Action", Action);
 
@@ -363,7 +372,9 @@ describe("ui processor reactive handling", () => {
 				(node.textContent || "").trim(),
 			),
 		).toEqual(["alpha", "beta"]);
-		expect(document.querySelector("#app ul")?.textContent).not.toContain('{"label":"alpha"}');
+		expect(document.querySelector("#app ul")?.textContent).not.toContain(
+			'{"label":"alpha"}',
+		);
 
 		instance.unmount();
 		document.body.innerHTML = "";
@@ -382,14 +393,20 @@ describe("ui processor reactive handling", () => {
 			</template>
 		`;
 
-		registerFormat(format, "Element.ContactDetails", (value) => `contact:${value}`);
+		registerFormat(
+			format,
+			"Element.ContactDetails",
+			(value) => `contact:${value}`,
+		);
 
 		const instance = ui("ProcessorDottedNameRepro")
 			.new()
 			.set({ contactDetails: "Alice" })
 			.mount("#app");
 
-		expect(document.querySelector("#app span")?.textContent).toBe("contact:Alice");
+		expect(document.querySelector("#app span")?.textContent).toBe(
+			"contact:Alice",
+		);
 
 		instance.unmount();
 		document.body.innerHTML = "";
@@ -603,7 +620,9 @@ describe("ui processor reactive handling", () => {
 			.set({ symbol: "AAPL" })
 			.mount("#app");
 
-		expect(document.querySelector("#app span")?.textContent).toBe("string:AAPL");
+		expect(document.querySelector("#app span")?.textContent).toBe(
+			"string:AAPL",
+		);
 		expect(seen).toBe("AAPL");
 
 		instance.unmount();
@@ -705,6 +724,39 @@ describe("ui processor reactive handling", () => {
 		window.close?.();
 	});
 
+	test("Component.map unwraps a reactive collection and tracks its updates", async () => {
+		const window = new Window({ url: "http://localhost:8000/repro" });
+		setupGlobals(window);
+		const { cell } = await import("../src/js/select/index.js");
+		const { ui } = await import("../src/js/select/ui/index.js");
+
+		document.body.innerHTML = `<div id="app"></div>`;
+
+		const Row = ui(`<li out="label"></li>`).does({
+			label: (_self, { label }) => label,
+		});
+		const List = ui(`<ul out="items"></ul>`).does({
+			// Pass the cell itself; map resolves it before mapping.
+			items: (_self, { items }) => Row.map(items),
+		});
+
+		const items = cell([{ label: "A" }, { label: "B" }]);
+		const instance = List.new().set({ items }).mount("#app");
+		const labels = () =>
+			Array.from(document.querySelectorAll("#app li"), (li) => li.textContent);
+
+		expect(labels()).toEqual(["A", "B"]);
+
+		items.set([{ label: "A" }, { label: "B" }, { label: "C" }]);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(labels()).toEqual(["A", "B", "C"]);
+
+		instance.unmount();
+		document.body.innerHTML = "";
+		window.close?.();
+	});
+
 	test("Component.map with processor and key selector supports cell updates in reused wrappers", async () => {
 		const window = new Window({ url: "http://localhost:8000/repro" });
 		setupGlobals(window);
@@ -731,7 +783,12 @@ describe("ui processor reactive handling", () => {
 		const cX = cell("X1");
 		const cY = cell("Y1");
 		const host = Host.new()
-			.set({ data: [{ key: "x", val: cX }, { key: "y", val: cY }] })
+			.set({
+				data: [
+					{ key: "x", val: cX },
+					{ key: "y", val: cY },
+				],
+			})
 			.mount("#app");
 
 		expect(document.querySelectorAll("#app span").length).toBe(2);
@@ -800,7 +857,9 @@ describe("ui processor reactive handling", () => {
 				const pending = cell(data?.pending ?? false);
 				return {
 					pending,
-					busy: cell.derived([pending], ([value]) => (value ? "true" : undefined)),
+					busy: cell.derived([pending], ([value]) =>
+						value ? "true" : undefined,
+					),
 				};
 			})
 			.does({
@@ -883,7 +942,11 @@ describe("ui processor reactive handling", () => {
 			items: (_self, { items }) => Part.map(items),
 		});
 		const instance = List.new()
-			.set({ items: [{ label: "Review", element: document.createElement("textarea") }] })
+			.set({
+				items: [
+					{ label: "Review", element: document.createElement("textarea") },
+				],
+			})
 			.mount("#app");
 
 		expect(document.querySelector("#app button")?.textContent).toBe("Review");
@@ -944,7 +1007,9 @@ describe("ui processor reactive handling", () => {
 
 		expect(buttons[0].textContent).toBe("Reviewing…");
 		expect(buttons[0].disabled).toBe(true);
-		expect(document.querySelectorAll("#app button")[1].textContent).toBe("Complete");
+		expect(document.querySelectorAll("#app button")[1].textContent).toBe(
+			"Complete",
+		);
 		expect(document.querySelectorAll("#app button")[1].disabled).toBe(false);
 
 		operation.set(null);
@@ -1121,7 +1186,8 @@ describe("ui processor reactive handling", () => {
 			[
 				"unkeyed",
 				`<ul out="items"></ul>`,
-				(items) => remap(items, (entry) => Row({ id: entry.id, label: entry.label })),
+				(items) =>
+					remap(items, (entry) => Row({ id: entry.id, label: entry.label })),
 			],
 			[
 				"value-bag",
@@ -1142,7 +1208,8 @@ describe("ui processor reactive handling", () => {
 			[
 				"map-processor",
 				`<ul out="items"></ul>`,
-				(items) => Row.map(items, (entry) => ({ id: entry.id, label: entry.label })),
+				(items) =>
+					Row.map(items, (entry) => ({ id: entry.id, label: entry.label })),
 			],
 			[
 				"replace-index",
@@ -1161,13 +1228,10 @@ describe("ui processor reactive handling", () => {
 			});
 			const instance = List.new().set({ items: src }).mount("#app");
 			const before = Array.from(document.querySelectorAll("#app li[data-id]"));
-			expect(before.map((li) => li.textContent), name).toEqual([
-				"A",
-				"B",
-				"C",
-				"D",
-				"E",
-			]);
+			expect(
+				before.map((li) => li.textContent),
+				name,
+			).toEqual(["A", "B", "C", "D", "E"]);
 
 			instance.update({
 				items: src.map((entry, i) =>
@@ -1176,20 +1240,14 @@ describe("ui processor reactive handling", () => {
 			});
 
 			const after = Array.from(document.querySelectorAll("#app li[data-id]"));
-			expect(after.map((li) => li.textContent), name).toEqual([
-				"A",
-				"B2",
-				"C",
-				"D",
-				"E",
-			]);
-			expect(after.map((li) => li.dataset.id), name).toEqual([
-				"a",
-				"b",
-				"c",
-				"d",
-				"e",
-			]);
+			expect(
+				after.map((li) => li.textContent),
+				name,
+			).toEqual(["A", "B2", "C", "D", "E"]);
+			expect(
+				after.map((li) => li.dataset.id),
+				name,
+			).toEqual(["a", "b", "c", "d", "e"]);
 			for (let i = 0; i < before.length; i++) {
 				expect(after[i], `${name}[${i}]`).toBe(before[i]);
 			}

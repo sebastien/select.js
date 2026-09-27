@@ -2,13 +2,15 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-04-23
-// Updated: 2026-09-23
+// Updated: 2026-10-01
 
 // Module: select/features/icons
 // SVG icon registry and loader utilities. Built-in presets fetch one SVG per
 // icon from pinned jsDelivr packages. An explicit source with `format: "iconify"`
 // can still read a collection JSON; that is never the default.
 // SEE: https://observablehq.com/@sebastien/icons
+
+import { classTokens } from "../utils/dom.js";
 import { logger } from "../utils/index.js";
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -193,7 +195,7 @@ const SourceTransforms = {
 // SVG forever. Unknown names do not fall back to a collection download.
 const IconSources = {
 	lucide: {
-		url: `https://cdn.jsdelivr.net/npm/lucide-static@1.48.0/icons/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/lucide-static@1.50.0/icons/${ICON_NAME}.svg`,
 		size: [24, 24],
 	},
 	iconoir: {
@@ -237,42 +239,42 @@ const IconSources = {
 		style: FillStyle,
 	},
 	"material-symbols": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.6/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		size: [48, 48],
 		style: FillStyle,
 	},
 	"material-symbols-outlined": "material-symbols",
 	"material-symbols-rounded": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.6/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		variant: "rounded",
 		size: [48, 48],
 		style: FillStyle,
 	},
 	"material-symbols-sharp": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.6/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		variant: "sharp",
 		size: [48, 48],
 		style: FillStyle,
 	},
 	"material-symbols-light": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.5/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.6/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		size: [48, 48],
 		style: FillStyle,
 	},
 	"material-symbols-light-outlined": "material-symbols-light",
 	"material-symbols-light-rounded": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.5/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.6/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		variant: "rounded",
 		size: [48, 48],
 		style: FillStyle,
 	},
 	"material-symbols-light-sharp": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.5/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.6/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		variant: "sharp",
 		size: [48, 48],
@@ -727,11 +729,7 @@ function icon(
 		}
 		return symbol;
 	});
-	const classes = (className || "")
-		.trim()
-		.split(" ")
-		.map((_) => _.trim())
-		.filter((_) => _.length);
+	const classes = classTokens(className);
 	switch (mode) {
 		// We support an inline mode, which is necessary for web components.
 		case "inline":

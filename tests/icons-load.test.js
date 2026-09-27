@@ -11,6 +11,8 @@ let window
 let load
 let install
 let resolve
+let Cache
+let IconContainer
 let fetchCalls
 let fetchStub
 let originalFetch
@@ -64,12 +66,21 @@ describe("icons.load", () => {
 		setupGlobals(window)
 		originalFetch = globalThis.fetch
 		originalDateNow = Date.now
-		;({ load, install, resolve } = await import("../src/js/select/features/icons.js"))
+		;({ load, install, resolve, Cache, IconContainer } = await import(
+			"../src/js/select/features/icons.js"
+		))
 	})
 
 	afterAll(() => {
 		globalThis.fetch = originalFetch
 		Date.now = originalDateNow
+		// The icons module is a process-wide singleton under `bun test`, so the
+		// symbols loaded here with the mocked fetch would otherwise be reused by
+		// later integration tests. Clear both the cache and the shared container.
+		Cache.clear()
+		for (const child of [...IconContainer.children]) {
+			child.remove()
+		}
 		window?.close()
 	})
 
@@ -117,7 +128,7 @@ describe("icons.load", () => {
 		await load("home", "tabler", container, cache)
 
 		expect(fetchCalls.map(([url]) => url)).toEqual([
-			"https://cdn.jsdelivr.net/npm/lucide-static@1.48.0/icons/home.svg",
+			"https://cdn.jsdelivr.net/npm/lucide-static@1.50.0/icons/home.svg",
 			"https://cdn.jsdelivr.net/npm/iconoir@7.12.1/icons/regular/home.svg",
 			"https://cdn.jsdelivr.net/npm/eva-icons@1.1.3/outline/svg/home-outline.svg",
 			"https://cdn.jsdelivr.net/npm/@tabler/icons@3.48.0/icons/outline/home.svg",
@@ -377,10 +388,10 @@ describe("icons.load", () => {
 		await load("align-left", "radix-icons", container, cache)
 
 		expect(fetchCalls.map(([url]) => url)).toEqual([
-			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/outlined/add_home-fill.svg",
-			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/outlined/add_home-fill.svg",
-			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/outlined/add_home.svg",
-			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/rounded/home.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.6/outlined/add_home-fill.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.6/outlined/add_home-fill.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.6/outlined/add_home.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.6/rounded/home.svg",
 			"https://cdn.jsdelivr.net/npm/@material-design-icons/svg@0.14.15/filled/add_home.svg",
 			"https://cdn.jsdelivr.net/npm/@material-design-icons/svg@0.14.15/two-tone/add_home.svg",
 			"https://cdn.jsdelivr.net/gh/radix-ui/icons@d166d5ab1669b26d8854f50f8304296d54a7a410/packages/radix-icons/icons/align-left.svg",
@@ -424,12 +435,12 @@ describe("icons.load", () => {
 		await load("check-box-outline-blank", "material-symbols", container, cache)
 
 		expect(fetchCalls.map(([url]) => url)).toEqual([
-			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/rounded/expand-fill.svg",
-			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/rounded/expand.svg",
-			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.5/rounded/arrow_selector_tool-fill.svg",
-			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.5/rounded/arrow_selector_tool-fill.svg",
-			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.5/rounded/arrow_selector_tool.svg",
-			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.5/outlined/check_box_outline_blank-fill.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.6/rounded/expand-fill.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.6/rounded/expand.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.6/rounded/arrow_selector_tool-fill.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.6/rounded/arrow_selector_tool-fill.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.6/rounded/arrow_selector_tool.svg",
+			"https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.6/outlined/check_box_outline_blank-fill.svg",
 		])
 	})
 
@@ -453,14 +464,14 @@ describe("icons.load", () => {
 		).toMatchObject({
 			name: "arrow-selector-tool-rounded",
 			fileName: "rounded/arrow_selector_tool-fill",
-			url: "https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.5/rounded/arrow_selector_tool-fill.svg",
+			url: "https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.6/rounded/arrow_selector_tool-fill.svg",
 		})
 		expect(
 			resolve("arrow-selector-tool-outline-rounded", "material-symbols-light"),
 		).toMatchObject({
 			name: "arrow-selector-tool-outline-rounded",
 			fileName: "rounded/arrow_selector_tool",
-			url: "https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.5/rounded/arrow_selector_tool.svg",
+			url: "https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.6/rounded/arrow_selector_tool.svg",
 		})
 		expect(resolve("home", "not-a-real-source")).toBeUndefined()
 		expect(fetchCalls).toHaveLength(0)

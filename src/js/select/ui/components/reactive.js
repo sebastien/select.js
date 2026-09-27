@@ -897,12 +897,17 @@ function attachReactive(UIInstance) {
 			// Keep row bag `.value` aligned with the store entry. Nested leaf path
 			// updates may replace the entry object without rewriting the parent
 			// AppliedUITemplate/instance bag; stale refs break append/remove identity.
+			// Only mirror rows (inspector pattern) hold the entry under `.value`;
+			// a scalar `.value` is a plain presentation field that must not be
+			// clobbered by the store entry.
 			if (
 				rest.length > 0 &&
 				child.data &&
 				typeof child.data === "object" &&
 				!Array.isArray(child.data) &&
 				Object.hasOwn(child.data, "value") &&
+				child.data.value !== null &&
+				typeof child.data.value === "object" &&
 				!Object.is(child.data.value, entryValue)
 			) {
 				child.data = { ...child.data, value: entryValue };

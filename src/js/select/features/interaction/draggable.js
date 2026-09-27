@@ -2,12 +2,13 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-07-11
-// Updated: 2026-09-26
+// Updated: 2026-10-01
 
 // Module: select/features/interaction/draggable
 // Mouse drag, drop, and sort interaction helpers. Draggable interactions use
 // nested source and target descriptors; <sort> moves the source item.
 
+import { addClass, classTokens, removeClass } from "../../utils/dom.js";
 import { attributeTarget, target } from "./core.js";
 import drag from "./drag.js";
 import sortable from "./sortable.js";
@@ -53,6 +54,36 @@ function draggable(event, options = {}) {
 	);
 }
 
+// Default class options. Each value is a whitespace-separated token list; the
+// class helpers ignore non-strings.
+const ClassDefaults = {
+	sourceClass: "is-dragging-source",
+	previewClass: "draggable-preview",
+	effectPreviewClass: "draggable-drop-preview",
+	hoverClass: "is-drag-hover",
+	dropClass: "is-drag-drop",
+	placeholderClass: "sortable-placeholder",
+	sourceHiddenClass: "is-dragging-source-hidden",
+};
+
+// Function: classOption
+// Resolves one class option from `options`, falling back to its default.
+function classOption(options, key) {
+	return options[key] ?? ClassDefaults[key];
+}
+
+// Function: classOptions
+// Normalizes the class options shared by the drop and sort flavors.
+function classOptions(options) {
+	return {
+		sourceClass: classOption(options, "sourceClass"),
+		previewClass: classOption(options, "previewClass"),
+		effectPreviewClass: classOption(options, "effectPreviewClass"),
+		hoverClass: classOption(options, "hoverClass"),
+		dropClass: classOption(options, "dropClass"),
+	};
+}
+
 draggable.options = (options) => ({
 	source: {
 		match: options.source?.match ?? "[data-draggable]",
@@ -68,11 +99,7 @@ draggable.options = (options) => ({
 		unpreview: options.target?.unpreview,
 	},
 	overlay: options.overlay ?? globalThis.document.body,
-	sourceClass: options.sourceClass ?? "is-dragging-source",
-	previewClass: options.previewClass ?? "draggable-preview",
-	effectPreviewClass: options.effectPreviewClass ?? "draggable-drop-preview",
-	hoverClass: options.hoverClass ?? "is-drag-hover",
-	dropClass: options.dropClass ?? "is-drag-drop",
+	...classOptions(options),
 	accept: options.accept,
 	drop: options.drop,
 	onMove: options.onMove,
@@ -101,7 +128,7 @@ function createSession(sourceNode, event, options, mode) {
 	const box = sourceNode.getBoundingClientRect();
 	const ox = event.clientX - box.left;
 	const oy = event.clientY - box.top;
-	sourceNode.classList.add(options.sourceClass);
+	addClass(sourceNode, options.sourceClass);
 	return {
 		mode,
 		options,
@@ -138,7 +165,7 @@ function startSource(session, event) {
 	if (preview !== undefined) session.preview = preview;
 	if (!session.preview) {
 		session.preview = session.sourceNode.cloneNode(true);
-		session.preview.classList.add(session.options.previewClass);
+		addClass(session.preview, session.options.previewClass);
 	}
 	if (session.preview) {
 		session.preview.style.position = "fixed";
@@ -166,7 +193,7 @@ function descriptor(node, selector, fallback) {
 function accepts(targetNode, source, options, proposal, session) {
 	const accepted = targetNode.getAttribute("data-drop-accept");
 	if (accepted) {
-		const names = accepted.trim().split(/\s+/);
+		const names = classTokens(accepted);
 		if (!names.includes("*") && !names.includes(source.id ?? "")) {
 			return false;
 		}
@@ -229,7 +256,7 @@ function createTargetPreview(session, proposal, event) {
 	let node = session.targetPreview;
 	if (!node) {
 		node = session.sourceNode.cloneNode(true);
-		node.classList.add(session.options.effectPreviewClass);
+		addClass(node, session.options.effectPreviewClass);
 	}
 	if (!node?.nodeType) return;
 	session.targetPreview = node;
@@ -262,9 +289,9 @@ function createTargetPreview(session, proposal, event) {
 
 function setHoverTarget(session, targetNode) {
 	if (session.hoverTarget === targetNode) return;
-	session.hoverTarget?.classList.remove(session.options.hoverClass);
+	removeClass(session.hoverTarget, session.options.hoverClass);
 	session.hoverTarget = targetNode;
-	session.hoverTarget?.classList.add(session.options.hoverClass);
+	addClass(session.hoverTarget, session.options.hoverClass);
 }
 
 function resolvePreview(proposal, custom) {
@@ -288,7 +315,7 @@ function finishDrop(session, event) {
 			session.options.target.action === "replace"
 				? session.targetPreview
 				: current.target.node;
-		committedTarget?.classList.add(session.options.dropClass);
+		addClass(committedTarget, session.options.dropClass);
 	}
 	if (session.options.drop) {
 		clearTargetPreview(session);
@@ -340,7 +367,7 @@ function clearSession(session, committed = false) {
 				session.sourceNext?.parentNode === parent ? session.sourceNext : null,
 			);
 	}
-	session.sourceNode.classList.remove(session.options.sourceClass);
+	removeClass(session.sourceNode, session.options.sourceClass);
 }
 
 // Function: sorttarget
@@ -377,21 +404,31 @@ function sort(event, options = {}) {
 	return drag(
 		event,
 		(ev) => {
+			// Assign session after setup so a throw retries on the next move.
+			// A failure clears the partial session, so a cancelled gesture does
+			// not leave the source class or placeholder behind.
 			if (!session) {
 				ev.preventDefault();
-				session = createSession(sourceNode, event, settings, "sort");
-				const index = sortIndex(sourceNode, sourceList, settings);
-				session.source = {
-					...descriptor(sourceNode, settings.item, "data-sortable-item"),
-					listNode: sourceList,
-					listId: listId(sourceList, settings),
-					index,
-				};
-				session.placeholder = createPlaceholder(sourceNode, settings);
-				copyCanvases(sourceNode, session.placeholder);
-				sourceList.insertBefore(session.placeholder, sourceNode);
-				sourceNode.classList.add(settings.sourceHiddenClass);
-				startSortPreview(session, event);
+				let next;
+				try {
+					next = createSession(sourceNode, event, settings, "sort");
+					const index = sortIndex(sourceNode, sourceList, settings);
+					next.source = {
+						...descriptor(sourceNode, settings.item, "data-sortable-item"),
+						listNode: sourceList,
+						listId: listId(sourceList, settings),
+						index,
+					};
+					next.placeholder = createPlaceholder(sourceNode, settings);
+					copyCanvases(sourceNode, next.placeholder);
+					sourceList.insertBefore(next.placeholder, sourceNode);
+					addClass(sourceNode, settings.sourceHiddenClass);
+					startSortPreview(next, event);
+				} catch (error) {
+					if (next) clearSortSession(next);
+					throw error;
+				}
+				session = next;
 			}
 			updateSort(session, ev);
 			updateDragPreview(session, ev);
@@ -410,8 +447,8 @@ function sortOptions(options) {
 		list: options.list ?? "[data-sortable-list]",
 		axis: options.axis ?? "data-axis",
 		placeholder: options.placeholder !== false,
-		placeholderClass: options.placeholderClass ?? "sortable-placeholder",
-		sourceHiddenClass: options.sourceHiddenClass ?? "is-dragging-source-hidden",
+		placeholderClass: classOption(options, "placeholderClass"),
+		sourceHiddenClass: classOption(options, "sourceHiddenClass"),
 		threshold: options.threshold ?? 0,
 	};
 }
@@ -420,11 +457,7 @@ function draggableOptions(options) {
 	return {
 		overlay: options.overlay ?? globalThis.document.body,
 		dragPreview: options.dragPreview !== false,
-		sourceClass: options.sourceClass ?? "is-dragging-source",
-		previewClass: options.previewClass ?? "draggable-preview",
-		effectPreviewClass: options.effectPreviewClass ?? "draggable-drop-preview",
-		hoverClass: options.hoverClass ?? "is-drag-hover",
-		dropClass: options.dropClass ?? "is-drag-drop",
+		...classOptions(options),
 		accept: options.accept,
 		dropPreview: options.dropPreview ?? options.preview,
 		drop: options.drop,
@@ -438,8 +471,8 @@ function startSortPreview(session, _event) {
 	if (!session.options.dragPreview) return;
 	session.preview = session.sourceNode.cloneNode(true);
 	copyCanvases(session.sourceNode, session.preview);
-	session.preview.classList.remove(session.options.sourceHiddenClass);
-	session.preview.classList.add(session.options.previewClass);
+	removeClass(session.preview, session.options.sourceHiddenClass);
+	addClass(session.preview, session.options.previewClass);
 	session.preview.classList.add("sh-2");
 	session.preview.style.position = "fixed";
 	session.preview.style.boxSizing = "border-box";
@@ -520,8 +553,8 @@ function finishSort(session, event) {
 function clearSortSession(session) {
 	session.placeholder?.remove();
 	session.preview?.remove();
-	session.sourceNode.classList.remove(session.options.sourceClass);
-	session.sourceNode.classList.remove(session.options.sourceHiddenClass);
+	removeClass(session.sourceNode, session.options.sourceClass);
+	removeClass(session.sourceNode, session.options.sourceHiddenClass);
 }
 
 function sortSlot(listNode, x, y, session) {
@@ -559,9 +592,9 @@ function createPlaceholder(sourceNode, options) {
 	if (!options.placeholder)
 		return globalThis.document.createComment("sortable-placeholder");
 	const placeholder = sourceNode.cloneNode(true);
-	placeholder.classList.add(options.placeholderClass);
-	placeholder.classList.remove(options.sourceClass);
-	placeholder.classList.remove(options.sourceHiddenClass);
+	addClass(placeholder, options.placeholderClass);
+	removeClass(placeholder, options.sourceClass);
+	removeClass(placeholder, options.sourceHiddenClass);
 	placeholder.removeAttribute("data-index");
 	placeholder.removeAttribute(
 		attributeName(options.item, "data-sortable-item"),

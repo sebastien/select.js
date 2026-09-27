@@ -2,12 +2,13 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
-// Updated: 2026-08-03
+// Updated: 2026-10-01
 
 // Module: select/ui/components/instance
 // Mounted UI template instances, lifecycle, and public API. Reactive path,
 // render pipeline, and event binding live in sibling modules.
 
+import { classTokens } from "../../utils/dom.js";
 import { log } from "../templates.js";
 
 import { attachEvents } from "./events.js";
@@ -209,7 +210,7 @@ class UIInstance {
 					node.setAttribute("class", componentName);
 					continue;
 				}
-				const tokens = existingClass.split(/\s+/).filter(Boolean);
+				const tokens = classTokens(existingClass);
 				const reordered = [componentName];
 				for (let j = 0; j < tokens.length; j++) {
 					if (tokens[j] !== componentName) {

@@ -161,14 +161,16 @@ at its original position on cancellation. Target actions are `append`,
 `prepend`, `replace`, and `content`. `content` replaces all children of the
 target while preserving the target element itself. The
 default previews are clones using `draggable-preview` and
-`draggable-drop-preview` classes.
+`draggable-drop-preview` classes. Every `*Class` option (`sourceClass`,
+`previewClass`, `effectPreviewClass`, `hoverClass`, `dropClass`, and, for
+`sort`, `placeholderClass` and `sourceHiddenClass`) is a whitespace-separated
+string of tokens; non-string values are ignored.
 
-The remaining options are `overlay`, `sourceClass`, `hoverClass`, `dropClass`,
-`accept(proposal, state)`, `drop(proposal, state)`, `onMove(state)`,
-`onDrop(state)`, and `onCancel(state)`. A custom `drop` callback owns the
-commit; the target preview is cleaned before it runs. Flat `source`, `target`,
-`dragPreview`, `replaceTarget`, `dropPreview`, and `preview` options are not
-supported.
+The remaining options are `overlay`, `accept(proposal, state)`,
+`drop(proposal, state)`, `onMove(state)`, `onDrop(state)`, and
+`onCancel(state)`. A custom `drop` callback owns the commit; the target preview
+is cleaned before it runs. Flat `source`, `target`, `dragPreview`,
+`replaceTarget`, `dropPreview`, and `preview` options are not supported.
 
 The `proposal` passed to callbacks contains `source`, `target`, and `event`.
 Each descriptor contains the matched `node` and its identifier as `id`.

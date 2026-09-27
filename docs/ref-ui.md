@@ -171,6 +171,9 @@ The `.map(data, processor?, key?)` method on a component (also available as
 `Component.map(...)`) is the recommended way to render collections. It returns
 a list (or shaped container) of `AppliedUITemplate` wrappers.
 
+- `data`: a collection, or a reactive cell/derived holding one. Reactive values
+  are unwrapped to their current value before mapping, so `Item.map(items)` may
+  receive a cell directly.
 - `processor`: optional `(value, indexOrKey) => dataForItem` to transform each entry.
 - `key`: optional stable key selector — a string path (e.g. `"id"` or `".id"`) or
   `(value, indexOrKey) => keyValue`. When provided, the produced data receives
@@ -324,7 +327,7 @@ Returns a component function with these methods:
 - `cleanup(handler)`: Define a teardown handler called on instance disposal. Returns the component for chaining.
 - `on(event, handler)` / `sub(event, handler)`: Subscribe to events bubbled by child instances. Returns the component for chaining.
 - `using(selection, scope?)`: Rebind this component behavior to another template and return a bound component.
-- `map(data, processor?, key?)`: Map a collection of data to applied templates. `processor` (optional) transforms each item `(value, indexOrKey) => dataForItem`. `key` (optional) is a stable key selector: string path (e.g. `"id"`) or `(value, indexOrKey) => keyValue`. Keys are stored as `$key` on produced data for efficient list reconciliation and wrapper reuse. This is the recommended approach for dynamic lists.
+- `map(data, processor?, key?)`: Map a collection of data to applied templates. `data` may be a reactive cell/derived holding a collection, which is unwrapped first. `processor` (optional) transforms each item `(value, indexOrKey) => dataForItem`. `key` (optional) is a stable key selector: string path (e.g. `"id"`) or `(value, indexOrKey) => keyValue`. Keys are stored as `$key` on produced data for efficient list reconciliation and wrapper reuse. This is the recommended approach for dynamic lists.
 - `apply(data)`: Create an applied template for composition (same result as calling the component as a function).
 - `ui.register(name, component)`: Register a component in the global registry.
 - `ui.resolve(name)`: Resolve a component from the global registry.

@@ -2,11 +2,11 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-06-02
-// Updated: 2026-07-15
+// Updated: 2026-10-01
 
 // Module: select/utils/dom
-// DOM helpers for node inspection, attribute updates, text updates, and
-// insertion/removal operations.
+// DOM helpers for node inspection, attribute updates, text updates, class list
+// updates, and insertion/removal operations.
 
 import { logger } from "./logger.js";
 
@@ -384,7 +384,41 @@ function swapped(target, node) {
 	return () => (restoreTarget(), restoreNode());
 }
 
-export { attached, fit, isInputNode, swap, swapped };
+// Function: classTokens
+// Splits a whitespace-separated class list `value` into tokens. Non-string
+// values yield an empty array.
+function classTokens(value) {
+	return typeof value === "string"
+		? value.trim().split(/\s+/).filter(Boolean)
+		: [];
+}
+
+// Function: addClass
+// Adds every whitespace-separated token of `value` to the class list of `node`.
+// Missing nodes, empty values, and non-string values are ignored.
+function addClass(node, value) {
+	const names = classTokens(value);
+	if (node && names.length) node.classList.add(...names);
+}
+
+// Function: removeClass
+// Removes every whitespace-separated token of `value` from the class list of
+// `node`. Missing nodes, empty values, and non-string values are ignored.
+function removeClass(node, value) {
+	const names = classTokens(value);
+	if (node && names.length) node.classList.remove(...names);
+}
+
+export {
+	addClass,
+	attached,
+	classTokens,
+	fit,
+	isInputNode,
+	removeClass,
+	swap,
+	swapped,
+};
 export default {
 	isNode,
 	isContainer,
@@ -405,5 +439,8 @@ export default {
 	swap,
 	attached,
 	swapped,
+	classTokens,
+	addClass,
+	removeClass,
 };
 // EOF
