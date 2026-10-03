@@ -6,6 +6,7 @@
 // Module: select/ui/components/reactive
 // Reactive data subscriptions, path updates, and init fusion for UIInstance.
 
+import { Reactive } from "../../state/cells.js";
 import { AppliedUITemplate } from "./model.js";
 import {
 	runWithUIInstance,
@@ -179,6 +180,7 @@ function attachReactive(UIInstance) {
 		},
 
 		_isReadOnlyDerivation(value) {
+			if (value?.parent?.isReactive) return UIInstance._isReadOnlyDerivation(value.parent);
 			return (
 				value?.isDerivation === true && typeof value._updater !== "function"
 			);
@@ -235,6 +237,14 @@ function attachReactive(UIInstance) {
 			for (const key in incoming) {
 				const next = incoming[key];
 				const current = merged[key];
+				// Incoming reactive props are references, not init-owned state. A new
+				// reference must rebind rather than fuse into an old (possibly selected,
+				// read-only or disposed) source owned by the caller.
+				if (next?.isReactive && current !== next && current !== self?.initial?.[key]) {
+					self?._clearReactiveTopLevelFusion(key);
+					merged[key] = next;
+					continue;
+				}
 				// Derived init state is an output, not a writable input slot. Keeping it
 				// authoritative prevents an incoming prop from writing into it.
 				if (UIInstance._isReadOnlyDerivation(current)) {
@@ -480,6 +490,8 @@ function attachReactive(UIInstance) {
 			if (!slotKeys.length) {
 				return false;
 			}
+			let handled = false;
+			let missed = false;
 			for (let i = 0; i < slotKeys.length; i++) {
 				const slots = this.out?.[slotKeys[i]];
 				if (!slots) {
@@ -488,12 +500,12 @@ function attachReactive(UIInstance) {
 				for (let s = 0; s < slots.length; s++) {
 					if (this._applyReactivePathToSlot(slots[s], path, tree)) {
 						listStat("pathHit");
-						return true;
-					}
+						handled = true;
+					} else missed = true;
 				}
 			}
-			listStat("pathMiss");
-			return false;
+			if (missed || !handled) listStat("pathMiss");
+			return handled && !missed;
 		},
 
 		_slotKeysForDataKeys(dataKeys) {
@@ -1235,36 +1247,34 @@ function attachReactive(UIInstance) {
 				active: true,
 				internal,
 				upstream,
-				internalDepth: 0,
-				upstreamDepth: 0,
+				internalRevision: internal.revision,
+				upstreamRevision: upstream.revision,
 				internalHandler: undefined,
 				upstreamHandler: undefined,
 			};
 			fusion.internalHandler = (value, path) => {
-				if (!fusion.active || fusion.upstreamDepth > 0) {
-					return;
-				}
+				if (!fusion.active) return;
 				// Internal writes stay authoritative for instance state and forward to
 				// the current upstream reactive while this fusion remains active.
-				fusion.internalDepth += 1;
-				try {
-					UIInstance._setReactiveValue(upstream, value, path);
-				} finally {
-					fusion.internalDepth -= 1;
-				}
+				Reactive._forwardPublication(
+					fusion,
+					internal,
+					upstream,
+					fusion.internalRevision,
+					() => UIInstance._setReactiveValue(upstream, value, path),
+				);
 			};
 			fusion.upstreamHandler = (value, path) => {
-				if (!fusion.active || fusion.internalDepth > 0) {
-					return;
-				}
+				if (!fusion.active) return;
 				// Upstream writes continue to refresh the stable internal cell until a
 				// different upstream reactive replaces this fusion.
-				fusion.upstreamDepth += 1;
-				try {
-					UIInstance._setReactiveValue(internal, value, path);
-				} finally {
-					fusion.upstreamDepth -= 1;
-				}
+				Reactive._forwardPublication(
+					fusion,
+					upstream,
+					internal,
+					fusion.upstreamRevision,
+					() => UIInstance._setReactiveValue(internal, value, path),
+				);
 			};
 			internal.sub(fusion.internalHandler);
 			upstream.sub(fusion.upstreamHandler);

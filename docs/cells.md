@@ -51,10 +51,18 @@ and lightweight pub/sub.
 
 ### Differences with larger state managers
 
-- No write scheduler by default (`schedule` is opt-in); sync `batch()` only coalesces pubs in one turn
+- No write scheduler by default (`schedule` is opt-in). Native cells settle dependent derivations synchronously before notifying ordinary subscribers; `batch()` groups multiple writes into one settled calculation wave.
 - Path-oriented updates and subscriptions are first-class
 - Can be embedded in plain objects and arrays
 - Small API surface designed for composition with Select/UI
+
+`batch(() => { a.set(1); b.set(2) })` recomputes affected derivations against
+the final inputs, including diamond-shaped dependencies. Source notifications
+still retain their individual values/paths; subscriber reads of dependent
+derivations see settled values. Inside a batch, computed `.value` reads may
+still reflect the previous calculation until the outer batch exits.
+Derivations suppress `Object.is`-equal computed outputs. Selections of derived
+arrays/objects refresh with the computation and skip unchanged scalar leaves.
 
 ### Using
 

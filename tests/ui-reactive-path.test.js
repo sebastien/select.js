@@ -31,6 +31,30 @@ function setupGlobals(window) {
 }
 
 describe("ui reactive path updates", () => {
+	test("one path write updates every projection of a shared collection", async () => {
+		const window = new Window()
+		setupGlobals(window)
+		const { cell } = await import("../src/js/select/state/cells.js")
+		const { ui } = await import("../src/js/select/ui/index.js")
+		const Row = ui(`<li><span out="name"></span></li>`)
+		const List = ui(`<ul data-first out="first"></ul><ul data-second out="second"></ul>`).does({
+			first: (_self, { items }) => Row.map(items.value),
+			second: (_self, { items }) => Row.map(items.value),
+		})
+		const state = cell([{ name: "before" }])
+		const root = document.createElement("div")
+		document.body.append(root)
+		const instance = List.new().set({ items: state }).mount(root)
+		try {
+			state.set("after", [0, "name"])
+			await new Promise((resolve) => setTimeout(resolve, 0))
+			expect(root.querySelector("[data-first]").textContent).toBe("after")
+			expect(root.querySelector("[data-second]").textContent).toBe("after")
+		} finally {
+			instance.dispose(); root.remove(); window.close()
+		}
+	})
+
 	test("raw entry detection preserves live identity and sample fallback semantics", async () => {
 		const { attachReactive } = await import("../src/js/select/ui/components/reactive.js")
 		const { AppliedUITemplate } = await import("../src/js/select/ui/components/model.js")

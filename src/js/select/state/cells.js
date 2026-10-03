@@ -52,8 +52,28 @@ const log = logger("select.cells");
 let refreshStamp = 0;
 let batchDepth = 0;
 let isFlushingPubs = false;
+let publicationOrder = 0;
+let publicationContext;
+let propagationContext;
 const pendingPubs = [];
+const pendingDerivations = new Set();
 const scheduleBridges = new WeakMap();
+
+// Settle upstream computations before consumers, including selections of them.
+function settleDerivation(source, visiting = new Set()) {
+	if (source instanceof Selected) {
+		settleDerivation(source.parent, visiting);
+		return;
+	}
+	if (!source?.sources?.length || !source.isBound) return;
+	if (visiting.has(source)) throw new Error("Cyclic reactive derivation");
+	visiting.add(source);
+	for (let i = 0; i < source.sources.length; i++) {
+		settleDerivation(source.sources[i], visiting);
+	}
+	visiting.delete(source);
+	if (pendingDerivations.delete(source)) source._recompute();
+}
 
 function flushPendingPubs() {
 	if (isFlushingPubs || pendingPubs.length === 0) {
@@ -61,11 +81,36 @@ function flushPendingPubs() {
 	}
 	isFlushingPubs = true;
 	try {
-		const pubs = pendingPubs.splice(0, pendingPubs.length);
-		for (let i = 0; i < pubs.length; i++) {
-			const { target, value, path, origin, previous } = pubs[i];
-			for (const handler of target.subs) {
-				handler(value, path, origin, previous);
+		while (pendingPubs.length || pendingDerivations.size) {
+			while (pendingDerivations.size) {
+				settleDerivation(pendingDerivations.values().next().value);
+			}
+			const pubs = pendingPubs.splice(0, pendingPubs.length);
+			for (let i = 0; i < pubs.length; i++) {
+				const publication = pubs[i];
+				const { target, value, path, origin, previous } = publication;
+				const previousPublication = publicationContext;
+				const previousPropagation = propagationContext;
+				publicationContext = publication;
+				// Ordinary subscriber writes start a new propagation chain.
+				// Only binding forwards inherit the incoming publication marker.
+				// Ordinary subscriber writes start a new propagation chain.
+				// Only binding forwards inherit the incoming publication marker.
+				// Ordinary subscriber writes start a new propagation chain.
+				// Only binding forwards inherit the incoming publication marker.
+				propagationContext = undefined;
+				try {
+					for (const handler of target.subs.slice()) {
+						if (!handler.derivation) handler(value, path, origin, previous);
+					}
+					// Subscriber writes start a new settled wave before the next effect.
+					while (pendingDerivations.size) {
+						settleDerivation(pendingDerivations.values().next().value);
+					}
+				} finally {
+					publicationContext = previousPublication;
+					propagationContext = previousPropagation;
+				}
 			}
 		}
 	} finally {
@@ -777,6 +822,32 @@ class Selections {
 class Reactive {
 	static Id = 1;
 
+	// Internal UI binding hook: carry feedback guards through queued delivery.
+	// Ignore publications predating the binding or a newer destination write.
+	static _forwardPublication(binding, source, destination, revision, write) {
+		if (
+			publicationContext?.target === source &&
+			(publicationContext.revision <= revision ||
+				destination._publicationOrder > publicationContext.order)
+		)
+			return;
+		const inherited = propagationContext ?? publicationContext?.propagation;
+		for (let context = inherited; context; context = context.parent) {
+			if (context.binding === binding) return;
+		}
+		const previous = propagationContext;
+		propagationContext = {
+			binding,
+			parent: inherited,
+			order: publicationContext?.order,
+		};
+		try {
+			return write();
+		} finally {
+			propagationContext = previous;
+		}
+	}
+
 	static Unwrap(value) {
 		let next = value;
 		while (isReactiveValue(next)) {
@@ -913,13 +984,23 @@ class Reactive {
 		// TODO: Revisit pub and how it works. It should probably
 		// trigger the selections when it's a set, but not when
 		// propagating up.
-		if (batchDepth > 0) {
-			pendingPubs.push({ target: this, value, path, origin, previous });
-			return this;
-		}
+		const order = propagationContext?.order ?? ++publicationOrder;
+		this._publicationOrder = order;
+		if (!this.subs.length) return this;
 		for (const handler of this.subs) {
-			handler(value, path, origin, previous);
+			if (handler.derivation) pendingDerivations.add(handler.derivation);
 		}
+		pendingPubs.push({
+			target: this,
+			value,
+			path,
+			origin,
+			previous,
+			revision: this.revision,
+			order,
+			propagation: propagationContext,
+		});
+		if (!batchDepth) flushPendingPubs();
 		return this;
 	}
 
@@ -1086,6 +1167,8 @@ class Selected extends Reactive {
 		const nextChangedPath = changedPath === Nothing ? [] : (changedPath ?? []);
 		const value = access(this.parent.value, this.path);
 		const current = this.value;
+		if (Object.is(current, value) && (value === null || typeof value !== "object") &&
+			this.isPending === !!this.parent?.isPending) return;
 		this.previous = current;
 		this.value = value;
 		const pendingPath = this.parent?._pendingPath;
@@ -1273,6 +1356,10 @@ class Cell extends Reactive {
 	// Internal update implementation. Applies value, updates selections,
 	// notifies subscribers.
 	_update(value, path, _force = false) {
+		return batch(() => this._applyUpdate(value, path, _force));
+	}
+
+	_applyUpdate(value, path, _force = false) {
 		// TODO: Maybe patch?
 		path = pathify(path, Nothing);
 		value = this.normalizeValue(value, path);
@@ -1356,8 +1443,10 @@ class Cell extends Reactive {
 					this._pendingPrevious = undefined;
 					this.isPending = false;
 					this.revision++;
-					this._refreshSelections(path, previous);
-					this.pub(resolved, path, this, previous);
+					batch(() => {
+						this._refreshSelections(path, previous);
+						this.pub(resolved, path, this, previous);
+					});
 				},
 				(error) => {
 					if (token !== this._promiseToken) {
@@ -1493,6 +1582,8 @@ function bindReactiveSources(owner, template) {
 			}
 			owner._recompute();
 		};
+		// Computations settle before ordinary subscribers/UI effects in a batch.
+		reactor.derivation = owner;
 		cell.sub(reactor);
 		if (cell?.isReactive && typeof cell.acquire === "function") {
 			cell.acquire();
@@ -1517,6 +1608,7 @@ function unbindReactiveSources(owner) {
 		owner.acquired.pop().release();
 	}
 	owner.isBound = false;
+	pendingDerivations.delete(owner);
 	return owner;
 }
 
@@ -1613,6 +1705,7 @@ class Derivation extends Reactive {
 	}
 
 	_apply(value, publish = true) {
+		if (!value?.then && !this.isPending && this.revision >= 0 && Object.is(this.value, value)) return;
 		const token = ++this._promiseToken;
 		this.previous = this.value;
 		const isPromise = !!(value && typeof value.then === "function");
@@ -1625,12 +1718,15 @@ class Derivation extends Reactive {
 			}
 			if (publish) {
 				this.revision++;
-				this.pub(
-					this.pending === "clear" ? undefined : this.value,
-					Nothing,
-					this,
-					this.previous,
-				);
+				batch(() => {
+					refreshSelections(this, Nothing, this.previous);
+					this.pub(
+						this.pending === "clear" ? undefined : this.value,
+						Nothing,
+						this,
+						this.previous,
+					);
+				});
 			}
 			value.then(
 				(resolved) => {
@@ -1644,7 +1740,10 @@ class Derivation extends Reactive {
 					this._pendingPrevious = undefined;
 					this.isPending = false;
 					this.revision++;
-					this.pub(resolved, Nothing, this, this.previous);
+					batch(() => {
+						refreshSelections(this, Nothing, this.previous);
+						this.pub(resolved, Nothing, this, this.previous);
+					});
 				},
 				(error) => {
 					if (token !== this._promiseToken) {
@@ -1683,7 +1782,10 @@ class Derivation extends Reactive {
 		this.isPending = false;
 		if (publish) {
 			this.revision++;
-			this.pub(value, Nothing, this, this.previous);
+			batch(() => {
+				refreshSelections(this, Nothing, this.previous);
+				this.pub(value, Nothing, this, this.previous);
+			});
 		}
 	}
 
