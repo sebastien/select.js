@@ -16,7 +16,13 @@
 import { isInputNode } from "../utils/dom.js";
 import { logger, type } from "../utils/index.js";
 
-const HTML = new DOMParser();
+// Lazy HTML parser: resolved per call so this module can be imported before a
+// DOM (and DOMParser) is installed, which server-side rendering relies on.
+const HTML = {
+	parseFromString(source, type) {
+		return new globalThis.DOMParser().parseFromString(source, type);
+	},
+};
 
 class TemplateRegistry {
 	static _Registries = new WeakMap();

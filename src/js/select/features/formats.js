@@ -403,7 +403,7 @@ function timetuple(value) {
 	return value === undefined || value === null ? null : asDate(value);
 }
 
-const HTML_PARSER = globalThis.DOMParser ? new DOMParser() : null;
+let HTML_PARSER = null;
 
 function json(value) {
 	return value === undefined ? "" : JSON.stringify(value);
@@ -412,27 +412,27 @@ function json(value) {
 function head(value) {
 	return Array.isArray(value) && value.length > 0 ? value[0] : null;
 }
-const html = HTML_PARSER
-	? (value) => {
-			const doc = HTML_PARSER.parseFromString(`${value ?? ""}`, "text/html");
-			const nodes = [...(doc.body?.childNodes ?? [])];
-			if (nodes.length === 1) {
-				return nodes[0];
-			}
-			const res = new DocumentFragment();
-			for (const node of nodes) {
-				res.appendChild(node);
-			}
-			return res;
-		}
-	: (value) => value;
+function html(value) {
+	const Parser = globalThis.DOMParser;
+	if (!Parser) return value;
+	if (!(HTML_PARSER instanceof Parser)) HTML_PARSER = new Parser();
+	const doc = HTML_PARSER.parseFromString(`${value ?? ""}`, "text/html");
+	const nodes = [...(doc.body?.childNodes ?? [])];
+	if (nodes.length === 1) return nodes[0];
+	const res = doc.createDocumentFragment();
+	for (let i = 0; i < nodes.length; i++) res.appendChild(nodes[i]);
+	return res;
+}
 
 function hi(value, query) {
 	if (value === undefined || value === null) {
 		return value;
 	}
 	const highlighted = htmlHi(value, query);
-	if (highlighted instanceof DocumentFragment) {
+	if (
+		typeof DocumentFragment !== "undefined" &&
+		highlighted instanceof DocumentFragment
+	) {
 		const wrapper = document.createElement("span");
 		wrapper.appendChild(highlighted);
 		return wrapper;

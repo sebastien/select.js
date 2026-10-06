@@ -14,6 +14,14 @@ It supports:
 Unknown source names do not download an Iconify collection. A page that asks
 for one icon should not pay for the whole family.
 
+The module is import-safe without a DOM (useful for the icon catalog or
+server-side code). Browser-only pieces resolve lazily: the shared
+`IconContainer` and the `ui-icon` custom element are created/registered on
+first use, and `load()` rejects with a clear error when no DOM or explicit
+container is available. With an explicit container, `load()` and `icon()` use
+its `ownerDocument` and its window's `DOMParser`, without installing DOM
+globals. `install(...)` requires browser globals to register custom elements.
+
 ## Built-in presets
 
 | Source | Package | Notes |

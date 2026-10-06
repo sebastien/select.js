@@ -15,7 +15,7 @@
 
 import { FORMATS, format } from "../../features/formats.js";
 import { log } from "../templates.js";
-import { getCurrentUIInstance } from "./runtime.js";
+import { getCurrentUIInstance, trackAsync } from "./runtime.js";
 
 const COMPONENTS = Object.create(null);
 
@@ -140,7 +140,7 @@ function Dynamic(type, props = {}) {
 // re-render (no parent polling required).
 function lazy(loader, placeholder = null) {
 	let tmpl = null;
-	let loading = false;
+	let loading = null;
 	const pending = new Set();
 
 	function track(instance) {
@@ -171,24 +171,25 @@ function lazy(loader, placeholder = null) {
 
 	return (data) => {
 		if (!tmpl && !loading) {
-			loading = true;
-			Promise.resolve()
+			loading = Promise.resolve()
 				.then(() => loader())
 				.then(
 					(m) => {
 						tmpl = m?.default ?? m;
-						loading = false;
+						loading = null;
 						flush();
 					},
 					(error) => {
-						loading = false;
+						loading = null;
 						log.error("ui.lazy: loader rejected, details", { error });
-						flush();
+						// Retry on the next explicit render, not an automatic failure loop.
+						pending.clear();
 					},
 				);
 		}
 		if (!tmpl) {
 			track(getCurrentUIInstance());
+			trackAsync(loading);
 			return resolvePlaceholder(data);
 		}
 		return tmpl(data);

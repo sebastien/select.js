@@ -7,6 +7,7 @@ const ROOT = path.resolve(__dirname, "..")
 const EXAMPLES_DIR = path.join(ROOT, "examples")
 const FIXTURES_DIR = path.join(ROOT, "tests", "fixtures", "examples")
 const DIST_BUNDLE_PATH = path.join(ROOT, "dist", "selectjs.js")
+const DIST_ROOT = path.join(ROOT, "dist")
 const HAS_DIST_BUNDLE = fs.existsSync(DIST_BUNDLE_PATH)
 const REQUIRE_DIST = process.env.REQUIRE_DIST === "1"
 const UPDATE_FIXTURES = process.env.UPDATE_FIXTURES === "1"
@@ -323,6 +324,19 @@ async function executeExample(examplePath: string, mode: "src" | "dist" = "src")
 	const importAlias = async (specifier: string) => {
 		if (specifier.startsWith("@./")) {
 			if (mode === "dist") {
+				// Icons are a separate DOM-backed leaf surface, not part of the
+				// aggregate bundle; resolve their dist leaf artifacts instead.
+				if (specifier === "@./features/icons.js" || specifier === "@./icons.js") {
+					const p = path.join(DIST_ROOT, "select", "features", "icons.js")
+					return wrapIconsModule(await import(withCacheKey(pathToFileURL(p), cacheKey).href))
+				}
+				if (
+					specifier === "@./features/icons.catalog.js" ||
+					specifier === "@./icons.catalog.js"
+				) {
+					const p = path.join(DIST_ROOT, "select", "features", "icons.catalog.js")
+					return import(withCacheKey(pathToFileURL(p), cacheKey).href)
+				}
 				return resolveDistModule(await loadDistBundle(cacheKey), specifier)
 			}
 			const p = path.join(ROOT, "src", "js", "select", specifier.replace("@./", ""))

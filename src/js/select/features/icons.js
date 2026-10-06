@@ -91,19 +91,32 @@ const SVG_ALLOWED_ATTRS = new Set(
 	].map((_) => _.toLowerCase()),
 );
 // Constant: IconContainer
-// Shared hidden SVG container used to host loaded symbols.
-const IconContainer = Object.entries({
-	style: "position:absolute; width:0; height:0; overflow:hidden;",
-	width: "0",
-	height: "0",
-	viewBox: "0 0 0 0",
-}).reduce(
-	(r, [k, v]) => {
-		r.setAttribute(k, v);
-		return r;
-	},
-	document.createElementNS(SVG, "svg"),
-);
+// Shared hidden SVG container used to host loaded symbols. Created lazily so
+// this module can be imported without a DOM (e.g. for the icon catalog or
+// server-side code); the default export's `container` getter resolves it.
+let IconContainer = null;
+function getIconContainer() {
+	if (!IconContainer && typeof document !== "undefined") {
+		IconContainer = Object.entries({
+			style: "position:absolute; width:0; height:0; overflow:hidden;",
+			width: "0",
+			height: "0",
+			viewBox: "0 0 0 0",
+		}).reduce(
+			(r, [k, v]) => {
+				r.setAttribute(k, v);
+				return r;
+			},
+			document.createElementNS(SVG, "svg"),
+		);
+	}
+	return IconContainer;
+}
+// Eagerly create the container when a DOM is already available, so the
+// exported `IconContainer` binding is populated for browser consumers.
+if (typeof document !== "undefined") {
+	getIconContainer();
+}
 
 const IconDefaults = {
 	name: "file-question-mark",
@@ -195,7 +208,7 @@ const SourceTransforms = {
 // SVG forever. Unknown names do not fall back to a collection download.
 const IconSources = {
 	lucide: {
-		url: `https://cdn.jsdelivr.net/npm/lucide-static@1.50.0/icons/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/lucide-static@1.54.0/icons/${ICON_NAME}.svg`,
 		size: [24, 24],
 	},
 	iconoir: {
@@ -211,7 +224,7 @@ const IconSources = {
 	},
 	eva: "eva-outline",
 	tabler: {
-		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.48.0/icons/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.49.0/icons/${ICON_NAME}.svg`,
 		transform: "tablerStyle",
 		size: [24, 24],
 	},
@@ -228,7 +241,7 @@ const IconSources = {
 		style: FillStyle,
 	},
 	"tabler-filled": {
-		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.48.0/icons/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.49.0/icons/${ICON_NAME}.svg`,
 		transform: "tablerStyle",
 		variant: "filled",
 		size: [24, 24],
@@ -239,42 +252,42 @@ const IconSources = {
 		style: FillStyle,
 	},
 	"material-symbols": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.6/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.48.0/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		size: [48, 48],
 		style: FillStyle,
 	},
 	"material-symbols-outlined": "material-symbols",
 	"material-symbols-rounded": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.6/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.48.0/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		variant: "rounded",
 		size: [48, 48],
 		style: FillStyle,
 	},
 	"material-symbols-sharp": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.47.6/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.48.0/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		variant: "sharp",
 		size: [48, 48],
 		style: FillStyle,
 	},
 	"material-symbols-light": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.6/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.48.0/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		size: [48, 48],
 		style: FillStyle,
 	},
 	"material-symbols-light-outlined": "material-symbols-light",
 	"material-symbols-light-rounded": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.6/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.48.0/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		variant: "rounded",
 		size: [48, 48],
 		style: FillStyle,
 	},
 	"material-symbols-light-sharp": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.47.6/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.48.0/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		variant: "sharp",
 		size: [48, 48],
@@ -508,8 +521,8 @@ function isSafeSvgAttribute(name, value) {
 	return true;
 }
 
-function sanitizeSvgNode(node) {
-	if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+function sanitizeSvgNode(node, document) {
+	if (!node || node.nodeType !== 1) {
 		return null;
 	}
 	const tagName = node.tagName.toLowerCase();
@@ -523,34 +536,32 @@ function sanitizeSvgNode(node) {
 		}
 	}
 	for (const child of Array.from(node.childNodes || [])) {
-		if (child.nodeType === Node.ELEMENT_NODE) {
-			const sanitized = sanitizeSvgNode(child);
+		if (child.nodeType === 1) {
+			const sanitized = sanitizeSvgNode(child, document);
 			if (sanitized) {
 				result.appendChild(sanitized);
 			}
-		} else if (child.nodeType === Node.TEXT_NODE) {
+		} else if (child.nodeType === 3) {
 			result.appendChild(document.createTextNode(child.textContent || ""));
 		}
 	}
 	return result;
 }
 
-function sanitizeSvgMarkup(text, name) {
+function sanitizeSvgMarkup(text, name, document) {
 	// Some icons have extra information, like XML PI, comments, doctype.
 	// SEE: https://unpkg.com/devicons@1.8.0/!SVG/python.svg
 	const i = text.indexOf("<svg");
 	if (i < 0) {
 		throw new Error(`Could not find <svg> in icon "${name}", got: ${text}`);
 	}
-	const doc = new DOMParser().parseFromString(
-		text.substring(i),
-		"image/svg+xml",
-	);
+	const Parser = document.defaultView?.DOMParser || globalThis.DOMParser;
+	const doc = new Parser().parseFromString(text.substring(i), "image/svg+xml");
 	const svg = doc.documentElement;
 	if (svg?.tagName.toLowerCase() !== "svg") {
 		throw new Error(`Could not parse <svg> in icon "${name}"`);
 	}
-	return sanitizeSvgNode(svg);
+	return sanitizeSvgNode(svg, document);
 }
 
 // Function: resolve
@@ -586,13 +597,21 @@ function resolve(name = IconDefaults.name, source = IconDefaults.source) {
 function load(
 	name = IconDefaults.name,
 	source = IconDefaults.source,
-	container = IconContainer,
+	container = getIconContainer(),
 	cache = Cache,
 ) {
 	const resolved = resolve(name, source);
 	if (!resolved) {
 		log.warn("icons.load: unknown icon source, details", { name, source });
 		return Promise.resolve();
+	}
+	const document = container?.ownerDocument || globalThis.document;
+	if (!container || !document) {
+		return Promise.reject(
+			new Error(
+				"icons.load: a DOM (or an explicit container) is required to host loaded icons",
+			),
+		);
 	}
 	[name, source] = [resolved.name, resolved.source];
 	const { options, format, url } = resolved;
@@ -640,7 +659,7 @@ function load(
 		const res = request
 			.then((data) => (format === "iconify" ? iconifySvg(data, name) : data))
 			.then((text) => {
-				const icon = sanitizeSvgMarkup(text, name);
+				const icon = sanitizeSvgMarkup(text, name, document);
 				if (icon) {
 					symbol.replaceChildren(icon);
 				}
@@ -690,12 +709,13 @@ function icon(
 	{
 		size = "1em",
 		className = "icon",
-		container = IconContainer,
+		container = getIconContainer(),
 		mode = undefined,
 		style = {},
 	},
 ) {
 	const [parsedName, parsedSource] = parseIconName(name, source);
+	const document = container?.ownerDocument || globalThis.document;
 	style = paintStyle(parsedSource, sourceOptions(parsedSource), style);
 	const node = Object.entries({ width: size, height: size }).reduce(
 		(r, [k, v], i) => {
@@ -784,68 +804,79 @@ function px(value) {
 }
 
 // Class: IconElement
-// Custom element that renders an icon from the shared registry.
-class IconElement extends HTMLElement {
-	static observedAttributes = [
-		"name",
-		"source",
-		"size",
-		"icon",
-		"dy",
-		"fill",
-		"stroke",
-		"stroke-width",
-	];
-
-	constructor() {
-		super();
-		this.attachShadow({ mode: "open" });
+// Custom element that renders an icon from the shared registry. Extends the
+// real HTMLElement when present. Defer the class definition after a headless
+// import until installation, rather than permanently capturing a plain base.
+let IconElement;
+function getIconElement() {
+	if (IconElement || !globalThis.HTMLElement) {
+		return IconElement;
 	}
+	IconElement = class IconElement extends globalThis.HTMLElement {
+		static observedAttributes = [
+			"name",
+			"source",
+			"size",
+			"icon",
+			"dy",
+			"fill",
+			"stroke",
+			"stroke-width",
+		];
 
-	connectedCallback() {
-		this.render();
-	}
+		constructor() {
+			super();
+			this.attachShadow({ mode: "open" });
+		}
 
-	attributeChangedCallback(_name, _oldValue, newValue) {
-		if (newValue !== null) {
+		connectedCallback() {
 			this.render();
 		}
-	}
 
-	render() {
-		const [name, source] = parseIconName(
-			this.getAttribute("icon") || this.getAttribute("name"),
-			this.getAttribute("source"),
-		);
-		const className = this.getAttribute("class") || "icon";
-		const size = this.getAttribute("size") || "1em";
-		const fill = this.getAttribute("fill");
-		const stroke = this.getAttribute("stroke");
-		const dy = this.getAttribute("dy");
-		const stroke_width = px(this.getAttribute("stroke-width"));
-		const style = {};
-		if (fill) style.fill = fill;
-		if (stroke) style.stroke = stroke;
-		if (stroke_width) style["stroke-width"] = stroke_width;
-		if (dy) {
-			style.transform = `translateY(${px(dy)})`;
+		attributeChangedCallback(_name, _oldValue, newValue) {
+			if (newValue !== null) {
+				this.render();
+			}
 		}
-		// Remove old icon if exists
-		this.icon?.parentNode?.removeChild(this.icon);
 
-		// Create and append new icon
-		this.icon = icon(name, source, {
-			mode: "inline",
-			size,
-			className,
-			style,
-		});
+		render() {
+			const [name, source] = parseIconName(
+				this.getAttribute("icon") || this.getAttribute("name"),
+				this.getAttribute("source"),
+			);
+			const className = this.getAttribute("class") || "icon";
+			const size = this.getAttribute("size") || "1em";
+			const fill = this.getAttribute("fill");
+			const stroke = this.getAttribute("stroke");
+			const dy = this.getAttribute("dy");
+			const stroke_width = px(this.getAttribute("stroke-width"));
+			const style = {};
+			if (fill) style.fill = fill;
+			if (stroke) style.stroke = stroke;
+			if (stroke_width) style["stroke-width"] = stroke_width;
+			if (dy) {
+				style.transform = `translateY(${px(dy)})`;
+			}
+			// Remove old icon if exists
+			this.icon?.parentNode?.removeChild(this.icon);
 
-		if (this.shadowRoot) {
-			this.shadowRoot.appendChild(this.icon);
+			// Create and append new icon
+			this.icon = icon(name, source, {
+				mode: "inline",
+				size,
+				className,
+				style,
+			});
+
+			if (this.shadowRoot) {
+				this.shadowRoot.appendChild(this.icon);
+			}
 		}
-	}
+	};
+	return IconElement;
 }
+// Preserve eager class initialization when imported in a browser.
+getIconElement();
 
 // Function: install
 // Registers the icon custom element under `name` and applies `options` to the
@@ -857,14 +888,25 @@ function install(name = "ui-icon", options = {}) {
 	}
 	Object.assign(IconDefaults, rest);
 	// Register the custom element
-	if (!customElements.get(name)) {
+	const registry = globalThis.customElements;
+	const BaseElement = getIconElement();
+	if (!registry || !BaseElement) {
+		return;
+	}
+	if (!registry.get(name)) {
 		// The custom-elements registry does not allow the same constructor under
 		// multiple names. Keep the implementation shared, but give each tag its
 		// own constructor identity.
-		const Element = class extends IconElement {};
-		customElements.define(name, Element);
+		const Element = class extends BaseElement {};
+		registry.define(name, Element);
 	}
 }
+
+// Define the accessor on the export itself: Object.assign would evaluate it.
+Object.defineProperty(icon, "container", {
+	enumerable: true,
+	get: getIconContainer,
+});
 
 export {
 	Cache,
@@ -881,7 +923,6 @@ export default Object.assign(icon, {
 	install,
 	register,
 	resolve,
-	container: IconContainer,
 	sources: IconSources,
 });
 // EOF

@@ -57,6 +57,17 @@ JSON throws an error.
 External template fragments can be preloaded with `ui.load(url)` and then
 selected with `ui("url#TemplateName")`.
 
+For embedded HTML containing named templates, use `ui.fromHTML(html, name)`.
+Each call creates a detached scope so nested names such as `Item` are not
+shared between components or registered in the current document.
+
+```javascript
+const Card = ui.fromHTML(
+  '<template name="Card"><p out="title"></p></template>',
+  "Card",
+);
+```
+
 When selecting by bare name (`ui("TemplateName")`), resolution is:
 
 1. Current document/scope templates.
@@ -1422,6 +1433,109 @@ const Button = ui(`
   },
 });
 ```
+
+## Server-Side Rendering
+
+The `select/ui/ssr` leaf module renders a component into a detached DOM tree and serializes it to
+HTML. Because the runtime always renders on cloned nodes, the same templates,
+behaviors, `when`, list, and attribute slots used in the browser work unchanged
+on the server.
+
+It imports only the UI runtime (not the main `select/index` barrel), so
+browser-only modules such as `icons` and `interaction` are never pulled in.
+
+```javascript
+import { Window } from "happy-dom";
+import { render } from "select/ui/ssr";
+
+const window = new Window();
+const inst = await render(Component, { items: [...] }, { window });
+
+inst.html();               // cleaned HTML string
+await inst.update({ items: [...] }); // resolves once the cycle settles
+inst.html();               // updated string
+inst.dispose();            // release resources and any automatically installed DOM
+```
+
+### API
+
+- `render(component, data, options?)`: Creates and renders `component`,
+  resolving with an `SSRInstance` once the cycle has settled.
+- `renderToString(component, data, options?)`: Convenience returning the
+  serialized HTML string.
+- `create(component, options?)`: Creates an `SSRInstance` with `options.data`.
+  Initializers/default data run during construction; use `render` to await
+  scheduled work.
+- `install(windowOrOptions)`: Copies `document` and DOM constructors from
+  a window or `{ window }` / `{ document }` onto `globalThis`. A document must
+  expose `defaultView`. Returns the installed window. Idempotent for the same DOM;
+  attempting to install another DOM while one is installed throws.
+- `uninstall()`: Restores the globals captured by `install()` after any live
+  SSR instances have been disposed.
+- `serializeNodes(nodes, clean?)` / `cleanHtml(html)`: Serialization helpers
+  (exported and on the default export). `cleanHtml` parses an HTML fragment
+  using the installed DOM; `serializeNodes` uses the nodes' own DOM.
+
+### SSRInstance
+
+- `set(data)`: Applies data, returns a promise resolving with the instance
+  once settled.
+- `update(data, force?)`: Granular update, returns a promise once settled.
+- `html(clean?)`: Serialized HTML (cleaned by default).
+- `nodes`: The detached root nodes (`instance.nodes`).
+- `data`: Current instance data.
+- `dispose()`: Releases instance resources. Automatically installed globals
+  are restored when the last instance using them is disposed.
+
+`set`/`update` return promises (not the instance) so a server render can wait
+for async behaviors before serializing. The browser `UIInstance` keeps its
+synchronous, chainable `set`/`update`.
+
+### DOM backend
+
+`render` needs a DOM with `querySelectorAll`/`matches` support: happy-dom,
+linkedom, or jsdom. Pass it as `options.window`/`options.document`, or call
+`install(window)` once and reuse it across renders. If neither is provided,
+the existing `globalThis.document` is used. When `render` installs globals
+itself, they stay up until all instances using them call `dispose()`.
+`renderToString` disposes its instance for you, including on serialization errors.
+An explicit `install` keeps globals until `uninstall` is requested and live
+instances are disposed. Only one DOM can be installed at a time. This is why Select's
+own `domish` (no selectors) is not a supported backend.
+
+### Options
+
+- `window` / `document`: DOM to install for the render.
+- `data`: Initial data (used by `create`).
+- `timeout`: Milliseconds to wait for timer-based async behaviors (default
+  `0`). Microtask-based promises are always drained; behaviors that await
+  real timers (e.g. `setTimeout`) need a `timeout`.
+
+### Serialization
+
+Output is cleaned by default: marker comments
+(`<!--empty-->`, `<!--when:…-->`), `ui-parent`, empty `style` attributes are
+dropped from cloned nodes. Text, meaningful whitespace (including inline spaces
+and `<pre>` content), script/style contents, and user attributes such as
+`data-state` are preserved. The live rendered tree is unchanged. Pass `false`
+to `inst.html(false)`, or `{ clean: false }` as `renderToString`'s options, for
+raw markup (useful if you later add hydration).
+
+### Caveat: async behaviors
+
+Only work that flows through the component runtime is tracked — async
+behavior values (`does({ value: async ... })`) and `lazy()` loaders. Values
+produced by cells with `Deferred`/`Throttled` schedulers, or work started
+outside a behavior, are not awaited. Increase `timeout` when a behavior
+awaits a timer. Each render settles only its own live component subtree;
+unrelated or disposed instances do not delay it. Queued failures and failures
+while applying async results reject the owning render. Failed lazy loaders
+keep their placeholder and retry only on a subsequent explicit render, not
+automatically. A timeout or the microtask iteration limit returns the
+current tree if only asynchronous work remains pending. If render tasks are
+still queued at that limit, settling rejects and discards those tasks instead
+of continuing an unbounded render loop. A single synchronous behavior cannot
+be interrupted by the timeout.
 
 ## Best Practices
 

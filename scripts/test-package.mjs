@@ -51,6 +51,8 @@ const query = await import("select/features/query.js")
 const canonicalCells = await import("select/state/cells")
 const canonicalQuery = await import("select/features/query")
 const canonicalUI = await import("select/ui")
+const canonicalSSR = await import("select/ui/ssr")
+const leafSSR = await import("select/ui/ssr.js")
 const canonicalUtils = await import("select/utils")
 await import("select/utils/search.js")
 await import("select/src/js/select/features/query.js")
@@ -61,9 +63,15 @@ if (
  typeof query.default !== "function" ||
  canonicalQuery.default !== query.default ||
  typeof canonicalUI.default !== "function" ||
- typeof canonicalUtils.len !== "function"
+  typeof canonicalUtils.len !== "function" ||
+  canonicalSSR.render !== leafSSR.render ||
+  canonicalSSR.default.render !== canonicalSSR.render
 ) {
- throw new Error("package export identity check failed")
+  throw new Error("package export identity check failed")
+}
+const Component = canonicalUI.ui('<p out="text"></p>', window.document)
+if (await canonicalSSR.renderToString(Component, { text: "packed SSR" }, { window }) !== '<p>packed SSR</p>') {
+  throw new Error("package SSR render failed")
 }
 window.close()
 `,

@@ -49,6 +49,35 @@ function setupGlobals(window) {
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("ui template style extraction", () => {
+	test("fromHTML isolates named and nested templates across embedded fragments", async () => {
+		const window = new Window({ url: "http://localhost:8000/embedded-templates" });
+		setupGlobals(window);
+		const { default: ui } = await import("../src/js/select/ui/index.js");
+		const source = (tag) => `<template name="EmbeddedCard"><div out="items|*Item"></div><template name="Item"><${tag} out="label"></${tag}></template></template>`;
+		const First = ui.fromHTML(source("em"), "EmbeddedCard");
+		const Second = ui.fromHTML(source("strong"), "EmbeddedCard");
+		const firstHost = document.createElement("div");
+		const secondHost = document.createElement("div");
+		const first = First.new().set({ items: [{ label: "First" }] }).mount(firstHost);
+		const second = Second.new().set({ items: [{ label: "Second" }] }).mount(secondHost);
+		expect(firstHost.querySelector("em")?.textContent).toBe("First");
+		expect(secondHost.querySelector("strong")?.textContent).toBe("Second");
+		expect(firstHost.querySelector("strong")).toBeNull();
+		expect(document.querySelector('template[name="EmbeddedCard"]')).toBeNull();
+
+		// Source-loaded HTML binds through the existing resource's detached document.
+		const loaded = await ui.load(`data:text/html,${encodeURIComponent(source("span"))}`);
+		const Loaded = ui("EmbeddedCard", loaded.doc);
+		const loadedHost = document.createElement("div");
+		const instance = Loaded.new().set({ items: [{ label: "Loaded" }] }).mount(loadedHost);
+		expect(loadedHost.querySelector("span")?.textContent).toBe("Loaded");
+		expect(firstHost.querySelector("em")?.textContent).toBe("First");
+		first.dispose();
+		second.dispose();
+		instance.dispose();
+		window.close?.();
+	});
+
 	test("extracts template styles before compiling bindings and nested templates", async () => {
 		const window = new Window({ url: "http://localhost:8000/template-style" });
 		setupGlobals(window);

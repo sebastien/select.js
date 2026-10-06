@@ -811,6 +811,20 @@ function ui(selection, scope = document) {
 	return createTemplateComponent(selection, scope);
 }
 
+// Function: fromHTML
+// Binds the named template in `html` within a detached scope, keeping nested
+// template names local to this component rather than the current document.
+//
+// Example:
+// ```javascript
+// const Card = ui.fromHTML('<template name="Card"><p out="title"></p></template>', 'Card');
+// ```
+function fromHTML(html, name) {
+	const scope = document.createElement("div");
+	scope.innerHTML = html;
+	return ui(name, scope);
+}
+
 // Function: register
 // Registers `value` as `name` for Dynamic() resolution.
 function register(name, value) {
@@ -872,6 +886,7 @@ Object.assign(ui, {
 	interceptLink,
 	captureLinks,
 	load,
+	fromHTML,
 });
 
 export { createComponent, stripTemplateNodes, ui };

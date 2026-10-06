@@ -27,6 +27,7 @@ import {
 	runWithUIInstance,
 	scheduleRenderTask,
 	snapshotReactiveDependencyRevisions,
+	trackAsync,
 } from "./runtime.js";
 
 // Function: attachRender
@@ -61,7 +62,7 @@ function attachRender(UIInstance) {
 				if (!this._isDisposed) {
 					this.render(this.data, pendingChangedKeys ?? null);
 				}
-			});
+			}, this);
 		},
 
 		set(data, key = this.key) {
@@ -236,17 +237,20 @@ function attachRender(UIInstance) {
 			this._asyncBehaviorTokens = this._asyncBehaviorTokens ?? new Map();
 			const token = (this._asyncBehaviorTokens.get(key) || 0) + 1;
 			this._asyncBehaviorTokens.set(key, token);
-			value.then(
-				(resolved) => {
-					if (
-						this._isDisposed ||
-						this._asyncBehaviorTokens.get(key) !== token
-					) {
-						return;
-					}
-					onResolved(resolved);
-				},
-				() => undefined,
+			trackAsync(
+				value.then(
+					(resolved) => {
+						if (
+							this._isDisposed ||
+							this._asyncBehaviorTokens.get(key) !== token
+						) {
+							return;
+						}
+						onResolved(resolved);
+					},
+					() => undefined,
+				),
+				this,
 			);
 			return true;
 		},

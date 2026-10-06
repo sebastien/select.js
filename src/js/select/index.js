@@ -6,8 +6,11 @@
 
 // Module: select/index
 // Aggregates the core and companion modules into a single import surface.
+// Kept free of DOM-at-import dependencies so it can be imported headless (e.g.
+// for server-side rendering). Icons are a separate DOM-backed leaf surface;
+// import them from `select/features/icons.js` (and the
+// catalog from `select/features/icons.catalog.js`) explicitly.
 
-import icons from "./features/icons.js";
 import * as interaction from "./features/interaction/index.js";
 import $ from "./features/query.js";
 import workflow from "./features/workflows.js";
@@ -20,8 +23,6 @@ import { dates } from "./utils/dates.js";
 import * as utils from "./utils/index.js";
 
 export { debug, FORMATS, format } from "./features/formats.js";
-export * from "./features/icons.catalog.js";
-export * from "./features/icons.js";
 export * from "./features/interaction/index.js";
 export * from "./state/browser.js";
 export * from "./state/cells.js";
@@ -38,7 +39,6 @@ export {
 	cells,
 	dates,
 	fastdom,
-	icons,
 	interaction,
 	routing,
 	ui,

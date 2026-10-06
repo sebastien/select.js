@@ -1,6 +1,6 @@
 {
 	"name": "select",
-	"version": "1.0.2",
+	"version": "1.1.0",
 	"description": "A small jQuery-like library for DOM+SVG manipulation",
 	"type": "module",
 	"main": "./src/js/select/index.js",
@@ -14,6 +14,7 @@
 		"./ui": "./src/js/select/ui/index.js",
 		"./ui/components": "./src/js/select/ui/components.js",
 		"./ui/*": "./src/js/select/ui/*",
+		"./ui/ssr": "./src/js/select/ui/ssr.js",
 		"./features": "./src/js/select/features/index.js",
 		"./features/interaction": "./src/js/select/features/interaction/index.js",
 		"./features/query": "./src/js/select/features/query.js",

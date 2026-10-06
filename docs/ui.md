@@ -20,6 +20,7 @@ Binding note:
 ### Template creation:
 
 - `ui(selection, scope?)`: Main entry point for creating templates.
+- `ui.fromHTML(html, name)`: Binds a named template from embedded HTML in a detached scope, isolating reused nested template names.
 - `Dynamic(type, props?)`: Dynamic component resolution.
 - `lazy(loader, placeholder?)`: Lazy loading support.
 - `webcomponent(name, componentFactory, initial?, options?)`: Registers a custom element backed by Select UI or a pure render function.

@@ -8,6 +8,7 @@ const DIST_ROOT = path.join(ROOT, "dist")
 const DIST_BUNDLE_PATH = path.join(ROOT, "dist", "selectjs.min.js")
 const DIST_INDEX_MIN_PATH = path.join(ROOT, "dist", "select", "index.min.js")
 const DIST_QUERY_PATH = path.join(ROOT, "dist", "select", "features", "query.js")
+const DIST_SSR_PATH = path.join(ROOT, "dist", "select", "ui", "ssr.js")
 const HAS_DIST_BUNDLE = fs.existsSync(DIST_BUNDLE_PATH)
 const REQUIRE_DIST = process.env.REQUIRE_DIST === "1"
 
@@ -112,6 +113,23 @@ describe("dist bundle export surface", () => {
 			expect(index[name]).toBe(bundle[name])
 		}
 		window.close()
+	})
+
+	test("SSR leaf renders using the matching dist UI runtime", async () => {
+		if (!fs.existsSync(DIST_SSR_PATH)) {
+			if (REQUIRE_DIST) throw new Error(missingDistMessage(DIST_SSR_PATH))
+			return
+		}
+		const window = setupGlobals()
+		const ssr = await import(pathToFileURL(DIST_SSR_PATH).href)
+		const { ui } = await import(pathToFileURL(path.join(DIST_ROOT, "select", "ui", "index.js")).href)
+		try {
+			const Component = ui('<p out="text"></p>', window.document)
+			expect(await ssr.renderToString(Component, { text: "dist SSR" }, { window })).toBe("<p>dist SSR</p>")
+		} finally {
+			ssr.uninstall()
+			window.close()
+		}
 	})
 
 	test("dist contains only the declared artifact products", () => {

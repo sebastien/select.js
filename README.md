@@ -21,9 +21,13 @@ state (`select/state/cells.js`), browser-backed state (`select/state/browser.js`
 general utility bundle.
 
 The aggregate entry point is `select/index.js`, which re-exports the companion
-modules for projects that prefer a single import surface. Focused domains are
-also available through `select/core`, `select/state`, `select/ui`,
-`select/features`, and `select/utils`.
+modules for projects that prefer a single import surface. It is free of
+DOM-at-import dependencies, so it can also be imported headlessly (for example
+when server-side rendering). Focused domains are also available through
+`select/core`, `select/state`, `select/ui`, `select/features`, and
+`select/utils`. Icons are **not** part of the aggregate surface; import their
+DOM-backed API from `select/features/icons.js` directly. The icon module itself
+is also safe to import headlessly.
 
 While `select/features/query.js` is fast, the `select/ui` library is not the
 fastest, but it is light enough for embedded UIs, plugins, and small tools. In
@@ -89,7 +93,7 @@ $("#app").addClass("ready")
 <script type="importmap">
 {
   "imports": {
-    "@select/": "https://cdn.jsdelivr.net/gh/sebastien/select.js@v1.0.2/src/js/select/"
+    "@select/": "https://cdn.jsdelivr.net/gh/sebastien/select.js@v1.1.0/src/js/select/"
   }
 }
 </script>
@@ -114,10 +118,11 @@ import ui from "@select/ui"
 - `Dynamic(type, props?)`: dynamic component resolution by name/function.
 - `lazy(loader, placeholder?)`: lazy component loader.
 - `router()`, `routed()`, `route(pattern)`, `RoutePattern`: routing helpers from `select/state/routing.js`.
-- `icon(name, source?, options?)`, `install(...)`, `load(...)`: icon registry helpers from `select/features/icons.js`.
+- `icon(name, source?, options?)`, `install(...)`, `load(...)`: icon registry helpers from `select/features/icons.js` (import directly; not re-exported by the aggregate entry).
 - `len`, `type`, `remap`: shared utility helpers from `select/ui`.
 - `clsx`, `shortword`, `sorted`, `unique`: shared helpers from `select/utils` and `select/utils/*.js`.
 - `bind`, `drag`, `draggable`, `sort`, `popup`, `autoresize`, `Keyboard`: interaction helpers from `select/features/interaction/index.js`. `draggable(event, options?)` uses `[data-draggable]` sources and `[data-drop-target]` targets, appending a clone by default; `data-drop-accept` and `accept(...)` control acceptance, while `preview(...)` and `drop(...)` customize the two effect stages. `sort(event, options?)` provides sortable list slotting and moves the original item by default. `popup(panel, trigger, options?)` portals a panel, keeps it in the viewport, and supports underlay click and Escape to close.
+- `render(component, data?, options?)`, `renderToString(component, data?, options?)`, `install(window)`, `create(...)`: server-side rendering helpers from `select/ui/ssr` (a separate leaf module). Renders a component to a detached tree and returns an `SSRInstance` whose `set`/`update` await tracked runtime work and whose `html()` yields the serialized string. See [`docs/ref-ui.md`](docs/ref-ui.md#server-side-rendering).
 - `fastdom`: batched DOM read/write helper.
 
 ### Modules
@@ -128,6 +133,7 @@ import ui from "@select/ui"
 - [`docs/browser.md`](docs/browser.md): `select/state/browser.js` usage and API guide.
 - [`docs/utils.md`](docs/utils.md): `select/utils` and the helper submodules usage and API guide.
 - [`docs/icons.md`](docs/icons.md): `select/features/icons.js` pinned SVG presets and optional extra packs.
+- [`docs/ref-ui.md`](docs/ref-ui.md#server-side-rendering): `select/ui/ssr` server-side rendering.
 - Routing helpers are covered by [`docs/utils.md`](docs/utils.md) and [`examples/feature-routing.html`](examples/feature-routing.html).
 
 ### Notable examples

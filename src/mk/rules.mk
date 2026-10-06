@@ -87,7 +87,12 @@ check-icons:
 .PHONY: update-icons
 update-icons:
 	@$(call rule_pre_cmd)
-	ICON_PIN_FILES="$(ICON_PIN_FILES)" $(CMD) node --input-type=module -e "$$ICONS_SCRIPT"
+	@out=$$(ICON_PIN_FILES="$(ICON_PIN_FILES)" $(CMD) node --input-type=module -e "$$ICONS_SCRIPT") || exit $$?; \
+	echo "$$out"; \
+	if echo "$$out" | grep -q "^\[ICONS\] updated"; then \
+		echo "[ICONS] pins changed; regenerating example fixtures"; \
+		$(MAKE) update-fixtures; \
+	fi
 	$(call rule_post_cmd)
 
 # Regenerates the HTML snapshots in tests/fixtures/examples used by

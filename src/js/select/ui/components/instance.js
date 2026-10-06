@@ -304,101 +304,108 @@ class UIInstance {
 			typeof this.options.id === "string" ? this.options.id.trim() : "";
 		this.id = explicitId || createUIInstanceId();
 		registerUIInstance(this);
-		const compiled = UIInstance._ensureCompiled(template);
-		this.nodes = new Array(template.nodes.length);
-		for (let i = 0; i < template.nodes.length; i++) {
-			this.nodes[i] = template.nodes[i].cloneNode(true);
-		}
-		UIInstance._applyTemplateWebComponents(this.nodes, template, this.id);
-		UIInstance._applyComponentRootClass(this.nodes, template);
-		this.in = compiled.in ? compiled.in(this.nodes, this) : null;
-		// NOTE: Keep non-mutating slot resolution before `out` slots.
-		// `out-replace` (compiled as part of `out`) mutates DOM shape by replacing
-		// anchor nodes with comment boundaries. If `on` slots are resolved after
-		// that mutation, index-based node paths can drift for later siblings and
-		// event handlers may bind to wrong/missing nodes.
-		this._on = compiled.on ? compiled.on(this.nodes, this) : null;
-		this.when = compiled.when ? compiled.when(this.nodes, this) : null;
-		this.outAttr = compiled.outAttr ? compiled.outAttr(this.nodes, this) : null;
-		this.inout = compiled.inout ? compiled.inout(this.nodes, this) : null;
-		this.ref = compiled.ref ? compiled.ref(this.nodes, this) : null;
-		this.out = compiled.out ? compiled.out(this.nodes, this) : null;
-		if (this.when && this.out) {
-			for (const k in this.when) {
-				for (const predicateSlot of this.when[k]) {
-					for (const outKey in this.out) {
-						for (const outSlot of this.out[outKey]) {
-							if (predicateSlot.node.contains(outSlot.node)) {
-								outSlot.predicateSlot = predicateSlot;
-								predicateSlot.dependentOutSlots ??= new Set();
-								predicateSlot.dependentOutSlots.add(outSlot);
+		try {
+			const compiled = UIInstance._ensureCompiled(template);
+			this.nodes = new Array(template.nodes.length);
+			for (let i = 0; i < template.nodes.length; i++) {
+				this.nodes[i] = template.nodes[i].cloneNode(true);
+			}
+			UIInstance._applyTemplateWebComponents(this.nodes, template, this.id);
+			UIInstance._applyComponentRootClass(this.nodes, template);
+			this.in = compiled.in ? compiled.in(this.nodes, this) : null;
+			// NOTE: Keep non-mutating slot resolution before `out` slots.
+			// `out-replace` (compiled as part of `out`) mutates DOM shape by replacing
+			// anchor nodes with comment boundaries. If `on` slots are resolved after
+			// that mutation, index-based node paths can drift for later siblings and
+			// event handlers may bind to wrong/missing nodes.
+			this._on = compiled.on ? compiled.on(this.nodes, this) : null;
+			this.when = compiled.when ? compiled.when(this.nodes, this) : null;
+			this.outAttr = compiled.outAttr
+				? compiled.outAttr(this.nodes, this)
+				: null;
+			this.inout = compiled.inout ? compiled.inout(this.nodes, this) : null;
+			this.ref = compiled.ref ? compiled.ref(this.nodes, this) : null;
+			this.out = compiled.out ? compiled.out(this.nodes, this) : null;
+			if (this.when && this.out) {
+				for (const k in this.when) {
+					for (const predicateSlot of this.when[k]) {
+						for (const outKey in this.out) {
+							for (const outSlot of this.out[outKey]) {
+								if (predicateSlot.node.contains(outSlot.node)) {
+									outSlot.predicateSlot = predicateSlot;
+									predicateSlot.dependentOutSlots ??= new Set();
+									predicateSlot.dependentOutSlots.add(outSlot);
+								}
 							}
 						}
 					}
 				}
 			}
-		}
-		this.slots = null;
-		if (template.slots && this.options.nativeSlots !== true) {
-			this.slots = [];
-			for (const slotDef of template.slots) {
-				const node = resolveTemplatePath(
-					this.nodes,
-					slotDef.rootIndex,
-					slotDef.tailPath,
-				);
-				const tailPath = slotDef.tailPath;
-				if (node) {
-					const placeholder = document.createComment(`slot:${slotDef.name}`);
-					if (tailPath) {
-						node.parentNode?.replaceChild(placeholder, node);
-					} else {
-						this.nodes[slotDef.rootIndex] = placeholder;
-					}
-					this.slots.push(
-						new UIContentSlot(
-							placeholder,
-							slotDef.fallback,
-							this,
-							slotDef.name,
-						),
+			this.slots = null;
+			if (template.slots && this.options.nativeSlots !== true) {
+				this.slots = [];
+				for (const slotDef of template.slots) {
+					const node = resolveTemplatePath(
+						this.nodes,
+						slotDef.rootIndex,
+						slotDef.tailPath,
 					);
+					const tailPath = slotDef.tailPath;
+					if (node) {
+						const placeholder = document.createComment(`slot:${slotDef.name}`);
+						if (tailPath) {
+							node.parentNode?.replaceChild(placeholder, node);
+						} else {
+							this.nodes[slotDef.rootIndex] = placeholder;
+						}
+						this.slots.push(
+							new UIContentSlot(
+								placeholder,
+								slotDef.fallback,
+								this,
+								slotDef.name,
+							),
+						);
+					}
+				}
+				if (this.slots.length === 0) {
+					this.slots = null;
 				}
 			}
-			if (this.slots.length === 0) {
-				this.slots = null;
+			this._isDisposed = false;
+			this.children = undefined;
+			this.parent = undefined;
+			this.setParent(parent);
+			if (template.hasBindings) {
+				this.bind();
 			}
-		}
-		this._isDisposed = false;
-		this.children = undefined;
-		this.parent = undefined;
-		this.setParent(parent);
-		if (template.hasBindings) {
-			this.bind();
-		}
-		this._renderer = undefined;
-		this._renderQueued = false;
-		this._reactiveDataSubs = undefined;
-		this._reactiveDataRefs = undefined;
-		this._domListeners = undefined;
-		this._effectTeardowns = undefined;
-		this._asyncBehaviorTokens = undefined;
-		this._behaviorDeps = undefined;
-		this._behaviorValues = undefined;
-		this._behaviorDepRevisions = undefined;
-		this._ownedReactiveRefs = undefined;
-		this._reactiveTopLevelFusions = undefined;
-		this._hasRendered = false;
-		if (template.initializer) {
-			const state = template.initializer(this, this.data);
-			if (state) {
-				this.initial = state;
-				this._syncOwnedReactiveRefs(state);
+			this._renderer = undefined;
+			this._renderQueued = false;
+			this._reactiveDataSubs = undefined;
+			this._reactiveDataRefs = undefined;
+			this._domListeners = undefined;
+			this._effectTeardowns = undefined;
+			this._asyncBehaviorTokens = undefined;
+			this._behaviorDeps = undefined;
+			this._behaviorValues = undefined;
+			this._behaviorDepRevisions = undefined;
+			this._ownedReactiveRefs = undefined;
+			this._reactiveTopLevelFusions = undefined;
+			this._hasRendered = false;
+			if (template.initializer) {
+				const state = template.initializer(this, this.data);
+				if (state) {
+					this.initial = state;
+					this._syncOwnedReactiveRefs(state);
+				}
+				this.set(seedInitializerState(this.data, state));
 			}
-			this.set(seedInitializerState(this.data, state));
-		}
-		if (template.defaultData) {
-			this.set(template.defaultData);
+			if (template.defaultData) {
+				this.set(template.defaultData);
+			}
+		} catch (error) {
+			this.dispose();
+			throw error;
 		}
 	}
 
