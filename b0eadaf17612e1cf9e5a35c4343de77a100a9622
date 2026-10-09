@@ -5,3 +5,4 @@ metrics.benchmark.solid.init:1433.82
 metrics.benchmark.solid.apply:1308.02
 metrics.benchmark.solid.heap:42.36
 metrics.benchmark.overall:73.85
+metrics.coverage.test:76.82
