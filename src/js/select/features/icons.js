@@ -228,6 +228,11 @@ const IconSources = {
 		transform: "tablerStyle",
 		size: [24, 24],
 	},
+	"grommet-icons": {
+		url: "https://cdn.jsdelivr.net/npm/@iconify-json/grommet-icons@1.2.4/icons.json",
+		format: "iconify",
+		size: [24, 24],
+	},
 	"iconoir-solid": {
 		url: `https://cdn.jsdelivr.net/npm/iconoir@7.12.1/icons/${ICON_NAME}.svg`,
 		transform: "iconoirStyle",

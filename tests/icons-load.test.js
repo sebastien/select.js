@@ -458,6 +458,32 @@ describe("icons.load", () => {
 		)
 	})
 
+	test("loads Grommet icons from the pinned Iconify collection", async () => {
+		const cache = new Map()
+		const container = makeContainer()
+		globalThis.fetch = (...args) => {
+			fetchCalls.push(args)
+			return Promise.resolve({
+				json: () =>
+					Promise.resolve({
+						prefix: "grommet-icons",
+						icons: { home: { body: '<path d="M0 0h24v24H0z"/>' } },
+					}),
+			})
+		}
+
+		const symbol = await load("home", "grommet-icons", container, cache)
+
+		expect(fetchCalls.map(([url]) => url)).toEqual([
+			"https://cdn.jsdelivr.net/npm/@iconify-json/grommet-icons@1.2.4/icons.json",
+		])
+		expect(symbol?.firstElementChild?.getAttribute("viewBox")).toBe("0 0 24 24")
+		expect(resolve("home", "grommet-icons")).toMatchObject({
+			format: "iconify",
+			fileName: "home",
+		})
+	})
+
 	test("resolve reports the target url without fetching", () => {
 		expect(
 			resolve("arrow-selector-tool-rounded", "material-symbols-light"),
