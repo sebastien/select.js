@@ -147,7 +147,10 @@
 			<section class="panel showcase">
 				<article class="preview">
 					<h3>Programmatic <code>icon(...)</code></h3>
-					<div out="programmatic" class="icon-row"></div>
+					<div class="icon-row">
+						<span out="iconNode"></span>
+						<span out="qualified"></span>
+					</div>
 					<div class="muted">Uses <code>icon(name, source, { size })</code>.</div>
 				</article>
 
@@ -198,15 +201,11 @@
 			setSource: (_self, { source }, event) => source.set(event.target.value),
 			setSize: (_self, { size }, event) => size.set(event.target.value),
 			qualified: (_self, { qualified }) => qualified.value,
-				programmatic: (_self, { source, size, qualified }) => {
-				const node = document.createElement("span")
-				node.className = "icon-row"
-					node.appendChild(icon(qualified.value.split(":")[1], source.value, {
-						size: size.value,
-					}))
-				node.append(` ${qualified.value}`)
-				return node
-			},
+			// `icon()` returns a DOM node, which is exactly the payload `out` renders.
+			iconNode: (_self, { source, size, qualified }) =>
+				icon(qualified.value.split(":")[1], source.value, {
+					size: size.value,
+				}),
 			pickSparkles: (_self, { source, name }) => {
 				source.set("lucide")
 				name.set("sparkles")

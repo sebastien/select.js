@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<title>Select UI — Nested Templates</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script type="importmap">
+		{"imports": {"@./": "../src/js/select/" } }
+	</script>
+	<style>
+		body {
+			font-family: system-ui, sans-serif;
+			padding: 20px;
+			max-width: 800px;
+			margin: 0 auto;
+		}
+
+		.panel {
+			border: 1px solid #ddd;
+			border-radius: 8px;
+			padding: 12px 16px;
+			background: #fafafa;
+		}
+
+		.actions {
+			display: flex;
+			gap: 8px;
+			margin-bottom: 10px;
+		}
+
+		.people {
+			list-style: none;
+			margin: 0;
+			padding: 0;
+			display: grid;
+			gap: 8px;
+		}
+
+		.person {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			padding: 8px 10px;
+			border: 1px solid #e5e8f1;
+			border-radius: 6px;
+			background: #fff;
+			cursor: pointer;
+			text-align: left;
+		}
+
+		.person:hover {
+			background: #f4f7ff;
+		}
+
+		.person.selected {
+			border-color: #4a6cf7;
+			background: #eef3ff;
+		}
+
+		.person .name {
+			font-weight: 600;
+		}
+
+		.person .role {
+			color: #667;
+			font-size: 0.85rem;
+		}
+
+		.muted {
+			color: #667;
+			font-size: 0.9rem;
+			margin: 0;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Nested Templates</h1>
+	<p>
+		A collection is rendered by a nested <code>&lt;template&gt;</code> declared inside the
+		parent, with its own behaviour: the markup stays in HTML and the behaviours only
+		compute values. <code>Shuffle</code> keeps the row nodes in place because rows are
+		keyed. See <code>docs/ui.md</code> for the layout rules this example follows.
+	</p>
+
+	<div id="ui"></div>
+
+	<template id="People">
+		<div class="panel">
+			<div class="actions">
+				<button type="button" on:click="shuffle">Shuffle</button>
+				<button type="button" on:click="clear">Clear</button>
+			</div>
+
+			<ul class="people" out="people|*Person"></ul>
+			<p class="muted" when="!hasPeople">Nobody to show.</p>
+		</div>
+
+		<template name="Person">
+			<li class="person" out:class="classes" on:click="select">
+				<span class="name" out="name"></span>
+				<span class="role" out="role"></span>
+			</li>
+		</template>
+	</template>
+
+	<script type="module">
+		import { ui } from "@./ui/index.js"
+
+		const PEOPLE = [
+			{ id: "ada", name: "Ada Lovelace", role: "Mathematics" },
+			{ id: "grace", name: "Grace Hopper", role: "Compilers" },
+			{ id: "alan", name: "Alan Turing", role: "Computation" },
+		]
+
+		// The parent, in the usual `.init(...).does(...)` order.
+		const App = ui("#People")
+			.init((_self, data) => ({
+				people: data?.people ?? PEOPLE,
+				selected: null,
+			}))
+			.does({
+				// `*Person` applies Person to each row. The rows carry `$key` so a
+				// reorder reuses the existing DOM nodes instead of rebuilding them.
+				people: (_self, { people, selected }) =>
+					people?.map((person, index) => ({
+						...person,
+						$key: person.id ?? index,
+						selected: selected === person.id,
+					})),
+				hasPeople: (_self, { people }) => (people?.length ?? 0) > 0,
+				shuffle: (self, { people }) => self.update({ people: [...people].reverse() }),
+				clear: (self) => self.update({ people: [] }),
+			})
+			.sub({
+				Select: (self, { selected }, event) => ({
+					selected: selected === event.data ? null : event.data,
+				}),
+			})
+
+		// Sub-template: one row per person. Processors resolve locally first, so
+		// `out="people|*Person"` uses this Person even if a global formatter of the
+		// same name exists.
+		App.Person.does({
+			name: (_self, { name }) => name,
+			role: (_self, { role }) => role,
+			// `out:class` takes an object of class token to boolean.
+			classes: (_self, { selected }) => ({ selected }),
+			select: (self, { id }) => self.pub("Select", id),
+		})
+
+		App.new().mount("#ui")
+	</script>
+</body>
+
+</html>

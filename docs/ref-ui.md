@@ -248,6 +248,11 @@ or use `date.attach(input)` for an imperative input listener.
 
 ### Nested Templates
 
+Layout rules, in short: markup belongs in a `<template>` or a loaded fragment,
+never in the `ui(...)` call, and sub-templates are declared as nested
+`<template>` elements rather than built in a behaviour. See
+[`docs/ui.md`](./ui.md#component-structure-and-anti-patterns) for the rationale.
+
 Templates can be nested to create complex structures. You can define a child
 template and use it within a parent's behavior.
 

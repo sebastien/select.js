@@ -291,62 +291,92 @@
 
 	<div id="ui"></div>
 
-	<template id="App">
-		<div class="app">
-			<section class="panel controls">
-				<label>
-					Category
-					<select out:value="category" on:change="setCategory">
-						<option value="all">All</option>
-						<option value="navigation">Navigation</option>
-						<option value="actions">Actions</option>
-						<option value="status">Status</option>
-						<option value="objects">Objects</option>
-						<option value="people">People</option>
-						<option value="tools">Tools</option>
-					</select>
-				</label>
-				<label class="grow">
-					Search
-					<input inout="query" placeholder="Filter icons…" />
-				</label>
-				<label>
-					Render with
-					<select out:value="preset" on:change="setPreset">
-						<option value="lucide">Lucide</option>
-						<option value="iconoir">Iconoir</option>
-						<option value="eva">Eva</option>
-						<option value="tabler">Tabler</option>
-						<option value="mdi">Material Design Icons</option>
-						<option value="material-symbols">Material Symbols</option>
-						<option value="material-symbols-rounded">Material Symbols Rounded</option>
-						<option value="material-symbols-sharp">Material Symbols Sharp</option>
-						<option value="material-symbols-light">Material Symbols Light</option>
-						<option value="material-icons">Material Icons</option>
-						<option value="radix-icons">Radix Icons</option>
-						<option value="ix">Siemens iX</option>
-					</select>
-				</label>
-				<label class="check">
-					<input type="checkbox" on:change="toggleMissing" />
-					Only missing
-				</label>
-				<button type="button" on:click="probe">Check visible</button>
-				<span class="status" out="status"></span>
-			</section>
-			<main class="content">
-				<section class="panel results">
-					<div class="scroll">
-						<div class="grid" out="results"></div>
-					</div>
-					<footer class="results-footer">
-						<button type="button" on:click="more">Show more</button>
-					</footer>
+		<template id="App">
+			<div class="app">
+				<section class="panel controls">
+					<label>
+						Category
+						<select out:value="category" on:change="setCategory">
+							<option value="all">All</option>
+							<option value="navigation">Navigation</option>
+							<option value="actions">Actions</option>
+							<option value="status">Status</option>
+							<option value="objects">Objects</option>
+							<option value="people">People</option>
+							<option value="tools">Tools</option>
+						</select>
+					</label>
+					<label class="grow">
+						Search
+						<input inout="query" placeholder="Filter icons…" />
+					</label>
+					<label>
+						Render with
+						<select out:value="preset" on:change="setPreset">
+							<option value="lucide">Lucide</option>
+							<option value="iconoir">Iconoir</option>
+							<option value="eva">Eva</option>
+							<option value="tabler">Tabler</option>
+							<option value="mdi">Material Design Icons</option>
+							<option value="material-symbols">Material Symbols</option>
+							<option value="material-symbols-rounded">Material Symbols Rounded</option>
+							<option value="material-symbols-sharp">Material Symbols Sharp</option>
+							<option value="material-symbols-light">Material Symbols Light</option>
+							<option value="material-icons">Material Icons</option>
+							<option value="radix-icons">Radix Icons</option>
+							<option value="ix">Siemens iX</option>
+						</select>
+					</label>
+					<label class="check">
+						<input type="checkbox" on:change="toggleMissing" />
+						Only missing
+					</label>
+					<button type="button" on:click="probe">Check visible</button>
+					<span class="status" out="status"></span>
 				</section>
-				<aside class="panel detail" out="detail"></aside>
-			</main>
-		</div>
-	</template>
+				<main class="content">
+					<section class="panel results">
+						<div class="scroll">
+							<div class="grid" out="results|*Tile"></div>
+							<p class="muted" when="!hasResults">No icons match.</p>
+						</div>
+						<footer class="results-footer">
+							<button type="button" on:click="more">Show more</button>
+						</footer>
+					</section>
+					<aside class="panel detail" out="detail"></aside>
+				</main>
+			</div>
+
+			<template name="Tile">
+				<button type="button" class="tile" out:data-name="name" out:title="title" on:click="select">
+					<span class="tile-icon" out="iconNode"></span>
+					<code out="name"></code>
+				</button>
+			</template>
+
+			<template name="Detail">
+				<h3 out="name">Icon</h3>
+				<p class="muted">Same concept across every preset</p>
+				<div out="rows|*SourceRow"></div>
+			</template>
+
+			<template name="SourceRow">
+				<div class="source" out:class="classes">
+					<span class="tile-icon" out="iconNode"></span>
+					<div class="meta">
+						<strong out="label"></strong>
+						<code out="file"></code>
+						<span class="url" out="url"></span>
+					</div>
+					<span class="badge" out="badge"></span>
+				</div>
+			</template>
+
+			<template name="Hint">
+				<p class="muted" out="text"></p>
+			</template>
+		</template>
 
 	<script type="module">
 		import { catalogNames, IconCatalog, IconPresets, isIconAvailable, resolveIconName } from "@./features/icons.catalog.js"
@@ -385,114 +415,115 @@
 			return filtered
 		}
 
-		function buildTile(name, preset, onSelect) {
-			const resolved = resolveIconName(name, preset)
-			const tile = document.createElement("button")
-			tile.type = "button"
-			tile.className = "tile"
-			tile.dataset.name = name
-			tile.title = `${preset}:${resolved}`
-			const holder = document.createElement("div")
-			holder.className = "tile-icon"
-			const node = icon(resolved, preset, { mode: "inline", size: "22px" })
-			node.classList.add("loading")
-			holder.appendChild(node)
-			const label = document.createElement("code")
-			label.textContent = name
-			tile.append(holder, label)
-			tile.addEventListener("click", () => onSelect(name))
-			return tile
-		}
-
-		function buildSourceRow(name, preset) {
-			const row = document.createElement("div")
-			row.className = "source"
-			const holder = document.createElement("div")
-			holder.className = "tile-icon"
-			const meta = document.createElement("div")
-			meta.className = "meta"
-			const title = document.createElement("strong")
-			title.textContent = IconPresets[preset]
-			const file = document.createElement("code")
-			const url = document.createElement("span")
-			url.className = "url"
-			const badge = document.createElement("span")
-			badge.className = "badge"
-			meta.append(title, file, url)
-			row.append(holder, meta, badge)
-
-			if (!isIconAvailable(name, preset)) {
-				row.classList.add("unavailable")
-				file.textContent = "n/a"
-				url.textContent = "no equivalent in this preset"
-				badge.textContent = "n/a"
-				badge.classList.add("na")
-				return row
-			}
-
-			const resolved = resolveIconName(name, preset)
-			const node = icon(resolved, preset, { mode: "inline", size: "24px" })
-			node.classList.add("loading")
-			holder.appendChild(node)
-			const info = resolve(resolved, preset)
-			file.textContent = resolved
-			url.textContent = info?.url || "unresolved"
-			badge.textContent = "…"
-			load(resolved, preset).then((symbol) => {
-				if (symbol) {
-					badge.textContent = "ok"
-					badge.classList.add("ok")
-					return
-				}
-				badge.textContent = "missing"
-				badge.classList.add("missing")
-				if (info?.url) {
-					fetch(info.url, { method: "HEAD" })
-						.then((response) => {
-							badge.textContent = `missing · ${response.status}`
-						})
-						.catch(() => {})
-				}
-			})
-			return row
-		}
-
-		function buildDetail(name) {
-			const nodes = []
-			const heading = document.createElement("h3")
-			heading.textContent = name
-			const hint = document.createElement("p")
-			hint.className = "muted"
-			hint.textContent = "Same concept across every preset"
-			nodes.push(heading, hint)
-			for (const preset of PRESETS) {
-				nodes.push(buildSourceRow(name, preset))
-			}
-			return nodes
-		}
-
 		const App = ui("#App")
-			.init(() => {
-				const preset = state.hash.select(["preset"], "lucide")
-				if (!IconPresets[preset.value]) {
-					preset.set("lucide")
+
+		// Sub-templates: each row of the results grid and of the detail panel is a
+		// nested template with its own behaviour, so the markup stays in the
+		// template and the behaviours only compute values.
+		const Tile = App.Tile.does({
+			name: (_self, { name }) => name,
+			title: (_self, { name, preset }) => `${preset}:${resolveIconName(name, preset)}`,
+			// `icon()` returns a DOM node, which is exactly the payload `out` renders.
+			iconNode: (_self, { name, preset }) =>
+				icon(resolveIconName(name, preset), preset, {
+					mode: "inline",
+					size: "22px",
+					className: "icon loading",
+				}),
+			select: (self, { name }) => self.pub("Select", name),
+		})
+
+		const SourceRow = App.SourceRow.init(() => {
+			// Per-row probe state, filled by the eager `probe!` handler below. Note
+			// the initializer runs before the row data arrives, so it cannot read it.
+			return { status: cell("…") }
+		}).does({
+			label: (_self, { preset }) => IconPresets[preset],
+			file: (_self, { name, preset }) =>
+				isIconAvailable(name, preset) ? resolveIconName(name, preset) : "n/a",
+			url: (_self, { name, preset }) => {
+				if (!isIconAvailable(name, preset)) {
+					return "no equivalent in this preset"
 				}
-				const selected = state.hash.select(["icon"])
-				const category = cell("all")
-				const query = cell("")
-				const onlyMissing = cell(false)
-				const missing = cell(new Set())
-				const limit = cell(PAGE)
+				return resolve(resolveIconName(name, preset), preset)?.url || "unresolved"
+			},
+			iconNode: (_self, { name, preset }) =>
+				icon(resolveIconName(name, preset), preset, {
+					mode: "inline",
+					size: "24px",
+					className: "icon loading",
+				}),
+			classes: (_self, { name, preset, status }) => {
+				const available = isIconAvailable(name, preset)
+				const value = status.value
 				return {
-					preset,
-					selected,
-					category,
-					query,
-					onlyMissing,
-					missing,
-					limit,
+					unavailable: !available,
+					na: !available,
+					ok: available && value === "ok",
+					missing: available && value.startsWith("missing"),
 				}
-			})
+			},
+			badge: (_self, { name, preset, status }) =>
+				isIconAvailable(name, preset) ? status.value : "n/a",
+			"probe!": (_self, { name, preset, status }) => {
+				if (!isIconAvailable(name, preset)) {
+					if (status.value !== "n/a") {
+						status.set("n/a")
+					}
+					return undefined
+				}
+				// Already probed for this row.
+				if (status.value !== "…") {
+					return undefined
+				}
+				const resolved = resolveIconName(name, preset)
+				const info = resolve(resolved, preset)
+				load(resolved, preset).then((symbol) => {
+					if (symbol) {
+						status.set("ok")
+						return
+					}
+					status.set("missing")
+					if (info?.url) {
+						fetch(info.url, { method: "HEAD" })
+							.then((response) => status.set(`missing · ${response.status}`))
+							.catch(() => {})
+					}
+				})
+				return undefined
+			},
+		})
+
+		const Detail = App.Detail.does({
+			name: (_self, { name }) => name,
+			rows: (_self, { name }) => PRESETS.map((preset) => ({ name, preset })),
+		})
+
+		const Hint = App.Hint.does({
+			text: (_self, { text }) => text,
+		})
+
+		App.init(() => {
+			const preset = state.hash.select(["preset"], "lucide")
+			if (!IconPresets[preset.value]) {
+				preset.set("lucide")
+			}
+			const selected = state.hash.select(["icon"])
+			const category = cell("all")
+			const query = cell("")
+			const onlyMissing = cell(false)
+			const missing = cell(new Set())
+			const limit = cell(PAGE)
+			return {
+				preset,
+				selected,
+				category,
+				query,
+				onlyMissing,
+				missing,
+				limit,
+			}
+		})
 			.does({
 				preset: (_self, { preset }) => preset.value,
 				category: (_self, { category }) => category.value,
@@ -507,41 +538,30 @@
 					)
 					return `${filtered.length} of ${namesFor(category.value).length} icons`
 				},
+				hasResults: (_self, { category, query, onlyMissing, missing, limit }) =>
+					filterNames(
+						namesFor(category.value),
+						query.value,
+						onlyMissing.value,
+						missing.value,
+					).slice(0, limit.value).length > 0,
+				// `*Tile` applies the nested Tile template to each visible icon.
 				results: (
 					_self,
-					{ preset, category, query, onlyMissing, missing, limit, selected },
-				) => {
-					const filtered = filterNames(
+					{ preset, category, query, onlyMissing, missing, limit },
+				) =>
+					filterNames(
 						namesFor(category.value),
 						query.value,
 						onlyMissing.value,
 						missing.value,
 					)
-					const visible = filtered.slice(0, limit.value)
-					const nodes = []
-					if (!visible.length) {
-						const empty = document.createElement("p")
-						empty.className = "muted"
-						empty.textContent = "No icons match."
-						nodes.push(empty)
-						return nodes
-					}
-					for (const name of visible) {
-						nodes.push(
-							buildTile(name, preset.value, (value) => selected.set(value)),
-						)
-					}
-					return nodes
-				},
-				detail: (_self, { selected }) => {
-					if (!selected.value) {
-						const hint = document.createElement("p")
-						hint.className = "muted"
-						hint.textContent = "Click an icon to compare it across presets."
-						return [hint]
-					}
-					return buildDetail(selected.value)
-				},
+						.slice(0, limit.value)
+						.map((name) => ({ name, preset: preset.value })),
+				detail: (_self, { selected }) =>
+					selected.value
+						? Detail({ name: selected.value })
+						: Hint({ text: "Click an icon to compare it across presets." }),
 				setPreset: (_self, { preset }, event) => preset.set(event.target.value),
 				setCategory: (_self, { category }, event) =>
 					category.set(event.target.value),
@@ -564,6 +584,11 @@
 					missing.set(next)
 				},
 				more: (_self, { limit }) => limit.set(limit.value + PAGE),
+			})
+			.sub({
+				// A tile publishes its icon name; the selected icon lives in the URL
+				// hash, so it stays in the app state.
+				Select: (_self, { selected }, event) => selected.set(event.data),
 			})
 
 		App.new().mount("#ui")

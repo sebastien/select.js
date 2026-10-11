@@ -1,6 +1,6 @@
 ---
 name: select-ui
-description: Use when building or modifying UI with select/ui, including template bindings, component behavior, cells-based reactive state, derived/deferred state, and browser-backed state from select/state/browser.js.
+description: Use when building or modifying UI with select/ui, including template bindings, component behavior, where markup lives (templates, fragments, ui.fromHTML), sub-template composition, cells-based reactive state, derived/deferred state, and browser-backed state from select/state/browser.js.
 ---
 
 # Select UI
@@ -20,6 +20,121 @@ Use this skill for:
 - Adding reactive state with `cell(...)`, `derived(...)`, `deferred(...)`, or `effect(...)`
 - Connecting UI state to URL or `localStorage` with `browser()`
 - Building or updating Select UI web components with `webcomponent(...)`
+
+## Structure Rules
+
+These are not preferences. They are how Select UI components are written.
+
+### Rule 1: markup never lives in the `ui(...)` call
+
+A component's markup is a `<template>` (or a loaded fragment), never a string
+passed to `ui(...)`. JavaScript holds the behaviour, HTML holds the structure.
+
+Never:
+
+```javascript
+const ItemList = ui(`
+  <ul>
+    <li out="label"></li>
+  </ul>
+`).does({
+  label: (_self, { label }) => label,
+})
+```
+
+Always, in this order:
+
+1. `<template id="ItemList">` in the page, then `ui("#ItemList")` — single-file
+   apps, and what most examples in this repo do
+2. `await ui.load("./components/ItemList.html")` then
+   `ui("./components/ItemList.html#ItemList")` — multi-file apps
+3. `ui.fromHTML(html, "ItemList")` — when markup must live in the JS module; it
+   keeps the component name and isolates nested template names
+4. a bare `ui("<div out=\"x\"></div>")` — only for tiny unnamed fragments such as
+   a single-element wrapper, never for a named component
+
+Two concrete reasons, beyond readability. Inside a JavaScript template literal
+`${...}` is interpolation, so `out:style="width:${width}px"` either throws or is
+silently replaced by a JavaScript value. And a string starting with `<` is
+registered in the current document template scope together with every nested
+`<template name="…">` it declares, so two components that share a nested name
+collide and only the first registration wins.
+
+### Rule 2: sub-templates are nested templates, never DOM built in the behaviour
+
+Rendering a list of items means declaring a nested template and writing a
+behaviour for it. Never build DOM inside a behaviour map.
+
+Never:
+
+```javascript
+.does({
+  items: (_self, { items }) => {
+    const nodes = []
+    for (const item of items) {
+      const li = document.createElement("li")
+      li.textContent = item.label
+      nodes.push(li)
+    }
+    return nodes
+  },
+})
+```
+
+No `createElement`, `appendChild`, `replaceChildren`, or `innerHTML` inside
+`.does(...)`, `.init(...)`, or an event handler.
+
+Always:
+
+```html
+<template id="ItemList">
+  <ul out="items|*Item"></ul>
+  <template name="Item">
+    <li out="label"></li>
+  </template>
+</template>
+```
+
+```javascript
+const ItemList = ui("#ItemList")
+ItemList.Item.does({
+  label: (_self, { label }) => label,
+})
+ItemList.does({
+  items: (_self, { items }) => items,
+})
+```
+
+Prefer `out="items|*Item"` (a `*` per item, without `*` the processor receives
+the whole collection) or, when a behaviour must shape the rows,
+`items.map((item, index) => Item({ ...item, $key: index }))`
+(`Component.map(data, processor?, key?)` is the documented approach for dynamic
+lists and keeps DOM identity across updates).
+
+Legitimate exceptions, where DOM really is the payload:
+
+- nodes returned by a DOM-native API: `icon(name, source)` SVG nodes, canvas,
+  third-party widgets
+- `webcomponent(name, renderFn)` pure render functions
+- content projection through `data.slots`
+
+### Rule 3: behaviours never mutate the DOM imperatively
+
+Handlers write state; slots render it.
+
+```javascript
+// Wrong — the DOM is now out of sync with the component
+status: (_self, data) => {
+  document.querySelector("#status").textContent = `${data.count} items`
+},
+
+// Right
+status: (_self, { count }) => `${count} items`,
+```
+
+Route DOM node access through `ref` when a node is genuinely needed, and keep
+imperative code inside `effect(...)`/`cleanup(...)`, registered on the instance
+that owns the node.
 
 ## Workflow
 
@@ -51,11 +166,21 @@ const Counter = ui("#Counter")
 
 Use:
 
-- `ui(selection, scope?)` for HTML strings, `<template>` nodes, selectors, or
-  loaded external templates
+- `ui("#Name")` for a `<template id="Name">` in the page, or the scope argument
+  for a detached scope
+- `ui("./file.html#Name")` after `await ui.load("./file.html")` for external
+  fragments
+- `ui.fromHTML(html, name)` for markup embedded in a JavaScript module
+- `ui("<div>…</div>")` only for tiny unnamed fragments
 - `ui.component(name)` when behavior and template binding should be separated
-- `Component.ChildName` when a parent template defines nested named templates
-- `ui.load(url)` before using external template refs like `"./file.html#Card"`
+- `Component.ChildName` when the component template declares a nested
+  `<template name="ChildName">`, which is how sub-templates are composed
+- `.using(templateRef)` to rebind the same behavior to another template
+
+Prefer `<template>` elements and fragments over HTML strings. An HTML string
+starting with `<` is still registered in the document template scope, including
+any nested `<template name="…">` it declares, so two components sharing a nested
+name collide. See `docs/ui.md` for the rationale behind this rule.
 
 Avoid framework-style indirection. Select UI expects direct template bindings
 and explicit behavior handlers.
@@ -174,7 +299,8 @@ Prefer plain Select UI components unless custom-element interop is required.
 
 Read these files when you need exact behavior or edge cases:
 
-- `docs/ui.md`
+- `docs/ui.md` — see `Component structure and anti-patterns` for the markup
+  placement rules and sub-template composition
 - `docs/ref-ui.md`
 - `docs/cells.md`
 - `docs/ref-cells.md`
@@ -182,6 +308,9 @@ Read these files when you need exact behavior or edge cases:
 
 Read examples when you need repo-native patterns:
 
+- `examples/feature-nested-templates.html` — nested templates, keyed lists, and
+  `*Item` processors
+- `examples/app-filter.html` — a filtered list composed from a sub-template
 - `examples/feature-context.html`
 - `examples/feature-events.html`
 - `examples/feature-webcomponent.html`
@@ -191,6 +320,7 @@ Read examples when you need repo-native patterns:
 
 - Preserve the existing `ui(...).init(...).does(...)` style unless the local
   code clearly uses another supported pattern
+- Markup in templates, sub-templates nested, state through cells
 - Prefer explicit `for` loops and direct updates in performance-sensitive code
 - Do not introduce framework concepts such as virtual DOM layers, hooks, or
   store abstractions that fight the existing API

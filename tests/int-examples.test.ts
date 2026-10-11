@@ -56,6 +56,12 @@ const EXAMPLE_INTERACTIONS: Record<string, (window: Window) => Promise<void> | v
 		const pick = Array.from(window.document.querySelectorAll("button")).find((_) => _.textContent?.trim() === "eva:heart")
 		pick?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }))
 	},
+	"feature-nested-templates": async (window) => {
+		const row = window.document.querySelector(".person")
+		row?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }))
+		const shuffle = Array.from(window.document.querySelectorAll("button")).find((_) => _.textContent?.trim() === "Shuffle")
+		shuffle?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }))
+	},
 	"app-unicode": async (window) => {
 		const first = window.document.querySelector(".block-item")
 		first?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }))

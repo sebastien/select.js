@@ -170,6 +170,123 @@ to `ui.interceptLink` (same-origin SPA navigation via `browser().go`). Call
 Override `ui.options.link` to change policy. Explicit handlers such as
 `on:click="track"` continue to resolve normally.
 
+### Component structure and anti-patterns
+
+A component has three parts: a template that holds its markup, a behaviour map
+that holds its logic, and state in `cell(...)` when the UI must react to it.
+Keep them separate.
+
+Two patterns are worth calling out because they look harmless and cost real
+functionality.
+
+#### Markup belongs in a template, not in `ui(...)`
+
+Passing an HTML string to `ui(...)` works, and remains useful for tiny unnamed
+fragments. For a named component, prefer a `<template>`:
+
+```html
+<template id="ItemList">
+  <ul out="items|*Item"></ul>
+  <template name="Item">
+    <li out="label"></li>
+  </template>
+</template>
+```
+
+```javascript
+const ItemList = ui("#ItemList")
+```
+
+There are four carriers for markup, in order of preference:
+
+1. `<template id="Name">` in the page, selected with `ui("#Name")` — single-file
+   apps
+2. an external fragment, `await ui.load("./components/Name.html")` then
+   `ui("./components/Name.html#Name")` — multi-file apps
+3. `ui.fromHTML(html, "Name")` — when markup must live in the JavaScript module
+4. a bare HTML string — only for tiny unnamed fragments
+
+The reasons are concrete:
+
+- A JavaScript template literal interpolates `${...}`, so attribute templates
+  such as `out:style="width:${width}px"` inside a backticked string either throw
+  `ReferenceError` or are silently replaced by a JavaScript value.
+- A string starting with `<` is parsed and registered in the current template
+  scope, including any nested `<template name="…">` it declares. Two components
+  that both declare a nested `Item` therefore collide: the registry logs
+  `duplicate template key` and `ui.formats: duplicate component key`, and keeps
+  the first registration. `ui.fromHTML(...)` and loaded fragments exist partly to
+  avoid this — name them or load them from their own file.
+- A named `<template id="Name">` gives the component root a `class="Name"`
+  (`ui.options.componentRootClass`) and qualifies nested children as
+  `Parent.Item`, rendered with a class such as `ParentItem`. An anonymous HTML
+  string produces no root class and global child names, which removes both the
+  styling hook and the name scoping.
+
+#### Sub-templates are nested templates, not DOM built in a behaviour
+
+When a component renders a collection, declare the item as a nested template and
+write a behaviour for it:
+
+```html
+<template id="ContactList">
+  <ul out="contacts|*Contact"></ul>
+  <template name="Contact">
+    <li out="name" on:click="select"></li>
+  </template>
+</template>
+```
+
+```javascript
+const ContactList = ui("#ContactList")
+ContactList.Contact.does({
+  name: (_self, { name }) => name,
+  select: (self, { name }) => self.pub("Selected", name),
+})
+ContactList.does({
+  contacts: (_self, { contacts }) => contacts,
+})
+```
+
+Processor lookup is local first, so `Contact` resolves to
+`ContactList.Contact` before any global `ui.format("Contact", ...)`. Use `*` to
+apply a processor per item; without it the processor receives the whole
+collection. When a behaviour needs to shape rows, return applied templates
+(`contacts.map((c, i) => Contact({ ...c, $key: i }))`) or use
+`Component.map(data, processor?, key?)`, the documented approach for dynamic
+lists. Keys are what let a re-render reuse DOM nodes instead of replacing them.
+
+Building the same nodes by hand in a behaviour loses all of this:
+
+```javascript
+// Avoid
+contacts: (_self, { contacts }) => {
+  const nodes = []
+  for (const c of contacts) {
+    const li = document.createElement("li")
+    li.textContent = c.name
+    nodes.push(li)
+  }
+  return nodes
+}
+```
+
+Such code gets no `out`/`out:<attr>`/`when`/`on:` processing, no keyed
+reconciliation, and no reuse of DOM identity across updates, so focus,
+selection, and CSS state are lost on every render.
+
+The exceptions are the cases where the DOM really is the payload rather than
+structure:
+
+- nodes produced by a DOM-native API, such as the `icon(name, source)` SVG nodes
+- `webcomponent(name, renderFn)` pure render functions
+- content projected into a child through `data.slots`
+
+For nodes that need imperative treatment after render — attaching a resize
+observer, wiring a third-party widget — take the node with `ref` and keep the
+code in `effect(...)` with a matching `cleanup(...)` on the instance that owns
+it, rather than poking at the document.
+
 ### Web Components
 
 `select/ui` can register native custom elements through `webcomponent(...)`.
