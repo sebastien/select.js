@@ -13,42 +13,36 @@ $$\   $$ |$$   ____|$$ |$$   ____|$$ |        $$ |$$\     $$ | \____$$\
 
 ```
 
-*Select.js* is a lightweight toolkit for modern browser interfaces in
-JavaScript. It started as a small DOM/SVG selection library (`select/features/query.js`)
-and now also includes template-driven UI (`select/ui`), fine-grained reactive
-state (`select/state/cells.js`), browser-backed state (`select/state/browser.js`), routing
-(`select/state/routing.js`), icons (`select/features/icons.js`), interaction helpers, and a
-general utility bundle.
+*Select.js* is a lightweight toolkit for modern browser interfaces. It
+started as a faster alternative to the venerable jQuery, with support for
+DOM/SVG manipulation, and grew into template-driven UI components,
+fine-grained reactive state, browser-backed state, routing, icons, and a
+bundle of utilities.
 
-The aggregate entry point is `select/index.js`, which re-exports the companion
-modules for projects that prefer a single import surface. It is free of
-DOM-at-import dependencies, so it can also be imported headlessly (for example
-when server-side rendering). Focused domains are also available through
-`select/core`, `select/state`, `select/ui`, `select/features`, and
-`select/utils`. Icons are **not** part of the aggregate surface; import their
-DOM-backed API from `select/features/icons.js` directly. The icon module itself
-is also safe to import headlessly.
+The selection API is fast; the UI library is not the fastest, but it is
+light enough for embedded UIs, plugins, and small tools — in the JSON
+inspector benchmark, it is competitive with SolidJS. Select fills the niche
+for little tools that can be composed and embedded. If you are building a
+larger scale application, have a look at
+[ui.js](https://github.com/sebastien/ui.js) instead.
 
-While `select/features/query.js` is fast, the `select/ui` library is not the
-fastest, but it is light enough for embedded UIs, plugins, and small tools. In
-the JSON inspector benchmark, it is competitive with SolidJS (`npm run
-bench:inspector`). Per-release performance relative to SolidJS and test
-coverage are recorded with `git-kv` (`make metrics-report`). In that sense,
-Select is designed to fill the niche for little tools that can be composed and
-embedded.
+## Get started
 
-You can learn more about each component:
+Install from npm:
 
-- **Select.js**: jQuery-like library ― [manual](docs/select.md)
-- **Select UI**: UI component library  ― [manual](docs/ui.md) & [reference](docs/ref-ui.md)
-- **Select Cells**: Reactive state library ― [manual](docs/cells.md) & [reference](docs/ref-cells.md)
-- **Select Browser**: Browser-backed reactive state for URL and storage ― [manual](docs/browser.md) & [reference](docs/ref-browser.md)
-- **Select Workflows**: Generator-based task workflows with caching and event bindings ― [reference](docs/ref-workflows.md)
-- **Select Utils**: Utility helpers and compatibility barrel ― [manual](docs/utils.md) & [reference](docs/ref-utils.md)
-- **Select Icons**: SVG icon registry and loader utilities ― [manual](docs/icons.md)
-- **Select Routing**: Route parsing and dispatch helpers ― documented in [Select Utils](docs/utils.md)
+```sh
+npm install @ssebastien/select
+```
+
+```js
+import select from "@ssebastien/select"
+import cell from "@ssebastien/select/state/cells.js"
+import ui from "@ssebastien/select/ui"
+```
 
 ## In a nutshell
+
+No build step required — the example below loads straight from a CDN:
 
 ```html
 <!DOCTYPE html>
@@ -58,15 +52,15 @@ You can learn more about each component:
 <script type="importmap">
 {
   "imports": {
-    "@./": "./src/js/select/"
+    "@select/": "https://cdn.jsdelivr.net/gh/sebastien/select.js@v1.2.0/src/js/select/"
   }
 }
 </script>
 
 <script type="module">
-import $ from "@./features/query.js"
-import cell from "@./state/cells.js"
-import ui from "@./ui"
+import $ from "@select/features/query.js"
+import cell from "@select/state/cells.js"
+import ui from "@select/ui"
 
 const Counter = ui(`
   <div>
@@ -87,68 +81,15 @@ $("#app").addClass("ready")
 </body></html>
 ```
 
-### CDN usage (jsDelivr)
-
-```html
-<script type="importmap">
-{
-  "imports": {
-    "@select/": "https://cdn.jsdelivr.net/gh/sebastien/select.js@v1.1.0/src/js/select/"
-  }
-}
-</script>
-
-<script type="module">
-import $ from "@select/features/query.js"
-import cell from "@select/state/cells.js"
-import ui from "@select/ui"
-</script>
-```
-
-### API
-
-- `select(selector, scope?)` (`$`, `S`): DOM/SVG selection and manipulation API.
-- `browser(options?)`: browser-backed state for URL, storage, and fetch helpers.
-- `cell(value?)`: mutable reactive cell.
-- `derived(template, processor?, initial?)`: derived reactive value.
-- `ui(selection, scope?)`: template component factory.
-- `ui.load(url, scope?)`: preload and cache external template fragments.
-- `ui.component(name)`: logic-only component definition to bind later with `.using(...)`.
-- `webcomponent(name, componentFactory, initial?, options?)`: native custom element registration from Select UI or pure render functions.
-- `Dynamic(type, props?)`: dynamic component resolution by name/function.
-- `lazy(loader, placeholder?)`: lazy component loader.
-- `router()`, `routed()`, `route(pattern)`, `RoutePattern`: routing helpers from `select/state/routing.js`.
-- `icon(name, source?, options?)`, `install(...)`, `load(...)`: icon registry helpers from `select/features/icons.js` (import directly; not re-exported by the aggregate entry).
-- `len`, `type`, `remap`: shared utility helpers from `select/ui`.
-- `clsx`, `shortword`, `sorted`, `unique`: shared helpers from `select/utils` and `select/utils/*.js`.
-- `bind`, `drag`, `draggable`, `sort`, `popup`, `autoresize`, `Keyboard`: interaction helpers from `select/features/interaction/index.js`. `draggable(event, options?)` uses `[data-draggable]` sources and `[data-drop-target]` targets, appending a clone by default; `data-drop-accept` and `accept(...)` control acceptance, while `preview(...)` and `drop(...)` customize the two effect stages. `sort(event, options?)` provides sortable list slotting and moves the original item by default. `popup(panel, trigger, options?)` portals a panel, keeps it in the viewport, and supports underlay click and Escape to close.
-- `render(component, data?, options?)`, `renderToString(component, data?, options?)`, `install(window)`, `create(...)`: server-side rendering helpers from `select/ui/ssr` (a separate leaf module). Renders a component to a detached tree and returns an `SSRInstance` whose `set`/`update` await tracked runtime work and whose `html()` yields the serialized string. See [`docs/ref-ui.md`](docs/ref-ui.md#server-side-rendering).
-- `fastdom`: batched DOM read/write helper.
-
-### Modules
-
-- [`docs/select.md`](docs/select.md): `select.js` complete reference (original README split).
-- [`docs/ui.md`](docs/ui.md): `select/ui` usage and API guide.
-- [`docs/cells.md`](docs/cells.md): `select/state/cells.js` usage and API guide.
-- [`docs/browser.md`](docs/browser.md): `select/state/browser.js` usage and API guide.
-- [`docs/utils.md`](docs/utils.md): `select/utils` and the helper submodules usage and API guide.
-- [`docs/icons.md`](docs/icons.md): `select/features/icons.js` pinned SVG presets and optional extra packs.
-- [`docs/ref-ui.md`](docs/ref-ui.md#server-side-rendering): `select/ui/ssr` server-side rendering.
-- Routing helpers are covered by [`docs/utils.md`](docs/utils.md) and [`examples/feature-routing.html`](examples/feature-routing.html).
-
-### Notable examples
-
-- [`examples/feature-webcomponent.html`](examples/feature-webcomponent.html): custom elements with `webcomponent(...)`, including parent event rebinding through implicit or explicit `ui-parent`.
-- [`examples/feature-icons.html`](examples/feature-icons.html): icon usage with pinned per-icon SVG presets.
-- [`examples/app-icons.html`](examples/app-icons.html): curated, resilient icon catalog compared across every pinned preset (no Iconify download), deep-linkable via the URL hash.
-- [`examples/feature-routing.html`](examples/feature-routing.html): browser-backed route state and route dispatch.
-- [`examples/feature-template-load.html`](examples/feature-template-load.html): preload external templates with `ui.load(...)` and bind one behavior to multiple presentations with `.using(...)`.
-- [`examples/feature-popup.html`](examples/feature-popup.html): portaled popups with viewport flip, underlay click, and Escape to close.
-
-# Features
+## Features
 
 - *DOM + SVG support*: one selection API across HTML and SVG nodes.
 - *Fine-grained reactivity*: explicit `cell`/`derived` primitives.
 - *Template-driven UI*: declarative slot attributes with direct DOM updates.
 - *No build step required*: works in modern browsers with native ESM.
 - *Small and fast*: designed with explicit loops and low-overhead primitives.
+
+## Where to go next
+
+- [docs/](docs/) — usage guides and API references for each module
+- [examples/](examples/) — runnable demos; serve them with `make run` and open any HTML file

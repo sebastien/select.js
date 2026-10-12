@@ -1423,7 +1423,7 @@ function select(selector, scope) {
 // Assign module metadata and utilities to select function
 Object.assign(select, {
 	Selection: Selection,
-	VERSION: "1.1.0",
+	VERSION: "1.2.0",
 	NAME: "select",
 	STATUS: "LOADED",
 	isNode: Selection.IsNode,
