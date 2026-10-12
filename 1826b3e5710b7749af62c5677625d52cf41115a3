@@ -4,3 +4,4 @@ metrics.benchmark.heap:36.39
 metrics.benchmark.solid.init:2328.28
 metrics.benchmark.solid.apply:2018.38
 metrics.benchmark.solid.heap:42.38
+metrics.benchmark.overall:74.78
