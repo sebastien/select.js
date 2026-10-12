@@ -65,7 +65,7 @@ describe("headless import", () => {
 			const { html } = await import("./src/js/select/features/formats.js")
 			if (html("<b>x</b>") !== "<b>x</b>") throw new Error("headless fallback changed")
 			const { Window } = await import("happy-dom")
-			const { install, uninstall } = await import("select/ui/ssr")
+			const { install, uninstall } = await import("@ssebastien/select/ui/ssr")
 			const window = new Window()
 			install(window)
 			try {

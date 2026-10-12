@@ -208,7 +208,7 @@ const SourceTransforms = {
 // SVG forever. Unknown names do not fall back to a collection download.
 const IconSources = {
 	lucide: {
-		url: `https://cdn.jsdelivr.net/npm/lucide-static@1.54.0/icons/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/lucide-static@1.55.0/icons/${ICON_NAME}.svg`,
 		size: [24, 24],
 	},
 	iconoir: {
@@ -527,7 +527,7 @@ function isSafeSvgAttribute(name, value) {
 }
 
 function sanitizeSvgNode(node, document) {
-	if (!node || node.nodeType !== 1) {
+	if (node?.nodeType !== 1) {
 		return null;
 	}
 	const tagName = node.tagName.toLowerCase();

@@ -250,20 +250,21 @@ release: $(PROJECT_VERSION_TASK)
 			minor=$$((minor + 1)); \
 		version="$$major.$$minor.$$patch"; \
 		done; \
-		node -e 'const fs=require("fs"), v=process.argv[1]; const config=fs.readFileSync("src/mk/config.mk", "utf8").replace(/^PROJECT_VERSION:=.*$$/m, "PROJECT_VERSION:="+v); fs.writeFileSync("src/mk/config.mk", config)' "$$version"; \
+		node -e 'const fs=require("fs"), v=process.argv[1], pkg=JSON.parse(fs.readFileSync("package.json", "utf8")); pkg.version=v; fs.writeFileSync("package.json", JSON.stringify(pkg, null, "\t")+"\n")' "$$version"; \
 		$(MAKE) PROJECT_VERSION="$$version" dist; \
-		jj commit src/mk/config.mk package.json src/js/select/features/query.js README.md -m "[Release] $(PROJECT): version $$version"; \
+		jj commit package.json src/js/select/features/query.js README.md -m "[Release] $(PROJECT): version $$version"; \
 		release_revision="@-"; \
 	fi; \
 	jj tag set "v$$version" --revision="$$release_revision"; \
 	if [ "$(RELEASE_METRICS)" != "0" ]; then $(MAKE) PROJECT_VERSION="$$version" metrics; fi; \
 	git push origin "v$$version"; \
+	$(NPM) publish --access public; \
 	ssh $(RELEASE_HOST) "mkdir -p $(RELEASE_PATH)/$$version"; \
 	scp dist/selectjs.js dist/selectjs.min.js "$(RELEASE_HOST):$(RELEASE_PATH)/$$version/"
 
 $(PATH_RUN_TASK)/project-version-%.task: src/mk/config.mk package.json src/js/select/features/query.js README.md
 	@mkdir -p "$(dir $@)"
-	@VERSION="$*" node --input-type=module -e 'import fs from "node:fs"; const version=process.env.VERSION; const packageData=JSON.parse(fs.readFileSync("package.json")); packageData.version=version; fs.writeFileSync("package.json", JSON.stringify(packageData, null, "\t")+"\n"); const replacements=[["src/js/select/features/query.js", /VERSION: "[^"]+"/, `VERSION: "$${version}"`],["README.md", /select\.js@v[0-9]+\.[0-9]+\.[0-9]+/, `select.js@v$${version}`]]; for (const [path, pattern, value] of replacements) { const source=fs.readFileSync(path, "utf8"); fs.writeFileSync(path, source.replace(pattern, value)) }'
+	@VERSION="$*" node --input-type=module -e 'import fs from "node:fs"; const version=process.env.VERSION; const replacements=[["src/js/select/features/query.js", /VERSION: "[^"]+"/, `VERSION: "$${version}"`],["README.md", /select\.js@v[0-9]+\.[0-9]+\.[0-9]+/, `select.js@v$${version}`]]; for (const [path, pattern, value] of replacements) { const source=fs.readFileSync(path, "utf8"); fs.writeFileSync(path, source.replace(pattern, value)) }'
 	@touch "$@"
 
 

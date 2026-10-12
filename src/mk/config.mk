@@ -6,9 +6,10 @@
 
 PROJECT:=select
 PORT?=8001
+EXAMPLE?=
 SDK_MODULES:=std js mise
 DIST_MODE:=
-PROJECT_VERSION:=1.1.0
+PROJECT_VERSION:=$(shell node -p "require('./package.json').version")
 PROJECT_VERSION_TASK:=$(PATH_RUN_TASK)/project-version-$(PROJECT_VERSION).task
 
 # Version sync runs only where it matters (`dist`, `release`, `update-version`),

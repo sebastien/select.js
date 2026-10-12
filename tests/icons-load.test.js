@@ -128,7 +128,7 @@ describe("icons.load", () => {
 		await load("home", "tabler", container, cache)
 
 		expect(fetchCalls.map(([url]) => url)).toEqual([
-			"https://cdn.jsdelivr.net/npm/lucide-static@1.54.0/icons/home.svg",
+			"https://cdn.jsdelivr.net/npm/lucide-static@1.55.0/icons/home.svg",
 			"https://cdn.jsdelivr.net/npm/iconoir@7.12.1/icons/regular/home.svg",
 			"https://cdn.jsdelivr.net/npm/eva-icons@1.1.3/outline/svg/home-outline.svg",
 			"https://cdn.jsdelivr.net/npm/@tabler/icons@3.49.0/icons/outline/home.svg",
@@ -467,7 +467,7 @@ describe("icons.load", () => {
 				json: () =>
 					Promise.resolve({
 						prefix: "grommet-icons",
-						icons: { home: { body: '<path d="M0 0h24v24H0z"/>' } },
+						icons: { home: { width: 24, height: 24, body: '<path d="M0 0h24v24H0z"/>' } },
 					}),
 			})
 		}

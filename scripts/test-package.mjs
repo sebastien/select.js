@@ -17,7 +17,7 @@ function run(command, args, options = {}) {
 
 try {
 	const packed = JSON.parse(
-		run("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", TEMP]),
+		run("npm", ["pack", "--dry-run=false", "--json", "--ignore-scripts", "--pack-destination", TEMP]),
 	)
 	const metadata = Array.isArray(packed) ? packed[0] : Object.values(packed)[0]
 	const files = metadata.files.map((file) => file.path)
@@ -37,7 +37,9 @@ try {
 	const modules = path.join(consumer, "node_modules")
 	fs.mkdirSync(modules, { recursive: true })
 	execFileSync("tar", ["-xzf", path.join(TEMP, metadata.filename), "-C", consumer])
-	fs.renameSync(path.join(consumer, "package"), path.join(modules, "select"))
+	const packagePath = path.join(modules, "@ssebastien", "select")
+	fs.mkdirSync(path.dirname(packagePath), { recursive: true })
+	fs.renameSync(path.join(consumer, "package"), packagePath)
 	const happyDOM = pathToFileURL(path.join(ROOT, "node_modules/happy-dom/lib/index.js")).href
 	fs.writeFileSync(
 		path.join(consumer, "verify.mjs"),
@@ -45,18 +47,18 @@ try {
 const window = new Window()
 Object.assign(globalThis, { window, document: window.document, Node: window.Node, Element: window.Element, HTMLElement: window.HTMLElement, DocumentFragment: window.DocumentFragment, Text: window.Text, Comment: window.Comment, Document: window.Document, DOMParser: window.DOMParser, MutationObserver: window.MutationObserver, CustomEvent: window.CustomEvent, Event: window.Event, MouseEvent: window.MouseEvent, KeyboardEvent: window.KeyboardEvent, NodeFilter: window.NodeFilter, SVGElement: window.SVGElement, customElements: window.customElements, requestAnimationFrame: window.requestAnimationFrame.bind(window), cancelAnimationFrame: window.cancelAnimationFrame.bind(window), getComputedStyle: window.getComputedStyle.bind(window) })
 Object.defineProperty(globalThis, "navigator", { configurable: true, value: window.navigator })
-const root = await import("select")
-const cells = await import("select/state/cells.js")
-const query = await import("select/features/query.js")
-const canonicalCells = await import("select/state/cells")
-const canonicalQuery = await import("select/features/query")
-const canonicalUI = await import("select/ui")
-const canonicalSSR = await import("select/ui/ssr")
-const leafSSR = await import("select/ui/ssr.js")
-const canonicalUtils = await import("select/utils")
-await import("select/utils/search.js")
-await import("select/src/js/select/features/query.js")
-await import("select/dist/select/features/query.js")
+const root = await import("@ssebastien/select")
+const cells = await import("@ssebastien/select/state/cells.js")
+const query = await import("@ssebastien/select/features/query.js")
+const canonicalCells = await import("@ssebastien/select/state/cells")
+const canonicalQuery = await import("@ssebastien/select/features/query")
+const canonicalUI = await import("@ssebastien/select/ui")
+const canonicalSSR = await import("@ssebastien/select/ui/ssr")
+const leafSSR = await import("@ssebastien/select/ui/ssr.js")
+const canonicalUtils = await import("@ssebastien/select/utils")
+await import("@ssebastien/select/utils/search.js")
+await import("@ssebastien/select/src/js/select/features/query.js")
+await import("@ssebastien/select/dist/select/features/query.js")
 if (
  root.cell !== cells.cell ||
  root.cell !== canonicalCells.cell ||

@@ -40,6 +40,12 @@ import cell from "@ssebastien/select/state/cells.js"
 import ui from "@ssebastien/select/ui"
 ```
 
+Using an AI coding agent? Install the [select-ui skill](docs/skills/select-ui/SKILL.md) for guidance on templates, reactivity, and component patterns:
+
+```sh
+npx skills add sebastien/select.js/docs/skills/select-ui
+```
+
 ## In a nutshell
 
 No build step required — the example below loads straight from a CDN:
@@ -52,7 +58,7 @@ No build step required — the example below loads straight from a CDN:
 <script type="importmap">
 {
   "imports": {
-    "@select/": "https://cdn.jsdelivr.net/gh/sebastien/select.js@v1.2.0/src/js/select/"
+    "@select/": "https://cdn.jsdelivr.net/gh/sebastien/select.js@v1.2.1/src/js/select/"
   }
 }
 </script>
