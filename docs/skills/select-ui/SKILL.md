@@ -62,8 +62,9 @@ collide and only the first registration wins.
 
 ### Rule 2: sub-templates are nested templates, never DOM built in the behaviour
 
-Rendering a list of items means declaring a nested template and writing a
-behaviour for it. Never build DOM inside a behaviour map.
+Rendering a list of items means declaring a nested template and binding the
+collection to it. Add behaviour only when the items need actions or business
+logic. Never build DOM inside a behaviour map.
 
 Never:
 
@@ -97,16 +98,16 @@ Always:
 
 ```javascript
 const ItemList = ui("#ItemList")
-ItemList.Item.does({
-  label: (_self, { label }) => label,
-})
-ItemList.does({
-  items: (_self, { items }) => items,
-})
 ```
 
-Prefer `out="items|*Item"` (a `*` per item, without `*` the processor receives
-the whole collection) or, when a behaviour must shape the rows,
+No pass-through `items` or `label` handlers are needed. Use
+`out="value.path|Component"` for one value and
+`out="value.path|*Component"` for a collection. A `*` applies the processor per
+item; without `*`, it receives the whole value. Nested templates resolve
+locally first; register external components with
+`ui.format("Component", Component)`.
+
+Only when a behaviour must shape the rows, use
 `items.map((item, index) => Item({ ...item, $key: index }))`
 (`Component.map(data, processor?, key?)` is the documented approach for dynamic
 lists and keeps DOM identity across updates).
@@ -127,19 +128,48 @@ Handlers write state; slots render it.
 status: (_self, data) => {
   document.querySelector("#status").textContent = `${data.count} items`
 },
+```
 
-// Right
-status: (_self, { count }) => `${count} items`,
+```html
+<!-- Right — the view reads and formats the state -->
+<p><span out="count"></span> items</p>
 ```
 
 Route DOM node access through `ref` when a node is genuinely needed, and keep
 imperative code inside `effect(...)`/`cleanup(...)`, registered on the instance
 that owns the node.
 
+### Rule 4: data selection and formatting belong in the view
+
+Do not add behaviour handlers merely to destructure data, return a property,
+unwrap a cell, format a label, or apply a component. Use `out` paths and
+formatter pipelines instead:
+
+```html
+<span out="value.path"></span>
+<span out="count|count"></span>
+<div out="value.path|Component"></div>
+<ul out="value.path|*Component"></ul>
+```
+
+Here `count|count` uses the built-in collection-count formatter: it renders
+the collection's size, or an empty string when empty. It is not a numeric
+`count ?? 0` fallback. For a numeric counter initialized to `0`, use
+`out="count"` directly.
+
+Use existing formatters first. Complex formatting rules worth sharing belong
+in a named formatter registered with `ui.format("formatName", formatter)` and
+used as `out="value.path|formatName"`, not duplicated across behaviour maps.
+Reserve behaviour for actions, state transitions, business logic, and genuinely
+complex shared computations that cannot be expressed by bindings and formatters.
+Destructuring data in an action handler is fine; pass-through rendering handlers
+are not.
+
 ## Workflow
 
 1. Inspect the existing template and behavior shape first.
-2. Keep rendering in `select/ui` templates and behavior maps.
+2. Keep data selection, formatting, and component mapping in template bindings;
+   use behavior maps for actions and business logic.
 3. Keep mutable state in `cell(...)` when the UI must react to it.
 4. Use `derived(...)` for computed state instead of hand-synchronizing values.
 5. Use `browser()` only for browser resources: `path`, `query`, `hash`, and
@@ -153,13 +183,19 @@ that owns the node.
 
 Prefer this shape:
 
+```html
+<template id="Counter">
+  <span out="count"></span>
+  <button type="button" on:click="inc">Increment</button>
+</template>
+```
+
 ```javascript
 import ui from "@select/ui"
 
 const Counter = ui("#Counter")
 	.init(() => ({ count: 0 }))
 	.does({
-		count: (_self, { count }) => count ?? 0,
 		inc: (self, { count }) => self.update({ count: (count ?? 0) + 1 }),
 	})
 ```
@@ -198,12 +234,22 @@ Prefer these bindings:
 - `ref` for node references
 - `slot` for content projection
 
-Keep handlers small and deterministic. Return derived values from handlers
-instead of mutating DOM manually when a binding can express the same thing.
+Bind data paths directly, including nested paths and cells. Use `|formatter`
+for presentation, `|Component` for a child, and `|*Component` for a collection.
+Do not introduce a handler when a binding can express the same thing. Keep
+necessary handlers small and deterministic, and never mutate DOM manually.
 
 ### Cells
 
 Use cells for reactive state inside `.init(...)` or shared module state.
+
+```html
+<template id="Counter">
+  <span out="count"></span>
+  <span out="doubledCount"></span>
+  <button type="button" on:click="inc">Increment</button>
+</template>
+```
 
 ```javascript
 import ui from "@select/ui"
@@ -211,13 +257,15 @@ import { cell, derived } from "@select/state/cells.js"
 
 const Counter = ui("#Counter").init(() => {
 	const count = cell(0)
-	const label = derived([count], (n) => `Count: ${n}`)
-	return { count, label }
+	const doubledCount = derived([count], (n) => n * 2)
+	return { count, doubledCount }
 }).does({
-	count: (_self, { label }) => label.value,
 	inc: (_self, { count }) => count.set(count.value + 1),
 })
 ```
+
+Bindings read reactive values directly; do not add handlers just to return
+`.value`. Use `derived(...)` for computed state, not simple display formatting.
 
 Prefer:
 
@@ -237,15 +285,23 @@ Notes:
 
 Use `browser()` for browser-backed reactive state:
 
+```html
+<template id="App">
+  <aside when="sidebar==open">Sidebar</aside>
+  <button type="button" on:click="openSidebar">Open sidebar</button>
+</template>
+```
+
 ```javascript
 import ui from "@select/ui"
 import { browser } from "@select/state/browser.js"
 
 const state = browser()
-const App = ui("#App").does({
-	sidebar: (_self) => state.query.select("sidebar").value ?? "closed",
-	openSidebar: () => state.query.select("sidebar").set("open"),
-})
+const App = ui("#App")
+	.init(() => ({ sidebar: state.query.select("sidebar") }))
+	.does({
+		openSidebar: (_self, { sidebar }) => sidebar.set("open"),
+	})
 
 const prefs = state.local("prefs", { theme: "light" })
 prefs.select("theme").set("dark")
@@ -279,12 +335,16 @@ injects `ui-parent` automatically unless it is already set explicitly. When a
 wrapped custom element is mounted outside a Select template tree, set
 `ui-parent` manually to the parent instance id.
 
+```html
+<template id="Badge">
+  <span out="label"></span>
+</template>
+```
+
 ```javascript
 import ui, { webcomponent } from "@select/ui"
 
-const Badge = ui(`<span out="label"></span>`).does({
-	label: (_self, { label }) => label ?? "Badge",
-})
+const Badge = ui("#Badge")
 
 webcomponent("x-badge", Badge, { label: "Ready" })
 ```
@@ -304,6 +364,8 @@ Read these files when you need exact behavior or edge cases:
 - `docs/ref-ui.md`
 - `docs/cells.md`
 - `docs/ref-cells.md`
+- `src/js/select/features/formats.js` — built-in formatters and their semantics
+- `src/js/select/ui/eval.js` — data paths and formatter/component pipelines
 - `src/js/select/state/browser.js`
 
 Read examples when you need repo-native patterns:
@@ -321,6 +383,8 @@ Read examples when you need repo-native patterns:
 - Preserve the existing `ui(...).init(...).does(...)` style unless the local
   code clearly uses another supported pattern
 - Markup in templates, sub-templates nested, state through cells
+- Data paths, formatting, and component mapping in `out` bindings; no
+  pass-through rendering handlers
 - Prefer explicit `for` loops and direct updates in performance-sensitive code
 - Do not introduce framework concepts such as virtual DOM layers, hooks, or
   store abstractions that fight the existing API
