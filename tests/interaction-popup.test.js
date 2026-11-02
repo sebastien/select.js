@@ -82,6 +82,41 @@ describe("interaction popup", () => {
 		session.close()
 	})
 
+	test("ignores panel scrolling but follows the trigger's scrolling ancestors", async () => {
+		const window = setup()
+		globalThis.ResizeObserver = undefined
+		const { popup } = await import("../src/js/select/features/interaction/popup.js")
+		const { trigger, panel } = nodes()
+		const scroller = window.document.createElement("div")
+		const list = window.document.createElement("div")
+		scroller.append(trigger)
+		panel.append(list)
+		window.document.body.append(scroller, panel)
+		let measurements = 0
+		let y = 200
+		trigger.getBoundingClientRect = () => {
+			measurements++
+			return { x: 100, y, width: 60, height: 20 }
+		}
+		const session = popup(panel, trigger)
+		const initial = measurements
+		list.dispatchEvent(new window.Event("scroll", { bubbles: true }))
+		await new Promise(resolve => setTimeout(resolve, 40))
+		expect(measurements).toBe(initial)
+		y = 150
+		scroller.dispatchEvent(new window.Event("scroll", { bubbles: true }))
+		await new Promise(resolve => setTimeout(resolve, 40))
+		expect(measurements).toBeGreaterThan(initial)
+		expect(panel.style.top).toBe("170px")
+		const afterAncestor = measurements
+		y = 120
+		window.dispatchEvent(new window.Event("scroll"))
+		await new Promise(resolve => setTimeout(resolve, 40))
+		expect(measurements).toBeGreaterThan(afterAncestor)
+		expect(panel.style.top).toBe("140px")
+		session.close()
+	})
+
 	test("closes from an underlay click", async () => {
 		const window = setup()
 		const { popup } = await import("../src/js/select/features/interaction/popup.js")

@@ -246,7 +246,12 @@ function observe(panel, trigger, win, update) {
 	ro?.observe(panel);
 	ro?.observe(trigger);
 	win?.addEventListener("resize", update);
-	win?.addEventListener("scroll", update, true);
+	// Scrolling within the panel cannot move its anchor. Avoid measuring and
+	// resizing a scrollable panel during its own scroll gesture.
+	const onScroll = (event) => {
+		if (!event.target?.nodeType || !panel.contains(event.target)) update();
+	};
+	win?.addEventListener("scroll", onScroll, true);
 	const visual = win?.visualViewport;
 	visual?.addEventListener("resize", update);
 	visual?.addEventListener("scroll", update);
@@ -254,7 +259,7 @@ function observe(panel, trigger, win, update) {
 		disconnect() {
 			ro?.disconnect();
 			win?.removeEventListener("resize", update);
-			win?.removeEventListener("scroll", update, true);
+			win?.removeEventListener("scroll", onScroll, true);
 			visual?.removeEventListener("resize", update);
 			visual?.removeEventListener("scroll", update);
 		},
