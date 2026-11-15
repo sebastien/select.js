@@ -50,6 +50,16 @@ function runWithUIInstance(instance, fn) {
 	}
 }
 
+// Function: setCurrentUIInstance
+// Sets `instance` as the current UIInstance context and returns the previous
+// one. Closure-free variant of `runWithUIInstance` for hot paths: callers
+// must restore the returned value in a `finally` block.
+function setCurrentUIInstance(instance) {
+	const previous = _currentUIInstance;
+	_currentUIInstance = instance;
+	return previous;
+}
+
 // Walks `nodes[rootIndex]` along `tailPath` child indices.
 function resolveTemplatePath(nodes, rootIndex, tailPath) {
 	let node = nodes[rootIndex];
@@ -226,6 +236,7 @@ export {
 	SKIP_INPUT_UPDATE,
 	SLOT_DEFAULT_KEY,
 	scheduleRenderTask,
+	setCurrentUIInstance,
 	setRenderTaskScheduler,
 	snapshotReactiveDependencyRevisions,
 	throwAsyncError,

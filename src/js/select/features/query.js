@@ -220,9 +220,7 @@ class Selection extends Array {
 			}
 		} else if (Selection.Is(selector)) {
 			nodes = selector;
-			scope = selector.scope;
-			selector = selector.selector;
-			if (selector.scope && scope !== selector.scope) {
+			if (scope && selector.scope && scope !== selector.scope) {
 				log.error(
 					"Selection.new: given scope differs from first argument's, details",
 					{
@@ -231,6 +229,8 @@ class Selection extends Array {
 					},
 				);
 			}
+			scope = selector.scope;
+			selector = selector.selector;
 		} else if (selector) {
 			nodes = Selection.AsElementList(selector);
 		}
@@ -245,9 +245,9 @@ class Selection extends Array {
 	// SUBSECTION: Static Predicates
 	// ============================================================================
 
-	// Tests if `s` is a Selection instance by checking for class marker.
+	// Tests if `s` is a Selection instance.
 	static Is(s) {
-		return s && s.__class__ === Selection;
+		return s instanceof Selection;
 	}
 
 	// Tests if `s` is a list-like object (Selection, Array, or NodeList).
@@ -316,9 +316,14 @@ class Selection extends Array {
 			return Selection.AsElementList(window.document);
 		} else if (Selection.IsList(value)) {
 			// FIXME: Should recurse
-			let res = [];
+			const res = [];
 			for (let i = 0; i < value.length; i++) {
-				res = res.concat(Selection.AsElementList(value[i]));
+				const nodes = Selection.AsElementList(value[i]);
+				if (nodes) {
+					for (let j = 0; j < nodes.length; j++) {
+						res.push(nodes[j]);
+					}
+				}
 			}
 			return res;
 		} else {

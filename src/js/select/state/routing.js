@@ -248,7 +248,9 @@ class Router {
 		const items = splitPath(p);
 		const chunk = items[offset];
 		if (offset >= items.length) {
-			return this.handlers;
+			// NOTE: Callers merge into the result, so never hand out the
+			// live handlers array.
+			return this.handlers.slice();
 		}
 		if (chunk === undefined) {
 			return null;

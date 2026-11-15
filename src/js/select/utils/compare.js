@@ -8,7 +8,6 @@
 // Equality, length, and comparison helpers.
 
 import { extractor } from "./func.js";
-import { isObject } from "./values.js";
 
 // ----------------------------------------------------------------------------
 //
@@ -22,34 +21,51 @@ function eq(a, b, limit = undefined) {
 	if (Object.is(a, b)) {
 		return true;
 	}
+	if (
+		typeof a !== "object" ||
+		typeof b !== "object" ||
+		a === null ||
+		b === null
+	) {
+		return false;
+	}
 	if (limit !== undefined && limit <= 0) {
 		return false;
 	}
-	const ta = a?.constructor;
-	const tb = b?.constructor;
-	if (ta !== tb) {
+	if (a.constructor !== b.constructor) {
 		return false;
 	}
 	const nextLimit = limit === undefined ? undefined : limit - 1;
-	if (Array.isArray(a) && Array.isArray(b)) {
-		if (a.length !== b.length) {
+	if (Array.isArray(a)) {
+		if (!Array.isArray(b)) {
 			return false;
 		}
-		for (let i = 0; i < a.length; i++) {
+		const n = a.length;
+		if (n !== b.length) {
+			return false;
+		}
+		for (let i = 0; i < n; i++) {
 			if (!eq(a[i], b[i], nextLimit)) {
 				return false;
 			}
 		}
 		return true;
 	}
-	if (isObject(a) && isObject(b)) {
+	if (Object.getPrototypeOf(a) === Object.prototype) {
+		if (Object.getPrototypeOf(b) !== Object.prototype) {
+			return false;
+		}
 		let n = 0;
 		for (const k in a) {
 			if (!Object.hasOwn(a, k)) {
 				continue;
 			}
 			n += 1;
-			if (!Object.hasOwn(b, k) || !eq(a[k], b[k], nextLimit)) {
+			const bv = b[k];
+			if (
+				(bv === undefined && !Object.hasOwn(b, k)) ||
+				!eq(a[k], bv, nextLimit)
+			) {
 				return false;
 			}
 		}
@@ -60,26 +76,20 @@ function eq(a, b, limit = undefined) {
 		}
 		return n === 0;
 	}
-	if (a instanceof Map && b instanceof Map) {
-		if (a.size !== b.size) {
+	if (a instanceof Map) {
+		if (!(b instanceof Map) || a.size !== b.size) {
 			return false;
 		}
-		const seen = new Set();
-		for (const [k, v] of a.entries()) {
-			seen.add(k);
-			if (!eq(v, b.get(k), nextLimit)) {
-				return false;
-			}
-		}
-		for (const k of b.keys()) {
-			if (!seen.has(k)) {
+		// Sizes match, so every key of `a` being in `b` means equal key sets.
+		for (const [k, v] of a) {
+			if (!b.has(k) || !eq(v, b.get(k), nextLimit)) {
 				return false;
 			}
 		}
 		return true;
 	}
-	if (a instanceof Set && b instanceof Set) {
-		if (a.size !== b.size) {
+	if (a instanceof Set) {
+		if (!(b instanceof Set) || a.size !== b.size) {
 			return false;
 		}
 		for (const v of a) {
@@ -89,8 +99,8 @@ function eq(a, b, limit = undefined) {
 		}
 		return true;
 	}
-	if (ta === undefined) {
-		return a === b;
+	if (a instanceof Date) {
+		return b instanceof Date && Object.is(a.getTime(), b.getTime());
 	}
 	return false;
 }

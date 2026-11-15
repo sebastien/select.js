@@ -892,7 +892,8 @@ class Reactive {
 		this.revision = value === Nothing ? -1 : 0;
 		this.subs = [];
 		this.selections = undefined;
-		this._selectionCache = new Map();
+		// Selected views by path key, created on first `select()`.
+		this._selectionCache = undefined;
 		this._normalizer = undefined;
 		this._pendingPath = undefined;
 	}
@@ -922,10 +923,14 @@ class Reactive {
 			this.set(defaultValue, nextPath);
 		}
 		const pathKey = selectionPathKey(nextPath);
-		let selected = this._selectionCache.get(pathKey);
+		let cache = this._selectionCache;
+		if (cache === undefined) {
+			cache = this._selectionCache = new Map();
+		}
+		let selected = cache.get(pathKey);
 		if (!selected) {
 			selected = new Selected(this, nextPath, pathKey);
-			this._selectionCache.set(pathKey, selected);
+			cache.set(pathKey, selected);
 		}
 		return selected.acquire();
 	}
@@ -940,7 +945,7 @@ class Reactive {
 		}
 		const nextPath = normalizeSelectionPath(pathOrSelected);
 		const pathKey = selectionPathKey(nextPath);
-		const selected = this._selectionCache.get(pathKey);
+		const selected = this._selectionCache?.get(pathKey);
 		if (selected) {
 			selected.release();
 		}
@@ -1138,7 +1143,10 @@ class Selected extends Reactive {
 		if (parent instanceof Reactive) {
 			parent.selections = parent.selections ?? new Selections();
 			parent.selections.add(nextPath, this);
-			parent._selectionCache?.set(nextPathKey, this);
+			if (parent._selectionCache === undefined) {
+				parent._selectionCache = new Map();
+			}
+			parent._selectionCache.set(nextPathKey, this);
 			this.value = access(parent.value, nextPath);
 		} else {
 			this.value = parent ? access(parent, nextPath) : undefined;

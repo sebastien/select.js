@@ -10,6 +10,9 @@
 
 import { logger } from "./logger.js";
 
+const RE_SPACE = /\s/;
+const RE_SPACES = /\s+/;
+
 const log = logger("ui.dom");
 
 // Function: isNode
@@ -388,9 +391,14 @@ function swapped(target, node) {
 // Splits a whitespace-separated class list `value` into tokens. Non-string
 // values yield an empty array.
 function classTokens(value) {
-	return typeof value === "string"
-		? value.trim().split(/\s+/).filter(Boolean)
-		: [];
+	if (typeof value !== "string") {
+		return [];
+	}
+	const text = value.trim();
+	if (text === "") {
+		return [];
+	}
+	return RE_SPACE.test(text) ? text.split(RE_SPACES) : [text];
 }
 
 // Function: addClass

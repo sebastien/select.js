@@ -14,7 +14,11 @@ import { createWhenPredicate } from "../eval.js";
 import { isInputNode, log, setNodeText } from "../templates.js";
 
 import { AppliedUITemplate } from "./model.js";
-import { resolveTemplatePath, SLOT_DEFAULT_KEY } from "./runtime.js";
+import {
+	resolveTemplatePath,
+	SLOT_DEFAULT_KEY,
+	UI_PARENT_ATTRIBUTE,
+} from "./runtime.js";
 
 let UIInstanceClass = null;
 
@@ -84,6 +88,97 @@ function parseCssText(cssText) {
 	}
 	_styleParseNode.style.cssText = "";
 	return entries;
+}
+
+// Collects the decorations (`attrs`, `classes`, `styles`) an `out-replace`
+// anchor `node` merges into the content replacing it.
+function collectReplaceNodeMerge(node) {
+	const attrs = [];
+	const attributes = node.attributes;
+	for (let i = 0; i < attributes.length; i++) {
+		const attr = attributes[i];
+		const name = attr.name;
+		if (
+			name === "out-replace" ||
+			name === "out" ||
+			name === "in" ||
+			name === "inout" ||
+			name === "ref" ||
+			name === "when" ||
+			name.startsWith("out:") ||
+			name.startsWith("on:")
+		) {
+			continue;
+		}
+		attrs.push([name, attr.value]);
+	}
+	const classes = [];
+	const classList = node.classList;
+	for (let i = 0; i < classList.length; i++) {
+		classes.push(classList[i]);
+	}
+	const styles = [];
+	const style = node.style;
+	if (style) {
+		for (let i = 0; i < style.length; i++) {
+			const prop = style[i];
+			styles.push([prop, style.getPropertyValue(prop)]);
+		}
+	}
+	return { attrs, classes, styles };
+}
+
+// Returns the decorations for an `out-replace` anchor `node`. Every clone of a
+// nested template node carries the same decorations, so they are computed once
+// per template slot and shared (read-only). Root nodes and web component hosts
+// receive per-instance attributes (component root class, `ui-parent`) and are
+// always recomputed.
+function replaceNodeMergeFor(node, template) {
+	if (!template.tailPath || node.hasAttribute(UI_PARENT_ATTRIBUTE)) {
+		return collectReplaceNodeMerge(node);
+	}
+	let merge = template._replaceNodeMerge;
+	if (merge === undefined) {
+		merge = collectReplaceNodeMerge(node);
+		template._replaceNodeMerge = merge;
+	}
+	return merge;
+}
+
+// Converts a camelCase style property to kebab-case, caching the result.
+const KEBAB_STYLE_PROPS = new Map();
+const RE_UPPERCASE = /([A-Z])/g;
+function kebabStyleProp(prop) {
+	let res = KEBAB_STYLE_PROPS.get(prop);
+	if (res === undefined) {
+		res = prop.replace(RE_UPPERCASE, "-$1").toLowerCase();
+		KEBAB_STYLE_PROPS.set(prop, res);
+	}
+	return res;
+}
+
+// Appends the class tokens described by `value` (string, array, or
+// `{name: enabled}` object) to `classes`.
+function collectClassTokens(value, classes) {
+	if (value == null || typeof value === "boolean") {
+		return;
+	}
+	if (typeof value === "string") {
+		const tokens = classTokens(value);
+		for (let i = 0; i < tokens.length; i++) {
+			classes.push(tokens[i]);
+		}
+	} else if (Array.isArray(value)) {
+		for (let i = 0; i < value.length; i++) {
+			collectClassTokens(value[i], classes);
+		}
+	} else if (typeof value === "object") {
+		for (const cls in value) {
+			if (cls && value[cls] && Object.hasOwn(value, cls)) {
+				collectClassTokens(cls, classes);
+			}
+		}
+	}
 }
 
 class UITemplateSlot {
@@ -584,17 +679,26 @@ class UIAttributeSlot {
 		this.template = template;
 		this.parent = parent;
 		this.attrName = template.attrName;
-		this.originalClasses =
-			template.attrName === "class"
-				? new Set((template.originalValue || "").split(/\s+/).filter(Boolean))
-				: null;
-		// Parse original style once (not on every render).
-		this.originalStyles =
-			template.attrName === "style" && template.originalValue
-				? parseCssText(template.originalValue)
-				: null;
-		this.appliedClasses = new Set();
-		this.appliedStyles = new Map();
+		// NOTE: Original class/style values are per template slot, so they are
+		// parsed once there and shared (read-only) by every instance.
+		if (template._original === undefined) {
+			template._original = {
+				classes:
+					template.attrName === "class"
+						? new Set(classTokens(template.originalValue || ""))
+						: null,
+				styles:
+					template.attrName === "style" && template.originalValue
+						? parseCssText(template.originalValue)
+						: null,
+			};
+		}
+		this.originalClasses = template._original.classes;
+		this.originalStyles = template._original.styles;
+		// Applied class tokens (Array) and style properties (Map), created on
+		// first use.
+		this.appliedClasses = null;
+		this.appliedStyles = null;
 	}
 
 	_isCustomElement() {
@@ -632,77 +736,78 @@ class UIAttributeSlot {
 		}
 	}
 
-	_renderClass(...values) {
-		for (const cls of this.appliedClasses) {
-			if (!this.originalClasses.has(cls)) {
-				this.node.classList.remove(cls);
-			}
-		}
-		this.appliedClasses.clear();
+	_renderClass(value) {
 		const classes = [];
-		const flatten = (value) => {
-			if (value == null) return;
-			if (typeof value === "boolean") return;
-			if (typeof value === "string") {
-				for (const part of classTokens(value)) {
-					classes.push(part);
-				}
+		collectClassTokens(value, classes);
+		const applied = this.appliedClasses;
+		const n = classes.length;
+		if (applied === null) {
+			if (n === 0) {
 				return;
 			}
-			if (Array.isArray(value)) {
-				for (const item of value) {
-					flatten(item);
+		} else if (applied.length === n) {
+			let same = true;
+			for (let i = 0; i < n; i++) {
+				if (applied[i] !== classes[i]) {
+					same = false;
+					break;
 				}
+			}
+			if (same) {
 				return;
 			}
-			if (typeof value === "object") {
-				for (const [cls, enabled] of Object.entries(value)) {
-					if (enabled && cls && typeof cls === "string") {
-						for (const part of classTokens(cls)) {
-							classes.push(part);
-						}
-					}
+		}
+		const classList = this.node.classList;
+		if (applied !== null) {
+			for (let i = 0; i < applied.length; i++) {
+				if (!this.originalClasses.has(applied[i])) {
+					classList.remove(applied[i]);
 				}
 			}
-		};
-		for (const value of values) {
-			flatten(value);
 		}
-		for (const cls of classes) {
-			this.node.classList.add(cls);
-			this.appliedClasses.add(cls);
+		for (let i = 0; i < n; i++) {
+			classList.add(classes[i]);
 		}
+		this.appliedClasses = n ? classes : null;
 	}
 
 	_renderStyle(value) {
-		for (const prop of this.appliedStyles.keys()) {
-			this.node.style.removeProperty(prop);
+		const style = this.node.style;
+		let applied = this.appliedStyles;
+		if (applied?.size) {
+			for (const prop of applied.keys()) {
+				style.removeProperty(prop);
+			}
+			applied.clear();
 		}
-		this.appliedStyles.clear();
 		if (this.originalStyles) {
 			for (let i = 0; i < this.originalStyles.length; i++) {
-				const [prop, val] = this.originalStyles[i];
-				if (!this.node.style.getPropertyValue(prop)) {
-					this.node.style.setProperty(prop, val);
+				const entry = this.originalStyles[i];
+				if (!style.getPropertyValue(entry[0])) {
+					style.setProperty(entry[0], entry[1]);
 				}
 			}
 		}
 		if (value == null) return;
+		if (applied === null) {
+			applied = this.appliedStyles = new Map();
+		}
 		if (typeof value === "object") {
-			for (const [prop, val] of Object.entries(value)) {
-				if (val != null) {
-					const kebabProp = prop.replace(/([A-Z])/g, "-$1").toLowerCase();
-					this.node.style.setProperty(kebabProp, val);
-					this.appliedStyles.set(kebabProp, val);
+			for (const prop in value) {
+				const val = value[prop];
+				if (val != null && Object.hasOwn(value, prop)) {
+					const kebabProp = kebabStyleProp(prop);
+					style.setProperty(kebabProp, val);
+					applied.set(kebabProp, val);
 				}
 			}
 		} else {
 			const entries = parseCssText(value);
 			if (!entries) return;
 			for (let i = 0; i < entries.length; i++) {
-				const [prop, val] = entries[i];
-				this.node.style.setProperty(prop, val);
-				this.appliedStyles.set(prop, val);
+				const entry = entries[i];
+				style.setProperty(entry[0], entry[1]);
+				applied.set(entry[0], entry[1]);
 			}
 		}
 	}
@@ -857,75 +962,38 @@ class UISlot {
 		this.parent = parent;
 		this.node = node;
 		this.replaceNode = template.replaceNode === true;
+		// NOTE: `firstChild` avoids materializing the live `childNodes` list.
+		const hasChildren = node.firstChild != null;
 		// Leaf output nodes overwhelmingly receive scalar text or form values.
 		// Defer list bookkeeping until a non-scalar value actually needs it.
-		this._simple =
-			!this.replaceNode &&
-			!template.predicate &&
-			(!node.childNodes || node.childNodes.length === 0);
+		this._simple = !this.replaceNode && !template.predicate && !hasChildren;
 		this._simpleText = null;
 		this.predicateVisible = true;
 		this.replaceNodeMerge = null;
 		this._replaceRef = null;
 		this._whenParent = null;
 		this._whenNext = null;
-		if (template.predicate && !this.replaceNode && node?.parentNode) {
+		if (template.predicate && !this.replaceNode && node.parentNode) {
 			this._whenParent = node.parentNode;
 			this._whenNext = node.nextSibling;
 		}
-		if (this.replaceNode && this.node?.nodeType === Node.ELEMENT_NODE) {
-			const attrs = [];
-			for (const attr of this.node.attributes) {
-				const name = attr.name;
-				if (
-					name === "out-replace" ||
-					name === "out" ||
-					name === "in" ||
-					name === "inout" ||
-					name === "ref" ||
-					name === "when" ||
-					name.startsWith("out:") ||
-					name.startsWith("on:")
-				) {
-					continue;
-				}
-				attrs.push([name, attr.value]);
+		if (this.replaceNode) {
+			if (node.nodeType === Node.ELEMENT_NODE) {
+				this.replaceNodeMerge = replaceNodeMergeFor(node, template);
 			}
-			const classes = [];
-			for (const cls of this.node.classList) {
-				classes.push(cls);
+			const p = node.parentNode;
+			if (p) {
+				// Zero-extra-node replacement: remember the original parent and the
+				// nextSibling ref. We insert content before _replaceRef (or append).
+				// No persistent marker node is left in the DOM.
+				this._replaceParent = p;
+				this._replaceRef = node.nextSibling;
+				p.removeChild(node);
 			}
-			const styles = [];
-			const style = this.node.style;
-			if (style) {
-				if (typeof style[Symbol.iterator] === "function") {
-					for (const prop of style) {
-						styles.push([prop, style.getPropertyValue(prop)]);
-					}
-				} else {
-					for (let i = 0; i < style.length; i++) {
-						const prop = style[i];
-						styles.push([prop, style.getPropertyValue(prop)]);
-					}
-				}
-			}
-			this.replaceNodeMerge = { attrs, classes, styles };
-		}
-		if (this.replaceNode && this.node.parentNode) {
-			// Zero-extra-node replacement: remember the original parent and the
-			// nextSibling ref. We insert content before _replaceRef (or append).
-			// No persistent marker node is left in the DOM.
-			const p = this.node.parentNode;
-			this._replaceParent = p;
-			this._replaceRef = this.node.nextSibling;
-			p.removeChild(this.node);
 		}
 		this.isInput = isInputNode(node);
 		this.mapping = this._simple ? null : new Map();
-		this.placeholder =
-			node.childNodes && node.childNodes.length > 0
-				? [...node.childNodes]
-				: null;
+		this.placeholder = hasChildren ? [...node.childNodes] : null;
 		this._extractedSlots = undefined;
 		this._hasNamedSlotContent = undefined;
 		this.predicatePlaceholder =

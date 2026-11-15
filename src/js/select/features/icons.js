@@ -208,11 +208,11 @@ const SourceTransforms = {
 // SVG forever. Unknown names do not fall back to a collection download.
 const IconSources = {
 	lucide: {
-		url: `https://cdn.jsdelivr.net/npm/lucide-static@1.55.0/icons/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/lucide-static@1.73.0/icons/${ICON_NAME}.svg`,
 		size: [24, 24],
 	},
 	iconoir: {
-		url: `https://cdn.jsdelivr.net/npm/iconoir@7.12.1/icons/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/iconoir@7.12.2/icons/${ICON_NAME}.svg`,
 		transform: "iconoirStyle",
 		size: [24, 24],
 	},
@@ -224,7 +224,7 @@ const IconSources = {
 	},
 	eva: "eva-outline",
 	tabler: {
-		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.49.0/icons/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.52.0/icons/${ICON_NAME}.svg`,
 		transform: "tablerStyle",
 		size: [24, 24],
 	},
@@ -234,7 +234,7 @@ const IconSources = {
 		size: [24, 24],
 	},
 	"iconoir-solid": {
-		url: `https://cdn.jsdelivr.net/npm/iconoir@7.12.1/icons/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/iconoir@7.12.2/icons/${ICON_NAME}.svg`,
 		transform: "iconoirStyle",
 		variant: "solid",
 		size: [24, 24],
@@ -246,7 +246,7 @@ const IconSources = {
 		style: FillStyle,
 	},
 	"tabler-filled": {
-		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.49.0/icons/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.52.0/icons/${ICON_NAME}.svg`,
 		transform: "tablerStyle",
 		variant: "filled",
 		size: [24, 24],
@@ -257,42 +257,42 @@ const IconSources = {
 		style: FillStyle,
 	},
 	"material-symbols": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.48.0/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.49.0/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		size: [48, 48],
 		style: FillStyle,
 	},
 	"material-symbols-outlined": "material-symbols",
 	"material-symbols-rounded": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.48.0/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.49.0/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		variant: "rounded",
 		size: [48, 48],
 		style: FillStyle,
 	},
 	"material-symbols-sharp": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.48.0/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-400@0.49.0/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		variant: "sharp",
 		size: [48, 48],
 		style: FillStyle,
 	},
 	"material-symbols-light": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.48.0/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.49.0/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		size: [48, 48],
 		style: FillStyle,
 	},
 	"material-symbols-light-outlined": "material-symbols-light",
 	"material-symbols-light-rounded": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.48.0/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.49.0/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		variant: "rounded",
 		size: [48, 48],
 		style: FillStyle,
 	},
 	"material-symbols-light-sharp": {
-		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.48.0/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@material-symbols/svg-200@0.49.0/${ICON_NAME}.svg`,
 		transform: "symbolsStyle",
 		variant: "sharp",
 		size: [48, 48],
@@ -334,7 +334,7 @@ const IconSources = {
 		size: [15, 15],
 	},
 	ix: {
-		url: `https://cdn.jsdelivr.net/npm/@siemens/ix-icons@3.5.0/svg/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@siemens/ix-icons@3.7.1/svg/${ICON_NAME}.svg`,
 		size: [512, 512],
 		style: FillStyle,
 	},

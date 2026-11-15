@@ -34,28 +34,32 @@ function getUIInstance(id) {
 	return key ? UI_INSTANCES.get(key) : undefined;
 }
 
+// NOTE: Instances are identified and registered lazily (see `UIInstance.id`),
+// so these work on the backing `_id` and never trigger id creation.
 function registerUIInstance(instance) {
-	if (!instance?.id) {
+	const id = instance?._id;
+	if (!id) {
 		return instance;
 	}
-	const current = UI_INSTANCES.get(instance.id);
+	const current = UI_INSTANCES.get(id);
 	if (current && current !== instance) {
 		log.warn("UIInstance: duplicate instance id, overriding registry entry", {
-			id: instance.id,
+			id,
 			current,
 			incoming: instance,
 		});
 	}
-	UI_INSTANCES.set(instance.id, instance);
+	UI_INSTANCES.set(id, instance);
 	return instance;
 }
 
 function unregisterUIInstance(instance) {
-	if (!instance?.id) {
+	const id = instance?._id;
+	if (!id) {
 		return instance;
 	}
-	if (UI_INSTANCES.get(instance.id) === instance) {
-		UI_INSTANCES.delete(instance.id);
+	if (UI_INSTANCES.get(id) === instance) {
+		UI_INSTANCES.delete(id);
 	}
 	return instance;
 }
@@ -249,32 +253,45 @@ class UIInstance {
 		if (stableDomOrder) {
 			plan.sort((a, b) => UITemplateSlot.ComparePathDesc(a.slot, b.slot));
 		}
-		return (nodes, parent) => {
-			const res = {};
-			const mappedGroups = new Array(keys.length);
-			for (let i = 0; i < keys.length; i++) {
-				mappedGroups[i] = new Array(groups[i].length);
-			}
-			if (stableDomOrder) {
+		const count = keys.length;
+		if (stableDomOrder) {
+			return (nodes, parent) => {
+				const res = {};
+				for (let i = 0; i < count; i++) {
+					res[keys[i]] = new Array(groups[i].length);
+				}
 				for (let i = 0; i < plan.length; i++) {
-					const { keyIndex, itemIndex, slot } = plan[i];
-					mappedGroups[keyIndex][itemIndex] = slot.apply(
+					const step = plan[i];
+					res[step.key][step.itemIndex] = step.slot.apply(
 						nodes,
 						parent,
 						rawSingle,
 					);
 				}
-			} else {
-				for (let i = 0; i < keys.length; i++) {
-					const source = groups[i];
-					for (let j = 0; j < source.length; j++) {
-						mappedGroups[i][j] = source[j].apply(nodes, parent, rawSingle);
+				if (rawSingle) {
+					for (let i = 0; i < count; i++) {
+						if (groups[i].length === 1) {
+							res[keys[i]] = res[keys[i]][0];
+						}
 					}
 				}
-			}
-			for (let i = 0; i < keys.length; i++) {
-				const mapped = mappedGroups[i];
-				res[keys[i]] = rawSingle && mapped.length === 1 ? mapped[0] : mapped;
+				return res;
+			};
+		}
+		return (nodes, parent) => {
+			const res = {};
+			for (let i = 0; i < count; i++) {
+				const source = groups[i];
+				const n = source.length;
+				if (rawSingle && n === 1) {
+					res[keys[i]] = source[0].apply(nodes, parent, rawSingle);
+					continue;
+				}
+				const mapped = new Array(n);
+				for (let j = 0; j < n; j++) {
+					mapped[j] = source[j].apply(nodes, parent, rawSingle);
+				}
+				res[keys[i]] = mapped;
 			}
 			return res;
 		};
@@ -300,17 +317,24 @@ class UIInstance {
 		this.template = template;
 		this.options = options || {};
 		this.data = this.options.data;
-		const explicitId =
-			typeof this.options.id === "string" ? this.options.id.trim() : "";
-		this.id = explicitId || createUIInstanceId();
-		registerUIInstance(this);
+		// NOTE: Most instances are never looked up by id, so the id and its
+		// registry entry are created on first access (see `id`) unless given.
+		this._id =
+			(typeof this.options.id === "string" ? this.options.id.trim() : "") ||
+			undefined;
+		this._isDisposed = false;
+		if (this._id) {
+			registerUIInstance(this);
+		}
 		try {
 			const compiled = UIInstance._ensureCompiled(template);
 			this.nodes = new Array(template.nodes.length);
 			for (let i = 0; i < template.nodes.length; i++) {
 				this.nodes[i] = template.nodes[i].cloneNode(true);
 			}
-			UIInstance._applyTemplateWebComponents(this.nodes, template, this.id);
+			if (template.webcomponents?.length) {
+				UIInstance._applyTemplateWebComponents(this.nodes, template, this.id);
+			}
 			UIInstance._applyComponentRootClass(this.nodes, template);
 			this.in = compiled.in ? compiled.in(this.nodes, this) : null;
 			// NOTE: Keep non-mutating slot resolution before `out` slots.
@@ -407,6 +431,19 @@ class UIInstance {
 			this.dispose();
 			throw error;
 		}
+	}
+
+	// Property: id
+	// Unique instance id (`ui-N` unless given through `options.id`). Created
+	// and registered for `getUIInstance` on first access.
+	get id() {
+		if (this._id === undefined) {
+			this._id = createUIInstanceId();
+			if (!this._isDisposed) {
+				UI_INSTANCES.set(this._id, this);
+			}
+		}
+		return this._id;
 	}
 
 	setParent(parent) {

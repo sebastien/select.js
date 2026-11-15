@@ -15,6 +15,9 @@ import { TemplateParser } from "./bindings.js";
 
 const log = logger("select.ui");
 
+// Split paths for dotted source keys, by normalized key.
+const SOURCE_PATHS = new Map();
+
 function normalizeSourceKey(sourceKey) {
 	if (sourceKey === "data" || sourceKey === ".") return "";
 	if (sourceKey.startsWith("data.")) return sourceKey.slice(5);
@@ -38,7 +41,14 @@ function resolveSourceValue(
 	if (!normalizedKey) return data;
 	if (!normalizedKey.includes("."))
 		return data ? data[normalizedKey] : undefined;
-	return resolveDataPath(data, normalizedKey.split("."), self, itemKey);
+	// NOTE: Source keys come from templates, so the set of split paths is
+	// bounded by the number of distinct bindings.
+	let path = SOURCE_PATHS.get(normalizedKey);
+	if (path === undefined) {
+		path = normalizedKey.split(".");
+		SOURCE_PATHS.set(normalizedKey, path);
+	}
+	return resolveDataPath(data, path, self, itemKey);
 }
 
 function formatBindingSource(binding) {
@@ -224,6 +234,15 @@ function normalizeProcessorDescriptor(processor) {
 	}
 	if (typeof processor.name !== "string" || !processor.name.length) {
 		return null;
+	}
+	// Parsed descriptors are already normalized: reuse them as-is.
+	if (
+		typeof processor.raw === "string" &&
+		processor.raw.length > 0 &&
+		typeof processor.each === "boolean" &&
+		Array.isArray(processor.args)
+	) {
+		return processor;
 	}
 	return {
 		raw: processor.raw || TemplateParser.FormatProcessorToken(processor),

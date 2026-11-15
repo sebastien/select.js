@@ -25,6 +25,12 @@ const microtask =
 // Function: asText
 // Converts `value` to displayable text, expanding reactive values.
 function asText(value) {
+	if (typeof value === "string") {
+		return value;
+	}
+	if (typeof value === "number") {
+		return `${value}`;
+	}
 	value = unwrap(value);
 	return value === null || value === undefined
 		? ""

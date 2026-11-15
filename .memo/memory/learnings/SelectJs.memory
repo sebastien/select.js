@@ -1,0 +1,50 @@
+---
+identity: 0f488d02-4519-4b02-b80c-e8a70242453d
+created: 2026-11-15T04:26:17.093630+00:00
+updated: 2026-11-15T04:39:23.121750+00:00
+agent_nodes:
+  c945857addcb5357f28ee24cff6b640fa85449da2559f24cc0ffaf41de802d53:
+    role: observation
+    key: fixture-happy-dom-style
+    source: session-2026-11-15-perf
+  9bb511109bbd23804778ee7c1c4d2cfac5b24a27cfacd22fb464789abd9697f3:
+    role: observation
+    key: bench-inspector-noise
+    source: session-2026-11-15-perf
+---
+{
+  "version": 1,
+  "memory": {
+    "root": "root",
+    "nodes": {
+      "root": {
+        "title": "",
+        "text": "",
+        "children": [
+          "c945857addcb5357f28ee24cff6b640fa85449da2559f24cc0ffaf41de802d53",
+          "9bb511109bbd23804778ee7c1c4d2cfac5b24a27cfacd22fb464789abd9697f3"
+        ],
+        "sources": [],
+        "review": true
+      },
+      "c945857addcb5357f28ee24cff6b640fa85449da2559f24cc0ffaf41de802d53": {
+        "title": "fixture-happy-dom-style",
+        "text": "int-examples fixtures can encode happy-dom quirks: its CSSStyleDeclaration iterator yields 'parentRule' not properties, so out-replace host styles were never merged in fixtures; index loop is correct. Diff vs HEAD export before trusting a fixture.",
+        "children": [],
+        "sources": [
+          "session-2026-11-15-perf"
+        ],
+        "review": false
+      },
+      "9bb511109bbd23804778ee7c1c4d2cfac5b24a27cfacd22fb464789abd9697f3": {
+        "title": "bench-inspector-noise",
+        "text": "bench:inspector timings swing 2x between runs on this machine; compare select.ui/solidjs ratio within a run and trust heap numbers, alternate baseline (git archive HEAD in /tmp) and current runs.",
+        "children": [],
+        "sources": [
+          "session-2026-11-15-perf"
+        ],
+        "review": false
+      }
+    }
+  }
+}

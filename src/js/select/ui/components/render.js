@@ -26,9 +26,33 @@ import {
 	hasTrackedNonReactiveObjectDeps,
 	runWithUIInstance,
 	scheduleRenderTask,
+	setCurrentUIInstance,
 	snapshotReactiveDependencyRevisions,
 	trackAsync,
 } from "./runtime.js";
+
+// Shared (read-only) options for processor application during render.
+const WITH_META = Object.freeze({ withMeta: true });
+
+// Renders `value` into each visible slot of `slots`. When `preserve` is set,
+// slots that take property values receive `raw` (the unexpanded value).
+function renderSlotGroup(slots, value, raw, preserve) {
+	for (let i = 0; i < slots.length; i++) {
+		const slot = slots[i];
+		if (slot.predicateSlot && !slot.predicateVisible) continue;
+		slot.render(preserve && slot._shouldUsePropertyValue?.(raw) ? raw : value);
+	}
+}
+
+// Runs the behavior `handler` with `instance` as the current UIInstance.
+function runBehavior(instance, handler, data) {
+	const previous = setCurrentUIInstance(instance);
+	try {
+		return handler(instance, data, null);
+	} finally {
+		setCurrentUIInstance(previous);
+	}
+}
 
 // Function: attachRender
 // Installs set/update/render methods on `UIInstance`.
@@ -380,16 +404,6 @@ function attachRender(UIInstance) {
 						let v;
 						const slots = set[k];
 						const preserveReactiveValue = set === this.inout;
-						const renderSlots = (value, raw = undefined) => {
-							for (const slot of slots) {
-								if (slot.predicateSlot && !slot.predicateVisible) continue;
-								slot.render(
-									preserveReactiveValue && slot._shouldUsePropertyValue?.(raw)
-										? raw
-										: value,
-								);
-							}
-						};
 						const templateTokens = withProcessors
 							? slots?.[0]?.template?.template?.tokens
 							: null;
@@ -399,7 +413,7 @@ function attachRender(UIInstance) {
 								templateTokens,
 								renderData,
 							);
-							renderSlots(resolvedTemplate);
+							renderSlotGroup(slots, resolvedTemplate, undefined, false);
 							continue;
 						}
 						const binding = withProcessors
@@ -428,18 +442,20 @@ function attachRender(UIInstance) {
 										v,
 										processors,
 										sourceKey,
-										{ withMeta: true },
+										WITH_META,
 									);
 									v = finalizeRenderProcessorValue(
 										processed.value,
 										processed.lastProcessorType,
 									);
 								}
-								renderSlots(
+								renderSlotGroup(
+									slots,
 									v,
 									preserveReactiveValue
 										? resolveSourceValue(renderData, sourceKey, this)
 										: undefined,
+									preserveReactiveValue,
 								);
 								continue;
 							}
@@ -455,9 +471,7 @@ function attachRender(UIInstance) {
 							const haveDeps = this._behaviorDeps?.has(k);
 							if (canTrack && !haveDeps) {
 								const [trackedData, accessed] = createTrackingProxy(renderData);
-								v = runWithUIInstance(this, () =>
-									hasBehavior(this, trackedData, null),
-								);
+								v = runBehavior(this, hasBehavior, trackedData);
 								if (!this._behaviorDeps) {
 									this._behaviorDeps = new Map();
 								}
@@ -474,9 +488,7 @@ function attachRender(UIInstance) {
 									snapshotReactiveDependencyRevisions(renderData, accessed),
 								);
 							} else {
-								v = runWithUIInstance(this, () =>
-									hasBehavior(this, renderData, null),
-								);
+								v = runBehavior(this, hasBehavior, renderData);
 								// Keep granular cache in sync when a tracked behavior re-runs.
 								if (haveDeps) {
 									if (!this._behaviorValues) {
@@ -510,8 +522,11 @@ function attachRender(UIInstance) {
 						if (v === undefined && binding?.defaultValue !== undefined)
 							v = binding.defaultValue;
 
+						// NOTE: The thenable test is repeated here so the callback is only
+						// allocated for async behavior values.
 						if (
 							hasBehavior &&
+							isThenable(v) &&
 							this._trackAsyncBehaviorValue(k, v, (resolved) => {
 								let next = resolved;
 								if (withProcessors && processors?.length) {
@@ -521,14 +536,14 @@ function attachRender(UIInstance) {
 										next,
 										processors,
 										sourceKey,
-										{ withMeta: true },
+										WITH_META,
 									);
 									next = finalizeRenderProcessorValue(
 										processed.value,
 										processed.lastProcessorType,
 									);
 								}
-								renderSlots(next);
+								renderSlotGroup(slots, next, undefined, false);
 							})
 						) {
 							continue;
@@ -540,20 +555,24 @@ function attachRender(UIInstance) {
 								v,
 								processors,
 								sourceKey,
-								{ withMeta: true },
+								WITH_META,
 							);
 							v = finalizeRenderProcessorValue(
 								processed.value,
 								processed.lastProcessorType,
 							);
 						}
-						renderSlots(
+						// NOTE: The raw (unexpanded) value only matters to slots that
+						// preserve reactive values, so it is not resolved otherwise.
+						renderSlotGroup(
+							slots,
 							v,
-							!hasBehavior && !processors?.length
+							preserveReactiveValue && !hasBehavior && !processors?.length
 								? binding
 									? resolveBindingValue(renderData, binding, false, this)
 									: resolveSourceValue(renderData, sourceKey, this)
 								: undefined,
+							preserveReactiveValue,
 						);
 					}
 				};
@@ -598,7 +617,7 @@ function attachRender(UIInstance) {
 									next,
 									processors,
 									sourceKey,
-									{ withMeta: true },
+									WITH_META,
 								);
 								next = finalizeRenderProcessorValue(
 									processed.value,
