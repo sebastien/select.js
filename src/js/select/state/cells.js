@@ -130,12 +130,12 @@ function batch(functor) {
 	}
 }
 
+// Reactives are objects, or callable proxies over one (see `selectable` in browser.js).
 function isReactiveValue(value) {
+	if (value === null || value === undefined) return false;
+	const type = typeof value;
 	return (
-		value !== null &&
-		value !== undefined &&
-		typeof value === "object" &&
-		value.isReactive === true
+		(type === "object" || type === "function") && value.isReactive === true
 	);
 }
 
@@ -382,11 +382,11 @@ function hasPathPrefix(path, prefix) {
 }
 
 function walkReactiveSources(value, visitor, path = []) {
-	if (value === null || value === undefined || typeof value !== "object") {
-		return;
-	}
 	if (isReactiveSource(value)) {
 		visitor(value, path);
+		return;
+	}
+	if (value === null || value === undefined || typeof value !== "object") {
 		return;
 	}
 	if (Array.isArray(value)) {
@@ -859,10 +859,14 @@ class Reactive {
 	// Generator that yields `[reactive, path]` tuples for all reactive values
 	// nested within `value` at `path`.
 	static *Walk(value, path = []) {
-		if (value === null || value === undefined || typeof value !== "object") {
-			// pass
-		} else if (isReactiveSource(value)) {
+		if (isReactiveSource(value)) {
 			yield [value, path];
+		} else if (
+			value === null ||
+			value === undefined ||
+			typeof value !== "object"
+		) {
+			// pass
 		} else if (Array.isArray(value)) {
 			for (let i = 0; i < value.length; i++) {
 				for (const _ of Reactive.Walk(value[i], [...path, i])) {

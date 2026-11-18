@@ -2,7 +2,7 @@
 
 `@select/features/interaction/index.js` provides small DOM interaction helpers for event binding,
 mouse dragging, keyboard handling, draggable drop targets, sortable list
-slotting, panel positioning, and popup sessions.
+slotting, panel positioning, popup sessions, and number field scrubbing.
 
 ## Importing
 
@@ -14,6 +14,7 @@ import {
 	drag,
 	draggable,
 	popup,
+	scrub,
 	sort,
 	unbind,
 } from "@select/features/interaction/index.js"
@@ -23,7 +24,7 @@ The default export is an object containing the same grouped helpers:
 `interaction.core`, `interaction.drag`, `interaction.draggable`,
 `interaction.keyboard`, `interaction.Keyboard`, `interaction.autoresize`,
 `interaction.sortable`, `interaction.popup`, `interaction.positioning`,
-and `interaction.sort`.
+`interaction.scrub`, and `interaction.sort`.
 
 ## Core Helpers
 
@@ -401,6 +402,70 @@ session.close()
 The panel must be measurable (`display` not `none`) when `popup` runs. Call
 `session.update()` after content or trigger layout changes; resize, scroll, and
 `visualViewport` listeners already do that.
+
+## Scrubbing Number Fields
+
+### `scrub(root?, options?)`
+
+Lets the user change a number field by pressing it and dragging sideways,
+while a plain click still focuses the field for typing. `scrub` installs one
+delegated `pointerdown` listener on `root` (default `document`), so matching
+fields can be added or removed at any time. It returns a `stop()` function
+that removes the listener.
+
+Options:
+
+- `selector`: `"input.scrub"` — the fields that scrub. The match is found with
+  `event.target.closest(selector)` and must be inside `root`.
+- `pixels`: `1` — pointer travel in CSS pixels per `step`. A field's
+  `data-scrub-pixels` attribute overrides it, for example `8` for small counts.
+- `threshold`: `3` — horizontal travel in pixels before a press becomes a
+  scrub. Shorter presses stay clicks.
+- `start(input)` — the value to scrub from when the field is empty or not a
+  finite number, for example the effective value of an automatic field.
+  Defaults to `min` when it is finite, else `0`.
+
+Behaviour:
+
+- Only primary pointers and the main button scrub. Disabled, read-only, and
+  focused fields are left alone, so caret placement and text selection keep
+  working while typing.
+- The field's `step` (missing, empty, or `any` means `1`), `min`, and `max`
+  attributes drive the value. The value moves by `step` every `pixels`
+  pixels, ten times faster with Shift and ten times finer with Alt. Modifiers
+  are read on every move, so they can change mid-drag.
+- The value stays within `min` and `max`, and lands on the step grid measured
+  from `min` (or `0`), rounded to the step's decimal places, so a `0.1` step
+  shows `0.3` rather than `0.30000000000000004`. Alt only makes the drag
+  finer; values stay on the grid.
+- Travel below the threshold counts once the scrub starts, so the value
+  follows the pointer from the press point.
+- The pointer is captured during the gesture, and it may leave the field.
+
+Events:
+
+- `input` (bubbling) whenever the shown value changes during a scrub.
+- `change` (bubbling) once on release, when the value differs from the value
+  at the press.
+- A click without travel focuses the field and selects its text, with no
+  `input` or `change` event.
+- Escape or `pointercancel` restores the value from the press, with an `input`
+  event if it had changed and no `change` event. The Escape key press is
+  consumed, so it does not also close an enclosing popup.
+
+```html
+<input class="scrub" type="number" value="100" min="0" max="800" step="10" aria-label="Zoom">
+```
+
+```javascript
+const stop = scrub(document)
+input.addEventListener("change", () => save(input.valueAsNumber))
+```
+
+The module only handles the gesture. Styling comes from the stylesheet, for
+example ui.css styles `input.scrub`: an `ew-resize` cursor, `touch-action:
+pan-y` so horizontal touch drags reach the field, and the `.active` class that
+`scrub` sets on the field while it is being scrubbed.
 
 ## Keyboard and Input Helpers
 

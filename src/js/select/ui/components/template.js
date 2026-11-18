@@ -32,6 +32,40 @@ function copyAppliedData(data) {
 	return data;
 }
 
+// Whether two applied data bags hold the same values, key by key (`Object.is`).
+// Deliberately shallow: a fresh nested array or object counts as a change.
+function sameAppliedData(a, b) {
+	if (a === b) {
+		return true;
+	}
+	if (
+		a === null ||
+		b === null ||
+		typeof a !== "object" ||
+		typeof b !== "object" ||
+		Array.isArray(a) ||
+		Array.isArray(b)
+	) {
+		return false;
+	}
+	let n = 0;
+	for (const k in a) {
+		if (!Object.hasOwn(a, k)) {
+			continue;
+		}
+		if (!Object.hasOwn(b, k) || !Object.is(a[k], b[k])) {
+			return false;
+		}
+		n++;
+	}
+	for (const k in b) {
+		if (Object.hasOwn(b, k)) {
+			n--;
+		}
+	}
+	return n === 0;
+}
+
 // Class: UITemplate
 // Defines a reusable UI template parsed from HTML. Discovers slots, bindings,
 // and content slots. Provides factory methods for creating instances.
@@ -158,20 +192,21 @@ class UITemplate {
 	}
 
 	// Returns an AppliedUITemplate with this template and `data`.
-	// If `data` contains a `$key`, this template will attempt to return the
-	// same wrapper object for that key on subsequent calls (stable identity),
-	// updating the wrapper's data bag. This enables cheap list reuse even when
-	// using plain `remap` + `Component({... $key })` in behaviors.
+	// If `data` contains a `$key`, this template returns the same wrapper object
+	// for that key while its data is unchanged (stable identity), which enables
+	// cheap list reuse with plain `remap` + `Component({... $key })` in behaviors.
+	// Changed data gets a new wrapper: wrappers are never mutated in place, so a
+	// parent comparing props that hold them (e.g. a list of keyed rows) sees the
+	// change. Keyed slots still reuse the row's instance and nodes by key.
 	apply(data) {
 		data = copyAppliedData(data);
 		const k = data && typeof data === "object" ? data.$key : undefined;
 		if (k != null) {
 			const cache = this._applyCache ?? new Map();
 			this._applyCache = cache;
-			if (cache.has(k)) {
-				const at = cache.get(k);
-				at.data = data;
-				return at;
+			const cached = cache.get(k);
+			if (cached !== undefined && sameAppliedData(cached.data, data)) {
+				return cached;
 			}
 			const at = new AppliedUITemplate(this, data);
 			cache.set(k, at);

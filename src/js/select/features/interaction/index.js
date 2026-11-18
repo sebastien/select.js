@@ -2,7 +2,7 @@
 // Author:  Sebastien Pierre
 // License: BSD-3
 // Created: 2026-05-07
-// Updated: 2026-09-26
+// Updated: 2026-11-23
 
 // Module: select/interaction
 // Aggregates DOM interaction helpers into a stable import surface.
@@ -13,6 +13,7 @@ import draggable, { sort } from "./draggable.js";
 import keyboard, { autoresize, Keyboard } from "./keyboard.js";
 import popup from "./popup.js";
 import positioning from "./positioning.js";
+import scrub from "./scrub.js";
 import snappable from "./snappable.js";
 import sortable from "./sortable.js";
 
@@ -22,6 +23,7 @@ export * from "./draggable.js";
 export * from "./keyboard.js";
 export * from "./popup.js";
 export * from "./positioning.js";
+export * from "./scrub.js";
 export * from "./snappable.js";
 export * from "./sortable.js";
 
@@ -34,6 +36,7 @@ export default {
 	autoresize,
 	popup,
 	positioning,
+	scrub,
 	snappable,
 	sortable,
 	sort,

@@ -202,8 +202,11 @@ items: (self, { items }) => Row.map(items, (v, i) => v, (v) => v.id)
 ```
 
 Stable keys (not array indices) keep logical items stable across splices, removes,
-and reorders. When the same key is seen again, `.map` returns the same wrapper
-object (updating its `.data` in place). This enables cheap list reuse.
+and reorders. When the same key is seen again with the same data (each field
+`Object.is`-equal), `.map` returns the same wrapper object, which enables cheap
+list reuse. Changed data gets a new wrapper, never an in-place update, so keyed
+rows passed down in another component's props still show their changes; the
+list slot keeps the row's instance and nodes by key either way.
 
 When a top-level property of a row's data is a reactive cell (from `cell()`),
 the child instance subscribes to it. A `.set()` on that cell triggers only the

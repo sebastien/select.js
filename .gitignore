@@ -1,2 +1,3 @@
 tests/data/benchmark-*.json
 .memo/index
+.auto/

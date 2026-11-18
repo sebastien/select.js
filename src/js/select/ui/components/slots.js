@@ -1594,8 +1594,9 @@ class UISlot {
 			this.mapping.delete(k);
 			existing = undefined;
 		}
-		// Stable wrappers receive a fresh data bag. Same bag ref means no change;
-		// otherwise update() keeps its granular equality fast-path for unchanged rows.
+		// apply() returns the same wrapper only while its data is unchanged, so the
+		// same wrapper normally means no change; update() otherwise keeps its
+		// granular equality fast-path for unchanged rows.
 		if (
 			item instanceof AppliedUITemplate &&
 			existing &&
