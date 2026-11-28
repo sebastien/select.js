@@ -208,7 +208,7 @@ const SourceTransforms = {
 // SVG forever. Unknown names do not fall back to a collection download.
 const IconSources = {
 	lucide: {
-		url: `https://cdn.jsdelivr.net/npm/lucide-static@1.73.0/icons/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/lucide-static@1.82.0/icons/${ICON_NAME}.svg`,
 		size: [24, 24],
 	},
 	iconoir: {
@@ -224,7 +224,7 @@ const IconSources = {
 	},
 	eva: "eva-outline",
 	tabler: {
-		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.52.0/icons/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.53.0/icons/${ICON_NAME}.svg`,
 		transform: "tablerStyle",
 		size: [24, 24],
 	},
@@ -246,7 +246,7 @@ const IconSources = {
 		style: FillStyle,
 	},
 	"tabler-filled": {
-		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.52.0/icons/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@tabler/icons@3.53.0/icons/${ICON_NAME}.svg`,
 		transform: "tablerStyle",
 		variant: "filled",
 		size: [24, 24],
@@ -334,7 +334,7 @@ const IconSources = {
 		size: [15, 15],
 	},
 	ix: {
-		url: `https://cdn.jsdelivr.net/npm/@siemens/ix-icons@3.7.1/svg/${ICON_NAME}.svg`,
+		url: `https://cdn.jsdelivr.net/npm/@siemens/ix-icons@4.0.0/svg/${ICON_NAME}.svg`,
 		size: [512, 512],
 		style: FillStyle,
 	},

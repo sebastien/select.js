@@ -58,7 +58,7 @@ No build step required — the example below loads straight from a CDN:
 <script type="importmap">
 {
   "imports": {
-    "@select/": "https://cdn.jsdelivr.net/gh/sebastien/select.js@v1.2.1/src/js/select/"
+    "@select/": "https://cdn.jsdelivr.net/gh/sebastien/select.js@v1.2.2/src/js/select/"
   }
 }
 </script>
