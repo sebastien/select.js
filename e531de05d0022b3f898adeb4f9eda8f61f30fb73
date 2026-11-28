@@ -2,3 +2,4 @@ metrics.benchmark.init:665.98
 metrics.benchmark.apply:612.34
 metrics.benchmark.heap:34.43
 metrics.benchmark.solid.init:808.6
+metrics.benchmark.solid.apply:885.26
